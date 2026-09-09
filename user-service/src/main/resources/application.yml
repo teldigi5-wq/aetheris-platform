@@ -13,8 +13,20 @@ spring:
       ddl-auto: update
     open-in-view: false
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: Aetheris User Service
+    stage: 1.5

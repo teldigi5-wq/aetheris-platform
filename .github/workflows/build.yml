@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,7 +16,22 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Build gateway
+      - name: Test gateway
         run: mvn -f gateway/pom.xml -B test
-      - name: Build user service
+      - name: Test user service
         run: mvn -f user-service/pom.xml -B test
+
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install
+      - name: Build dashboard
+        run: npm run build

@@ -4,3 +4,6 @@ target/
 *.iml
 .env
 .DS_Store
+node_modules/
+dist/
+coverage/

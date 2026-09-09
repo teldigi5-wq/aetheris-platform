@@ -6,6 +6,13 @@ spring:
     name: aetheris-gateway
   cloud:
     gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+            allowedMethods: "*"
+            allowedHeaders: "*"
       routes:
         - id: user-service
           uri: http://user-service:8081
@@ -17,3 +24,11 @@ management:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: Aetheris Gateway
+    stage: 1.5

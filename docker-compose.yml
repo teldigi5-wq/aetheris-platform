@@ -9,6 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - aetheris_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aetheris -d aetheris"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   user-service:
     build: ./user-service
@@ -17,7 +22,8 @@ services:
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: aetheris
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "8081:8081"
 
@@ -27,6 +33,13 @@ services:
       - user-service
     ports:
       - "8080:8080"
+
+  dashboard:
+    build: ./dashboard
+    depends_on:
+      - gateway
+    ports:
+      - "3000:80"
 
 volumes:
   aetheris_pg:

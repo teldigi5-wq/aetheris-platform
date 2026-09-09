@@ -1,5 +1,9 @@
 package io.aetheris.users;
 
+import io.aetheris.users.dto.CreateUserRequest;
+import io.aetheris.users.dto.UserResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -8,46 +12,37 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
+@Tag(name = "Users", description = "Aetheris user-management API")
 public class UserController {
-    private final UserRepository repository;
+    private final UserService service;
 
-    public UserController(UserRepository repository) {
-        this.repository = repository;
+    public UserController(UserService service) {
+        this.service = service;
     }
 
     @GetMapping
-    public List<User> all() {
-        return repository.findAll();
+    @Operation(summary = "List users")
+    public List<UserResponse> all() {
+        return service.findAll();
     }
 
     @GetMapping("/{id}")
-    public User one(@PathVariable Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException(id));
+    @Operation(summary = "Get a user")
+    public UserResponse one(@PathVariable Long id) {
+        return service.findById(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public User create(@Valid @RequestBody User user) {
-        if (repository.existsByEmail(user.getEmail())) {
-            throw new IllegalArgumentException("Email already exists");
-        }
-        return repository.save(user);
+    @Operation(summary = "Create a user")
+    public UserResponse create(@Valid @RequestBody CreateUserRequest request) {
+        return service.create(request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a user")
     public void delete(@PathVariable Long id) {
-        if (!repository.existsById(id)) {
-            throw new UserNotFoundException(id);
-        }
-        repository.deleteById(id);
-    }
-
-    @ResponseStatus(HttpStatus.NOT_FOUND)
-    static class UserNotFoundException extends RuntimeException {
-        UserNotFoundException(Long id) {
-            super("User not found: " + id);
-        }
+        service.delete(id);
     }
 }
