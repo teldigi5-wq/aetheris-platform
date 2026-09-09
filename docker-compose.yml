@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aetheris
+      POSTGRES_USER: aetheris
+      POSTGRES_PASSWORD: aetheris
+    ports:
+      - "5432:5432"
+    volumes:
+      - aetheris_pg:/var/lib/postgresql/data
+
+  user-service:
+    build: ./user-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+    depends_on:
+      - postgres
+    ports:
+      - "8081:8081"
+
+  gateway:
+    build: ./gateway
+    depends_on:
+      - user-service
+    ports:
+      - "8080:8080"
+
+volumes:
+  aetheris_pg:

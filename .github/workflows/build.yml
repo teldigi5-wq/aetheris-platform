@@ -1,0 +1,22 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build gateway
+        run: mvn -f gateway/pom.xml -B test
+      - name: Build user service
+        run: mvn -f user-service/pom.xml -B test
