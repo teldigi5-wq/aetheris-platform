@@ -82,6 +82,8 @@ Spring Cloud Gateway emits rate-limit response headers and returns HTTP `429 Too
 
 The user service publishes portable JSON domain events to the durable topic exchange `aetheris.events` using routing keys such as `user.created` and `user.deleted`. The audit service consumes `user.*` events from the durable queue `aetheris.audit.user-events` and exposes its recent consumed events through the protected `/api/events` endpoint.
 
+Runtime verification confirms RabbitMQ health, an active queue/consumer, successful `user.created` delivery, successful `user.deleted` delivery, and protected event retrieval through the gateway.
+
 This stage demonstrates asynchronous communication, topic routing, durable queues, service decoupling, eventual consistency, and consumer-based event processing. A transactional outbox is intentionally left as a later hardening step so the difference between simple event publication and guaranteed database/message atomicity can be discussed in interviews.
 
 ## Engineering goals
@@ -94,7 +96,7 @@ Aetheris is intentionally being built around problems that appear in real platfo
 - [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors, stronger CI
 - [x] Stage 2 — Identity service, JWT authentication, RBAC, refresh tokens, scoped permissions
 - [x] Stage 3 — Redis caching and distributed rate limiting
-- [ ] Stage 4 — RabbitMQ event messaging *(implementation ready; local verification pending)*
+- [x] Stage 4 — RabbitMQ event messaging
 - [ ] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
 - [ ] Stage 6 — Circuit breakers, retries, timeouts, load balancing
 - [ ] Stage 7 — Local Kubernetes + Helm
