@@ -9,7 +9,9 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -22,7 +24,9 @@ public class UserService {
 
     @Cacheable(cacheNames = "usersList", key = "'all'")
     public List<UserResponse> findAll() {
-        return repository.findAll().stream().map(UserService::toResponse).toList();
+        return repository.findAll().stream()
+                .map(UserService::toResponse)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     @Cacheable(cacheNames = "userById", key = "#id")
