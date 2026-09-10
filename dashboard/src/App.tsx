@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 type User = { id: number; name: string; email: string };
 type Health = 'online' | 'offline' | 'checking';
 
-const GATEWAY = 'http://localhost:8080';
+const GATEWAY = '';
 
 export default function App() {
   const [users, setUsers] = useState<User[]>([]);
