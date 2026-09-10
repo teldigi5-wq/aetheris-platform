@@ -10,16 +10,18 @@ Aetheris is an open-source distributed API, identity, observability, and AI-agen
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-## Current milestone — Stage 1.5
+## Current milestone — Stage 2
 
-Aetheris now contains a real API gateway, independently deployable user service, PostgreSQL persistence, typed service/DTO layers, consistent API errors, OpenAPI documentation, a React operations dashboard, health endpoints, Docker Compose, and CI builds.
+Aetheris now has a dedicated identity service, BCrypt password hashing, JWT authentication, refresh-token rotation and revocation, role-based authorization, fine-grained permission scopes, gateway enforcement, protected APIs, authenticated dashboard sessions, and security-focused tests/documentation.
 
 ```mermaid
 flowchart LR
     U[Browser] --> D[Aetheris Dashboard :3000]
     D --> G[Aetheris Gateway :8080]
+    G --> I[Identity Service :8082]
     G --> S[User Service :8081]
-    S --> P[(PostgreSQL :5432)]
+    I --> P[(PostgreSQL :5432)]
+    S --> P
 ```
 
 ## Quick start
@@ -36,17 +38,20 @@ Then open:
 
 - Dashboard: `http://localhost:3000`
 - Gateway health: `http://localhost:8080/actuator/health`
-- User API: `http://localhost:8080/api/users`
+- Identity API: `http://localhost:8080/api/auth/*`
+- Protected User API: `http://localhost:8080/api/users`
 - User-service Swagger UI: `http://localhost:8081/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8081/v3/api-docs`
 
-## API example
+## Stage 2 security model
 
-```bash
-curl -X POST http://localhost:8080/api/users \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Ada Lovelace","email":"ada@example.com"}'
-```
+Access tokens are short-lived signed JWTs containing identity, role, and effective scope claims. Refresh tokens are opaque, rotated on use, revocable, and stored only as SHA-256 hashes in PostgreSQL. The gateway validates access tokens and enforces scopes before forwarding protected requests.
+
+Default role scopes:
+
+- `API_CONSUMER`: `users:read`, `services:read`
+- `DEVELOPER`: `users:read`, `users:write`, `services:read`, `identity:read`
+- `ADMIN`: all developer scopes plus `identity:write`
 
 ## Engineering goals
 
@@ -56,7 +61,7 @@ Aetheris is intentionally being built around problems that appear in real platfo
 
 - [x] Stage 1 — Gateway + user microservice + PostgreSQL
 - [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors, stronger CI
-- [ ] Stage 2 — Identity service, JWT authentication, RBAC, refresh tokens
+- [x] Stage 2 — Identity service, JWT authentication, RBAC, refresh tokens, scoped permissions
 - [ ] Stage 3 — Redis caching and distributed rate limiting
 - [ ] Stage 4 — RabbitMQ/Kafka event messaging
 - [ ] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
@@ -74,6 +79,7 @@ The development stack has no mandatory recurring software fee. Local Docker infr
 
 - [Architecture](docs/architecture.md)
 - [Interview talking points](docs/interview-guide.md)
+- [Token flow and threat model](docs/security/token-flow.md)
 
 ## Author
 
