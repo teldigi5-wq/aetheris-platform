@@ -18,11 +18,13 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
-    private static final Set<String> WRITE_ROLES = Set.of("ADMIN", "DEVELOPER");
+    private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
     private final SecretKey key;
 
     public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret) {
@@ -56,13 +58,15 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
             Object userId = claims.get("uid");
+            Set<String> scopes = readScopes(claims.get("scopes"));
 
             if (email == null || role == null) {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
             }
 
-            if (isWriteRequest(exchange.getRequest().getMethod()) && !WRITE_ROLES.contains(role)) {
-                return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Role " + role + " cannot modify users");
+            String requiredScope = requiredScope(exchange.getRequest().getMethod());
+            if (!scopes.contains(requiredScope)) {
+                return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
             }
 
             ServerWebExchange authenticatedExchange = exchange.mutate()
@@ -70,8 +74,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         headers.remove("X-Aetheris-User-Id");
                         headers.remove("X-Aetheris-User-Email");
                         headers.remove("X-Aetheris-User-Role");
+                        headers.remove("X-Aetheris-Scopes");
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
+                        headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
                         if (userId != null) {
                             headers.set("X-Aetheris-User-Id", String.valueOf(userId));
                         }
@@ -84,12 +90,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
     }
 
+    private Set<String> readScopes(Object claim) {
+        Set<String> scopes = new HashSet<>();
+        if (claim instanceof Collection<?> values) {
+            values.stream().filter(String.class::isInstance).map(String.class::cast).forEach(scopes::add);
+        } else if (claim instanceof String value) {
+            for (String scope : value.split("\\s+")) {
+                if (!scope.isBlank()) scopes.add(scope);
+            }
+        }
+        return scopes;
+    }
+
     private boolean isProtectedUserRoute(String path) {
         return path.equals("/api/users") || path.startsWith("/api/users/");
     }
 
-    private boolean isWriteRequest(HttpMethod method) {
-        return method != null && Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE).contains(method);
+    private String requiredScope(HttpMethod method) {
+        return method != null && WRITE_METHODS.contains(method) ? "users:write" : "users:read";
     }
 
     private Mono<Void> error(ServerWebExchange exchange, HttpStatus status, String error, String message) {
