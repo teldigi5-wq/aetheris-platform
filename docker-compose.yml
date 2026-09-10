@@ -15,14 +15,31 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - aetheris_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   user-service:
     build: ./user-service
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "8081:8081"
@@ -44,9 +61,15 @@ services:
     build: ./gateway
     environment:
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
     depends_on:
-      - user-service
-      - identity-service
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      identity-service:
+        condition: service_started
     ports:
       - "8080:8080"
 
@@ -59,3 +82,4 @@ services:
 
 volumes:
   aetheris_pg:
+  aetheris_redis:
