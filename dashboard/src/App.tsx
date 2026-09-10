@@ -1,11 +1,11 @@
-import { Activity, Boxes, Database, Gauge, LogOut, Network, RefreshCw, ShieldCheck, Users } from 'lucide-react';
+import { Activity, Boxes, Gauge, LogOut, Network, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 type User = { id: number; name: string; email: string };
 type Role = 'ADMIN' | 'DEVELOPER' | 'API_CONSUMER';
 type Account = { id: number; name: string; email: string; role: Role };
-type AuthResponse = { accessToken: string; tokenType: string; expiresInSeconds: number; account: Account };
-type Session = { token: string; account: Account };
+type AuthResponse = { accessToken: string; refreshToken: string; tokenType: string; expiresInSeconds: number; refreshExpiresInSeconds: number; account: Account };
+type Session = { token: string; refreshToken: string; account: Account };
 type Health = 'online' | 'offline' | 'checking';
 
 const SESSION_KEY = 'aetheris.session';
@@ -20,6 +20,23 @@ function readSession(): Session | null {
   }
 }
 
+function writeSession(session: Session) {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+async function rotateSession(current: Session): Promise<Session | null> {
+  const response = await fetch('/api/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: current.refreshToken })
+  });
+  if (!response.ok) return null;
+  const auth = await response.json() as AuthResponse;
+  const next = { token: auth.accessToken, refreshToken: auth.refreshToken, account: auth.account };
+  writeSession(next);
+  return next;
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(() => readSession());
   const [users, setUsers] = useState<User[]>([]);
@@ -28,6 +45,34 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [authMessage, setAuthMessage] = useState('');
   const canWriteUsers = useMemo(() => session?.account.role === 'ADMIN' || session?.account.role === 'DEVELOPER', [session]);
+
+  const expireSession = useCallback(() => {
+    sessionStorage.removeItem(SESSION_KEY);
+    setSession(null);
+    setUsers([]);
+    setAuthMessage('Your session ended. Sign in again.');
+  }, []);
+
+  const protectedFetch = useCallback(async (url: string, init: RequestInit = {}) => {
+    if (!session) return null;
+    const withToken = (token: string) => fetch(url, {
+      ...init,
+      headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` }
+    });
+
+    let response = await withToken(session.token);
+    if (response.status !== 401) return response;
+
+    const rotated = await rotateSession(session);
+    if (!rotated) {
+      expireSession();
+      return null;
+    }
+
+    setSession(rotated);
+    response = await withToken(rotated.token);
+    return response;
+  }, [session, expireSession]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -40,18 +85,8 @@ export default function App() {
         return;
       }
 
-      const usersResponse = await fetch('/api/users', {
-        headers: { Authorization: `Bearer ${session.token}` }
-      });
-
-      if (usersResponse.status === 401) {
-        sessionStorage.removeItem(SESSION_KEY);
-        setSession(null);
-        setUsers([]);
-        setAuthMessage('Your session expired. Sign in again.');
-        return;
-      }
-
+      const usersResponse = await protectedFetch('/api/users');
+      if (!usersResponse) return;
       if (!usersResponse.ok) throw new Error('User service unavailable');
       setUsers(await usersResponse.json());
       setMessage('');
@@ -61,7 +96,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [session]);
+  }, [session, protectedFetch]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -82,13 +117,21 @@ export default function App() {
     }
 
     const auth = await response.json() as AuthResponse;
-    const nextSession = { token: auth.accessToken, account: auth.account };
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+    const nextSession = { token: auth.accessToken, refreshToken: auth.refreshToken, account: auth.account };
+    writeSession(nextSession);
     setSession(nextSession);
     setAuthMessage('');
   }
 
-  function logout() {
+  async function logout() {
+    const current = session;
+    if (current?.refreshToken) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: current.refreshToken })
+      }).catch(() => undefined);
+    }
     sessionStorage.removeItem(SESSION_KEY);
     setSession(null);
     setUsers([]);
@@ -99,14 +142,12 @@ export default function App() {
     event.preventDefault();
     if (!session) return;
     const form = new FormData(event.currentTarget);
-    const response = await fetch('/api/users', {
+    const response = await protectedFetch('/api/users', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.token}`
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: form.get('name'), email: form.get('email') })
     });
+    if (!response) return;
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       setMessage(body.message ?? 'Could not create user');
@@ -122,7 +163,7 @@ export default function App() {
       <div className="authShell">
         <div className="authCard">
           <div className="brand authBrand"><div className="brandMark">A</div><div><strong>Aetheris</strong><span>Control Plane</span></div></div>
-          <p className="eyebrow">STAGE 2.3 · IDENTITY</p>
+          <p className="eyebrow">STAGE 2.4 · SESSION LIFECYCLE</p>
           <h1>Sign in</h1>
           <p className="authIntro">Authenticate through the Aetheris Identity Service to access protected platform resources.</p>
           <form onSubmit={login}>
@@ -131,7 +172,7 @@ export default function App() {
             <button type="submit"><ShieldCheck size={17}/>Sign in to Aetheris</button>
           </form>
           {authMessage && <p className="authError">{authMessage}</p>}
-          <div className="authNote"><ShieldCheck size={15}/><span>JWT session is kept only for this browser tab/session.</span></div>
+          <div className="authNote"><ShieldCheck size={15}/><span>Short-lived access tokens refresh automatically with one-time rotated refresh tokens.</span></div>
         </div>
       </div>
     );
@@ -149,17 +190,17 @@ export default function App() {
           <a><Activity size={18}/>Observability</a>
         </nav>
         <div className="identityCard"><span>{session.account.name}</span><strong>{session.account.role}</strong><small>{session.account.email}</small><button onClick={logout}><LogOut size={15}/>Sign out</button></div>
-        <div className="stage">STAGE 2.3 <span>Identity + RBAC</span></div>
+        <div className="stage">STAGE 2.4 <span>Refresh + Rotation</span></div>
       </aside>
 
       <main>
-        <header><div><p className="eyebrow">PLATFORM OVERVIEW</p><h1>Control plane</h1><p>Authenticated view of the local Aetheris development environment.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/>Refresh</button></header>
+        <header><div><p className="eyebrow">PLATFORM OVERVIEW</p><h1>Control plane</h1><p>Authenticated view with automatic token rotation and session recovery.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/>Refresh</button></header>
 
         <section className="metrics">
           <Metric icon={<Activity/>} label="Gateway" value={health === 'online' ? 'Healthy' : health === 'checking' ? 'Checking' : 'Offline'} hint="Spring Cloud Gateway" tone={health}/>
           <Metric icon={<Boxes/>} label="Services" value={health === 'online' ? '2 / 2' : '0 / 2'} hint="User + Identity"/>
           <Metric icon={<Users/>} label="Users" value={String(users.length)} hint="Protected resource"/>
-          <Metric icon={<ShieldCheck/>} label="Role" value={session.account.role} hint="JWT claim"/>
+          <Metric icon={<ShieldCheck/>} label="Role" value={session.account.role} hint="JWT + refresh session"/>
         </section>
 
         <section className="grid">
