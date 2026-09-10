@@ -1,0 +1,25 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: aetheris-identity-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
+    username: ${SPRING_DATASOURCE_USERNAME:aetheris}
+    password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+aetheris:
+  jwt:
+    secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
+    expiration-seconds: ${AETHERIS_JWT_EXPIRATION_SECONDS:3600}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
