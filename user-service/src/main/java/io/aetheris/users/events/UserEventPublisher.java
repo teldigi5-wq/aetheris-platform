@@ -4,6 +4,8 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -24,8 +26,13 @@ public class UserEventPublisher {
     }
 
     private void publish(String eventType, Long id, String name, String email) {
-        UserDomainEvent event = new UserDomainEvent(
-                UUID.randomUUID().toString(), eventType, Instant.now(), id, name, email);
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("eventId", UUID.randomUUID().toString());
+        event.put("eventType", eventType);
+        event.put("occurredAt", Instant.now().toString());
+        event.put("userId", id);
+        event.put("name", name);
+        event.put("email", email);
         rabbitTemplate.convertAndSend(EXCHANGE, eventType, event);
     }
 }
