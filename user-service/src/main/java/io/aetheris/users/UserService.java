@@ -2,6 +2,7 @@ package io.aetheris.users;
 
 import io.aetheris.users.dto.CreateUserRequest;
 import io.aetheris.users.dto.UserResponse;
+import io.aetheris.users.events.UserEventPublisher;
 import io.aetheris.users.exception.UserNotFoundException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -17,9 +18,11 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class UserService {
     private final UserRepository repository;
+    private final UserEventPublisher eventPublisher;
 
-    public UserService(UserRepository repository) {
+    public UserService(UserRepository repository, UserEventPublisher eventPublisher) {
         this.repository = repository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Cacheable(cacheNames = "usersList", key = "'all'")
@@ -46,6 +49,7 @@ public class UserService {
             throw new IllegalArgumentException("Email already exists");
         }
         User saved = repository.save(new User(request.name().trim(), email));
+        eventPublisher.userCreated(saved.getId(), saved.getName(), saved.getEmail());
         return toResponse(saved);
     }
 
@@ -55,10 +59,9 @@ public class UserService {
             @CacheEvict(cacheNames = "userById", key = "#id")
     })
     public void delete(Long id) {
-        if (!repository.existsById(id)) {
-            throw new UserNotFoundException(id);
-        }
-        repository.deleteById(id);
+        User user = repository.findById(id).orElseThrow(() -> new UserNotFoundException(id));
+        repository.delete(user);
+        eventPublisher.userDeleted(user.getId(), user.getName(), user.getEmail());
     }
 
     private static UserResponse toResponse(User user) {
