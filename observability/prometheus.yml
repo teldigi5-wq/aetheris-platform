@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: aetheris-gateway
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['gateway:8080']
+
+  - job_name: aetheris-user-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['user-service:8081']
+
+  - job_name: aetheris-identity-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['identity-service:8082']
+
+  - job_name: aetheris-audit-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['audit-service:8083']
