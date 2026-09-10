@@ -15,5 +15,16 @@ record LoginRequest(
         @NotBlank String password
 ) {}
 
-record AuthResponse(String accessToken, String tokenType, long expiresInSeconds, AccountResponse account) {}
+record RefreshRequest(@NotBlank String refreshToken) {}
+record LogoutRequest(@NotBlank String refreshToken) {}
+
+record AuthResponse(
+        String accessToken,
+        String refreshToken,
+        String tokenType,
+        long expiresInSeconds,
+        long refreshExpiresInSeconds,
+        AccountResponse account
+) {}
+
 record AccountResponse(Long id, String name, String email, Role role) {}
