@@ -15,9 +15,11 @@ Aetheris is an open-source distributed API, identity, observability, and AI-agen
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing-000000?style=flat-square&logo=opentelemetry&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-## Current milestone — Stage 5
+## Current milestone — Stage 5 complete
 
 Stage 5 adds a complete local observability path: Micrometer/Prometheus metrics from every Java service, Grafana dashboards, centralized Docker logs in Loki through Grafana Alloy, and OpenTelemetry traces routed through the OpenTelemetry Collector into Tempo. The observability stack is optional through the `observability` Compose profile so the normal Aetheris stack remains lightweight on smaller development machines.
+
+Runtime verification completed on 2026-09-10: all four Java services report UP in Prometheus, the provisioned Grafana Aetheris dashboard renders live metrics, Loki receives centralized container logs, and application traces are queryable through the Tempo datasource in Grafana Explore.
 
 ```mermaid
 flowchart LR
@@ -110,7 +112,7 @@ Aetheris is built around real platform-engineering concepts: API management, ide
 - [x] Stage 2 — Identity service, JWT authentication, RBAC, refresh tokens, scoped permissions
 - [x] Stage 3 — Redis caching and distributed rate limiting
 - [x] Stage 4 — RabbitMQ event messaging
-- [ ] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry *(implementation ready; local verification pending)*
+- [x] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
 - [ ] Stage 6 — Circuit breakers, retries, timeouts, load balancing
 - [ ] Stage 7 — Local Kubernetes + Helm
 - [ ] Stage 8 — Aetheris CLI + SDK generation
