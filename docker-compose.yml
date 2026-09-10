@@ -27,10 +27,24 @@ services:
     ports:
       - "8081:8081"
 
+  identity-service:
+    build: ./identity-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+
   gateway:
     build: ./gateway
     depends_on:
       - user-service
+      - identity-service
     ports:
       - "8080:8080"
 
