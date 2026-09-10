@@ -9,6 +9,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -17,9 +18,11 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+    private static final Set<String> WRITE_ROLES = Set.of("ADMIN", "DEVELOPER");
     private final SecretKey key;
 
     public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret) {
@@ -33,13 +36,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
-        if (!path.startsWith("/api/users/" ) && !path.equals("/api/users")) {
+        if (!isProtectedUserRoute(path)) {
             return chain.filter(exchange);
         }
 
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authorization == null || !authorization.startsWith("Bearer ")) {
-            return unauthorized(exchange, "Missing bearer token");
+            return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Missing bearer token");
         }
 
         String token = authorization.substring(7).trim();
@@ -55,11 +58,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             Object userId = claims.get("uid");
 
             if (email == null || role == null) {
-                return unauthorized(exchange, "Token is missing required claims");
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
+            }
+
+            if (isWriteRequest(exchange.getRequest().getMethod()) && !WRITE_ROLES.contains(role)) {
+                return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Role " + role + " cannot modify users");
             }
 
             ServerWebExchange authenticatedExchange = exchange.mutate()
                     .request(builder -> builder.headers(headers -> {
+                        headers.remove("X-Aetheris-User-Id");
+                        headers.remove("X-Aetheris-User-Email");
+                        headers.remove("X-Aetheris-User-Role");
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
                         if (userId != null) {
@@ -70,14 +80,23 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
             return chain.filter(authenticatedExchange);
         } catch (Exception exception) {
-            return unauthorized(exchange, "Invalid or expired access token");
+            return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid or expired access token");
         }
     }
 
-    private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+    private boolean isProtectedUserRoute(String path) {
+        return path.equals("/api/users") || path.startsWith("/api/users/");
+    }
+
+    private boolean isWriteRequest(HttpMethod method) {
+        return method != null && Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE).contains(method);
+    }
+
+    private Mono<Void> error(ServerWebExchange exchange, HttpStatus status, String error, String message) {
+        exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        byte[] bytes = ("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"" + message + "\"}")
+        String escapedMessage = message.replace("\\", "\\\\").replace("\"", "\\\"");
+        byte[] bytes = ("{\"status\":" + status.value() + ",\"error\":\"" + error + "\",\"message\":\"" + escapedMessage + "\"}")
                 .getBytes(StandardCharsets.UTF_8);
         DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(bytes);
         return exchange.getResponse().writeWith(Mono.just(buffer));
