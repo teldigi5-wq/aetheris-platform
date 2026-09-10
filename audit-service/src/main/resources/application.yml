@@ -1,0 +1,25 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: aetheris-audit-service
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:aetheris}
+    password: ${SPRING_RABBITMQ_PASSWORD:aetheris}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+info:
+  app:
+    name: Aetheris Audit Service
+    stage: 4
