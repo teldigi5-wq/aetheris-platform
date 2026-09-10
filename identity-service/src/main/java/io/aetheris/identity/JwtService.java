@@ -31,6 +31,7 @@ public class JwtService {
                 .claim("uid", account.getId())
                 .claim("name", account.getName())
                 .claim("role", account.getRole().name())
+                .claim("scopes", account.getRole().scopes().stream().sorted().toList())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)))
                 .signWith(key)
