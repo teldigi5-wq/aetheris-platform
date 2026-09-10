@@ -28,6 +28,22 @@ services:
       timeout: 3s
       retries: 10
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: aetheris
+      RABBITMQ_DEFAULT_PASS: aetheris
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - aetheris_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   user-service:
     build: ./user-service
     environment:
@@ -36,10 +52,16 @@ services:
       SPRING_DATASOURCE_PASSWORD: aetheris
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: aetheris
+      SPRING_RABBITMQ_PASSWORD: aetheris
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     ports:
       - "8081:8081"
@@ -57,6 +79,19 @@ services:
     ports:
       - "8082:8082"
 
+  audit-service:
+    build: ./audit-service
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: aetheris
+      SPRING_RABBITMQ_PASSWORD: aetheris
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+
   gateway:
     build: ./gateway
     environment:
@@ -69,6 +104,8 @@ services:
       user-service:
         condition: service_started
       identity-service:
+        condition: service_started
+      audit-service:
         condition: service_started
     ports:
       - "8080:8080"
@@ -83,3 +120,4 @@ services:
 volumes:
   aetheris_pg:
   aetheris_redis:
+  aetheris_rabbitmq:
