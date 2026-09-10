@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
-        if (!isProtectedUserRoute(path)) {
+        if (!isProtectedRoute(path)) {
             return chain.filter(exchange);
         }
 
@@ -64,8 +64,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
             }
 
-            String requiredScope = requiredScope(exchange.getRequest().getMethod());
-            if (!scopes.contains(requiredScope)) {
+            String requiredScope = requiredScope(path, exchange.getRequest().getMethod());
+            if (requiredScope != null && !scopes.contains(requiredScope)) {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
             }
 
@@ -102,11 +102,15 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return scopes;
     }
 
-    private boolean isProtectedUserRoute(String path) {
-        return path.equals("/api/users") || path.startsWith("/api/users/");
+    private boolean isProtectedRoute(String path) {
+        return path.equals("/api/users") || path.startsWith("/api/users/")
+                || path.equals("/api/events") || path.startsWith("/api/events/");
     }
 
-    private String requiredScope(HttpMethod method) {
+    private String requiredScope(String path, HttpMethod method) {
+        if (path.equals("/api/events") || path.startsWith("/api/events/")) {
+            return "services:read";
+        }
         return method != null && WRITE_METHODS.contains(method) ? "users:write" : "users:read";
     }
 
