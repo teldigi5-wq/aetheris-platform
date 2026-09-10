@@ -1,29 +1,57 @@
-import { Activity, Boxes, Database, Gauge, Network, RefreshCw, ShieldCheck, Users } from 'lucide-react';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { Activity, Boxes, Database, Gauge, LogOut, Network, RefreshCw, ShieldCheck, Users } from 'lucide-react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 type User = { id: number; name: string; email: string };
+type Role = 'ADMIN' | 'DEVELOPER' | 'API_CONSUMER';
+type Account = { id: number; name: string; email: string; role: Role };
+type AuthResponse = { accessToken: string; tokenType: string; expiresInSeconds: number; account: Account };
+type Session = { token: string; account: Account };
 type Health = 'online' | 'offline' | 'checking';
 
-const GATEWAY = '';
+const SESSION_KEY = 'aetheris.session';
+
+function readSession(): Session | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) as Session : null;
+  } catch {
+    sessionStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+}
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(() => readSession());
   const [users, setUsers] = useState<User[]>([]);
   const [health, setHealth] = useState<Health>('checking');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [authMessage, setAuthMessage] = useState('');
+  const canWriteUsers = useMemo(() => session?.account.role === 'ADMIN' || session?.account.role === 'DEVELOPER', [session]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const healthResponse = await fetch(`${GATEWAY}/actuator/health`);
+      const healthResponse = await fetch('/actuator/health');
       setHealth(healthResponse.ok ? 'online' : 'offline');
 
-      const usersResponse = await fetch(`${GATEWAY}/api/users`);
-      if (usersResponse.status === 401) {
+      if (!session) {
         setUsers([]);
-        setMessage('Authentication required for protected user APIs. Sign-in UI arrives in Stage 2.3.');
         return;
       }
+
+      const usersResponse = await fetch('/api/users', {
+        headers: { Authorization: `Bearer ${session.token}` }
+      });
+
+      if (usersResponse.status === 401) {
+        sessionStorage.removeItem(SESSION_KEY);
+        setSession(null);
+        setUsers([]);
+        setAuthMessage('Your session expired. Sign in again.');
+        return;
+      }
+
       if (!usersResponse.ok) throw new Error('User service unavailable');
       setUsers(await usersResponse.json());
       setMessage('');
@@ -33,16 +61,50 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  async function createUser(event: FormEvent<HTMLFormElement>) {
+  async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setAuthMessage('');
     const form = new FormData(event.currentTarget);
-    const response = await fetch(`${GATEWAY}/api/users`, {
+    const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: form.get('email'), password: form.get('password') })
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setAuthMessage(body.message ?? 'Sign in failed');
+      return;
+    }
+
+    const auth = await response.json() as AuthResponse;
+    const nextSession = { token: auth.accessToken, account: auth.account };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+    setSession(nextSession);
+    setAuthMessage('');
+  }
+
+  function logout() {
+    sessionStorage.removeItem(SESSION_KEY);
+    setSession(null);
+    setUsers([]);
+    setMessage('');
+  }
+
+  async function createUser(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session) return;
+    const form = new FormData(event.currentTarget);
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.token}`
+      },
       body: JSON.stringify({ name: form.get('name'), email: form.get('email') })
     });
     if (!response.ok) {
@@ -53,6 +115,26 @@ export default function App() {
     event.currentTarget.reset();
     setMessage('User created through Aetheris Gateway');
     await refresh();
+  }
+
+  if (!session) {
+    return (
+      <div className="authShell">
+        <div className="authCard">
+          <div className="brand authBrand"><div className="brandMark">A</div><div><strong>Aetheris</strong><span>Control Plane</span></div></div>
+          <p className="eyebrow">STAGE 2.3 · IDENTITY</p>
+          <h1>Sign in</h1>
+          <p className="authIntro">Authenticate through the Aetheris Identity Service to access protected platform resources.</p>
+          <form onSubmit={login}>
+            <label>Email<input name="email" type="email" required autoComplete="username" placeholder="poojana@aetheris.local"/></label>
+            <label>Password<input name="password" type="password" required autoComplete="current-password" placeholder="••••••••"/></label>
+            <button type="submit"><ShieldCheck size={17}/>Sign in to Aetheris</button>
+          </form>
+          {authMessage && <p className="authError">{authMessage}</p>}
+          <div className="authNote"><ShieldCheck size={15}/><span>JWT session is kept only for this browser tab/session.</span></div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -66,26 +148,27 @@ export default function App() {
           <a><ShieldCheck size={18}/>Identity</a>
           <a><Activity size={18}/>Observability</a>
         </nav>
-        <div className="stage">STAGE 2.2 <span>JWT Enforcement</span></div>
+        <div className="identityCard"><span>{session.account.name}</span><strong>{session.account.role}</strong><small>{session.account.email}</small><button onClick={logout}><LogOut size={15}/>Sign out</button></div>
+        <div className="stage">STAGE 2.3 <span>Identity + RBAC</span></div>
       </aside>
 
       <main>
-        <header><div><p className="eyebrow">PLATFORM OVERVIEW</p><h1>Control plane</h1><p>Live view of the local Aetheris development environment.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/>Refresh</button></header>
+        <header><div><p className="eyebrow">PLATFORM OVERVIEW</p><h1>Control plane</h1><p>Authenticated view of the local Aetheris development environment.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/>Refresh</button></header>
 
         <section className="metrics">
           <Metric icon={<Activity/>} label="Gateway" value={health === 'online' ? 'Healthy' : health === 'checking' ? 'Checking' : 'Offline'} hint="Spring Cloud Gateway" tone={health}/>
-          <Metric icon={<Boxes/>} label="Services" value={health === 'online' ? '2 / 2' : '0 / 2'} hint="User + identity"/>
+          <Metric icon={<Boxes/>} label="Services" value={health === 'online' ? '2 / 2' : '0 / 2'} hint="User + Identity"/>
           <Metric icon={<Users/>} label="Users" value={String(users.length)} hint="Protected resource"/>
-          <Metric icon={<Database/>} label="Data layer" value={health === 'online' ? 'PostgreSQL' : 'Unknown'} hint="Local container"/>
+          <Metric icon={<ShieldCheck/>} label="Role" value={session.account.role} hint="JWT claim"/>
         </section>
 
         <section className="grid">
-          <article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">REQUEST PATH</p><h2>Architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Dashboard" meta=":3000"/><Arrow/><Node name="Gateway + JWT" meta=":8080" glow/><Arrow/><Node name="User Service" meta=":8081"/><Arrow/><Node name="PostgreSQL" meta=":5432"/></div></article>
+          <article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">AUTHENTICATED REQUEST PATH</p><h2>Architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Dashboard" meta=":3000"/><Arrow/><Node name="Gateway" meta="JWT + RBAC" glow/><Arrow/><Node name="User Service" meta=":8081"/><Arrow/><Node name="PostgreSQL" meta=":5432"/></div></article>
 
-          <article className="panel"><div className="panelHead"><div><p className="eyebrow">PROTECTED API</p><h2>Create user</h2></div></div><form onSubmit={createUser}><label>Name<input name="name" required maxLength={100} placeholder="Ada Lovelace"/></label><label>Email<input name="email" type="email" required placeholder="ada@example.com"/></label><button type="submit">POST /api/users</button></form>{message && <p className="message">{message}</p>}</article>
+          <article className="panel"><div className="panelHead"><div><p className="eyebrow">RBAC TEST</p><h2>Create user</h2></div><span className={`permission ${canWriteUsers ? 'allowed' : 'denied'}`}>{canWriteUsers ? 'WRITE ALLOWED' : 'READ ONLY'}</span></div><form onSubmit={createUser}><label>Name<input name="name" required maxLength={100} placeholder="Ada Lovelace" disabled={!canWriteUsers}/></label><label>Email<input name="email" type="email" required placeholder="ada@example.com" disabled={!canWriteUsers}/></label><button type="submit" disabled={!canWriteUsers}>POST /api/users</button></form>{!canWriteUsers && <p className="message warning">API_CONSUMER can read users but cannot modify them. ADMIN or DEVELOPER is required.</p>}{message && <p className="message">{message}</p>}</article>
         </section>
 
-        <article className="panel users"><div className="panelHead"><div><p className="eyebrow">GATEWAY RESPONSE</p><h2>Users</h2></div><code>GET /api/users</code></div>{users.length === 0 ? <div className="empty">Protected by JWT. Authenticate through /api/auth/login, then call this route with a Bearer token.</div> : <div className="table">{users.map(user => <div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}</article>
+        <article className="panel users"><div className="panelHead"><div><p className="eyebrow">PROTECTED GATEWAY RESPONSE</p><h2>Users</h2></div><code>GET /api/users</code></div>{users.length === 0 ? <div className="empty">No users returned from the protected user resource.</div> : <div className="table">{users.map(user => <div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}</article>
       </main>
     </div>
   );
