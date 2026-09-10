@@ -42,6 +42,8 @@ services:
 
   gateway:
     build: ./gateway
+    environment:
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
     depends_on:
       - user-service
       - identity-service
