@@ -2,24 +2,27 @@
 
 **Build. Secure. Observe. Orchestrate.**
 
-Aetheris is an open-source distributed API, identity, observability, and AI-agent platform built with Java, Spring Boot, React, PostgreSQL, and cloud-native technologies.
+Aetheris is an open-source distributed API, identity, observability, and AI-agent platform built with Java, Spring Boot, React, PostgreSQL, Redis, and cloud-native technologies.
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=flat-square&logo=react&logoColor=111827)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-## Current milestone — Stage 2
+## Current milestone — Stage 3
 
-Aetheris now has a dedicated identity service, BCrypt password hashing, JWT authentication, refresh-token rotation and revocation, role-based authorization, fine-grained permission scopes, gateway enforcement, protected APIs, authenticated dashboard sessions, and security-focused tests/documentation.
+Stage 3 adds Redis as Aetheris' shared traffic and cache layer. The gateway now uses Redis-backed distributed token-bucket rate limiting, while the user service caches read-heavy user responses in Redis with cache eviction on writes. Stage 2 identity, JWT, refresh-token rotation, scoped authorization, and protected dashboard sessions remain in place.
 
 ```mermaid
 flowchart LR
     U[Browser] --> D[Aetheris Dashboard :3000]
     D --> G[Aetheris Gateway :8080]
+    G --> R[(Redis :6379)]
     G --> I[Identity Service :8082]
     G --> S[User Service :8081]
+    S --> R
     I --> P[(PostgreSQL :5432)]
     S --> P
 ```
@@ -42,6 +45,7 @@ Then open:
 - Protected User API: `http://localhost:8080/api/users`
 - User-service Swagger UI: `http://localhost:8081/swagger-ui.html`
 - OpenAPI JSON: `http://localhost:8081/v3/api-docs`
+- Redis: `localhost:6379`
 
 ## Stage 2 security model
 
@@ -53,16 +57,30 @@ Default role scopes:
 - `DEVELOPER`: `users:read`, `users:write`, `services:read`, `identity:read`
 - `ADMIN`: all developer scopes plus `identity:write`
 
+## Stage 3 traffic model
+
+Redis serves two distributed-platform responsibilities:
+
+- shared cache for user reads, with a 60-second TTL and eviction after user writes
+- shared gateway token buckets so limits are consistent across future gateway replicas
+
+Default local limits:
+
+- identity endpoints: 5 requests/second, burst 10
+- user endpoints: 10 requests/second, burst 20
+
+Spring Cloud Gateway emits rate-limit response headers and returns HTTP `429 Too Many Requests` when a bucket is exhausted.
+
 ## Engineering goals
 
-Aetheris is intentionally being built around problems that appear in real platform engineering interviews: API management, identity, security, distributed communication, resilience, observability, cloud-native deployment, and agent governance. Each stage adds a small number of concepts so the architecture remains explainable rather than becoming a collection of unrelated technologies.
+Aetheris is intentionally being built around problems that appear in real platform engineering interviews: API management, identity, security, distributed communication, caching, traffic management, resilience, observability, cloud-native deployment, and agent governance. Each stage adds a small number of concepts so the architecture remains explainable rather than becoming a collection of unrelated technologies.
 
 ## Roadmap
 
 - [x] Stage 1 — Gateway + user microservice + PostgreSQL
 - [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors, stronger CI
 - [x] Stage 2 — Identity service, JWT authentication, RBAC, refresh tokens, scoped permissions
-- [ ] Stage 3 — Redis caching and distributed rate limiting
+- [ ] Stage 3 — Redis caching and distributed rate limiting *(implementation ready; local verification pending)*
 - [ ] Stage 4 — RabbitMQ/Kafka event messaging
 - [ ] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
 - [ ] Stage 6 — Circuit breakers, retries, timeouts, load balancing
