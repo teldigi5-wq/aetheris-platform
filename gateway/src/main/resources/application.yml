@@ -39,4 +39,4 @@ management:
 info:
   app:
     name: Aetheris Gateway
-    stage: 2.2
+    stage: 2.3
