@@ -15,11 +15,15 @@ export default function App() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [healthResponse, usersResponse] = await Promise.all([
-        fetch(`${GATEWAY}/actuator/health`),
-        fetch(`${GATEWAY}/api/users`)
-      ]);
+      const healthResponse = await fetch(`${GATEWAY}/actuator/health`);
       setHealth(healthResponse.ok ? 'online' : 'offline');
+
+      const usersResponse = await fetch(`${GATEWAY}/api/users`);
+      if (usersResponse.status === 401) {
+        setUsers([]);
+        setMessage('Authentication required for protected user APIs. Sign-in UI arrives in Stage 2.3.');
+        return;
+      }
       if (!usersResponse.ok) throw new Error('User service unavailable');
       setUsers(await usersResponse.json());
       setMessage('');
@@ -62,7 +66,7 @@ export default function App() {
           <a><ShieldCheck size={18}/>Identity</a>
           <a><Activity size={18}/>Observability</a>
         </nav>
-        <div className="stage">STAGE 1.5 <span>Foundation</span></div>
+        <div className="stage">STAGE 2.2 <span>JWT Enforcement</span></div>
       </aside>
 
       <main>
@@ -70,18 +74,18 @@ export default function App() {
 
         <section className="metrics">
           <Metric icon={<Activity/>} label="Gateway" value={health === 'online' ? 'Healthy' : health === 'checking' ? 'Checking' : 'Offline'} hint="Spring Cloud Gateway" tone={health}/>
-          <Metric icon={<Boxes/>} label="Services" value={health === 'online' ? '1 / 1' : '0 / 1'} hint="User service"/>
-          <Metric icon={<Users/>} label="Users" value={String(users.length)} hint="Persisted accounts"/>
+          <Metric icon={<Boxes/>} label="Services" value={health === 'online' ? '2 / 2' : '0 / 2'} hint="User + identity"/>
+          <Metric icon={<Users/>} label="Users" value={String(users.length)} hint="Protected resource"/>
           <Metric icon={<Database/>} label="Data layer" value={health === 'online' ? 'PostgreSQL' : 'Unknown'} hint="Local container"/>
         </section>
 
         <section className="grid">
-          <article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">REQUEST PATH</p><h2>Architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Dashboard" meta=":3000"/><Arrow/><Node name="Gateway" meta=":8080" glow/><Arrow/><Node name="User Service" meta=":8081"/><Arrow/><Node name="PostgreSQL" meta=":5432"/></div></article>
+          <article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">REQUEST PATH</p><h2>Architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Dashboard" meta=":3000"/><Arrow/><Node name="Gateway + JWT" meta=":8080" glow/><Arrow/><Node name="User Service" meta=":8081"/><Arrow/><Node name="PostgreSQL" meta=":5432"/></div></article>
 
-          <article className="panel"><div className="panelHead"><div><p className="eyebrow">API TEST</p><h2>Create user</h2></div></div><form onSubmit={createUser}><label>Name<input name="name" required maxLength={100} placeholder="Ada Lovelace"/></label><label>Email<input name="email" type="email" required placeholder="ada@example.com"/></label><button type="submit">POST /api/users</button></form>{message && <p className="message">{message}</p>}</article>
+          <article className="panel"><div className="panelHead"><div><p className="eyebrow">PROTECTED API</p><h2>Create user</h2></div></div><form onSubmit={createUser}><label>Name<input name="name" required maxLength={100} placeholder="Ada Lovelace"/></label><label>Email<input name="email" type="email" required placeholder="ada@example.com"/></label><button type="submit">POST /api/users</button></form>{message && <p className="message">{message}</p>}</article>
         </section>
 
-        <article className="panel users"><div className="panelHead"><div><p className="eyebrow">GATEWAY RESPONSE</p><h2>Users</h2></div><code>GET /api/users</code></div>{users.length === 0 ? <div className="empty">No users yet. Create one to test the complete request path.</div> : <div className="table">{users.map(user => <div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}</article>
+        <article className="panel users"><div className="panelHead"><div><p className="eyebrow">GATEWAY RESPONSE</p><h2>Users</h2></div><code>GET /api/users</code></div>{users.length === 0 ? <div className="empty">Protected by JWT. Authenticate through /api/auth/login, then call this route with a Bearer token.</div> : <div className="table">{users.map(user => <div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}</article>
       </main>
     </div>
   );
