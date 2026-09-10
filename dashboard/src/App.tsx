@@ -3,7 +3,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 type User = { id: number; name: string; email: string };
 type Role = 'ADMIN' | 'DEVELOPER' | 'API_CONSUMER';
-type Account = { id: number; name: string; email: string; role: Role };
+type Account = { id: number; name: string; email: string; role: Role; scopes: string[] };
 type AuthResponse = { accessToken: string; refreshToken: string; tokenType: string; expiresInSeconds: number; refreshExpiresInSeconds: number; account: Account };
 type Session = { token: string; refreshToken: string; account: Account };
 type Health = 'online' | 'offline' | 'checking';
@@ -44,7 +44,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [authMessage, setAuthMessage] = useState('');
-  const canWriteUsers = useMemo(() => session?.account.role === 'ADMIN' || session?.account.role === 'DEVELOPER', [session]);
+  const canWriteUsers = useMemo(() => session?.account.scopes?.includes('users:write') ?? false, [session]);
 
   const expireSession = useCallback(() => {
     sessionStorage.removeItem(SESSION_KEY);
@@ -70,8 +70,7 @@ export default function App() {
     }
 
     setSession(rotated);
-    response = await withToken(rotated.token);
-    return response;
+    return withToken(rotated.token);
   }, [session, expireSession]);
 
   const refresh = useCallback(async () => {
@@ -163,16 +162,16 @@ export default function App() {
       <div className="authShell">
         <div className="authCard">
           <div className="brand authBrand"><div className="brandMark">A</div><div><strong>Aetheris</strong><span>Control Plane</span></div></div>
-          <p className="eyebrow">STAGE 2.4 · SESSION LIFECYCLE</p>
+          <p className="eyebrow">STAGE 2.6 · SCOPED AUTHORIZATION</p>
           <h1>Sign in</h1>
-          <p className="authIntro">Authenticate through the Aetheris Identity Service to access protected platform resources.</p>
+          <p className="authIntro">Authenticate through the Aetheris Identity Service to access scoped platform resources.</p>
           <form onSubmit={login}>
             <label>Email<input name="email" type="email" required autoComplete="username" placeholder="poojana@aetheris.local"/></label>
             <label>Password<input name="password" type="password" required autoComplete="current-password" placeholder="••••••••"/></label>
             <button type="submit"><ShieldCheck size={17}/>Sign in to Aetheris</button>
           </form>
           {authMessage && <p className="authError">{authMessage}</p>}
-          <div className="authNote"><ShieldCheck size={15}/><span>Short-lived access tokens refresh automatically with one-time rotated refresh tokens.</span></div>
+          <div className="authNote"><ShieldCheck size={15}/><span>JWTs carry role-derived scopes and refresh with one-time rotated refresh tokens.</span></div>
         </div>
       </div>
     );
@@ -189,27 +188,27 @@ export default function App() {
           <a><ShieldCheck size={18}/>Identity</a>
           <a><Activity size={18}/>Observability</a>
         </nav>
-        <div className="identityCard"><span>{session.account.name}</span><strong>{session.account.role}</strong><small>{session.account.email}</small><button onClick={logout}><LogOut size={15}/>Sign out</button></div>
-        <div className="stage">STAGE 2.4 <span>Refresh + Rotation</span></div>
+        <div className="identityCard"><span>{session.account.name}</span><strong>{session.account.role}</strong><small>{session.account.email}</small><small>{session.account.scopes?.join(' · ')}</small><button onClick={logout}><LogOut size={15}/>Sign out</button></div>
+        <div className="stage">STAGE 2.6 <span>Scopes + Permissions</span></div>
       </aside>
 
       <main>
-        <header><div><p className="eyebrow">PLATFORM OVERVIEW</p><h1>Control plane</h1><p>Authenticated view with automatic token rotation and session recovery.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/>Refresh</button></header>
+        <header><div><p className="eyebrow">PLATFORM OVERVIEW</p><h1>Control plane</h1><p>Authenticated view with role-derived permission scopes and token rotation.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/>Refresh</button></header>
 
         <section className="metrics">
           <Metric icon={<Activity/>} label="Gateway" value={health === 'online' ? 'Healthy' : health === 'checking' ? 'Checking' : 'Offline'} hint="Spring Cloud Gateway" tone={health}/>
           <Metric icon={<Boxes/>} label="Services" value={health === 'online' ? '2 / 2' : '0 / 2'} hint="User + Identity"/>
-          <Metric icon={<Users/>} label="Users" value={String(users.length)} hint="Protected resource"/>
-          <Metric icon={<ShieldCheck/>} label="Role" value={session.account.role} hint="JWT + refresh session"/>
+          <Metric icon={<Users/>} label="Users" value={String(users.length)} hint="users:read"/>
+          <Metric icon={<ShieldCheck/>} label="Role" value={session.account.role} hint={`${session.account.scopes?.length ?? 0} effective scopes`}/>
         </section>
 
         <section className="grid">
-          <article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">AUTHENTICATED REQUEST PATH</p><h2>Architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Dashboard" meta=":3000"/><Arrow/><Node name="Gateway" meta="JWT + RBAC" glow/><Arrow/><Node name="User Service" meta=":8081"/><Arrow/><Node name="PostgreSQL" meta=":5432"/></div></article>
+          <article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">AUTHENTICATED REQUEST PATH</p><h2>Architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Dashboard" meta=":3000"/><Arrow/><Node name="Gateway" meta="JWT + Scopes" glow/><Arrow/><Node name="User Service" meta=":8081"/><Arrow/><Node name="PostgreSQL" meta=":5432"/></div></article>
 
-          <article className="panel"><div className="panelHead"><div><p className="eyebrow">RBAC TEST</p><h2>Create user</h2></div><span className={`permission ${canWriteUsers ? 'allowed' : 'denied'}`}>{canWriteUsers ? 'WRITE ALLOWED' : 'READ ONLY'}</span></div><form onSubmit={createUser}><label>Name<input name="name" required maxLength={100} placeholder="Ada Lovelace" disabled={!canWriteUsers}/></label><label>Email<input name="email" type="email" required placeholder="ada@example.com" disabled={!canWriteUsers}/></label><button type="submit" disabled={!canWriteUsers}>POST /api/users</button></form>{!canWriteUsers && <p className="message warning">API_CONSUMER can read users but cannot modify them. ADMIN or DEVELOPER is required.</p>}{message && <p className="message">{message}</p>}</article>
+          <article className="panel"><div className="panelHead"><div><p className="eyebrow">PERMISSION TEST</p><h2>Create user</h2></div><span className={`permission ${canWriteUsers ? 'allowed' : 'denied'}`}>{canWriteUsers ? 'users:write' : 'READ ONLY'}</span></div><form onSubmit={createUser}><label>Name<input name="name" required maxLength={100} placeholder="Ada Lovelace" disabled={!canWriteUsers}/></label><label>Email<input name="email" type="email" required placeholder="ada@example.com" disabled={!canWriteUsers}/></label><button type="submit" disabled={!canWriteUsers}>POST /api/users</button></form>{!canWriteUsers && <p className="message warning">This identity has users:read but not users:write.</p>}{message && <p className="message">{message}</p>}</article>
         </section>
 
-        <article className="panel users"><div className="panelHead"><div><p className="eyebrow">PROTECTED GATEWAY RESPONSE</p><h2>Users</h2></div><code>GET /api/users</code></div>{users.length === 0 ? <div className="empty">No users returned from the protected user resource.</div> : <div className="table">{users.map(user => <div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}</article>
+        <article className="panel users"><div className="panelHead"><div><p className="eyebrow">SCOPED GATEWAY RESPONSE</p><h2>Users</h2></div><code>users:read · GET /api/users</code></div>{users.length === 0 ? <div className="empty">No users returned from the protected user resource.</div> : <div className="table">{users.map(user => <div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}</article>
       </main>
     </div>
   );
