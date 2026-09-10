@@ -3,6 +3,7 @@ package io.aetheris.identity;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.Set;
 
 record RegisterRequest(
         @NotBlank @Size(max = 100) String name,
@@ -27,4 +28,4 @@ record AuthResponse(
         AccountResponse account
 ) {}
 
-record AccountResponse(Long id, String name, String email, Role role) {}
+record AccountResponse(Long id, String name, String email, Role role, Set<String> scopes) {}
