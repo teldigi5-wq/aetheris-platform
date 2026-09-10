@@ -64,7 +64,7 @@ public class IdentityService {
                 "Bearer",
                 jwtService.expirationSeconds(),
                 refreshToken.expiresInSeconds(),
-                new AccountResponse(account.getId(), account.getName(), account.getEmail(), account.getRole()));
+                new AccountResponse(account.getId(), account.getName(), account.getEmail(), account.getRole(), account.getRole().scopes()));
     }
 
     static class EmailAlreadyRegisteredException extends RuntimeException {}
