@@ -20,6 +20,8 @@ jobs:
         run: mvn -f gateway/pom.xml -B test
       - name: Test user service
         run: mvn -f user-service/pom.xml -B test
+      - name: Test identity service
+        run: mvn -f identity-service/pom.xml -B test
 
   dashboard:
     runs-on: ubuntu-latest
