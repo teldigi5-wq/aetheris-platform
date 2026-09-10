@@ -12,6 +12,11 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:aetheris}
+    password: ${SPRING_RABBITMQ_PASSWORD:aetheris}
   cache:
     type: redis
     redis:
@@ -38,4 +43,4 @@ management:
 info:
   app:
     name: Aetheris User Service
-    stage: 3
+    stage: 4
