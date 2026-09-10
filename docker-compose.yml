@@ -56,6 +56,7 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
       SPRING_RABBITMQ_PASSWORD: aetheris
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
         condition: service_healthy
@@ -73,6 +74,7 @@ services:
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: aetheris
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,6 +88,7 @@ services:
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
       SPRING_RABBITMQ_PASSWORD: aetheris
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -98,6 +101,7 @@ services:
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       redis:
         condition: service_healthy
@@ -117,7 +121,90 @@ services:
     ports:
       - "3000:80"
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=24h
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - aetheris_prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - gateway
+      - user-service
+      - identity-service
+      - audit-service
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo.yml:ro
+      - aetheris_tempo:/var/tempo
+    ports:
+      - "3200:3200"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    profiles: ["observability"]
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol-contrib/config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - tempo
+
+  loki:
+    image: grafana/loki:3.2.1
+    profiles: ["observability"]
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./observability/loki.yml:/etc/loki/local-config.yaml:ro
+      - aetheris_loki:/loki
+    ports:
+      - "3100:3100"
+
+  alloy:
+    image: grafana/alloy:v1.4.3
+    profiles: ["observability"]
+    command: ["run", "/etc/alloy/config.alloy", "--server.http.listen-addr=0.0.0.0:12345"]
+    volumes:
+      - ./observability/alloy.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "12345:12345"
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: aetheris
+      GF_SECURITY_ADMIN_PASSWORD: aetheris
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - aetheris_grafana:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
 volumes:
   aetheris_pg:
   aetheris_redis:
   aetheris_rabbitmq:
+  aetheris_prometheus:
+  aetheris_tempo:
+  aetheris_loki:
+  aetheris_grafana:
