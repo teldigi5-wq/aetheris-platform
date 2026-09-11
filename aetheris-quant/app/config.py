@@ -33,6 +33,7 @@ class Settings(BaseModel):
 
     # v1.0 autonomous TESTNET lifecycle
     enable_autonomous_testnet: bool = b("ENABLE_AUTONOMOUS_TESTNET")
+    auto_start_autonomous: bool = b("AUTO_START_AUTONOMOUS", "false")
     auto_scan_seconds: int = int(os.getenv("AUTO_SCAN_SECONDS", "120"))
     auto_scan_markets: int = int(os.getenv("AUTO_SCAN_MARKETS", "12"))
     auto_min_score: float = float(os.getenv("AUTO_MIN_SCORE", "82"))
