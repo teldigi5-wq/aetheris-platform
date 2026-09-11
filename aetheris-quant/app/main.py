@@ -8,11 +8,14 @@ from .strategy import analyze, multi_timeframe
 from .paper import PaperBroker
 from .config import settings
 from .backtest import run_backtest, strategy_arena, strategy_votes
+from .intelligence import smart_money_snapshot, returns_correlation
+from .shadow import ShadowTrader
 
-app=FastAPI(title="Aetheris Quant",version="0.4")
+app=FastAPI(title="Aetheris Quant",version="0.5")
 BASE=Path(__file__).parent
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 broker=PaperBroker(settings.starting_balance)
+shadow=ShadowTrader()
 TIMEFRAMES=["5m","15m","1h","4h"]
 SCAN_SEMAPHORE = asyncio.Semaphore(8)
 
@@ -39,6 +42,7 @@ async def analysis(symbol:str, interval:str="15m"):
         a["multi_timeframe"]=mtf
         a["futures_metrics"]=metrics
         a["strategy_votes"]=strategy_votes(df)
+        a["smart_money"]=smart_money_snapshot(df)
         a["candles"]=[{
             "time":int(r.open_time),"open":float(r.open),"high":float(r.high),
             "low":float(r.low),"close":float(r.close),"volume":float(r.volume)
@@ -52,6 +56,7 @@ async def analysis(symbol:str, interval:str="15m"):
             "ema200":[{"time":int(df.iloc[i].open_time),"value":float(e200.iloc[i])} for i in range(start,len(df))]
         }
         broker.monitor(symbol,a["price"])
+        shadow.update(symbol,a["price"])
         return a
     except Exception as e:
         raise HTTPException(502,str(e))
@@ -65,7 +70,12 @@ async def universe(q: str = ""):
     return {"count":len(rows),"coins":rows}
 
 @app.get("/api/scanner")
-async def scanner(q: str = "", offset: int = Query(0, ge=0), limit: int = Query(20, ge=5, le=40), sort: str = "volume"):
+async def scanner(
+    q: str = "",
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=5, le=40),
+    sort: str = "volume"
+):
     universe=await futures_universe()
     q=q.strip().upper()
     if q:
@@ -102,6 +112,19 @@ async def paper_open(symbol:str, leverage:int=1):
     symbol=symbol.upper()
     analyses,mtf=await build_mtf(symbol)
     a=analyses["15m"]
+    smart=smart_money_snapshot(await klines(symbol,"15m",250))
+    if smart["bias"] not in (a["decision"], "NEUTRAL"):
+        return {"ok":False,"reason":"Smart-money/liquidity bias conflicts with trade direction.","smart_money":smart}
+    for pos in broker.state["positions"]:
+        if pos.get("side") != a["decision"] or pos.get("symbol") == symbol:
+            continue
+        try:
+            da,db=await asyncio.gather(klines(symbol,"15m",180),klines(pos["symbol"],"15m",180))
+            corr=returns_correlation(da,db)
+            if corr >= settings.max_correlated_exposure:
+                return {"ok":False,"reason":f"Correlation guard: {symbol} is {corr:.2f} correlated with open {pos['symbol']} {pos['side']} position."}
+        except Exception:
+            pass
     return broker.open(symbol,a,leverage,mtf)
 
 @app.get("/api/backtest/{symbol}")
@@ -125,6 +148,41 @@ async def arena(symbol:str, interval:str="15m", limit:int=1200):
     except Exception as e:
         raise HTTPException(502,str(e))
 
+@app.post("/api/shadow/scan")
+async def shadow_scan(limit:int=12):
+    universe=(await futures_universe())[:max(5,min(limit,25))]
+    async def one(row):
+        async with SCAN_SEMAPHORE:
+            try:
+                df=await klines(row["symbol"],"15m",250)
+                a=analyze(df); smart=smart_money_snapshot(df)
+                frames=await asyncio.gather(*[klines(row["symbol"],tf,220) for tf in TIMEFRAMES])
+                mtf=multi_timeframe({tf:analyze(x) for tf,x in zip(TIMEFRAMES,frames)})
+                return shadow.consider(row["symbol"],a,mtf,smart)
+            except Exception:
+                return None
+    vals=await asyncio.gather(*[one(r) for r in universe])
+    return {"created":[x for x in vals if x],"shadow":shadow.snapshot()}
+
+@app.get("/api/shadow")
+async def shadow_state():
+    return shadow.snapshot()
+
+@app.get("/api/portfolio/intelligence")
+async def portfolio_intelligence():
+    positions=broker.state["positions"]
+    pairs=[]
+    for i in range(len(positions)):
+        for j in range(i+1,len(positions)):
+            a,b=positions[i],positions[j]
+            try:
+                da,db=await asyncio.gather(klines(a["symbol"],"15m",160),klines(b["symbol"],"15m",160))
+                pairs.append({"a":a["symbol"],"b":b["symbol"],"correlation":round(returns_correlation(da,db),3),"same_side":a["side"]==b["side"]})
+            except Exception:
+                pass
+    concentration=sum(float(p.get("notional",0)) for p in positions)/max(broker.state["balance"],1)
+    return {"positions":len(positions),"gross_notional":round(sum(float(p.get("notional",0)) for p in positions),2),"notional_to_equity":round(concentration,3),"correlations":pairs}
+
 @app.get("/api/account")
 async def account():
     return {"mode":settings.mode,**broker.state,
@@ -140,4 +198,4 @@ async def journal():
 
 @app.get("/api/health")
 def health():
-    return {"ok":True,"version":"0.4","mode":settings.mode,"live_trading_enabled":False}
+    return {"ok":True,"version":"0.5","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True}
