@@ -1,0 +1,367 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aetheris-secrets
+  labels:
+    {{- include "aetheris.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  AETHERIS_JWT_SECRET: {{ .Values.secrets.jwtSecret | quote }}
+  POSTGRES_PASSWORD: {{ .Values.secrets.postgresPassword | quote }}
+  RABBITMQ_DEFAULT_USER: {{ .Values.secrets.rabbitmqUsername | quote }}
+  RABBITMQ_DEFAULT_PASS: {{ .Values.secrets.rabbitmqPassword | quote }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aetheris-config
+  labels:
+    {{- include "aetheris.labels" . | nindent 4 }}
+data:
+  POSTGRES_DB: aetheris
+  POSTGRES_USER: aetheris
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+  SPRING_DATASOURCE_USERNAME: aetheris
+  SPRING_DATA_REDIS_HOST: redis
+  SPRING_DATA_REDIS_PORT: "6379"
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_PORT: "5672"
+  SPRING_RABBITMQ_USERNAME: {{ .Values.secrets.rabbitmqUsername | quote }}
+  MANAGEMENT_OTLP_TRACING_ENDPOINT: {{ .Values.observability.otlpEndpoint | quote }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  labels:
+    {{- include "aetheris.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.postgres }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  labels:
+    {{- include "aetheris.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.redis }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data
+  labels:
+    {{- include "aetheris.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.global.storageClass }}
+  storageClassName: {{ .Values.global.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.rabbitmq }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+    {{- include "aetheris.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        app.kubernetes.io/part-of: aetheris
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.images.postgres }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: POSTGRES_DB } }
+            - name: POSTGRES_USER
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: POSTGRES_PASSWORD } }
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U aetheris -d aetheris"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U aetheris -d aetheris"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector: { app: postgres }
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels:
+        app: redis
+        app.kubernetes.io/part-of: aetheris
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.images.redis }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          args: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+spec:
+  selector: { app: redis }
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: rabbitmq }
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        app.kubernetes.io/part-of: aetheris
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.images.rabbitmq }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - { name: amqp, containerPort: 5672 }
+            - { name: management, containerPort: 15672 }
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: RABBITMQ_DEFAULT_USER } }
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: RABBITMQ_DEFAULT_PASS } }
+          readinessProbe:
+            exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+spec:
+  selector: { app: rabbitmq }
+  ports:
+    - { name: amqp, port: 5672, targetPort: 5672 }
+    - { name: management, port: 15672, targetPort: 15672 }
+---
+{{- $apps := list
+  (dict "name" "user-service" "image" .Values.images.userService "replicas" .Values.replicas.userService "port" 8081 "resource" .Values.resources.userService)
+  (dict "name" "identity-service" "image" .Values.images.identityService "replicas" .Values.replicas.identityService "port" 8082 "resource" .Values.resources.identityService)
+  (dict "name" "audit-service" "image" .Values.images.auditService "replicas" .Values.replicas.auditService "port" 8083 "resource" .Values.resources.auditService)
+  (dict "name" "gateway" "image" .Values.images.gateway "replicas" .Values.replicas.gateway "port" 8080 "resource" .Values.resources.gateway)
+}}
+{{- range $app := $apps }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $app.name }}
+  labels:
+    app: {{ $app.name }}
+    {{- include "aetheris.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ $app.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $app.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $app.name }}
+        app.kubernetes.io/part-of: aetheris
+    spec:
+      containers:
+        - name: {{ $app.name }}
+          image: {{ $app.image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $app.port }}
+          env:
+            {{- if or (eq $app.name "user-service") (eq $app.name "identity-service") }}
+            - name: SPRING_DATASOURCE_URL
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATASOURCE_URL } }
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATASOURCE_USERNAME } }
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: POSTGRES_PASSWORD } }
+            {{- end }}
+            {{- if or (eq $app.name "user-service") (eq $app.name "gateway") }}
+            - name: SPRING_DATA_REDIS_HOST
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATA_REDIS_HOST } }
+            - name: SPRING_DATA_REDIS_PORT
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATA_REDIS_PORT } }
+            {{- end }}
+            {{- if or (eq $app.name "user-service") (eq $app.name "audit-service") }}
+            - name: SPRING_RABBITMQ_HOST
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_RABBITMQ_HOST } }
+            - name: SPRING_RABBITMQ_PORT
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_RABBITMQ_PORT } }
+            - name: SPRING_RABBITMQ_USERNAME
+              valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_RABBITMQ_USERNAME } }
+            - name: SPRING_RABBITMQ_PASSWORD
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: RABBITMQ_DEFAULT_PASS } }
+            {{- end }}
+            {{- if or (eq $app.name "identity-service") (eq $app.name "gateway") }}
+            - name: AETHERIS_JWT_SECRET
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: AETHERIS_JWT_SECRET } }
+            {{- end }}
+            {{- if $.Values.observability.otlpEndpoint }}
+            - name: MANAGEMENT_OTLP_TRACING_ENDPOINT
+              value: {{ $.Values.observability.otlpEndpoint | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet: { path: /actuator/health, port: {{ $app.port }} }
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet: { path: /actuator/health, port: {{ $app.port }} }
+            initialDelaySeconds: 45
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            {{- toYaml $app.resource | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $app.name }}
+spec:
+  selector:
+    app: {{ $app.name }}
+  ports:
+    - port: {{ $app.port }}
+      targetPort: {{ $app.port }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  labels:
+    app: dashboard
+    {{- include "aetheris.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.dashboard }}
+  selector:
+    matchLabels: { app: dashboard }
+  template:
+    metadata:
+      labels:
+        app: dashboard
+        app.kubernetes.io/part-of: aetheris
+    spec:
+      containers:
+        - name: dashboard
+          image: {{ .Values.images.dashboard }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources.dashboard | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+spec:
+  type: {{ .Values.service.dashboard.type }}
+  selector: { app: dashboard }
+  ports:
+    - port: {{ .Values.service.dashboard.port }}
+      targetPort: 80
