@@ -42,6 +42,31 @@ class BinanceTestnetClient:
             raise RuntimeError(f"Binance {r.status_code}: {detail}")
         return r.json()
 
+    async def _api_key_request(self, method, path, params=None):
+        if not self.api_key: raise RuntimeError("Binance testnet API key is not configured.")
+        headers={"X-MBX-APIKEY":self.api_key}
+        async with httpx.AsyncClient(timeout=15) as c:
+            r=await c.request(method, f"{self.base_url}{path}", params=params or {}, headers=headers)
+        if r.status_code>=400:
+            try: detail=r.json()
+            except Exception: detail={"msg":r.text}
+            raise RuntimeError(f"Binance {r.status_code}: {detail}")
+        if not r.text: return {}
+        try: return r.json()
+        except Exception: return {"text":r.text}
+
+    async def start_listen_key(self):
+        data=await self._api_key_request("POST","/fapi/v1/listenKey")
+        key=data.get("listenKey")
+        if not key: raise RuntimeError("Binance did not return a listenKey")
+        return key
+
+    async def keepalive_listen_key(self, listen_key):
+        return await self._api_key_request("PUT","/fapi/v1/listenKey",{"listenKey":listen_key})
+
+    async def close_listen_key(self, listen_key):
+        return await self._api_key_request("DELETE","/fapi/v1/listenKey",{"listenKey":listen_key})
+
     async def public_get(self,path,params=None):
         async with httpx.AsyncClient(timeout=12) as c:
             r=await c.get(f"{self.base_url}{path}",params=params or {})
