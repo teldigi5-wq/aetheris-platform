@@ -16,7 +16,7 @@ from .execution_brain import RealtimeExecutionBrain
 from .position_manager import ActivePositionManager
 from pydantic import BaseModel
 
-app=FastAPI(title="Aetheris Quant",version="0.9.2")
+app=FastAPI(title="Aetheris Quant",version="1.0.0-rc3")
 BASE=Path(__file__).parent
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 broker=PaperBroker(settings.starting_balance)
@@ -35,11 +35,13 @@ async def startup_tasks():
         except Exception as e: execution_brain.log("STARTUP_ERROR",error=str(e))
     if settings.enable_position_manager and settings.enable_testnet_execution and testnet.configured:
         position_manager.start()
-    if settings.enable_autonomous_testnet and settings.enable_testnet_execution and testnet.configured:
+    if settings.auto_start_autonomous and settings.enable_autonomous_testnet and settings.enable_testnet_execution and testnet.configured:
         auto_trader.start()
 
 @app.on_event("shutdown")
 async def shutdown_tasks():
+    try: await auto_trader.stop()
+    except Exception: pass
     try: await position_manager.stop()
     except Exception: pass
     try: await execution_brain.stop()
@@ -209,6 +211,9 @@ async def autonomous_start():
     if not testnet.configured: raise HTTPException(400,"Binance testnet credentials are not configured")
     started=auto_trader.start(); return {"ok":True,"started":started,"state":auto_trader.state()}
 
+@app.post("/api/autonomous/stop")
+async def autonomous_stop(): return await auto_trader.stop()
+
 @app.post("/api/autonomous/kill")
 async def autonomous_kill(cancel_orders:bool=True): return await auto_trader.kill(cancel_orders=cancel_orders)
 
@@ -252,4 +257,4 @@ async def manager_stop(): return await position_manager.stop()
 
 @app.get("/api/health")
 def health():
-    return {"ok":True,"version":"0.9.2","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch,"execution_stream_enabled":settings.enable_execution_stream,"execution_stream_running":execution_brain.running,"execution_stream_connected":execution_brain.connected,"position_manager_enabled":settings.enable_position_manager,"position_manager_running":position_manager.running}
+    return {"ok":True,"version":"1.0.0-rc3","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_auto_start":settings.auto_start_autonomous,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch,"execution_stream_enabled":settings.enable_execution_stream,"execution_stream_running":execution_brain.running,"execution_stream_connected":execution_brain.connected,"position_manager_enabled":settings.enable_position_manager,"position_manager_running":position_manager.running}
