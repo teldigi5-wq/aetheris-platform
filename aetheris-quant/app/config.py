@@ -38,4 +38,17 @@ class Settings(BaseModel):
     execution_reconcile_seconds: int = int(os.getenv("EXECUTION_RECONCILE_SECONDS", "30"))
     execution_keepalive_seconds: int = int(os.getenv("EXECUTION_KEEPALIVE_SECONDS", "2700"))
 
+    # v0.9 active position manager (TESTNET only)
+    enable_position_manager: bool = b("ENABLE_POSITION_MANAGER", "true")
+    manager_cycle_seconds: int = int(os.getenv("MANAGER_CYCLE_SECONDS", "5"))
+    manager_fallback_stop_pct: float = float(os.getenv("MANAGER_FALLBACK_STOP_PCT", "0.006"))
+    manager_tp1_r: float = float(os.getenv("MANAGER_TP1_R", "1.0"))
+    manager_tp2_r: float = float(os.getenv("MANAGER_TP2_R", "2.0"))
+    manager_trail_start_r: float = float(os.getenv("MANAGER_TRAIL_START_R", "1.5"))
+    manager_trail_distance_r: float = float(os.getenv("MANAGER_TRAIL_DISTANCE_R", "0.75"))
+    manager_tp1_fraction: float = float(os.getenv("MANAGER_TP1_FRACTION", "0.40"))
+    manager_tp2_fraction: float = float(os.getenv("MANAGER_TP2_FRACTION", "0.30"))
+    manager_reversal_exit: bool = b("MANAGER_REVERSAL_EXIT", "true")
+    manager_reversal_min_score: float = float(os.getenv("MANAGER_REVERSAL_MIN_SCORE", "82"))
+
 settings = Settings()
