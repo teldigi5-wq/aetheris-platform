@@ -1,4 +1,4 @@
-import asyncio
+import asyncio, math
 from datetime import datetime, timezone
 
 
@@ -32,25 +32,31 @@ class ActivePositionManager:
         self.events = self.events[-500:]
         return row
 
+    def _effective_rules(self):
+        validation = bool(self.settings.manager_validation_mode)
+        return {
+            "validation_mode": validation,
+            "cycle_seconds": self.settings.manager_cycle_seconds,
+            "fallback_stop_pct": self.settings.manager_validation_stop_pct if validation else self.settings.manager_fallback_stop_pct,
+            "tp1_r": self.settings.manager_validation_tp1_r if validation else self.settings.manager_tp1_r,
+            "tp2_r": self.settings.manager_validation_tp2_r if validation else self.settings.manager_tp2_r,
+            "trail_start_r": self.settings.manager_validation_trail_start_r if validation else self.settings.manager_trail_start_r,
+            "trail_distance_r": self.settings.manager_validation_trail_distance_r if validation else self.settings.manager_trail_distance_r,
+            "tp1_fraction": self.settings.manager_tp1_fraction,
+            "tp2_fraction": self.settings.manager_tp2_fraction,
+            "reversal_exit": False if validation else self.settings.manager_reversal_exit,
+            "reversal_min_score": self.settings.manager_reversal_min_score,
+        }
+
     def state(self):
         return {
             "running": self.running,
             "enabled": self.settings.enable_position_manager,
             "execution_enabled": self.client.enabled,
+            "testnet_only": True,
             "last_cycle": self.last_cycle,
             "last_error": self.last_error,
-            "rules": {
-                "cycle_seconds": self.settings.manager_cycle_seconds,
-                "fallback_stop_pct": self.settings.manager_fallback_stop_pct,
-                "tp1_r": self.settings.manager_tp1_r,
-                "tp2_r": self.settings.manager_tp2_r,
-                "trail_start_r": self.settings.manager_trail_start_r,
-                "trail_distance_r": self.settings.manager_trail_distance_r,
-                "tp1_fraction": self.settings.manager_tp1_fraction,
-                "tp2_fraction": self.settings.manager_tp2_fraction,
-                "reversal_exit": self.settings.manager_reversal_exit,
-                "reversal_min_score": self.settings.manager_reversal_min_score,
-            },
+            "rules": self._effective_rules(),
             "positions": list(self.trades.values()),
             "closed": self.closed[-80:],
             "events": self.events[-120:],
@@ -66,6 +72,7 @@ class ActivePositionManager:
         qty = abs(qty_signed)
         entry = float(pos.get("entryPrice", 0) or 0)
         side = "LONG" if qty_signed > 0 else "SHORT"
+        rules = self._effective_rules()
         a = None
         try:
             a = await self._analysis(symbol)
@@ -76,10 +83,14 @@ class ActivePositionManager:
         if proposed_sl is not None:
             proposed_sl = float(proposed_sl)
         valid_sl = proposed_sl and ((side == "LONG" and proposed_sl < entry) or (side == "SHORT" and proposed_sl > entry))
-        risk_distance = abs(entry - proposed_sl) if valid_sl else entry * self.settings.manager_fallback_stop_pct
-        risk_distance = max(risk_distance, entry * 0.001)
-        sign = 1 if side == "LONG" else -1
 
+        if rules["validation_mode"]:
+            risk_distance = entry * rules["fallback_stop_pct"]
+        else:
+            risk_distance = abs(entry - proposed_sl) if valid_sl else entry * rules["fallback_stop_pct"]
+            risk_distance = max(risk_distance, entry * 0.001)
+
+        sign = 1 if side == "LONG" else -1
         t = {
             "symbol": symbol,
             "side": side,
@@ -90,8 +101,8 @@ class ActivePositionManager:
             "unrealized_pnl": float(pos.get("unrealizedProfit", pos.get("unRealizedProfit", 0)) or 0),
             "risk_distance": risk_distance,
             "initial_stop": entry - sign * risk_distance,
-            "tp1": entry + sign * risk_distance * self.settings.manager_tp1_r,
-            "tp2": entry + sign * risk_distance * self.settings.manager_tp2_r,
+            "tp1": entry + sign * risk_distance * rules["tp1_r"],
+            "tp2": entry + sign * risk_distance * rules["tp2_r"],
             "break_even": entry,
             "dynamic_stop": entry - sign * risk_distance,
             "best_price": entry,
@@ -101,12 +112,28 @@ class ActivePositionManager:
             "break_even_armed": False,
             "trailing": False,
             "status": "ACTIVE",
+            "validation_mode": rules["validation_mode"],
             "opened_seen_at": self.now(),
             "last_action": "ADOPTED",
         }
         self.trades[symbol] = t
-        self.log("POSITION_ADOPTED", symbol=symbol, side=side, qty=qty, entry=entry, risk_distance=round(risk_distance, 8))
+        self.log("POSITION_ADOPTED", symbol=symbol, side=side, qty=qty, entry=entry, risk_distance=round(risk_distance, 8), validation_mode=rules["validation_mode"])
         return t
+
+    async def _safe_partial_quantity(self, symbol, desired_qty, current_qty):
+        rules = await self.client.symbol_rules(symbol)
+        step = float(rules.get("step_size", 0) or 0)
+        min_qty = float(rules.get("min_qty", 0) or 0)
+        if step <= 0:
+            qty = min(float(desired_qty), float(current_qty))
+        else:
+            qty = math.floor((min(float(desired_qty), float(current_qty)) + 1e-12) / step) * step
+        txt = f"{step:.12f}".rstrip("0") if step > 0 else ""
+        decimals = len(txt.split(".")[-1]) if "." in txt else 8
+        qty = round(qty, decimals)
+        if qty < min_qty or qty <= 0:
+            return 0.0, {"step_size": step, "min_qty": min_qty}
+        return qty, {"step_size": step, "min_qty": min_qty}
 
     async def _reduce(self, t, fraction, reason):
         current = await self.client.positions()
@@ -118,9 +145,9 @@ class ActivePositionManager:
         if target_qty <= 0:
             return False
         mark = await self.client.mark_price(t["symbol"])
-        qty = await self.client.normalize_quantity(t["symbol"], target_qty, mark)
-        qty = min(qty, current_qty)
+        qty, lot = await self._safe_partial_quantity(t["symbol"], target_qty, current_qty)
         if qty <= 0:
+            self.log("PARTIAL_SKIPPED_TOO_SMALL", symbol=t["symbol"], reason=reason, desired_qty=target_qty, current_qty=current_qty, min_qty=lot["min_qty"], step_size=lot["step_size"])
             return False
         close_side = "SELL" if t["side"] == "LONG" else "BUY"
         order = await self.client.market_order(t["symbol"], close_side, qty, reduce_only=True, client_id=f"aeth_pm_{reason.lower()}_{int(datetime.now().timestamp())}")
@@ -147,6 +174,7 @@ class ActivePositionManager:
 
     async def _manage(self, pos):
         symbol = pos.get("symbol")
+        rules = self._effective_rules()
         t = self.trades.get(symbol) or await self._new_trade(pos)
         qty_signed = float(pos.get("positionAmt", 0) or 0)
         qty = abs(qty_signed)
@@ -159,41 +187,44 @@ class ActivePositionManager:
 
         sign = 1 if t["side"] == "LONG" else -1
         favorable = (mark - t["entry"]) * sign
-        t["r_multiple"] = round(favorable / max(t["risk_distance"], 1e-12), 3)
+        t["r_multiple"] = round(favorable / max(t["risk_distance"], 1e-12), 4)
         if (t["side"] == "LONG" and mark > t["best_price"]) or (t["side"] == "SHORT" and mark < t["best_price"]):
             t["best_price"] = mark
 
-        if not t["tp1_done"] and t["r_multiple"] >= self.settings.manager_tp1_r:
-            if await self._reduce(t, self.settings.manager_tp1_fraction, "TP1_PARTIAL"):
+        if not t["tp1_done"] and t["r_multiple"] >= rules["tp1_r"]:
+            if await self._reduce(t, rules["tp1_fraction"], "TP1_PARTIAL"):
                 t["tp1_done"] = True
                 t["break_even_armed"] = True
                 t["dynamic_stop"] = t["entry"]
                 self.log("BREAK_EVEN_ARMED", symbol=symbol, stop=t["dynamic_stop"])
                 return
 
-        if not t["tp2_done"] and t["r_multiple"] >= self.settings.manager_tp2_r:
-            if await self._reduce(t, self.settings.manager_tp2_fraction, "TP2_PARTIAL"):
+        if not t["tp2_done"] and t["r_multiple"] >= rules["tp2_r"]:
+            if await self._reduce(t, rules["tp2_fraction"], "TP2_PARTIAL"):
                 t["tp2_done"] = True
                 return
 
-        if t["r_multiple"] >= self.settings.manager_trail_start_r:
+        if t["r_multiple"] >= rules["trail_start_r"]:
+            just_started = not t["trailing"]
             t["trailing"] = True
-            trail = t["best_price"] - sign * t["risk_distance"] * self.settings.manager_trail_distance_r
+            trail = t["best_price"] - sign * t["risk_distance"] * rules["trail_distance_r"]
             if t["side"] == "LONG":
                 t["dynamic_stop"] = max(t["dynamic_stop"], trail, t["entry"] if t["break_even_armed"] else t["initial_stop"])
             else:
                 t["dynamic_stop"] = min(t["dynamic_stop"], trail, t["entry"] if t["break_even_armed"] else t["initial_stop"])
+            if just_started:
+                self.log("TRAILING_STARTED", symbol=symbol, dynamic_stop=t["dynamic_stop"], best_price=t["best_price"], r_multiple=t["r_multiple"])
 
         stop_hit = (t["side"] == "LONG" and mark <= t["dynamic_stop"]) or (t["side"] == "SHORT" and mark >= t["dynamic_stop"])
         if stop_hit and (t["break_even_armed"] or t["trailing"]):
             await self._close_all(t, "DYNAMIC_STOP_EXIT")
             return
 
-        if self.settings.manager_reversal_exit:
+        if rules["reversal_exit"]:
             try:
                 a = await self._analysis(symbol)
                 opposite = "SHORT" if t["side"] == "LONG" else "LONG"
-                if a.get("decision") == opposite and float(a.get("score", 0)) >= self.settings.manager_reversal_min_score:
+                if a.get("decision") == opposite and float(a.get("score", 0)) >= rules["reversal_min_score"]:
                     await self._close_all(t, "REVERSAL_EXIT")
             except Exception as e:
                 self.log("REVERSAL_CHECK_WARNING", symbol=symbol, error=str(e))
@@ -220,7 +251,7 @@ class ActivePositionManager:
 
     async def loop(self):
         self.running = True
-        self.log("POSITION_MANAGER_STARTED")
+        self.log("POSITION_MANAGER_STARTED", validation_mode=bool(self.settings.manager_validation_mode))
         try:
             while self.running:
                 try:
