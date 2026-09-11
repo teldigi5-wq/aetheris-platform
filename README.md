@@ -2,7 +2,7 @@
 
 **Build. Secure. Observe. Orchestrate.**
 
-Aetheris is an open-source distributed API, identity, observability, and AI-agent platform built with Java, Spring Boot, React, PostgreSQL, Redis, RabbitMQ, Prometheus, Grafana, Loki, Tempo, OpenTelemetry, and cloud-native technologies.
+Aetheris is an open-source distributed API, identity, observability, and AI-agent platform built with Java, Spring Boot, React, PostgreSQL, Redis, RabbitMQ, Prometheus, Grafana, Loki, Tempo, OpenTelemetry, Kubernetes, Helm, and cloud-native technologies.
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=flat-square&logo=springboot&logoColor=white)
@@ -13,39 +13,35 @@ Aetheris is an open-source distributed API, identity, observability, and AI-agen
 ![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=flat-square&logo=prometheus&logoColor=white)
 ![Grafana](https://img.shields.io/badge/Grafana-Observability-F46800?style=flat-square&logo=grafana&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing-000000?style=flat-square&logo=opentelemetry&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Local_Cluster-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
+![Helm](https://img.shields.io/badge/Helm-Chart-0F1689?style=flat-square&logo=helm&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-## Current milestone — Stage 6 complete
+## Current milestone — Stage 7
 
-Stage 6 adds gateway-level resilience using Resilience4j circuit breakers, downstream connect and response timeouts, a time limiter, idempotent read retries with exponential backoff, and structured HTTP 503 fallbacks. Mutating user requests and identity operations are deliberately not retried automatically to avoid duplicate side effects.
+Stage 7 packages the Aetheris core platform as a local Kubernetes deployment managed by Helm. The chart includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit, and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, readiness/liveness probes, and configurable replica counts.
 
-Runtime verification completed on 2026-09-11: authenticated `/api/users` reads returned 200 in the healthy state, stopping `user-service` produced structured 503 fallback responses, `userReadCircuit` was observable in HALF_OPEN state through the actuator endpoint, and restarting only `user-service` restored successful reads without restarting the gateway.
+Docker Compose remains the fast development path, while Kubernetes provides desired-state reconciliation, service discovery, replica scaling, self-healing, rolling upgrades, and a deployment model that is much closer to production infrastructure.
 
 ```mermaid
 flowchart LR
-    U[Browser] --> D[Aetheris Dashboard :3000]
-    D --> G[Aetheris Gateway :8080]
-    G --> R[(Redis :6379)]
-    G --> I[Identity Service :8082]
-    G --> S[User Service :8081]
-    G --> A[Audit Service :8083]
-    S --> M[(RabbitMQ :5672)]
+    U[Browser] --> PF[kubectl port-forward :3000]
+    PF --> D[Dashboard Service]
+    D --> G[Gateway Service]
+    G --> R[(Redis Service)]
+    G --> I[Identity Service]
+    G --> S[User Service]
+    G --> A[Audit Service]
+    S --> M[(RabbitMQ Service)]
     M --> A
-    I --> P[(PostgreSQL :5432)]
+    I --> P[(PostgreSQL PVC)]
     S --> P
-    G -. metrics .-> PM[Prometheus :9090]
-    I -. metrics .-> PM
-    S -. metrics .-> PM
-    A -. metrics .-> PM
-    G -. traces .-> OT[OpenTelemetry Collector]
-    I -. traces .-> OT
-    S -. traces .-> OT
-    A -. traces .-> OT
-    OT --> T[Tempo :3200]
-    L[Alloy] --> LK[Loki :3100]
-    PM --> GR[Grafana :3001]
-    T --> GR
-    LK --> GR
+    K[Kubernetes] --> D
+    K --> G
+    K --> I
+    K --> S
+    K --> A
+    H[Helm] --> K
 ```
 
 ## Quick start
@@ -64,7 +60,9 @@ For the full observability stack:
 docker compose --profile observability up --build
 ```
 
-Main endpoints:
+For local Kubernetes/Helm deployment, see [Stage 7 Kubernetes runbook](docs/kubernetes.md).
+
+Main endpoints in Docker Compose:
 
 - Dashboard: `http://localhost:3000`
 - Gateway health: `http://localhost:8080/actuator/health`
@@ -105,6 +103,12 @@ The observability containers are grouped under the `observability` Compose profi
 
 The gateway protects downstream service calls with Resilience4j circuit breakers and explicit network timeouts. Safe read requests can be retried with exponential backoff, while mutating user operations and identity operations are not replayed automatically. When a downstream dependency is unavailable, Aetheris returns a structured 503 fallback instead of leaking raw connection failures. Circuit breaker state is exposed through actuator endpoints for debugging and observability.
 
+## Kubernetes model
+
+The Helm chart under `deploy/helm/aetheris` deploys the core Aetheris platform into one namespace. Kubernetes Services preserve stable internal DNS names such as `gateway`, `user-service`, `identity-service`, `postgres`, `redis`, and `rabbitmq`; this lets the same service hostnames used by Docker Compose work naturally inside the cluster. Stateful infrastructure receives PersistentVolumeClaims, stateless services use Deployments, and health probes keep traffic away from unready pods. Replica counts are Helm values and can also be changed interactively with `kubectl scale`.
+
+The default chart values are intentionally sized for a small local machine and contain development-only credentials. Production deployments should use external secret management, stronger storage/backup policies, ingress/TLS, and separate production values.
+
 ## Engineering goals
 
 Aetheris is built around real platform-engineering concepts: API management, identity, security, distributed communication, caching, traffic management, messaging, observability, resilience, cloud-native deployment, developer tooling, and agent governance. Each stage remains small enough to explain in an interview while contributing to one coherent platform.
@@ -118,7 +122,7 @@ Aetheris is built around real platform-engineering concepts: API management, ide
 - [x] Stage 4 — RabbitMQ event messaging
 - [x] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
 - [x] Stage 6 — Circuit breakers, retries, timeouts, load balancing
-- [ ] Stage 7 — Local Kubernetes + Helm
+- [ ] Stage 7 — Local Kubernetes + Helm *(implementation ready; local verification pending)*
 - [ ] Stage 8 — Aetheris CLI + SDK generation
 - [ ] Stage 9 — AI Agent Gateway, policy engine, local Ollama integration
 - [ ] Stage 10 — Chaos Lab + Security Lab
@@ -133,6 +137,7 @@ The development stack has no mandatory recurring software fee. Local Docker infr
 - [Interview talking points](docs/interview-guide.md)
 - [Token flow and threat model](docs/security/token-flow.md)
 - [Resilience runbook](docs/resilience.md)
+- [Kubernetes + Helm runbook](docs/kubernetes.md)
 
 ## Author
 
