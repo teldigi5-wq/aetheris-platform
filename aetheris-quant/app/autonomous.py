@@ -106,7 +106,14 @@ class AutonomousTestnetTrader:
             reasons.append("smart-money bias conflict")
         if book["spread_pct"] > self.settings.auto_max_spread_pct:
             reasons.append("spread too wide")
-        ensemble = next((v for v in votes if v.get("strategy") == "ensemble"), None)
+
+        # strategy_votes() returns a mapping keyed by strategy name.
+        # Keep a compatibility fallback in case a future implementation returns a list.
+        if isinstance(votes, dict):
+            ensemble = votes.get("ensemble")
+        else:
+            ensemble = next((v for v in votes if isinstance(v, dict) and v.get("strategy") == "ensemble"), None)
+
         if ensemble and ensemble.get("decision") not in (direction, "WAIT"):
             reasons.append("ensemble conflict")
         approved = not reasons and direction in ("LONG", "SHORT")
@@ -165,12 +172,14 @@ class AutonomousTestnetTrader:
         try:
             rows = (await self.universe_fn())[: self.settings.auto_scan_markets]
             sem = asyncio.Semaphore(4)
+
             async def one(row):
                 async with sem:
                     try:
                         return await self.evaluate(row["symbol"])
                     except Exception as e:
                         return {"symbol": row["symbol"], "approved": False, "direction": "WAIT", "reasons": [str(e)], "quality": 0}
+
             vals = await asyncio.gather(*[one(r) for r in rows])
             vals = sorted(vals, key=lambda x: x.get("quality", 0), reverse=True)
             self.candidates = [{k: v for k, v in x.items() if k != "analysis"} for x in vals]
