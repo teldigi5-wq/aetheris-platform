@@ -12,22 +12,32 @@ from .intelligence import smart_money_snapshot, returns_correlation
 from .shadow import ShadowTrader
 from .binance_testnet import BinanceTestnetClient
 from .autonomous import AutonomousTestnetTrader
+from .execution_brain import RealtimeExecutionBrain
 from pydantic import BaseModel
 
-app=FastAPI(title="Aetheris Quant",version="0.7")
+app=FastAPI(title="Aetheris Quant",version="0.8")
 BASE=Path(__file__).parent
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 broker=PaperBroker(settings.starting_balance)
 shadow=ShadowTrader()
 testnet=BinanceTestnetClient(settings.binance_testnet_api_key, settings.binance_testnet_api_secret, settings.binance_testnet_base, settings.enable_testnet_execution, settings.binance_recv_window)
 auto_trader=AutonomousTestnetTrader(testnet, settings, klines, futures_universe, analyze, multi_timeframe, smart_money_snapshot, strategy_votes)
+execution_brain=RealtimeExecutionBrain(testnet, settings.binance_testnet_ws_base, settings.execution_reconcile_seconds, settings.execution_keepalive_seconds)
 TIMEFRAMES=["5m","15m","1h","4h"]
 SCAN_SEMAPHORE = asyncio.Semaphore(8)
 
 @app.on_event("startup")
 async def startup_tasks():
+    if settings.enable_execution_stream and testnet.configured:
+        try: await execution_brain.start()
+        except Exception as e: execution_brain.log("STARTUP_ERROR",error=str(e))
     if settings.enable_autonomous_testnet and settings.enable_testnet_execution and testnet.configured:
         auto_trader.start()
+
+@app.on_event("shutdown")
+async def shutdown_tasks():
+    try: await execution_brain.stop()
+    except Exception: pass
 
 @app.get("/")
 async def root():
@@ -166,12 +176,18 @@ async def testnet_execute(req:TestnetOrderRequest):
         lev=min(max(req.leverage,1),settings.max_leverage); await testnet.set_leverage(symbol,lev); price=await testnet.mark_price(symbol); qty=await testnet.normalize_quantity(symbol,req.quantity,price); entry=await testnet.market_order(symbol,side,qty); close_side="SELL" if side=="BUY" else "BUY"; protection={}
         if req.stop_loss is not None: protection["stop_loss"]=await testnet.conditional_close(symbol,close_side,"STOP_MARKET",req.stop_loss)
         if req.take_profit is not None: protection["take_profit"]=await testnet.conditional_close(symbol,close_side,"TAKE_PROFIT_MARKET",req.take_profit)
+        try: await execution_brain.reconcile()
+        except Exception: pass
         return {"ok":True,"entry":entry,"protection":protection,"normalized_quantity":qty,"environment":"BINANCE_FUTURES_TESTNET"}
     except Exception as e: raise HTTPException(400,str(e))
 
 @app.delete("/api/testnet/cancel-all/{symbol}")
 async def testnet_cancel_all(symbol:str):
-    try: return await testnet.cancel_all(symbol)
+    try:
+        result=await testnet.cancel_all(symbol)
+        try: await execution_brain.reconcile()
+        except Exception: pass
+        return result
     except Exception as e: raise HTTPException(400,str(e))
 
 @app.get("/api/autonomous/status")
@@ -190,6 +206,26 @@ async def autonomous_start():
 @app.post("/api/autonomous/kill")
 async def autonomous_kill(cancel_orders:bool=True): return await auto_trader.kill(cancel_orders=cancel_orders)
 
+@app.get("/api/execution/status")
+async def execution_status(): return execution_brain.state()
+
+@app.get("/api/execution/events")
+async def execution_events(): return {"events":execution_brain.events[-150:]}
+
+@app.post("/api/execution/reconcile")
+async def execution_reconcile():
+    try: return await execution_brain.reconcile()
+    except Exception as e: raise HTTPException(400,str(e))
+
+@app.post("/api/execution/start")
+async def execution_start():
+    try:
+        started=await execution_brain.start(); return {"ok":True,"started":started,"state":execution_brain.state()}
+    except Exception as e: raise HTTPException(400,str(e))
+
+@app.post("/api/execution/stop")
+async def execution_stop(): return await execution_brain.stop()
+
 @app.get("/api/health")
 def health():
-    return {"ok":True,"version":"0.7","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch}
+    return {"ok":True,"version":"0.8","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch,"execution_stream_enabled":settings.enable_execution_stream,"execution_stream_running":execution_brain.running,"execution_stream_connected":execution_brain.connected}
