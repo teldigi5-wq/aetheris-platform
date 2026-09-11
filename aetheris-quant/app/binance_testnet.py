@@ -1,42 +1,51 @@
-import hashlib, hmac, time, uuid
+import hashlib, hmac, time, uuid, math
 from urllib.parse import urlencode
 import httpx
 
 class BinanceTestnetClient:
-    def __init__(self, api_key:str, api_secret:str, base_url:str, enabled:bool=False, recv_window:int=5000):
+    def __init__(self, api_key:str, api_secret:str, base_url:str, enabled:bool=False, recv_window:int=10000):
         self.api_key=api_key.strip(); self.api_secret=api_secret.strip(); self.base_url=base_url.rstrip('/')
         self.enabled=bool(enabled); self.recv_window=int(recv_window); self.time_offset_ms=0
+        self._exchange_info_cache=None; self._exchange_info_ts=0
 
     @property
     def configured(self):
         return bool(self.api_key and self.api_secret)
 
     async def sync_time(self):
+        t0=int(time.time()*1000)
         async with httpx.AsyncClient(timeout=10) as c:
             r=await c.get(f"{self.base_url}/fapi/v1/time"); r.raise_for_status()
             server=int(r.json()["serverTime"])
-        local=int(time.time()*1000); self.time_offset_ms=server-local
-        return {"server_time":server,"local_time":local,"offset_ms":self.time_offset_ms}
+        t1=int(time.time()*1000); midpoint=(t0+t1)//2
+        self.time_offset_ms=server-midpoint
+        return {"server_time":server,"local_midpoint":midpoint,"rtt_ms":t1-t0,"offset_ms":self.time_offset_ms}
 
     def _signed_params(self, params=None):
         if not self.configured: raise RuntimeError("Binance testnet API credentials are not configured.")
-        p=dict(params or {})
-        p.setdefault("recvWindow", self.recv_window)
+        p=dict(params or {}); p.setdefault("recvWindow", self.recv_window)
         p["timestamp"]=int(time.time()*1000)+self.time_offset_ms
         query=urlencode(p, doseq=True)
         p["signature"]=hmac.new(self.api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
         return p
 
-    async def _signed(self, method, path, params=None):
-        p=self._signed_params(params)
-        headers={"X-MBX-APIKEY":self.api_key}
+    async def _signed(self, method, path, params=None, retry_clock=True):
+        p=self._signed_params(params); headers={"X-MBX-APIKEY":self.api_key}
         async with httpx.AsyncClient(timeout=15) as c:
             r=await c.request(method, f"{self.base_url}{path}", params=p, headers=headers)
-            if r.status_code>=400:
-                try: detail=r.json()
-                except Exception: detail={"msg":r.text}
-                raise RuntimeError(f"Binance {r.status_code}: {detail}")
-            return r.json()
+        if r.status_code>=400:
+            try: detail=r.json()
+            except Exception: detail={"msg":r.text}
+            if retry_clock and isinstance(detail,dict) and detail.get("code")==-1021:
+                await self.sync_time()
+                return await self._signed(method,path,params,retry_clock=False)
+            raise RuntimeError(f"Binance {r.status_code}: {detail}")
+        return r.json()
+
+    async def public_get(self,path,params=None):
+        async with httpx.AsyncClient(timeout=12) as c:
+            r=await c.get(f"{self.base_url}{path}",params=params or {})
+            r.raise_for_status(); return r.json()
 
     async def status(self):
         out={"configured":self.configured,"execution_enabled":self.enabled,"base_url":self.base_url,"time_offset_ms":self.time_offset_ms}
@@ -60,6 +69,40 @@ class BinanceTestnetClient:
         acct=await self.account()
         return [p for p in acct.get("positions",[]) if abs(float(p.get("positionAmt",0)))>0]
 
+    async def mark_price(self,symbol):
+        x=await self.public_get("/fapi/v1/premiumIndex",{"symbol":symbol.upper()}); return float(x["markPrice"])
+
+    async def book_ticker(self,symbol):
+        x=await self.public_get("/fapi/v1/ticker/bookTicker",{"symbol":symbol.upper()})
+        bid=float(x["bidPrice"]); ask=float(x["askPrice"]); mid=(bid+ask)/2 if bid and ask else 0
+        return {"bid":bid,"ask":ask,"mid":mid,"spread_pct":((ask-bid)/mid*100) if mid else 999}
+
+    async def exchange_info(self, force=False):
+        now=time.time()
+        if self._exchange_info_cache is None or force or now-self._exchange_info_ts>1800:
+            self._exchange_info_cache=await self.public_get("/fapi/v1/exchangeInfo"); self._exchange_info_ts=now
+        return self._exchange_info_cache
+
+    async def symbol_rules(self,symbol):
+        info=await self.exchange_info(); row=next((x for x in info.get("symbols",[]) if x.get("symbol")==symbol.upper()),None)
+        if not row: raise RuntimeError(f"Unknown testnet symbol {symbol}")
+        fs={f["filterType"]:f for f in row.get("filters",[])}; lot=fs.get("LOT_SIZE",{}); mlot=fs.get("MARKET_LOT_SIZE",lot); pricef=fs.get("PRICE_FILTER",{})
+        return {"symbol":symbol.upper(),"status":row.get("status"),"step_size":float(mlot.get("stepSize",lot.get("stepSize",1))),"min_qty":float(mlot.get("minQty",lot.get("minQty",0))),"max_qty":float(mlot.get("maxQty",lot.get("maxQty",1e30))),"tick_size":float(pricef.get("tickSize",0.01)),"min_notional":float((fs.get("MIN_NOTIONAL") or fs.get("NOTIONAL") or {}).get("notional",5) or 5)}
+
+    @staticmethod
+    def _floor_step(value,step):
+        return value if step<=0 else math.floor((value+1e-12)/step)*step
+
+    async def normalize_quantity(self,symbol,quantity,price=None):
+        r=await self.symbol_rules(symbol); q=self._floor_step(float(quantity),r["step_size"]); q=max(q,r["min_qty"]); q=min(q,r["max_qty"])
+        if price and q*float(price)<r["min_notional"]: q=self._floor_step((r["min_notional"]/float(price))+r["step_size"],r["step_size"])
+        txt=f"{r['step_size']:.12f}".rstrip('0'); decimals=len(txt.split('.')[-1]) if '.' in txt else 0
+        return round(q,decimals)
+
+    async def normalize_price(self,symbol,price):
+        r=await self.symbol_rules(symbol); p=self._floor_step(float(price),r["tick_size"]); txt=f"{r['tick_size']:.12f}".rstrip('0'); decimals=len(txt.split('.')[-1]) if '.' in txt else 0
+        return round(p,decimals)
+
     def _require_enabled(self):
         if not self.enabled: raise RuntimeError("Testnet execution is locked. Set ENABLE_TESTNET_EXECUTION=true locally to allow order placement.")
 
@@ -77,13 +120,13 @@ class BinanceTestnetClient:
     async def conditional_close(self, symbol, side, order_type, trigger_price, client_id=None):
         self._require_enabled(); order_type=order_type.upper()
         if order_type not in ("STOP_MARKET","TAKE_PROFIT_MARKET"): raise ValueError("unsupported conditional close type")
+        trigger_price=await self.normalize_price(symbol,trigger_price)
         params={"algoType":"CONDITIONAL","symbol":symbol.upper(),"side":side.upper(),"type":order_type,"triggerPrice":str(trigger_price),"closePosition":"true","workingType":"MARK_PRICE","clientAlgoId":client_id or f"aeth_{uuid.uuid4().hex[:24]}"}
         return await self._signed("POST","/fapi/v1/algoOrder",params)
 
     async def cancel_all(self, symbol):
-        self._require_enabled()
-        regular=await self._signed("DELETE","/fapi/v1/allOpenOrders",{"symbol":symbol.upper()})
-        algo=None
-        try: algo=await self._signed("DELETE","/fapi/v1/algoOpenOrders",{"symbol":symbol.upper()})
+        self._require_enabled(); symbol=symbol.upper()
+        regular=await self._signed("DELETE","/fapi/v1/allOpenOrders",{"symbol":symbol}); algo=None
+        try: algo=await self._signed("DELETE","/fapi/v1/algoOpenOrders",{"symbol":symbol})
         except Exception as e: algo={"warning":str(e)}
         return {"regular":regular,"algo":algo}
