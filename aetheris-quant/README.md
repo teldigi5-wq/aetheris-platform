@@ -1,33 +1,28 @@
-# Aetheris Quant v0.3 — Market Universe + Pattern Intelligence
+# Aetheris Quant v0.4 — Strategy Arena + Backtesting
 
 Paper-trading-first Binance USDⓈ-M Futures intelligence system.
 
-## v0.3 highlights
+## v0.4 highlights
 
-- Browse **every currently tradable USDT perpetual contract** returned by Binance Futures
-- Search the complete market universe
-- Sort by volume, gainers, losers, or symbol
-- Paginated scanner so the dashboard does not hammer the Binance API
-- Every scanned coin shows its strongest detected candlestick pattern
-- Expanded pattern engine: engulfing, doji, pin bars, inside/outside bars, morning/evening star, three soldiers/crows
-- Structure recognition: double-top/bottom candidates, volatility compression/range, symmetrical-triangle candidate
-- Multi-timeframe 5m / 15m / 1h / 4h analysis
-- EMA 9/20/50/200, RSI, MACD, Bollinger Bands, VWAP, ATR, ADX
-- Support/resistance and breakout/breakdown detection
-- Funding rate, mark price, open interest
-- Explainable LONG / SHORT / WAIT scoring
-- Paper execution with hard risk gates
+- Everything from v0.3: full USDT perpetual universe, pattern scanner, MTF analysis, EMA/RSI/MACD/Bollinger/VWAP/ATR/ADX, support/resistance, funding/OI and explainable signals
+- **Strategy Arena**: Trend, Momentum, Mean Reversion, Breakout and Ensemble strategies analyzed independently
+- **Historical backtesting API** with fees and risk-based sizing
+- Performance metrics: return, win rate, profit factor, expectancy, max drawdown, Sharpe-like score and equity curve
+- Strategy ranking per symbol/timeframe
+- Smarter paper position management: partial TP1/TP2 exits, break-even protection and trailing stop logic
+- Dashboard strategy cards + arena table + backtest equity chart
+- Pattern markers shown directly on the chart for the latest detected setup
 - Real-money execution remains disabled
 
-## Run on Windows PowerShell
+## Update on Windows
 
 ```powershell
-cd "D:\aetheris-quant-v0.3"
+cd "D:\aetheris-platform"
+git pull origin main
+cd aetheris-quant
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
 python -m uvicorn app.main:app --reload
 ```
 
@@ -35,4 +30,4 @@ Open `http://127.0.0.1:8000`.
 
 ## Safety
 
-Aetheris Quant cannot identify guaranteed or zero-risk futures trades. Forecasts and pattern labels are analytical estimates. Keep the system in PAPER/testnet mode until it has been independently backtested and validated.
+Backtests are simulations and can overstate future performance. They do not prove profitability. Keep PAPER/testnet mode until strategies are validated across out-of-sample periods, different regimes, fees, slippage and failure cases.
