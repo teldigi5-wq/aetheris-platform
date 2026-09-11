@@ -1,10 +1,12 @@
 import asyncio
+import re
 import time
 import httpx
 import pandas as pd
 from .config import settings
 
 _UNIVERSE_CACHE = {"ts": 0.0, "rows": []}
+_STANDARD_USDT_SYMBOL = re.compile(r"^[A-Z0-9]+USDT$")
 
 async def _get(path, params=None):
     url = f"{settings.binance_fapi_base}{path}"
@@ -34,14 +36,26 @@ async def futures_universe(force=False):
     if not force and _UNIVERSE_CACHE["rows"] and now - _UNIVERSE_CACHE["ts"] < 45:
         return _UNIVERSE_CACHE["rows"]
     exchange, tickers = await asyncio.gather(_get("/fapi/v1/exchangeInfo"), _get("/fapi/v1/ticker/24hr"))
-    allowed = {s["symbol"] for s in exchange.get("symbols", []) if s.get("status") == "TRADING" and s.get("contractType") == "PERPETUAL" and s.get("quoteAsset") == "USDT"}
+    allowed = {
+        s["symbol"]
+        for s in exchange.get("symbols", [])
+        if s.get("status") == "TRADING"
+        and s.get("contractType") == "PERPETUAL"
+        and s.get("quoteAsset") == "USDT"
+        and isinstance(s.get("symbol"), str)
+        and _STANDARD_USDT_SYMBOL.fullmatch(s["symbol"])
+    }
     rows = []
     for t in tickers:
         sym = t.get("symbol")
         if sym not in allowed:
             continue
         try:
-            rows.append({"symbol": sym, "price": float(t.get("lastPrice", 0) or 0), "change_pct": float(t.get("priceChangePercent", 0) or 0), "quote_volume": float(t.get("quoteVolume", 0) or 0), "high": float(t.get("highPrice", 0) or 0), "low": float(t.get("lowPrice", 0) or 0), "trades": int(t.get("count", 0) or 0)})
+            price = float(t.get("lastPrice", 0) or 0)
+            quote_volume = float(t.get("quoteVolume", 0) or 0)
+            if price <= 0 or quote_volume <= 0:
+                continue
+            rows.append({"symbol": sym, "price": price, "change_pct": float(t.get("priceChangePercent", 0) or 0), "quote_volume": quote_volume, "high": float(t.get("highPrice", 0) or 0), "low": float(t.get("lowPrice", 0) or 0), "trades": int(t.get("count", 0) or 0)})
         except (TypeError, ValueError):
             continue
     rows.sort(key=lambda x: x["quote_volume"], reverse=True)
