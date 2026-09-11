@@ -15,11 +15,11 @@ Aetheris is an open-source distributed API, identity, observability, and AI-agen
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing-000000?style=flat-square&logo=opentelemetry&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-## Current milestone — Stage 5 complete
+## Current milestone — Stage 6 complete
 
-Stage 5 adds a complete local observability path: Micrometer/Prometheus metrics from every Java service, Grafana dashboards, centralized Docker logs in Loki through Grafana Alloy, and OpenTelemetry traces routed through the OpenTelemetry Collector into Tempo. The observability stack is optional through the `observability` Compose profile so the normal Aetheris stack remains lightweight on smaller development machines.
+Stage 6 adds gateway-level resilience using Resilience4j circuit breakers, downstream connect and response timeouts, a time limiter, idempotent read retries with exponential backoff, and structured HTTP 503 fallbacks. Mutating user requests and identity operations are deliberately not retried automatically to avoid duplicate side effects.
 
-Runtime verification completed on 2026-09-10: all four Java services report UP in Prometheus, the provisioned Grafana Aetheris dashboard renders live metrics, Loki receives centralized container logs, and application traces are queryable through the Tempo datasource in Grafana Explore.
+Runtime verification completed on 2026-09-11: authenticated `/api/users` reads returned 200 in the healthy state, stopping `user-service` produced structured 503 fallback responses, `userReadCircuit` was observable in HALF_OPEN state through the actuator endpoint, and restarting only `user-service` restored successful reads without restarting the gateway.
 
 ```mermaid
 flowchart LR
@@ -58,7 +58,7 @@ cd aetheris-platform
 docker compose up --build
 ```
 
-For the full Stage 5 observability stack:
+For the full observability stack:
 
 ```bash
 docker compose --profile observability up --build
@@ -93,13 +93,17 @@ Default role scopes:
 
 Redis provides a shared cache for user reads and distributed token-bucket rate limiting. User cache entries use a 60-second TTL and are evicted on writes. RabbitMQ carries asynchronous `user.created` and `user.deleted` events to the audit service through the durable `aetheris.events` topic exchange.
 
-## Stage 5 observability model
+## Observability model
 
 Each Java service exposes `/actuator/prometheus`. Prometheus scrapes gateway, user, identity, and audit metrics every five seconds. Grafana is provisioned with Prometheus, Loki, and Tempo datasources plus an Aetheris overview dashboard.
 
 OpenTelemetry tracing is sampled at 100% in the local development profile for easier learning and debugging. Services export OTLP traces to the OpenTelemetry Collector, which forwards them to Tempo. Grafana Alloy discovers Docker containers and forwards their logs to Loki, giving the local platform centralized logs without changing application logging code.
 
 The observability containers are grouped under the `observability` Compose profile because the full metrics/logs/traces stack is heavier than the core platform and should not be mandatory on an 8 GB development machine.
+
+## Resilience model
+
+The gateway protects downstream service calls with Resilience4j circuit breakers and explicit network timeouts. Safe read requests can be retried with exponential backoff, while mutating user operations and identity operations are not replayed automatically. When a downstream dependency is unavailable, Aetheris returns a structured 503 fallback instead of leaking raw connection failures. Circuit breaker state is exposed through actuator endpoints for debugging and observability.
 
 ## Engineering goals
 
@@ -113,7 +117,7 @@ Aetheris is built around real platform-engineering concepts: API management, ide
 - [x] Stage 3 — Redis caching and distributed rate limiting
 - [x] Stage 4 — RabbitMQ event messaging
 - [x] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
-- [ ] Stage 6 — Circuit breakers, retries, timeouts, load balancing
+- [x] Stage 6 — Circuit breakers, retries, timeouts, load balancing
 - [ ] Stage 7 — Local Kubernetes + Helm
 - [ ] Stage 8 — Aetheris CLI + SDK generation
 - [ ] Stage 9 — AI Agent Gateway, policy engine, local Ollama integration
@@ -128,6 +132,7 @@ The development stack has no mandatory recurring software fee. Local Docker infr
 - [Architecture](docs/architecture.md)
 - [Interview talking points](docs/interview-guide.md)
 - [Token flow and threat model](docs/security/token-flow.md)
+- [Resilience runbook](docs/resilience.md)
 
 ## Author
 
