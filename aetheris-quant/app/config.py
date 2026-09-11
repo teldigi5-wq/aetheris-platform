@@ -13,5 +13,7 @@ class Settings(BaseModel):
     max_leverage: int = int(os.getenv("MAX_LEVERAGE", "3"))
     min_setup_score: float = float(os.getenv("MIN_SETUP_SCORE", "72"))
     binance_fapi_base: str = os.getenv("BINANCE_FAPI_BASE", "https://fapi.binance.com")
+    shadow_scan_seconds: int = int(os.getenv("SHADOW_SCAN_SECONDS", "300"))
+    max_correlated_exposure: float = float(os.getenv("MAX_CORRELATED_EXPOSURE", "0.82"))
 
 settings = Settings()
