@@ -17,9 +17,11 @@ Aetheris is an open-source distributed API, identity, observability, and AI-agen
 ![Helm](https://img.shields.io/badge/Helm-Chart-0F1689?style=flat-square&logo=helm&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 
-## Current milestone — Stage 7
+## Current milestone — Stage 7 complete
 
-Stage 7 packages the Aetheris core platform as a local Kubernetes deployment managed by Helm. The chart includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit, and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, readiness/liveness probes, and configurable replica counts.
+Stage 7 packages the Aetheris core platform as a local Kubernetes deployment managed by Helm. The chart includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit, and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, startup/readiness/liveness probes, and configurable replica counts.
+
+The local runtime verification is complete: the Helm chart lints and renders successfully, the release deploys into Docker Desktop Kubernetes, all core workloads become Ready, authentication and protected gateway routing work, `user-service` scales to two Ready replicas, EndpointSlice exposes both backends, Kubernetes replaces a deleted replica automatically, and the platform scales back to the low-memory one-replica default.
 
 Docker Compose remains the fast development path, while Kubernetes provides desired-state reconciliation, service discovery, replica scaling, self-healing, rolling upgrades, and a deployment model that is much closer to production infrastructure.
 
@@ -105,9 +107,9 @@ The gateway protects downstream service calls with Resilience4j circuit breakers
 
 ## Kubernetes model
 
-The Helm chart under `deploy/helm/aetheris` deploys the core Aetheris platform into one namespace. Kubernetes Services preserve stable internal DNS names such as `gateway`, `user-service`, `identity-service`, `postgres`, `redis`, and `rabbitmq`; this lets the same service hostnames used by Docker Compose work naturally inside the cluster. Stateful infrastructure receives PersistentVolumeClaims, stateless services use Deployments, and health probes keep traffic away from unready pods. Replica counts are Helm values and can also be changed interactively with `kubectl scale`.
+The Helm chart under `deploy/helm/aetheris` deploys the core Aetheris platform into one namespace. Kubernetes Services preserve stable internal DNS names such as `gateway`, `user-service`, `identity-service`, `postgres`, `redis`, and `rabbitmq`; this lets the same service hostnames used by Docker Compose work naturally inside the cluster. Stateful infrastructure receives PersistentVolumeClaims, stateless services use Deployments, and startup/readiness/liveness probes keep traffic away from unready pods while allowing slower local startup. Replica counts are Helm values and can also be changed interactively with `kubectl scale`.
 
-The default chart values are intentionally sized for a small local machine and contain development-only credentials. Production deployments should use external secret management, stronger storage/backup policies, ingress/TLS, and separate production values.
+Stage 7 runtime verification confirmed two simultaneously Ready `user-service` replicas behind the service EndpointSlice and Kubernetes self-healing after deleting a replica. The default chart values are intentionally sized for a small local machine and contain development-only credentials. Production deployments should use external secret management, stronger storage/backup policies, ingress/TLS, and separate production values.
 
 ## Engineering goals
 
@@ -122,7 +124,7 @@ Aetheris is built around real platform-engineering concepts: API management, ide
 - [x] Stage 4 — RabbitMQ event messaging
 - [x] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
 - [x] Stage 6 — Circuit breakers, retries, timeouts, load balancing
-- [ ] Stage 7 — Local Kubernetes + Helm *(implementation ready; local verification pending)*
+- [x] Stage 7 — Local Kubernetes + Helm
 - [ ] Stage 8 — Aetheris CLI + SDK generation
 - [ ] Stage 9 — AI Agent Gateway, policy engine, local Ollama integration
 - [ ] Stage 10 — Chaos Lab + Security Lab
