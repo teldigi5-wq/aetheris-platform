@@ -10,12 +10,15 @@ from .config import settings
 from .backtest import run_backtest, strategy_arena, strategy_votes
 from .intelligence import smart_money_snapshot, returns_correlation
 from .shadow import ShadowTrader
+from .binance_testnet import BinanceTestnetClient
+from pydantic import BaseModel
 
-app=FastAPI(title="Aetheris Quant",version="0.5")
+app=FastAPI(title="Aetheris Quant",version="0.6")
 BASE=Path(__file__).parent
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 broker=PaperBroker(settings.starting_balance)
 shadow=ShadowTrader()
+testnet=BinanceTestnetClient(settings.binance_testnet_api_key, settings.binance_testnet_api_secret, settings.binance_testnet_base, settings.enable_testnet_execution, settings.binance_recv_window)
 TIMEFRAMES=["5m","15m","1h","4h"]
 SCAN_SEMAPHORE = asyncio.Semaphore(8)
 
@@ -196,6 +199,69 @@ async def account():
 async def journal():
     return broker.state["journal"][-100:]
 
+class TestnetOrderRequest(BaseModel):
+    symbol: str
+    side: str
+    quantity: float
+    leverage: int = 1
+    stop_loss: float | None = None
+    take_profit: float | None = None
+
+@app.get("/api/testnet/status")
+async def testnet_status():
+    return await testnet.status()
+
+@app.get("/api/testnet/account")
+async def testnet_account():
+    try:
+        return await testnet.account()
+    except Exception as e:
+        raise HTTPException(400,str(e))
+
+@app.get("/api/testnet/positions")
+async def testnet_positions():
+    try:
+        return await testnet.positions()
+    except Exception as e:
+        raise HTTPException(400,str(e))
+
+@app.get("/api/testnet/open-orders")
+async def testnet_open_orders(symbol:str|None=None):
+    try:
+        return await testnet.open_orders(symbol.upper() if symbol else None)
+    except Exception as e:
+        raise HTTPException(400,str(e))
+
+@app.post("/api/testnet/preview")
+async def testnet_preview(req:TestnetOrderRequest):
+    close_side="SELL" if req.side.upper()=="BUY" else "BUY"
+    return {"execution_enabled":settings.enable_testnet_execution,"symbol":req.symbol.upper(),"entry":{"side":req.side.upper(),"type":"MARKET","quantity":req.quantity,"leverage":min(max(req.leverage,1),settings.max_leverage)},"protection":{"close_side":close_side,"stop_loss":req.stop_loss,"take_profit":req.take_profit},"note":"Preview only; this endpoint never sends an order."}
+
+@app.post("/api/testnet/execute")
+async def testnet_execute(req:TestnetOrderRequest):
+    try:
+        symbol=req.symbol.upper(); side=req.side.upper()
+        if side not in ("BUY","SELL"): raise ValueError("side must be BUY or SELL")
+        lev=min(max(req.leverage,1),settings.max_leverage)
+        await testnet.set_leverage(symbol,lev)
+        entry=await testnet.market_order(symbol,side,req.quantity)
+        close_side="SELL" if side=="BUY" else "BUY"
+        protection={}
+        if req.stop_loss is not None:
+            protection["stop_loss"]=await testnet.conditional_close(symbol,close_side,"STOP_MARKET",req.stop_loss)
+        if req.take_profit is not None:
+            protection["take_profit"]=await testnet.conditional_close(symbol,close_side,"TAKE_PROFIT_MARKET",req.take_profit)
+        return {"ok":True,"entry":entry,"protection":protection,"environment":"BINANCE_FUTURES_TESTNET"}
+    except Exception as e:
+        raise HTTPException(400,str(e))
+
+@app.delete("/api/testnet/cancel-all/{symbol}")
+async def testnet_cancel_all(symbol:str):
+    try:
+        return await testnet.cancel_all(symbol)
+    except Exception as e:
+        raise HTTPException(400,str(e))
+
 @app.get("/api/health")
 def health():
-    return {"ok":True,"version":"0.5","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True}
+    return {"ok":True,"version":"0.6","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured}
