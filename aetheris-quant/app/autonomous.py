@@ -20,12 +20,22 @@ class AutonomousTestnetTrader:
         self.events = []
         self.candidates = []
         self.consecutive_errors = 0
+        self.scan_lock = asyncio.Lock()
+        self.scan_in_progress = False
+        self.scan_started_at = None
+        self.scan_completed = 0
+        self.scan_total = 0
 
     def log(self, event, **data):
         row = {"time": datetime.now(timezone.utc).isoformat(), "event": event, **data}
         self.events.append(row)
         self.events = self.events[-400:]
         return row
+
+    @staticmethod
+    def _error_text(exc):
+        text = str(exc).strip()
+        return text if text else type(exc).__name__
 
     def _preflight_reasons(self):
         reasons = []
@@ -67,6 +77,10 @@ class AutonomousTestnetTrader:
             "last_entry_at": self.last_entry_at,
             "cooldown_remaining_seconds": self._cooldown_remaining(),
             "consecutive_errors": self.consecutive_errors,
+            "scan_in_progress": self.scan_in_progress,
+            "scan_started_at": self.scan_started_at,
+            "scan_completed": self.scan_completed,
+            "scan_total": self.scan_total,
             "candidates": self.candidates[-25:],
             "events": self.events[-100:],
             "rules": {
@@ -106,14 +120,10 @@ class AutonomousTestnetTrader:
             reasons.append("smart-money bias conflict")
         if book["spread_pct"] > self.settings.auto_max_spread_pct:
             reasons.append("spread too wide")
-
-        # strategy_votes() returns a mapping keyed by strategy name.
-        # Keep a compatibility fallback in case a future implementation returns a list.
         if isinstance(votes, dict):
             ensemble = votes.get("ensemble")
         else:
             ensemble = next((v for v in votes if isinstance(v, dict) and v.get("strategy") == "ensemble"), None)
-
         if ensemble and ensemble.get("decision") not in (direction, "WAIT"):
             reasons.append("ensemble conflict")
         approved = not reasons and direction in ("LONG", "SHORT")
@@ -169,49 +179,70 @@ class AutonomousTestnetTrader:
     async def scan_once(self, execute=False):
         if self.kill_switch:
             return {"ok": False, "reason": "kill switch is active", "state": self.state()}
-        try:
-            rows = (await self.universe_fn())[: self.settings.auto_scan_markets]
-            sem = asyncio.Semaphore(4)
+        if self.scan_lock.locked():
+            self.log("SCAN_BUSY", reason="a scan is already in progress")
+            return {"ok": False, "busy": True, "reason": "scan already in progress", "state": self.state()}
 
-            async def one(row):
-                async with sem:
-                    try:
-                        return await self.evaluate(row["symbol"])
-                    except Exception as e:
-                        return {"symbol": row["symbol"], "approved": False, "direction": "WAIT", "reasons": [str(e)], "quality": 0}
+        async with self.scan_lock:
+            self.scan_in_progress = True
+            self.scan_started_at = datetime.now(timezone.utc).isoformat()
+            self.scan_completed = 0
+            self.scan_total = 0
+            try:
+                universe = await self.universe_fn()
+                rows = [r for r in universe if isinstance(r, dict) and isinstance(r.get("symbol"), str)][: self.settings.auto_scan_markets]
+                self.scan_total = len(rows)
+                self.log("SCAN_STARTED", markets=self.scan_total, execute=bool(execute))
+                sem = asyncio.Semaphore(4)
 
-            vals = await asyncio.gather(*[one(r) for r in rows])
-            vals = sorted(vals, key=lambda x: x.get("quality", 0), reverse=True)
-            self.candidates = [{k: v for k, v in x.items() if k != "analysis"} for x in vals]
-            self.last_scan = datetime.now(timezone.utc).isoformat()
-            executed = []
-            if execute:
-                preflight = self._preflight_reasons()
-                if preflight:
-                    self.log("SCAN_ONLY", reason="preflight blocked execution", reasons=preflight)
-                elif self._cooldown_remaining() > 0:
-                    self.log("SCAN_ONLY", reason="entry cooldown active", remaining_seconds=self._cooldown_remaining())
-                else:
-                    for c in vals:
-                        if c.get("approved"):
-                            try:
-                                x = await self.execute_candidate(c)
-                                if x:
-                                    executed.append({"symbol": c["symbol"], "direction": c["direction"], "quality": c["quality"]})
-                            except Exception as e:
-                                self.log("EXECUTION_ERROR", symbol=c["symbol"], error=str(e))
-                            if len(executed) >= 1:
-                                break
-            self.consecutive_errors = 0
-            self.log("SCAN", approved=sum(1 for x in vals if x.get("approved")), executed=len(executed))
-            return {"ok": True, "executed": executed, "candidates": self.candidates, "state": self.state()}
-        except Exception as e:
-            self.consecutive_errors += 1
-            self.log("SCAN_ERROR", error=str(e), consecutive_errors=self.consecutive_errors)
-            if self.consecutive_errors >= self.settings.auto_max_consecutive_errors:
-                self.kill_switch = True
-                self.log("AUTO_FAILSAFE", reason="too many consecutive autonomous scan errors")
-            return {"ok": False, "reason": str(e), "state": self.state()}
+                async def one(row):
+                    symbol = row.get("symbol", "UNKNOWN")
+                    async with sem:
+                        try:
+                            result = await self.evaluate(symbol)
+                        except Exception as e:
+                            error = self._error_text(e)
+                            result = {"symbol": symbol, "approved": False, "direction": "WAIT", "reasons": [error], "error": error, "quality": 0}
+                            self.log("SYMBOL_ERROR", symbol=symbol, error=error)
+                        finally:
+                            self.scan_completed += 1
+                        return result
+
+                vals = await asyncio.gather(*[one(r) for r in rows])
+                vals = sorted(vals, key=lambda x: x.get("quality", 0), reverse=True)
+                self.candidates = [{k: v for k, v in x.items() if k != "analysis"} for x in vals]
+                self.last_scan = datetime.now(timezone.utc).isoformat()
+                executed = []
+                if execute:
+                    preflight = self._preflight_reasons()
+                    if preflight:
+                        self.log("SCAN_ONLY", reason="preflight blocked execution", reasons=preflight)
+                    elif self._cooldown_remaining() > 0:
+                        self.log("SCAN_ONLY", reason="entry cooldown active", remaining_seconds=self._cooldown_remaining())
+                    else:
+                        for c in vals:
+                            if c.get("approved"):
+                                try:
+                                    x = await self.execute_candidate(c)
+                                    if x:
+                                        executed.append({"symbol": c["symbol"], "direction": c["direction"], "quality": c["quality"]})
+                                except Exception as e:
+                                    self.log("EXECUTION_ERROR", symbol=c["symbol"], error=self._error_text(e))
+                                if len(executed) >= 1:
+                                    break
+                self.consecutive_errors = 0
+                self.log("SCAN", approved=sum(1 for x in vals if x.get("approved")), executed=len(executed), markets=self.scan_total, symbol_errors=sum(1 for x in vals if x.get("error")))
+                return {"ok": True, "executed": executed, "candidates": self.candidates, "state": self.state()}
+            except Exception as e:
+                self.consecutive_errors += 1
+                error = self._error_text(e)
+                self.log("SCAN_ERROR", error=error, consecutive_errors=self.consecutive_errors)
+                if self.consecutive_errors >= self.settings.auto_max_consecutive_errors:
+                    self.kill_switch = True
+                    self.log("AUTO_FAILSAFE", reason="too many consecutive autonomous scan errors")
+                return {"ok": False, "reason": error, "state": self.state()}
+            finally:
+                self.scan_in_progress = False
 
     async def loop(self):
         self.running = True
@@ -254,8 +285,8 @@ class AutonomousTestnetTrader:
                         try:
                             cancelled.append({"symbol": sym, "result": await self.client.cancel_all(sym)})
                         except Exception as e:
-                            cancelled.append({"symbol": sym, "error": str(e)})
+                            cancelled.append({"symbol": sym, "error": self._error_text(e)})
             except Exception as e:
-                self.log("KILL_CANCEL_ERROR", error=str(e))
+                self.log("KILL_CANCEL_ERROR", error=self._error_text(e))
         self.log("KILL_SWITCH", cancel_orders=cancel_orders)
         return {"ok": True, "cancelled": cancelled, "state": self.state()}
