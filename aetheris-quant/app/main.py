@@ -16,7 +16,7 @@ from .execution_brain import RealtimeExecutionBrain
 from .position_manager import ActivePositionManager
 from pydantic import BaseModel
 
-app=FastAPI(title="Aetheris Quant",version="0.9")
+app=FastAPI(title="Aetheris Quant",version="0.9.1")
 BASE=Path(__file__).parent
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 broker=PaperBroker(settings.starting_balance)
@@ -252,4 +252,4 @@ async def manager_stop(): return await position_manager.stop()
 
 @app.get("/api/health")
 def health():
-    return {"ok":True,"version":"0.9","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch,"execution_stream_enabled":settings.enable_execution_stream,"execution_stream_running":execution_brain.running,"execution_stream_connected":execution_brain.connected,"position_manager_enabled":settings.enable_position_manager,"position_manager_running":position_manager.running}
+    return {"ok":True,"version":"0.9.1","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch,"execution_stream_enabled":settings.enable_execution_stream,"execution_stream_running":execution_brain.running,"execution_stream_connected":execution_brain.connected,"position_manager_enabled":settings.enable_position_manager,"position_manager_running":position_manager.running}
