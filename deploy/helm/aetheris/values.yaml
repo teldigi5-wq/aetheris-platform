@@ -1,0 +1,62 @@
+global:
+  imagePullPolicy: IfNotPresent
+  storageClass: ""
+
+secrets:
+  jwtSecret: change-me-local-development-secret-32chars
+  postgresPassword: aetheris
+  rabbitmqUsername: aetheris
+  rabbitmqPassword: aetheris
+
+images:
+  gateway: aetheris-platform-gateway:latest
+  userService: aetheris-platform-user-service:latest
+  identityService: aetheris-platform-identity-service:latest
+  auditService: aetheris-platform-audit-service:latest
+  dashboard: aetheris-platform-dashboard:latest
+  postgres: postgres:16-alpine
+  redis: redis:7-alpine
+  rabbitmq: rabbitmq:3-management-alpine
+
+replicas:
+  gateway: 1
+  userService: 1
+  identityService: 1
+  auditService: 1
+  dashboard: 1
+
+resources:
+  gateway:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  userService:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 640Mi }
+  identityService:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { cpu: 500m, memory: 640Mi }
+  auditService:
+    requests: { cpu: 100m, memory: 192Mi }
+    limits: { cpu: 500m, memory: 512Mi }
+  dashboard:
+    requests: { cpu: 25m, memory: 32Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
+persistence:
+  postgres: 2Gi
+  redis: 512Mi
+  rabbitmq: 1Gi
+
+service:
+  dashboard:
+    type: ClusterIP
+    port: 80
+  gateway:
+    type: ClusterIP
+    port: 8080
+  rabbitmqManagement:
+    type: ClusterIP
+    port: 15672
+
+observability:
+  otlpEndpoint: ""
