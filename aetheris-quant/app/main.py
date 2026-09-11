@@ -13,9 +13,10 @@ from .shadow import ShadowTrader
 from .binance_testnet import BinanceTestnetClient
 from .autonomous import AutonomousTestnetTrader
 from .execution_brain import RealtimeExecutionBrain
+from .position_manager import ActivePositionManager
 from pydantic import BaseModel
 
-app=FastAPI(title="Aetheris Quant",version="0.8")
+app=FastAPI(title="Aetheris Quant",version="0.9")
 BASE=Path(__file__).parent
 app.mount("/static",StaticFiles(directory=BASE/"static"),name="static")
 broker=PaperBroker(settings.starting_balance)
@@ -23,6 +24,7 @@ shadow=ShadowTrader()
 testnet=BinanceTestnetClient(settings.binance_testnet_api_key, settings.binance_testnet_api_secret, settings.binance_testnet_base, settings.enable_testnet_execution, settings.binance_recv_window)
 auto_trader=AutonomousTestnetTrader(testnet, settings, klines, futures_universe, analyze, multi_timeframe, smart_money_snapshot, strategy_votes)
 execution_brain=RealtimeExecutionBrain(testnet, settings.binance_testnet_ws_base, settings.execution_reconcile_seconds, settings.execution_keepalive_seconds)
+position_manager=ActivePositionManager(testnet, settings, klines, analyze)
 TIMEFRAMES=["5m","15m","1h","4h"]
 SCAN_SEMAPHORE = asyncio.Semaphore(8)
 
@@ -31,11 +33,15 @@ async def startup_tasks():
     if settings.enable_execution_stream and testnet.configured:
         try: await execution_brain.start()
         except Exception as e: execution_brain.log("STARTUP_ERROR",error=str(e))
+    if settings.enable_position_manager and settings.enable_testnet_execution and testnet.configured:
+        position_manager.start()
     if settings.enable_autonomous_testnet and settings.enable_testnet_execution and testnet.configured:
         auto_trader.start()
 
 @app.on_event("shutdown")
 async def shutdown_tasks():
+    try: await position_manager.stop()
+    except Exception: pass
     try: await execution_brain.stop()
     except Exception: pass
 
@@ -226,6 +232,24 @@ async def execution_start():
 @app.post("/api/execution/stop")
 async def execution_stop(): return await execution_brain.stop()
 
+@app.get("/api/manager/status")
+async def manager_status(): return position_manager.state()
+
+@app.post("/api/manager/cycle")
+async def manager_cycle():
+    try: return await position_manager.cycle()
+    except Exception as e: raise HTTPException(400,str(e))
+
+@app.post("/api/manager/start")
+async def manager_start():
+    if not settings.enable_position_manager: raise HTTPException(400,"ENABLE_POSITION_MANAGER is false in .env")
+    if not settings.enable_testnet_execution: raise HTTPException(400,"ENABLE_TESTNET_EXECUTION is false in .env")
+    if not testnet.configured: raise HTTPException(400,"Binance testnet credentials are not configured")
+    return {"ok":True,"started":position_manager.start(),"state":position_manager.state()}
+
+@app.post("/api/manager/stop")
+async def manager_stop(): return await position_manager.stop()
+
 @app.get("/api/health")
 def health():
-    return {"ok":True,"version":"0.8","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch,"execution_stream_enabled":settings.enable_execution_stream,"execution_stream_running":execution_brain.running,"execution_stream_connected":execution_brain.connected}
+    return {"ok":True,"version":"0.9","mode":settings.mode,"live_trading_enabled":False,"shadow_trading_enabled":True,"testnet_execution_enabled":settings.enable_testnet_execution,"testnet_configured":testnet.configured,"autonomous_testnet_enabled":settings.enable_autonomous_testnet,"autonomous_running":auto_trader.running,"kill_switch":auto_trader.kill_switch,"execution_stream_enabled":settings.enable_execution_stream,"execution_stream_running":execution_brain.running,"execution_stream_connected":execution_brain.connected,"position_manager_enabled":settings.enable_position_manager,"position_manager_running":position_manager.running}
