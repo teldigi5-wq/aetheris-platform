@@ -191,6 +191,17 @@ class ActivePositionManager:
         if (t["side"] == "LONG" and mark > t["best_price"]) or (t["side"] == "SHORT" and mark < t["best_price"]):
             t["best_price"] = mark
 
+        # Initial software stop is always active. Before TP1/BE/trailing this is
+        # the primary manager-side risk guard; after BE/trailing the dynamic stop
+        # takes over. This is especially important in validation mode.
+        initial_stop_hit = (
+            (t["side"] == "LONG" and mark <= t["initial_stop"]) or
+            (t["side"] == "SHORT" and mark >= t["initial_stop"])
+        )
+        if initial_stop_hit and not t["break_even_armed"] and not t["trailing"]:
+            await self._close_all(t, "INITIAL_STOP_EXIT")
+            return
+
         if not t["tp1_done"] and t["r_multiple"] >= rules["tp1_r"]:
             if await self._reduce(t, rules["tp1_fraction"], "TP1_PARTIAL"):
                 t["tp1_done"] = True
