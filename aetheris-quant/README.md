@@ -1,26 +1,29 @@
-# Aetheris Quant v0.4 — Strategy Arena + Backtesting
+# Aetheris Quant v0.5 — Liquidity Intelligence + Shadow Trader
 
-Paper-trading-first Binance USDⓈ-M Futures intelligence system.
+Paper-trading-first Binance USDⓈ-M Futures research and automation platform.
 
-## v0.4 highlights
+## v0.5 additions
 
-- Everything from v0.3: full USDT perpetual universe, pattern scanner, MTF analysis, EMA/RSI/MACD/Bollinger/VWAP/ATR/ADX, support/resistance, funding/OI and explainable signals
-- **Strategy Arena**: Trend, Momentum, Mean Reversion, Breakout and Ensemble strategies analyzed independently
-- **Historical backtesting API** with fees and risk-based sizing
-- Performance metrics: return, win rate, profit factor, expectancy, max drawdown, Sharpe-like score and equity curve
-- Strategy ranking per symbol/timeframe
-- Smarter paper position management: partial TP1/TP2 exits, break-even protection and trailing stop logic
-- Dashboard strategy cards + arena table + backtest equity chart
-- Pattern markers shown directly on the chart for the latest detected setup
+- Liquidity pool detection from repeated swing highs/lows
+- Buy-side and sell-side liquidity sweep detection
+- BOS (Break of Structure) and CHoCH approximations
+- Fair Value Gap (FVG) detection
+- Order Block candidates
+- Premium / discount range positioning
+- Smart-money directional bias score
+- Automatic **Shadow Trader** that records qualified hypothetical trades without risking the paper account
+- Shadow win rate and average R tracking
+- Portfolio correlation guard before opening same-direction paper positions
+- Portfolio intelligence endpoint with gross notional and pairwise return correlation
+- Existing full futures universe scanner, pattern engine, Strategy Arena, backtests and smart partial-exit manager retained
 - Real-money execution remains disabled
 
-## Update on Windows
+## Update an existing clone
 
 ```powershell
 cd "D:\aetheris-platform"
 git pull origin main
 cd aetheris-quant
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m uvicorn app.main:app --reload
@@ -28,6 +31,6 @@ python -m uvicorn app.main:app --reload
 
 Open `http://127.0.0.1:8000`.
 
-## Safety
+## Important
 
-Backtests are simulations and can overstate future performance. They do not prove profitability. Keep PAPER/testnet mode until strategies are validated across out-of-sample periods, different regimes, fees, slippage and failure cases.
+Smart-money labels are algorithmic approximations, not proof of institutional activity. Shadow results and backtests do not guarantee future returns. Keep PAPER/testnet mode enabled while validating the system.
