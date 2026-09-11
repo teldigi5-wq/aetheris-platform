@@ -206,14 +206,21 @@ spec:
               valueFrom: { secretKeyRef: { name: aetheris-secrets, key: RABBITMQ_DEFAULT_USER } }
             - name: RABBITMQ_DEFAULT_PASS
               valueFrom: { secretKeyRef: { name: aetheris-secrets, key: RABBITMQ_DEFAULT_PASS } }
+          startupProbe:
+            exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             exec: { command: ["rabbitmq-diagnostics", "-q", "ping"] }
-            initialDelaySeconds: 30
-            periodSeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
           volumeMounts:
             - name: data
               mountPath: /var/lib/rabbitmq
@@ -264,6 +271,8 @@ spec:
           ports:
             - containerPort: {{ $app.port }}
           env:
+            - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
+              value: "true"
             {{- if or (eq $app.name "user-service") (eq $app.name "identity-service") }}
             - name: SPRING_DATASOURCE_URL
               valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATASOURCE_URL } }
@@ -296,15 +305,20 @@ spec:
             - name: MANAGEMENT_OTLP_TRACING_ENDPOINT
               value: {{ $.Values.observability.otlpEndpoint | quote }}
             {{- end }}
-          readinessProbe:
-            httpGet: { path: /actuator/health, port: {{ $app.port }} }
-            initialDelaySeconds: 20
+          startupProbe:
+            httpGet: { path: /actuator/health/liveness, port: {{ $app.port }} }
             periodSeconds: 5
-            failureThreshold: 12
+            timeoutSeconds: 3
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: { path: /actuator/health/readiness, port: {{ $app.port }} }
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
           livenessProbe:
-            httpGet: { path: /actuator/health, port: {{ $app.port }} }
-            initialDelaySeconds: 45
+            httpGet: { path: /actuator/health/liveness, port: {{ $app.port }} }
             periodSeconds: 10
+            timeoutSeconds: 3
             failureThreshold: 6
           resources:
             {{- toYaml $app.resource | nindent 12 }}
