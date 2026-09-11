@@ -54,6 +54,7 @@ class ActivePositionManager:
             "enabled": self.settings.enable_position_manager,
             "execution_enabled": self.client.enabled,
             "testnet_only": True,
+            "audit_logging": True,
             "last_cycle": self.last_cycle,
             "last_error": self.last_error,
             "rules": self._effective_rules(),
@@ -115,6 +116,9 @@ class ActivePositionManager:
             "validation_mode": rules["validation_mode"],
             "opened_seen_at": self.now(),
             "last_action": "ADOPTED",
+            "last_trigger_mark": None,
+            "last_trigger_r": None,
+            "last_execution_mark": None,
         }
         self.trades[symbol] = t
         self.log("POSITION_ADOPTED", symbol=symbol, side=side, qty=qty, entry=entry, risk_distance=round(risk_distance, 8), validation_mode=rules["validation_mode"])
@@ -135,7 +139,13 @@ class ActivePositionManager:
             return 0.0, {"step_size": step, "min_qty": min_qty}
         return qty, {"step_size": step, "min_qty": min_qty}
 
-    async def _reduce(self, t, fraction, reason):
+    def _record_trigger(self, t, trigger_mark, trigger_r):
+        if trigger_mark is not None:
+            t["last_trigger_mark"] = float(trigger_mark)
+        if trigger_r is not None:
+            t["last_trigger_r"] = float(trigger_r)
+
+    async def _reduce(self, t, fraction, reason, trigger_mark=None, trigger_r=None):
         current = await self.client.positions()
         p = next((x for x in current if x.get("symbol") == t["symbol"]), None)
         if not p:
@@ -144,18 +154,20 @@ class ActivePositionManager:
         target_qty = min(current_qty, max(0.0, t["initial_qty"] * fraction))
         if target_qty <= 0:
             return False
-        mark = await self.client.mark_price(t["symbol"])
         qty, lot = await self._safe_partial_quantity(t["symbol"], target_qty, current_qty)
         if qty <= 0:
-            self.log("PARTIAL_SKIPPED_TOO_SMALL", symbol=t["symbol"], reason=reason, desired_qty=target_qty, current_qty=current_qty, min_qty=lot["min_qty"], step_size=lot["step_size"])
+            self.log("PARTIAL_SKIPPED_TOO_SMALL", symbol=t["symbol"], reason=reason, desired_qty=target_qty, current_qty=current_qty, min_qty=lot["min_qty"], step_size=lot["step_size"], trigger_mark=trigger_mark, trigger_r=trigger_r)
             return False
+        execution_mark = await self.client.mark_price(t["symbol"])
         close_side = "SELL" if t["side"] == "LONG" else "BUY"
         order = await self.client.market_order(t["symbol"], close_side, qty, reduce_only=True, client_id=f"aeth_pm_{reason.lower()}_{int(datetime.now().timestamp())}")
         t["last_action"] = reason
-        self.log(reason, symbol=t["symbol"], qty=qty, order_id=order.get("orderId"), mark=mark)
+        t["last_execution_mark"] = execution_mark
+        self._record_trigger(t, trigger_mark, trigger_r)
+        self.log(reason, symbol=t["symbol"], qty=qty, order_id=order.get("orderId"), trigger_mark=trigger_mark, trigger_r=trigger_r, execution_mark=execution_mark, current_qty_before=current_qty)
         return True
 
-    async def _close_all(self, t, reason):
+    async def _close_all(self, t, reason, trigger_mark=None, trigger_r=None):
         current = await self.client.positions()
         p = next((x for x in current if x.get("symbol") == t["symbol"]), None)
         if not p:
@@ -163,13 +175,15 @@ class ActivePositionManager:
         q = abs(float(p.get("positionAmt", 0) or 0))
         if q <= 0:
             return False
-        mark = await self.client.mark_price(t["symbol"])
-        qty = await self.client.normalize_quantity(t["symbol"], q, mark)
+        execution_mark = await self.client.mark_price(t["symbol"])
+        qty = await self.client.normalize_quantity(t["symbol"], q, execution_mark)
         qty = min(qty, q)
         close_side = "SELL" if t["side"] == "LONG" else "BUY"
         order = await self.client.market_order(t["symbol"], close_side, qty, reduce_only=True, client_id=f"aeth_pm_exit_{int(datetime.now().timestamp())}")
         t["last_action"] = reason
-        self.log(reason, symbol=t["symbol"], qty=qty, order_id=order.get("orderId"), mark=mark)
+        t["last_execution_mark"] = execution_mark
+        self._record_trigger(t, trigger_mark, trigger_r)
+        self.log(reason, symbol=t["symbol"], qty=qty, order_id=order.get("orderId"), trigger_mark=trigger_mark, trigger_r=trigger_r, execution_mark=execution_mark)
         return True
 
     async def _manage(self, pos):
@@ -191,27 +205,24 @@ class ActivePositionManager:
         if (t["side"] == "LONG" and mark > t["best_price"]) or (t["side"] == "SHORT" and mark < t["best_price"]):
             t["best_price"] = mark
 
-        # Initial software stop is always active. Before TP1/BE/trailing this is
-        # the primary manager-side risk guard; after BE/trailing the dynamic stop
-        # takes over. This is especially important in validation mode.
         initial_stop_hit = (
             (t["side"] == "LONG" and mark <= t["initial_stop"]) or
             (t["side"] == "SHORT" and mark >= t["initial_stop"])
         )
         if initial_stop_hit and not t["break_even_armed"] and not t["trailing"]:
-            await self._close_all(t, "INITIAL_STOP_EXIT")
+            await self._close_all(t, "INITIAL_STOP_EXIT", trigger_mark=mark, trigger_r=t["r_multiple"])
             return
 
         if not t["tp1_done"] and t["r_multiple"] >= rules["tp1_r"]:
-            if await self._reduce(t, rules["tp1_fraction"], "TP1_PARTIAL"):
+            if await self._reduce(t, rules["tp1_fraction"], "TP1_PARTIAL", trigger_mark=mark, trigger_r=t["r_multiple"]):
                 t["tp1_done"] = True
                 t["break_even_armed"] = True
                 t["dynamic_stop"] = t["entry"]
-                self.log("BREAK_EVEN_ARMED", symbol=symbol, stop=t["dynamic_stop"])
+                self.log("BREAK_EVEN_ARMED", symbol=symbol, stop=t["dynamic_stop"], trigger_mark=mark, trigger_r=t["r_multiple"])
                 return
 
         if not t["tp2_done"] and t["r_multiple"] >= rules["tp2_r"]:
-            if await self._reduce(t, rules["tp2_fraction"], "TP2_PARTIAL"):
+            if await self._reduce(t, rules["tp2_fraction"], "TP2_PARTIAL", trigger_mark=mark, trigger_r=t["r_multiple"]):
                 t["tp2_done"] = True
                 return
 
@@ -224,11 +235,12 @@ class ActivePositionManager:
             else:
                 t["dynamic_stop"] = min(t["dynamic_stop"], trail, t["entry"] if t["break_even_armed"] else t["initial_stop"])
             if just_started:
-                self.log("TRAILING_STARTED", symbol=symbol, dynamic_stop=t["dynamic_stop"], best_price=t["best_price"], r_multiple=t["r_multiple"])
+                self._record_trigger(t, mark, t["r_multiple"])
+                self.log("TRAILING_STARTED", symbol=symbol, dynamic_stop=t["dynamic_stop"], best_price=t["best_price"], trigger_mark=mark, trigger_r=t["r_multiple"])
 
         stop_hit = (t["side"] == "LONG" and mark <= t["dynamic_stop"]) or (t["side"] == "SHORT" and mark >= t["dynamic_stop"])
         if stop_hit and (t["break_even_armed"] or t["trailing"]):
-            await self._close_all(t, "DYNAMIC_STOP_EXIT")
+            await self._close_all(t, "DYNAMIC_STOP_EXIT", trigger_mark=mark, trigger_r=t["r_multiple"])
             return
 
         if rules["reversal_exit"]:
@@ -236,7 +248,7 @@ class ActivePositionManager:
                 a = await self._analysis(symbol)
                 opposite = "SHORT" if t["side"] == "LONG" else "LONG"
                 if a.get("decision") == opposite and float(a.get("score", 0)) >= rules["reversal_min_score"]:
-                    await self._close_all(t, "REVERSAL_EXIT")
+                    await self._close_all(t, "REVERSAL_EXIT", trigger_mark=mark, trigger_r=t["r_multiple"])
             except Exception as e:
                 self.log("REVERSAL_CHECK_WARNING", symbol=symbol, error=str(e))
 
@@ -254,7 +266,7 @@ class ActivePositionManager:
                 t["closed_seen_at"] = self.now()
                 self.closed.append(t)
                 self.closed = self.closed[-200:]
-                self.log("POSITION_CLOSED", symbol=symbol, last_action=t.get("last_action"))
+                self.log("POSITION_CLOSED", symbol=symbol, last_action=t.get("last_action"), last_trigger_mark=t.get("last_trigger_mark"), last_trigger_r=t.get("last_trigger_r"), last_execution_mark=t.get("last_execution_mark"))
 
         self.last_cycle = self.now()
         self.last_error = None
@@ -262,7 +274,7 @@ class ActivePositionManager:
 
     async def loop(self):
         self.running = True
-        self.log("POSITION_MANAGER_STARTED", validation_mode=bool(self.settings.manager_validation_mode))
+        self.log("POSITION_MANAGER_STARTED", validation_mode=bool(self.settings.manager_validation_mode), audit_logging=True)
         try:
             while self.running:
                 try:
