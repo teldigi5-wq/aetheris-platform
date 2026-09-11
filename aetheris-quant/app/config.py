@@ -17,6 +17,7 @@ class Settings(BaseModel):
     min_setup_score: float = float(os.getenv("MIN_SETUP_SCORE", "72"))
     binance_fapi_base: str = os.getenv("BINANCE_FAPI_BASE", "https://fapi.binance.com").strip()
     binance_testnet_base: str = os.getenv("BINANCE_TESTNET_BASE", "https://testnet.binancefuture.com").strip()
+    binance_testnet_ws_base: str = os.getenv("BINANCE_TESTNET_WS_BASE", "wss://fstream.binancefuture.com").strip().rstrip('/')
     binance_testnet_api_key: str = os.getenv("BINANCE_TESTNET_API_KEY", "").strip()
     binance_testnet_api_secret: str = os.getenv("BINANCE_TESTNET_API_SECRET", "").strip()
     enable_testnet_execution: bool = b("ENABLE_TESTNET_EXECUTION")
@@ -33,5 +34,8 @@ class Settings(BaseModel):
     auto_max_notional_pct: float = float(os.getenv("AUTO_MAX_NOTIONAL_PCT", "0.05"))
     auto_leverage: int = int(os.getenv("AUTO_LEVERAGE", "1"))
     auto_max_positions: int = int(os.getenv("AUTO_MAX_POSITIONS", "1"))
+    enable_execution_stream: bool = b("ENABLE_EXECUTION_STREAM", "true")
+    execution_reconcile_seconds: int = int(os.getenv("EXECUTION_RECONCILE_SECONDS", "30"))
+    execution_keepalive_seconds: int = int(os.getenv("EXECUTION_KEEPALIVE_SECONDS", "2700"))
 
 settings = Settings()
