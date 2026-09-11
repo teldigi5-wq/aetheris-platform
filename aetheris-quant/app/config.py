@@ -51,4 +51,12 @@ class Settings(BaseModel):
     manager_reversal_exit: bool = b("MANAGER_REVERSAL_EXIT", "true")
     manager_reversal_min_score: float = float(os.getenv("MANAGER_REVERSAL_MIN_SCORE", "82"))
 
+    # v0.9.1 TESTNET validation mode. Never use these thresholds for production decisions.
+    manager_validation_mode: bool = b("MANAGER_VALIDATION_MODE", "false")
+    manager_validation_stop_pct: float = float(os.getenv("MANAGER_VALIDATION_STOP_PCT", "0.001"))
+    manager_validation_tp1_r: float = float(os.getenv("MANAGER_VALIDATION_TP1_R", "0.05"))
+    manager_validation_trail_start_r: float = float(os.getenv("MANAGER_VALIDATION_TRAIL_START_R", "0.08"))
+    manager_validation_tp2_r: float = float(os.getenv("MANAGER_VALIDATION_TP2_R", "0.10"))
+    manager_validation_trail_distance_r: float = float(os.getenv("MANAGER_VALIDATION_TRAIL_DISTANCE_R", "0.03"))
+
 settings = Settings()
