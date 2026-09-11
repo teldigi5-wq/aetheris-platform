@@ -10,6 +10,9 @@ spring:
       port: ${SPRING_DATA_REDIS_PORT:6379}
   cloud:
     gateway:
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 5s
       globalcors:
         cors-configurations:
           '[/**]':
@@ -29,10 +32,15 @@ spring:
                 redis-rate-limiter.burstCapacity: 10
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@aetherisKeyResolver}"
-        - id: user-service
+            - name: CircuitBreaker
+              args:
+                name: identityCircuit
+                fallbackUri: forward:/fallback/identity
+        - id: user-service-read
           uri: http://user-service:8081
           predicates:
             - Path=/api/users/**
+            - Method=GET,HEAD
           filters:
             - name: RequestRateLimiter
               args:
@@ -40,6 +48,36 @@ spring:
                 redis-rate-limiter.burstCapacity: 20
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@aetherisKeyResolver}"
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET,HEAD
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - name: CircuitBreaker
+              args:
+                name: userReadCircuit
+                fallbackUri: forward:/fallback/users
+        - id: user-service-write
+          uri: http://user-service:8081
+          predicates:
+            - Path=/api/users/**
+            - Method=POST,PUT,PATCH,DELETE
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@aetherisKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: userWriteCircuit
+                fallbackUri: forward:/fallback/users
         - id: audit-service
           uri: http://audit-service:8083
           predicates:
@@ -51,19 +89,53 @@ spring:
                 redis-rate-limiter.burstCapacity: 20
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@aetherisKeyResolver}"
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET,HEAD
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+            - name: CircuitBreaker
+              args:
+                name: auditCircuit
+                fallbackUri: forward:/fallback/events
 
 aetheris:
   jwt:
     secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: 10s
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 4s
+        cancelRunningFuture: true
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,info,prometheus,circuitbreakers,circuitbreakerevents
   endpoint:
     health:
       show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
@@ -77,4 +149,4 @@ management:
 info:
   app:
     name: Aetheris Gateway
-    stage: 5
+    stage: 6
