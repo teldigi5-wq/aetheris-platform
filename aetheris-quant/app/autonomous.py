@@ -69,6 +69,7 @@ class AutonomousTestnetTrader:
             "configured": self.client.configured,
             "execution_enabled": self.client.enabled,
             "autonomous_enabled": self.settings.enable_autonomous_testnet,
+            "auto_start_on_boot": self.settings.auto_start_autonomous,
             "running": self.running,
             "kill_switch": self.kill_switch,
             "preflight_ok": not preflight,
@@ -108,67 +109,48 @@ class AutonomousTestnetTrader:
         book = await self.client.book_ticker(symbol)
         direction = a.get("decision", "WAIT")
         reasons = []
-        if direction == "WAIT":
-            reasons.append("base strategy says WAIT")
-        if float(a.get("score", 0)) < self.settings.auto_min_score:
-            reasons.append("score below threshold")
-        if mtf.get("bias") != direction:
-            reasons.append("MTF bias conflict")
-        if float(mtf.get("confidence", 0)) < self.settings.auto_min_mtf_confidence:
-            reasons.append("MTF confidence too low")
-        if smart.get("bias") not in (direction, "NEUTRAL"):
-            reasons.append("smart-money bias conflict")
-        if book["spread_pct"] > self.settings.auto_max_spread_pct:
-            reasons.append("spread too wide")
-        if isinstance(votes, dict):
-            ensemble = votes.get("ensemble")
-        else:
-            ensemble = next((v for v in votes if isinstance(v, dict) and v.get("strategy") == "ensemble"), None)
-        if ensemble and ensemble.get("decision") not in (direction, "WAIT"):
-            reasons.append("ensemble conflict")
+        if direction == "WAIT": reasons.append("base strategy says WAIT")
+        if float(a.get("score", 0)) < self.settings.auto_min_score: reasons.append("score below threshold")
+        if mtf.get("bias") != direction: reasons.append("MTF bias conflict")
+        if float(mtf.get("confidence", 0)) < self.settings.auto_min_mtf_confidence: reasons.append("MTF confidence too low")
+        if smart.get("bias") not in (direction, "NEUTRAL"): reasons.append("smart-money bias conflict")
+        if book["spread_pct"] > self.settings.auto_max_spread_pct: reasons.append("spread too wide")
+        ensemble = votes.get("ensemble") if isinstance(votes, dict) else next((v for v in votes if isinstance(v, dict) and v.get("strategy") == "ensemble"), None)
+        if ensemble and ensemble.get("decision") not in (direction, "WAIT"): reasons.append("ensemble conflict")
         approved = not reasons and direction in ("LONG", "SHORT")
         quality = min(100, round(float(a.get("score", 0)) * 0.45 + float(mtf.get("confidence", 0)) * 0.35 + (100 if smart.get("bias") == direction else 65) * 0.15 + max(0, 100 - book["spread_pct"] * 1000) * 0.05, 1))
         return {"symbol": symbol, "approved": approved, "direction": direction, "score": a.get("score", 0), "quality": quality, "mtf": mtf, "smart_bias": smart.get("bias"), "spread_pct": round(book["spread_pct"], 5), "reasons": reasons, "analysis": a}
 
     async def size_quantity(self, analysis, balance):
-        entry = float(analysis["entry"])
-        sl = float(analysis["stop_loss"])
+        entry = float(analysis["entry"]); sl = float(analysis["stop_loss"])
         stop_pct = abs(entry - sl) / entry
         risk_cash = float(balance) * self.settings.auto_risk_pct
         notional_by_risk = risk_cash / max(stop_pct, 0.001)
         cap = float(balance) * self.settings.auto_max_notional_pct * self.settings.auto_leverage
         notional = min(notional_by_risk, cap)
-        qty = notional / entry
-        return qty, notional, risk_cash
+        return notional / entry, notional, risk_cash
 
     async def execute_candidate(self, c):
         preflight = self._preflight_reasons()
         if preflight:
-            self.log("PREFLIGHT_BLOCK", symbol=c.get("symbol"), reasons=preflight)
-            return None
+            self.log("PREFLIGHT_BLOCK", symbol=c.get("symbol"), reasons=preflight); return None
         cooldown = self._cooldown_remaining()
         if cooldown > 0:
-            self.log("COOLDOWN_BLOCK", symbol=c.get("symbol"), remaining_seconds=cooldown)
-            return None
-        symbol = c["symbol"]
-        a = c["analysis"]
+            self.log("COOLDOWN_BLOCK", symbol=c.get("symbol"), remaining_seconds=cooldown); return None
+        symbol = c["symbol"]; a = c["analysis"]
         positions = await self.client.positions()
         if any(p.get("symbol") == symbol and abs(float(p.get("positionAmt", 0))) > 0 for p in positions):
-            self.log("SKIP", symbol=symbol, reason="position already open")
-            return None
+            self.log("SKIP", symbol=symbol, reason="position already open"); return None
         if len(positions) >= self.settings.auto_max_positions:
-            self.log("SKIP", symbol=symbol, reason="max testnet positions reached")
-            return None
+            self.log("SKIP", symbol=symbol, reason="max testnet positions reached"); return None
         acct = await self.client.account()
         balance = float(acct.get("availableBalance") or acct.get("totalWalletBalance") or 0)
         if balance <= 0:
-            self.log("SKIP", symbol=symbol, reason="no available testnet balance")
-            return None
+            self.log("SKIP", symbol=symbol, reason="no available testnet balance"); return None
         qty, notional, risk_cash = await self.size_quantity(a, balance)
         qty = await self.client.normalize_quantity(symbol, qty, a["entry"])
         if qty <= 0:
-            self.log("SKIP", symbol=symbol, reason="normalized quantity is zero")
-            return None
+            self.log("SKIP", symbol=symbol, reason="normalized quantity is zero"); return None
         side = "BUY" if c["direction"] == "LONG" else "SELL"
         await self.client.set_leverage(symbol, self.settings.auto_leverage)
         entry = await self.client.market_order(symbol, side, qty)
@@ -182,19 +164,16 @@ class AutonomousTestnetTrader:
         if self.scan_lock.locked():
             self.log("SCAN_BUSY", reason="a scan is already in progress")
             return {"ok": False, "busy": True, "reason": "scan already in progress", "state": self.state()}
-
         async with self.scan_lock:
             self.scan_in_progress = True
             self.scan_started_at = datetime.now(timezone.utc).isoformat()
-            self.scan_completed = 0
-            self.scan_total = 0
+            self.scan_completed = 0; self.scan_total = 0
             try:
                 universe = await self.universe_fn()
                 rows = [r for r in universe if isinstance(r, dict) and isinstance(r.get("symbol"), str)][: self.settings.auto_scan_markets]
                 self.scan_total = len(rows)
                 self.log("SCAN_STARTED", markets=self.scan_total, execute=bool(execute))
                 sem = asyncio.Semaphore(4)
-
                 async def one(row):
                     symbol = row.get("symbol", "UNKNOWN")
                     async with sem:
@@ -207,7 +186,6 @@ class AutonomousTestnetTrader:
                         finally:
                             self.scan_completed += 1
                         return result
-
                 vals = await asyncio.gather(*[one(r) for r in rows])
                 vals = sorted(vals, key=lambda x: x.get("quality", 0), reverse=True)
                 self.candidates = [{k: v for k, v in x.items() if k != "analysis"} for x in vals]
@@ -224,12 +202,10 @@ class AutonomousTestnetTrader:
                             if c.get("approved"):
                                 try:
                                     x = await self.execute_candidate(c)
-                                    if x:
-                                        executed.append({"symbol": c["symbol"], "direction": c["direction"], "quality": c["quality"]})
+                                    if x: executed.append({"symbol": c["symbol"], "direction": c["direction"], "quality": c["quality"]})
                                 except Exception as e:
                                     self.log("EXECUTION_ERROR", symbol=c["symbol"], error=self._error_text(e))
-                                if len(executed) >= 1:
-                                    break
+                                if len(executed) >= 1: break
                 self.consecutive_errors = 0
                 self.log("SCAN", approved=sum(1 for x in vals if x.get("approved")), executed=len(executed), markets=self.scan_total, symbol_errors=sum(1 for x in vals if x.get("error")))
                 return {"ok": True, "executed": executed, "candidates": self.candidates, "state": self.state()}
@@ -250,8 +226,7 @@ class AutonomousTestnetTrader:
         try:
             while not self.kill_switch and self.settings.enable_autonomous_testnet:
                 await self.scan_once(execute=True)
-                if self.kill_switch:
-                    break
+                if self.kill_switch: break
                 await asyncio.sleep(max(30, self.settings.auto_scan_seconds))
         except asyncio.CancelledError:
             raise
@@ -260,21 +235,31 @@ class AutonomousTestnetTrader:
             self.log("AUTONOMOUS_LOOP_STOP")
 
     def start(self):
-        if self.task and not self.task.done():
-            return False
+        if self.task and not self.task.done(): return False
         preflight = self._preflight_reasons()
         if preflight:
-            self.log("START_BLOCKED", reasons=preflight)
-            return False
+            self.log("START_BLOCKED", reasons=preflight); return False
         self.kill_switch = False
         self.consecutive_errors = 0
         self.task = asyncio.create_task(self.loop())
         return True
 
+    async def stop(self):
+        task = self.task
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self.task = None
+        self.running = False
+        self.log("AUTONOMOUS_STOP", kill_switch=False)
+        return {"ok": True, "state": self.state()}
+
     async def kill(self, cancel_orders=True):
         self.kill_switch = True
-        if self.task and not self.task.done():
-            self.task.cancel()
+        if self.task and not self.task.done(): self.task.cancel()
         cancelled = []
         if cancel_orders and self.client.enabled:
             try:
@@ -282,10 +267,8 @@ class AutonomousTestnetTrader:
                 for p in positions:
                     sym = p.get("symbol")
                     if sym:
-                        try:
-                            cancelled.append({"symbol": sym, "result": await self.client.cancel_all(sym)})
-                        except Exception as e:
-                            cancelled.append({"symbol": sym, "error": self._error_text(e)})
+                        try: cancelled.append({"symbol": sym, "result": await self.client.cancel_all(sym)})
+                        except Exception as e: cancelled.append({"symbol": sym, "error": self._error_text(e)})
             except Exception as e:
                 self.log("KILL_CANCEL_ERROR", error=self._error_text(e))
         self.log("KILL_SWITCH", cancel_orders=cancel_orders)
