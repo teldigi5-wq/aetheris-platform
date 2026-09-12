@@ -1,54 +1,143 @@
-# Aetheris Platform
+<div align="center">
 
-**Build. Secure. Observe. Orchestrate.**
+# ⚡ Aetheris Platform
 
-Aetheris is an open-source distributed API, identity, observability, and AI-agent platform built with Java, Spring Boot, React, PostgreSQL, Redis, RabbitMQ, Prometheus, Grafana, Loki, Tempo, OpenTelemetry, Kubernetes, Helm, and cloud-native technologies.
+### Build. Secure. Observe. Orchestrate.
 
-![Java](https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=flat-square&logo=springboot&logoColor=white)
-![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=flat-square&logo=react&logoColor=111827)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white)
-![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3-FF6600?style=flat-square&logo=rabbitmq&logoColor=white)
-![Prometheus](https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=flat-square&logo=prometheus&logoColor=white)
-![Grafana](https://img.shields.io/badge/Grafana-Observability-F46800?style=flat-square&logo=grafana&logoColor=white)
-![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-Tracing-000000?style=flat-square&logo=opentelemetry&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-Local_Cluster-326CE5?style=flat-square&logo=kubernetes&logoColor=white)
-![Helm](https://img.shields.io/badge/Helm-Chart-0F1689?style=flat-square&logo=helm&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
+**A cloud-native platform engineering project for APIs, identity, distributed systems, observability and future AI-agent governance.**
 
-## Current milestone — Stage 7 complete
+![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-Stage 7 packages the Aetheris core platform as a local Kubernetes deployment managed by Helm. The chart includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit, and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, startup/readiness/liveness probes, and configurable replica counts.
+`Java 21` • `Spring Boot` • `React` • `PostgreSQL` • `Redis` • `RabbitMQ` • `Prometheus` • `Grafana` • `OpenTelemetry` • `Kubernetes` • `Helm`
 
-The local runtime verification is complete: the Helm chart lints and renders successfully, the release deploys into Docker Desktop Kubernetes, all core workloads become Ready, authentication and protected gateway routing work, `user-service` scales to two Ready replicas, EndpointSlice exposes both backends, Kubernetes replaces a deleted replica automatically, and the platform scales back to the low-memory one-replica default.
+</div>
 
-Docker Compose remains the fast development path, while Kubernetes provides desired-state reconciliation, service discovery, replica scaling, self-healing, rolling upgrades, and a deployment model that is much closer to production infrastructure.
+---
+
+## 🎯 What Aetheris demonstrates
+
+Aetheris is a long-term engineering portfolio project designed to show how a modern platform grows from a small service into a distributed, observable and cloud-native system.
+
+Instead of building isolated demos, each stage adds one production-relevant capability to the same platform: authentication, authorization, caching, rate limiting, event messaging, observability, resilience, Kubernetes deployment and eventually AI-agent governance.
+
+> **Portfolio goal:** make every architectural decision explainable in an interview and verifiable in running code.
+
+---
+
+## ✅ Current milestone — Stage 7 complete
+
+The platform now runs locally through both **Docker Compose** and **Kubernetes + Helm**.
+
+Stage 7 includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, startup/readiness/liveness probes and configurable replicas.
+
+Runtime verification includes successful authentication, protected gateway routing, two Ready `user-service` replicas, EndpointSlice-backed service discovery, replica self-healing and scaling back to the low-memory default.
+
+---
+
+## 🏗️ Architecture
 
 ```mermaid
 flowchart LR
-    U[Browser] --> PF[kubectl port-forward :3000]
-    PF --> D[Dashboard Service]
-    D --> G[Gateway Service]
-    G --> R[(Redis Service)]
+    U[Browser / Client] --> D[React Dashboard]
+    D --> G[API Gateway]
     G --> I[Identity Service]
     G --> S[User Service]
     G --> A[Audit Service]
-    S --> M[(RabbitMQ Service)]
-    M --> A
-    I --> P[(PostgreSQL PVC)]
+    G --> R[(Redis)]
+    I --> P[(PostgreSQL)]
     S --> P
-    K[Kubernetes] --> D
+    S --> M[(RabbitMQ)]
+    M --> A
+    G --> O[Metrics / Traces]
+    I --> O
+    S --> O
+    A --> O
+    O --> OBS[Prometheus + Grafana + Loki + Tempo]
+    K[Kubernetes + Helm] --> D
     K --> G
     K --> I
     K --> S
     K --> A
-    H[Helm] --> K
 ```
 
-## Quick start
+### Core engineering domains
 
-Prerequisite: Docker Desktop or Docker Engine with Compose.
+| Domain | What Aetheris implements |
+|---|---|
+| API platform | Gateway routing, protected endpoints, structured failures |
+| Identity | JWT access tokens, refresh-token rotation, RBAC and scopes |
+| Data | PostgreSQL persistence with shared service data |
+| Distributed systems | Redis caching/rate limiting and RabbitMQ events |
+| Resilience | Circuit breakers, retries, timeouts and fallbacks |
+| Observability | Metrics, logs and distributed traces |
+| Cloud native | Docker Compose, Kubernetes, Helm and health probes |
+| Future AI | Agent gateway, policies and local-model integration roadmap |
+
+---
+
+## 🔐 Security model
+
+Access tokens are signed JWTs containing identity, role and effective scope claims. Refresh tokens are opaque, rotated on use, revocable and stored only as SHA-256 hashes in PostgreSQL.
+
+The gateway validates tokens and enforces scopes before protected requests reach downstream services.
+
+| Role | Default permissions |
+|---|---|
+| `API_CONSUMER` | `users:read`, `services:read` |
+| `DEVELOPER` | consumer scopes + `users:write`, `identity:read` |
+| `ADMIN` | developer scopes + `identity:write` |
+
+---
+
+## ⚡ Distributed traffic model
+
+Redis provides shared caching and distributed token-bucket rate limiting. User-cache entries use a 60-second TTL and are evicted on writes.
+
+RabbitMQ carries asynchronous `user.created` and `user.deleted` events to the audit service through the durable `aetheris.events` topic exchange.
+
+---
+
+## 📈 Observability
+
+Each Java service exposes Prometheus metrics through Spring Boot Actuator. The observability stack combines:
+
+- **Prometheus** for metrics
+- **Grafana** for dashboards
+- **Loki** for centralized logs
+- **Tempo** for traces
+- **OpenTelemetry** for instrumentation and trace export
+- **Grafana Alloy** for container log discovery
+
+The observability profile remains optional so the core platform stays practical on lower-memory development hardware.
+
+---
+
+## 🛡️ Resilience
+
+The gateway protects downstream calls with Resilience4j circuit breakers and explicit network timeouts.
+
+Safe reads can retry with exponential backoff, while mutating requests are not replayed automatically. Dependency failures return structured `503` responses instead of leaking raw connection errors.
+
+---
+
+## ☸️ Kubernetes + Helm
+
+The Helm chart under `deploy/helm/aetheris` deploys the core platform into one namespace.
+
+Kubernetes Services provide stable internal DNS, stateful infrastructure receives persistent volumes, stateless services use Deployments and health probes keep traffic away from unready pods.
+
+The default values are intentionally sized for a small local machine. Production deployments should use external secrets, stronger storage/backup policies, ingress/TLS and separate production values.
+
+---
+
+## 🚀 Quick start
+
+### Docker Compose
 
 ```bash
 git clone https://github.com/teldigi5-wq/aetheris-platform.git
@@ -56,84 +145,48 @@ cd aetheris-platform
 docker compose up --build
 ```
 
-For the full observability stack:
+### Full observability stack
 
 ```bash
 docker compose --profile observability up --build
 ```
 
-For local Kubernetes/Helm deployment, see [Stage 7 Kubernetes runbook](docs/kubernetes.md).
+### Main local endpoints
 
-Main endpoints in Docker Compose:
+| Service | URL |
+|---|---|
+| Dashboard | `http://localhost:3000` |
+| Gateway health | `http://localhost:8080/actuator/health` |
+| Identity API | `http://localhost:8080/api/auth/*` |
+| User API | `http://localhost:8080/api/users` |
+| Event API | `http://localhost:8080/api/events` |
+| RabbitMQ UI | `http://localhost:15672` |
+| Prometheus | `http://localhost:9090` |
+| Grafana | `http://localhost:3001` |
+| Loki | `http://localhost:3100` |
+| Tempo | `http://localhost:3200` |
 
-- Dashboard: `http://localhost:3000`
-- Gateway health: `http://localhost:8080/actuator/health`
-- Identity API: `http://localhost:8080/api/auth/*`
-- Protected User API: `http://localhost:8080/api/users`
-- Protected Event API: `http://localhost:8080/api/events`
-- Redis: `localhost:6379`
-- RabbitMQ Management UI: `http://localhost:15672`
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3001` (`aetheris` / `aetheris` locally)
-- Loki: `http://localhost:3100`
-- Tempo: `http://localhost:3200`
-- Grafana Alloy: `http://localhost:12345`
+For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
 
-## Security model
+---
 
-Access tokens are signed JWTs containing identity, role, and effective scope claims. Refresh tokens are opaque, rotated on use, revocable, and stored only as SHA-256 hashes in PostgreSQL. The gateway validates access tokens and enforces scopes before forwarding protected requests.
+## 🗺️ Roadmap
 
-Default role scopes:
-
-- `API_CONSUMER`: `users:read`, `services:read`
-- `DEVELOPER`: `users:read`, `users:write`, `services:read`, `identity:read`
-- `ADMIN`: all developer scopes plus `identity:write`
-
-## Distributed traffic model
-
-Redis provides a shared cache for user reads and distributed token-bucket rate limiting. User cache entries use a 60-second TTL and are evicted on writes. RabbitMQ carries asynchronous `user.created` and `user.deleted` events to the audit service through the durable `aetheris.events` topic exchange.
-
-## Observability model
-
-Each Java service exposes `/actuator/prometheus`. Prometheus scrapes gateway, user, identity, and audit metrics every five seconds. Grafana is provisioned with Prometheus, Loki, and Tempo datasources plus an Aetheris overview dashboard.
-
-OpenTelemetry tracing is sampled at 100% in the local development profile for easier learning and debugging. Services export OTLP traces to the OpenTelemetry Collector, which forwards them to Tempo. Grafana Alloy discovers Docker containers and forwards their logs to Loki, giving the local platform centralized logs without changing application logging code.
-
-The observability containers are grouped under the `observability` Compose profile because the full metrics/logs/traces stack is heavier than the core platform and should not be mandatory on an 8 GB development machine.
-
-## Resilience model
-
-The gateway protects downstream service calls with Resilience4j circuit breakers and explicit network timeouts. Safe read requests can be retried with exponential backoff, while mutating user operations and identity operations are not replayed automatically. When a downstream dependency is unavailable, Aetheris returns a structured 503 fallback instead of leaking raw connection failures. Circuit breaker state is exposed through actuator endpoints for debugging and observability.
-
-## Kubernetes model
-
-The Helm chart under `deploy/helm/aetheris` deploys the core Aetheris platform into one namespace. Kubernetes Services preserve stable internal DNS names such as `gateway`, `user-service`, `identity-service`, `postgres`, `redis`, and `rabbitmq`; this lets the same service hostnames used by Docker Compose work naturally inside the cluster. Stateful infrastructure receives PersistentVolumeClaims, stateless services use Deployments, and startup/readiness/liveness probes keep traffic away from unready pods while allowing slower local startup. Replica counts are Helm values and can also be changed interactively with `kubectl scale`.
-
-Stage 7 runtime verification confirmed two simultaneously Ready `user-service` replicas behind the service EndpointSlice and Kubernetes self-healing after deleting a replica. The default chart values are intentionally sized for a small local machine and contain development-only credentials. Production deployments should use external secret management, stronger storage/backup policies, ingress/TLS, and separate production values.
-
-## Engineering goals
-
-Aetheris is built around real platform-engineering concepts: API management, identity, security, distributed communication, caching, traffic management, messaging, observability, resilience, cloud-native deployment, developer tooling, and agent governance. Each stage remains small enough to explain in an interview while contributing to one coherent platform.
-
-## Roadmap
-
-- [x] Stage 1 — Gateway + user microservice + PostgreSQL
-- [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors, stronger CI
-- [x] Stage 2 — Identity service, JWT authentication, RBAC, refresh tokens, scoped permissions
-- [x] Stage 3 — Redis caching and distributed rate limiting
+- [x] Stage 1 — Gateway + user service + PostgreSQL
+- [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors and CI
+- [x] Stage 2 — Identity, JWT authentication, RBAC, refresh tokens and scopes
+- [x] Stage 3 — Redis caching + distributed rate limiting
 - [x] Stage 4 — RabbitMQ event messaging
-- [x] Stage 5 — Prometheus, Grafana, centralized logs, OpenTelemetry
-- [x] Stage 6 — Circuit breakers, retries, timeouts, load balancing
+- [x] Stage 5 — Prometheus, Grafana, logs and OpenTelemetry
+- [x] Stage 6 — Circuit breakers, retries, timeouts and load balancing
 - [x] Stage 7 — Local Kubernetes + Helm
 - [ ] Stage 8 — Aetheris CLI + SDK generation
-- [ ] Stage 9 — AI Agent Gateway, policy engine, local Ollama integration
+- [ ] Stage 9 — AI Agent Gateway + policy engine + local Ollama integration
 - [ ] Stage 10 — Chaos Lab + Security Lab
 
-## Zero-cost design rule
+---
 
-The development stack has no mandatory recurring software fee. Local Docker infrastructure and open-source components are the default. Cloud deployment is optional, not required to run or demonstrate the platform.
-
-## Documentation
+## 📚 Documentation
 
 - [Architecture](docs/architecture.md)
 - [Interview talking points](docs/interview-guide.md)
@@ -141,6 +194,18 @@ The development stack has no mandatory recurring software fee. Local Docker infr
 - [Resilience runbook](docs/resilience.md)
 - [Kubernetes + Helm runbook](docs/kubernetes.md)
 
-## Author
+---
 
-Built by **Poojana Kaveesh Sellahewa** as a long-term software engineering and distributed-systems portfolio project.
+## 💡 Design rule
+
+The development stack has **no mandatory recurring software fee**. Open-source components and local infrastructure are the default; cloud deployment remains optional.
+
+---
+
+<div align="center">
+
+### From fundamentals to production-style platform engineering.
+
+**Built by Poojana Kaveesh Sellahewa**
+
+</div>
