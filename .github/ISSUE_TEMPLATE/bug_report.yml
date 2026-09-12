@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem in Aetheris
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Aetheris. Please remove secrets, tokens and private data before submitting logs.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start ...
+        2. Call ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Docker Compose
+        - Kubernetes / Helm
+        - Local service run
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Relevant logs, error responses, screenshots, traces or metrics with sensitive data removed.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Java version, Docker/Kubernetes version, branch/commit and any relevant configuration.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I removed credentials, tokens and private data from this report.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true
