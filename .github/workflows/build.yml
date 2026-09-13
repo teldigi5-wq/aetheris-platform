@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -67,3 +70,37 @@ jobs:
         run: npm install
       - name: Build dashboard
         run: npm run build
+
+  release-hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Secret and sensitive-file gate
+        run: python scripts/stage22/release_gate.py
+      - name: Persistence schema guard
+        run: python scripts/stage22/schema_guard.py
+      - name: Generate deterministic source SBOM
+        run: python scripts/stage22/generate_sbom.py --output build/stage22/sbom.cdx.json
+      - name: Generate deterministic release manifest
+        run: python scripts/stage22/release_manifest.py --output build/stage22/release-manifest.json
+      - name: Verify deterministic evidence generation
+        run: |
+          cp build/stage22/sbom.cdx.json /tmp/stage22-sbom-a.json
+          cp build/stage22/release-manifest.json /tmp/stage22-manifest-a.json
+          python scripts/stage22/generate_sbom.py --output build/stage22/sbom.cdx.json
+          python scripts/stage22/release_manifest.py --output build/stage22/release-manifest.json
+          cmp /tmp/stage22-sbom-a.json build/stage22/sbom.cdx.json
+          cmp /tmp/stage22-manifest-a.json build/stage22/release-manifest.json
+      - name: Compute merge-readiness evidence
+        run: python scripts/stage22/merge_readiness.py
+      - name: Upload Stage 22 release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage22-release-evidence
+          path: build/stage22/
+          if-no-files-found: warn
+          retention-days: 14

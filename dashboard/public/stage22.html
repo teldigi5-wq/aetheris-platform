@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Stage 22 · Release Hardening</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui;background:#070b14;color:#edf6ff}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 0,#18385a 0,transparent 36%),#070b14}.wrap{max-width:1120px;margin:auto;padding:42px 22px 70px}a{color:#bfe4ff}.tag{display:inline-flex;padding:7px 11px;border:1px solid #789bc3;border-radius:999px;background:#152c47;font-size:12px;font-weight:850;letter-spacing:.06em}.hero{margin:18px 0 28px}.hero h1{font-size:clamp(34px,6vw,64px);line-height:.98;margin:0 0 14px}.hero p{max-width:820px;color:#abc0d7;font-size:17px;line-height:1.65}.banner{border:1px solid #d3a94b;background:#332916;border-radius:18px;padding:16px 18px;margin:22px 0;font-weight:800;color:#ffe1a1}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px}.card{border:1px solid #273d58;background:rgba(11,23,39,.88);border-radius:18px;padding:18px}.card h2{font-size:16px;margin:0 0 10px}.card p,.card li{color:#a9bdd2;line-height:1.55;font-size:14px}.ok{color:#8ef0bd}.warn{color:#ffd27c}.no{color:#ff9e9e}code{background:#101d2d;border:1px solid #263a52;border-radius:7px;padding:2px 6px}.foot{margin-top:28px;color:#7189a3;font-size:13px}</style>
+</head>
+<body>
+<main class="wrap">
+  <a href="/">← Mission Control</a>
+  <div class="hero">
+    <span class="tag">STAGE 22 · REPOSITORY ONLY</span>
+    <h1>Release Hardening<br>& Merge Readiness</h1>
+    <p>This console documents source-level release evidence. It deliberately cannot merge PR #7, enable production activation, or claim the Stage 21 physical pilot has happened.</p>
+  </div>
+  <div class="banner">Expected posture: <code>HARDENED_AWAITING_EXTERNAL_MERGE_GATES</code> · mergeAllowed=false · Stage 21 remains BLOCKED_PENDING_HARDWARE</div>
+  <section class="grid">
+    <article class="card"><h2 class="ok">Secret & sensitive-file gate</h2><p>High-confidence tracked-secret patterns and dangerous private-key/credential filenames fail CI. Findings contain path + rule only, never the matched secret value.</p></article>
+    <article class="card"><h2 class="ok">Deterministic SBOM</h2><p>Maven, Python and Node declarations are written to CycloneDX 1.5 JSON and regenerated twice for byte-level determinism.</p></article>
+    <article class="card"><h2 class="ok">Release manifest</h2><p>Every tracked file receives a SHA-256 and size bound to the exact Git commit/tree.</p></article>
+    <article class="card"><h2 class="ok">Persistence guard</h2><p>Duplicate explicit JPA table names and unsafe main-resource schema mutation modes fail the hardening job.</p></article>
+    <article class="card"><h2 class="warn">Dependency lock blocker</h2><p><code>dashboard/package-lock.json</code> is currently absent. Stage 22 reports this instead of pretending frontend resolution is fully reproducible.</p></article>
+    <article class="card"><h2 class="warn">Repository-setting blocker</h2><p>CODEOWNERS is source-controlled, but <code>main</code> branch protection and required checks must be enabled/verified in GitHub settings before eventual merge.</p></article>
+    <article class="card"><h2 class="no">No automatic merge</h2><p>The readiness artifact always keeps <code>mergeAllowed=false</code> and <code>autoMergeAllowed=false</code>. Owner review remains authoritative.</p></article>
+    <article class="card"><h2 class="no">No hardware promotion</h2><p>Stage 22 cannot satisfy Stage 21 physical evidence, mutate a workstation, grant production activation, enable live-money orders, withdrawals or transfers.</p></article>
+  </section>
+  <p class="foot">CI evidence artifacts: release-gate.json · schema-guard.json · sbom.cdx.json · release-manifest.json · merge-readiness.json</p>
+</main>
+</body>
+</html>
