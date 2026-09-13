@@ -66,6 +66,17 @@ public class TaskService {
         return saved;
     }
 
+    public TaskEvent recordProgress(UUID id, String agentId, String message, Map<String, Object> metadata) {
+        TaskEntity task = getRequired(id);
+        TaskEvent progress = event(
+                task,
+                agentId,
+                message == null || message.isBlank() ? "Task progress update" : message,
+                metadata == null ? Map.of() : metadata);
+        eventStream.publish(progress);
+        return progress;
+    }
+
     public TaskEvent snapshotEvent(UUID id) {
         TaskEntity task = getRequired(id);
         return event(task, task.getActiveAgentId(), "Current task snapshot", Map.of("mode", task.getMode().name()));
