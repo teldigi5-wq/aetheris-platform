@@ -28,6 +28,11 @@ public class FallbackController {
         return unavailable("identity-service", "Identity service is temporarily unavailable");
     }
 
+    @RequestMapping("/orchestrator")
+    public ResponseEntity<Map<String, Object>> orchestratorFallback() {
+        return unavailable("orchestrator-service", "Syntra/Aetheris orchestrator is temporarily unavailable");
+    }
+
     private ResponseEntity<Map<String, Object>> unavailable(String service, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", HttpStatus.SERVICE_UNAVAILABLE.value());

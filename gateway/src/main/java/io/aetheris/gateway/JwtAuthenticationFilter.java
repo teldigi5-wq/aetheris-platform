@@ -104,12 +104,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private boolean isProtectedRoute(String path) {
         return path.equals("/api/users") || path.startsWith("/api/users/")
-                || path.equals("/api/events") || path.startsWith("/api/events/");
+                || path.equals("/api/events") || path.startsWith("/api/events/")
+                || path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/");
     }
 
     private String requiredScope(String path, HttpMethod method) {
         if (path.equals("/api/events") || path.startsWith("/api/events/")) {
             return "services:read";
+        }
+        if (path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/")) {
+            return method != null && WRITE_METHODS.contains(method) ? "orchestrator:write" : "orchestrator:read";
         }
         return method != null && WRITE_METHODS.contains(method) ? "users:write" : "users:read";
     }

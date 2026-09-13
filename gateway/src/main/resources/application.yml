@@ -103,6 +103,21 @@ spring:
               args:
                 name: auditCircuit
                 fallbackUri: forward:/fallback/events
+        - id: orchestrator-service
+          uri: http://orchestrator-service:8090
+          predicates:
+            - Path=/api/orchestrator/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@aetherisKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: orchestratorCircuit
+                fallbackUri: forward:/fallback/orchestrator
 
 aetheris:
   jwt:
@@ -149,4 +164,4 @@ management:
 info:
   app:
     name: Aetheris Gateway
-    stage: 6
+    stage: 8
