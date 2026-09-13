@@ -24,6 +24,8 @@ jobs:
         run: mvn -f identity-service/pom.xml -B test
       - name: Test audit service
         run: mvn -f audit-service/pom.xml -B test
+      - name: Test orchestrator service
+        run: mvn -f orchestrator-service/pom.xml -B test
 
   dashboard:
     runs-on: ubuntu-latest
