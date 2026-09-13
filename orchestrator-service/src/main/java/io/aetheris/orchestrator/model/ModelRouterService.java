@@ -9,49 +9,41 @@ import java.util.List;
 @Service
 public class ModelRouterService {
 
-    private final LocalModelService localModel;
+    private final ModelProviderRegistry providers;
 
-    public ModelRouterService(LocalModelService localModel) {
-        this.localModel = localModel;
+    public ModelRouterService(ModelProviderRegistry providers) {
+        this.providers = providers;
     }
 
     public ModelRouteDecision route(ModelRouteRequest request) {
         OperationMode mode = request.mode() == null ? OperationMode.BALANCED : request.mode();
         ModelClass modelClass = request.modelClass() == null ? ModelClass.GENERAL : request.modelClass();
-        LocalModelHealth local = localModel.health();
+        ModelProviderAdapter provider = providers.select(request);
 
-        if (local.available()) {
+        if (provider != null) {
+            ModelProviderSnapshot snapshot = provider.snapshot();
             return new ModelRouteDecision(
                     true,
-                    local.provider(),
-                    local.configuredModel(),
-                    true,
-                    true,
-                    "Selected available local model for " + modelClass + " in " + mode + " mode.");
+                    provider.id(),
+                    snapshot.model(),
+                    provider.local(),
+                    provider.zeroCost(),
+                    "Selected healthy provider for " + modelClass + " in " + mode + " mode.");
         }
 
         if (mode == OperationMode.PRIVATE || request.protectedData()) {
             return ModelRouteDecision.unavailable(
-                    "No local model is currently reachable. Private/protected-data routing will not fall back off-device.");
+                    "No approved local provider is currently reachable. Private/protected-data routing will not fall back off-device.");
         }
-
         if (mode == OperationMode.ZERO_COST || !request.allowPaid()) {
             return ModelRouteDecision.unavailable(
-                    "No zero-cost model provider is currently reachable. Aetheris will not fabricate provider availability or use a paid provider.");
+                    "No healthy zero-cost provider is currently reachable. Aetheris will not fabricate provider availability or silently use paid inference.");
         }
-
         return ModelRouteDecision.unavailable(
-                "No configured cloud model provider is available yet. Add an approved provider adapter before paid/cloud routing is enabled.");
+                "No healthy approved provider can satisfy this request. Configure an owner-approved provider adapter before cloud/paid routing is enabled.");
     }
 
     public List<ModelProviderSnapshot> providers() {
-        LocalModelHealth local = localModel.health();
-        return List.of(new ModelProviderSnapshot(
-                local.provider(),
-                local.available(),
-                true,
-                true,
-                local.configuredModel(),
-                local.detail()));
+        return providers.snapshots();
     }
 }

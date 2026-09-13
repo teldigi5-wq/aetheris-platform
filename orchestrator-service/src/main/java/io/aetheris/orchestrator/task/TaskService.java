@@ -93,7 +93,7 @@ public class TaskService {
         map.put(TaskState.AWAITING_APPROVAL, Set.of(TaskState.RUNNING, TaskState.FAILED, TaskState.CANCELLED));
         map.put(TaskState.RUNNING, Set.of(TaskState.PAUSED, TaskState.VERIFYING, TaskState.FAILED, TaskState.CANCELLED, TaskState.ROLLING_BACK));
         map.put(TaskState.PAUSED, Set.of(TaskState.RUNNING, TaskState.CANCELLED, TaskState.ROLLING_BACK));
-        map.put(TaskState.VERIFYING, Set.of(TaskState.COMPLETED, TaskState.FAILED, TaskState.ROLLING_BACK));
+        map.put(TaskState.VERIFYING, Set.of(TaskState.COMPLETED, TaskState.FAILED, TaskState.CANCELLED, TaskState.ROLLING_BACK));
         map.put(TaskState.FAILED, Set.of(TaskState.ROLLING_BACK));
         map.put(TaskState.ROLLING_BACK, Set.of(TaskState.FAILED, TaskState.CANCELLED));
         map.put(TaskState.COMPLETED, Set.of());
