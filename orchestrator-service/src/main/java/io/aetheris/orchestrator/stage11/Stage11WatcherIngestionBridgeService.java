@@ -14,7 +14,7 @@ import java.util.*;
 @Service
 public class Stage11WatcherIngestionBridgeService {
     private static final int MAX_CONTENT_CHARS = 2_000_000;
-    private static final String SOURCE_KIND = "OWNER_WATCH_FILE";
+    private static final String SOURCE_KIND = "OWNER_FILE";
 
     private final Stage10WatcherService watchers;
     private final IncrementalKnowledgeIngestionService ingestion;
@@ -36,6 +36,7 @@ public class Stage11WatcherIngestionBridgeService {
 
         if (!kind.equals("DELETE")) {
             String content = request.content() == null ? "" : request.content();
+            if (content.isBlank()) throw new IllegalArgumentException("Watched file content is required for synchronization");
             if (content.length() > MAX_CONTENT_CHARS) throw new IllegalArgumentException("Watched content exceeds Stage 11 ingestion limit");
             String expected = request.event().sha256() == null ? "" : request.event().sha256().trim().toLowerCase(Locale.ROOT);
             String actual = sha256(content);
@@ -68,7 +69,7 @@ public class Stage11WatcherIngestionBridgeService {
                 SOURCE_KIND,
                 event.path(),
                 title,
-                request.content() == null ? "" : request.content(),
+                request.content(),
                 scope,
                 namespace,
                 request.protectedData(),
