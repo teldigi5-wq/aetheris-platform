@@ -22,8 +22,7 @@ public class EnvironmentCredentialVault implements CredentialVault {
 
     @Override
     public Optional<char[]> resolve(String alias) {
-        String key = environmentKey(alias);
-        String value = environment.getProperty(key);
+        String value = environment.getProperty(environmentKey(alias));
         if (value == null || value.isBlank()) return Optional.empty();
         return Optional.of(value.toCharArray());
     }
@@ -31,7 +30,8 @@ public class EnvironmentCredentialVault implements CredentialVault {
     @Override
     public CredentialDescriptor describe(String alias) {
         String normalized = requireAlias(alias);
-        return new CredentialDescriptor(normalized, "environment", resolve(normalized).isPresent());
+        String value = environment.getProperty(environmentKey(normalized));
+        return new CredentialDescriptor(normalized, "environment", value != null && !value.isBlank());
     }
 
     private String environmentKey(String alias) {

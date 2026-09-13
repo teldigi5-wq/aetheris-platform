@@ -16,6 +16,7 @@ public class ModelExecutionService {
 
     private final ModelRouterService router;
     private final ModelProviderRegistry providers;
+    private final ProviderUsageService usage;
     private final InvocationAuditService audit;
     private final TaskControlService control;
     private final TaskService tasks;
@@ -24,12 +25,14 @@ public class ModelExecutionService {
     public ModelExecutionService(
             ModelRouterService router,
             ModelProviderRegistry providers,
+            ProviderUsageService usage,
             InvocationAuditService audit,
             TaskControlService control,
             TaskService tasks,
             AgentCatalogService agents) {
         this.router = router;
         this.providers = providers;
+        this.usage = usage;
         this.audit = audit;
         this.control = control;
         this.tasks = tasks;
@@ -58,11 +61,26 @@ public class ModelExecutionService {
             return new ModelExecutionResponse(ModelExecutionStatus.BLOCKED, null, null, null, route.reason(), entry.getId());
         }
 
+        ModelProviderAdapter provider = providers.getRequired(route.providerId());
+        ProviderBudgetSnapshot budget = usage.check(provider, request.prompt().length());
+        if (!budget.allowed()) {
+            audit.finish(entry.getId(), InvocationStatus.BLOCKED, budget.detail(), Map.of(
+                    "provider", provider.id(),
+                    "unitsToday", budget.unitsToday(),
+                    "estimatedCostUsdToday", budget.estimatedCostUsdToday().toPlainString()));
+            return new ModelExecutionResponse(ModelExecutionStatus.BLOCKED, provider.id(), route.model(), null, budget.detail(), entry.getId());
+        }
+
         try {
-            ModelProviderAdapter provider = providers.getRequired(route.providerId());
             LocalGenerateResponse generated = provider.generate(new LocalGenerateRequest(
                     request.prompt(), request.model() == null || request.model().isBlank() ? route.model() : request.model()));
-            audit.finish(entry.getId(), InvocationStatus.SUCCEEDED, "Model invocation completed", Map.of("provider", provider.id(), "model", generated.model()));
+            long units = Math.max(1, request.prompt().length() + (generated.response() == null ? 0 : generated.response().length()));
+            ProviderUsageEntity recorded = usage.record(provider, request.taskId(), units);
+            audit.finish(entry.getId(), InvocationStatus.SUCCEEDED, "Model invocation completed", Map.of(
+                    "provider", provider.id(),
+                    "model", generated.model(),
+                    "usageUnits", recorded.getUnits(),
+                    "estimatedCostUsd", recorded.getEstimatedCostUsd().toPlainString()));
             return new ModelExecutionResponse(ModelExecutionStatus.SUCCEEDED, generated.provider(), generated.model(), generated.response(), "Model invocation completed", entry.getId());
         } catch (RuntimeException exception) {
             audit.finish(entry.getId(), InvocationStatus.FAILED, safeMessage(exception), Map.of());
