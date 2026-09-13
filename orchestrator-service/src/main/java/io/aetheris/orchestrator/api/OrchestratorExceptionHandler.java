@@ -11,9 +11,16 @@ import java.util.NoSuchElementException;
 public class OrchestratorExceptionHandler {
 
     @ExceptionHandler(NoSuchElementException.class)
-    ProblemDetail handleMissingAgent(NoSuchElementException exception) {
+    ProblemDetail handleMissingResource(NoSuchElementException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
-        problem.setTitle("Agent not found");
+        problem.setTitle("Resource not found");
+        return problem;
+    }
+
+    @ExceptionHandler({IllegalStateException.class, IllegalArgumentException.class})
+    ProblemDetail handleInvalidOperation(RuntimeException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        problem.setTitle("Invalid orchestrator operation");
         return problem;
     }
 }
