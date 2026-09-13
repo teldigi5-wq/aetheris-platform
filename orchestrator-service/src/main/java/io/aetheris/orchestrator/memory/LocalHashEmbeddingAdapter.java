@@ -1,5 +1,6 @@
 package io.aetheris.orchestrator.memory;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -7,6 +8,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 @Component
+@Primary
 public class LocalHashEmbeddingAdapter implements EmbeddingAdapter {
     private static final int DIMENSIONS=96;
     @Override public String id(){return "local-hash-v1";}
