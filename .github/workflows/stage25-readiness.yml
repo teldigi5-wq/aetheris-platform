@@ -2,9 +2,9 @@ name: Stage 25 First-Boot Readiness
 
 on:
   push:
-    branches: [ integration/stage24-25-foundation, feature/syntra-aetheris-foundation-v2 ]
+    branches: [ feature/syntra-aetheris-foundation-v2 ]
   pull_request:
-    branches: [ feature/syntra-aetheris-foundation-v2, main ]
+    branches: [ main ]
 
 permissions:
   contents: read
