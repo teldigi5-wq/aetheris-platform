@@ -3,6 +3,8 @@ package io.aetheris.orchestrator.api;
 import io.aetheris.orchestrator.workflow.EngineeringWorkflowEntity;
 import io.aetheris.orchestrator.workflow.EngineeringWorkflowRequest;
 import io.aetheris.orchestrator.workflow.EngineeringWorkflowService;
+import io.aetheris.orchestrator.workflow.WorkflowExecutionRequest;
+import io.aetheris.orchestrator.workflow.WorkflowExecutionResult;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,5 +44,10 @@ public class EngineeringWorkflowController {
     @PostMapping("/{id}/advance")
     public EngineeringWorkflowEntity advance(@PathVariable UUID id) {
         return workflows.advance(id);
+    }
+
+    @PostMapping("/{id}/execute-next")
+    public WorkflowExecutionResult executeNext(@PathVariable UUID id, @RequestBody WorkflowExecutionRequest request) {
+        return workflows.executeNext(id, request);
     }
 }

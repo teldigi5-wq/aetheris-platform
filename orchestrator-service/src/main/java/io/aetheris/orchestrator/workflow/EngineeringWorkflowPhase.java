@@ -6,5 +6,6 @@ public enum EngineeringWorkflowPhase {
     QA,
     VERIFICATION,
     COMPLETED,
+    FAILED,
     CANCELLED
 }

@@ -53,6 +53,10 @@ public class ApprovalService {
         return repository.findTop100ByTaskIdOrderByCreatedAtDesc(taskId);
     }
 
+    public boolean hasApproved(UUID taskId, String actionType) {
+        return repository.existsByTaskIdAndActionTypeAndStatus(taskId, actionType, ApprovalStatus.APPROVED);
+    }
+
     public ApprovalEntity getRequired(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Unknown approval: " + id));

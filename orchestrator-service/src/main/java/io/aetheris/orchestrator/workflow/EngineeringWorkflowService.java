@@ -3,10 +3,16 @@ package io.aetheris.orchestrator.workflow;
 import io.aetheris.orchestrator.agent.RiskLevel;
 import io.aetheris.orchestrator.approval.ApprovalService;
 import io.aetheris.orchestrator.approval.CreateApprovalRequest;
+import io.aetheris.orchestrator.execution.CommandExecutionResult;
+import io.aetheris.orchestrator.execution.ToolExecutionRequest;
+import io.aetheris.orchestrator.execution.ToolExecutionResponse;
+import io.aetheris.orchestrator.execution.ToolExecutionService;
+import io.aetheris.orchestrator.execution.ToolExecutionStatus;
 import io.aetheris.orchestrator.policy.CompiledPolicyDecision;
 import io.aetheris.orchestrator.policy.OwnerRuleCompilerService;
 import io.aetheris.orchestrator.policy.PolicyEvaluationRequest;
 import io.aetheris.orchestrator.task.CreateTaskRequest;
+import io.aetheris.orchestrator.task.TaskControlService;
 import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.task.TaskService;
 import io.aetheris.orchestrator.task.TaskState;
@@ -26,20 +32,30 @@ public class EngineeringWorkflowService {
     private final TaskService tasks;
     private final OwnerRuleCompilerService policy;
     private final ApprovalService approvals;
+    private final ToolExecutionService tools;
+    private final VerificationEvidenceService evidence;
+    private final TaskControlService control;
 
     public EngineeringWorkflowService(
             EngineeringWorkflowRepository repository,
             TaskService tasks,
             OwnerRuleCompilerService policy,
-            ApprovalService approvals) {
+            ApprovalService approvals,
+            ToolExecutionService tools,
+            VerificationEvidenceService evidence,
+            TaskControlService control) {
         this.repository = repository;
         this.tasks = tasks;
         this.policy = policy;
         this.approvals = approvals;
+        this.tools = tools;
+        this.evidence = evidence;
+        this.control = control;
     }
 
     @Transactional
     public EngineeringWorkflowEntity start(EngineeringWorkflowRequest request) {
+        if (control.isEmergencyStopActive()) throw new IllegalStateException("Emergency stop is active");
         TaskEntity task = tasks.create(new CreateTaskRequest(request.title(), request.command(), request.mode()));
         task = tasks.transition(task.getId(), new TaskTransitionRequest(
                 TaskState.PLANNING,
@@ -101,23 +117,17 @@ public class EngineeringWorkflowService {
 
         switch (workflow.getPhase()) {
             case AWAITING_APPROVAL -> {
-                if (task.getState() == TaskState.CANCELLED) {
-                    workflow.moveTo(EngineeringWorkflowPhase.CANCELLED);
-                } else if (task.getState() == TaskState.RUNNING) {
+                if (task.getState() == TaskState.CANCELLED) workflow.moveTo(EngineeringWorkflowPhase.CANCELLED);
+                else if (task.getState() == TaskState.RUNNING) {
                     tasks.recordProgress(task.getId(), "backend-engineer", "Owner approval received; engineering phase activated",
                             Map.of("workflowPhase", "ENGINEERING"));
                     workflow.moveTo(EngineeringWorkflowPhase.ENGINEERING);
-                } else {
-                    throw new IllegalStateException("Workflow is still waiting for owner approval");
-                }
+                } else throw new IllegalStateException("Workflow is still waiting for owner approval");
             }
             case ENGINEERING -> {
                 tasks.recordProgress(task.getId(), "backend-engineer", "Engineering handoff prepared for QA",
                         Map.of("workflowPhase", "ENGINEERING", "next", "QA"));
-                tasks.transition(task.getId(), new TaskTransitionRequest(
-                        TaskState.VERIFYING,
-                        "qa-engineer",
-                        "QA phase started"));
+                tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.VERIFYING, "qa-engineer", "QA phase started"));
                 workflow.moveTo(EngineeringWorkflowPhase.QA);
             }
             case QA -> {
@@ -130,15 +140,96 @@ public class EngineeringWorkflowService {
             case VERIFICATION -> {
                 tasks.recordProgress(task.getId(), "software-architect", "Independent verification completed",
                         Map.of("workflowPhase", "VERIFICATION"));
-                tasks.transition(task.getId(), new TaskTransitionRequest(
-                        TaskState.COMPLETED,
-                        "software-architect",
+                tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.COMPLETED, "software-architect",
                         "Engineering workflow completed after QA and independent verification"));
                 workflow.moveTo(EngineeringWorkflowPhase.COMPLETED);
             }
-            case COMPLETED, CANCELLED -> throw new IllegalStateException("Workflow is already terminal: " + workflow.getPhase());
+            case COMPLETED, FAILED, CANCELLED -> throw new IllegalStateException("Workflow is already terminal: " + workflow.getPhase());
+        }
+        return repository.save(workflow);
+    }
+
+    @Transactional
+    public WorkflowExecutionResult executeNext(UUID id, WorkflowExecutionRequest request) {
+        if (control.isEmergencyStopActive()) throw new IllegalStateException("Emergency stop is active");
+        EngineeringWorkflowEntity workflow = getRequired(id);
+        TaskEntity task = tasks.getRequired(workflow.getTaskId());
+
+        if (workflow.getPhase() == EngineeringWorkflowPhase.AWAITING_APPROVAL) {
+            advance(id);
+            workflow = getRequired(id);
+            if (workflow.getPhase() != EngineeringWorkflowPhase.ENGINEERING) {
+                return result(workflow, "Workflow is still waiting for owner approval");
+            }
         }
 
-        return repository.save(workflow);
+        switch (workflow.getPhase()) {
+            case ENGINEERING -> executeEngineering(workflow, task, request);
+            case QA -> executeQa(workflow, task, request);
+            case VERIFICATION -> executeVerification(workflow, task, request);
+            case COMPLETED, FAILED, CANCELLED -> throw new IllegalStateException("Workflow is already terminal: " + workflow.getPhase());
+            case AWAITING_APPROVAL -> throw new IllegalStateException("Workflow is still waiting for owner approval");
+        }
+        return result(repository.save(workflow), "Executed phase using Stage 4 adapters");
+    }
+
+    private void executeEngineering(EngineeringWorkflowEntity workflow, TaskEntity task, WorkflowExecutionRequest request) {
+        ToolExecutionResponse response = tools.execute(new ToolExecutionRequest(
+                task.getId(), "backend-engineer", "files.read-workspace", task.getMode(),
+                Map.of("path", required(request.workspaceFile(), "workspaceFile"))));
+        boolean passed = response.status() == ToolExecutionStatus.SUCCEEDED;
+        evidence.record(workflow.getId(), task.getId(), "ENGINEERING", "backend-engineer", "SOURCE_READ", passed,
+                passed ? "Engineering source evidence captured" : "Engineering source evidence failed", response.detail());
+        if (!passed) {
+            tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.FAILED, "backend-engineer", "Engineering evidence step failed"));
+            workflow.moveTo(EngineeringWorkflowPhase.FAILED);
+            return;
+        }
+        tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.VERIFYING, "qa-engineer", "QA adapter execution started"));
+        workflow.moveTo(EngineeringWorkflowPhase.QA);
+    }
+
+    private void executeQa(EngineeringWorkflowEntity workflow, TaskEntity task, WorkflowExecutionRequest request) {
+        ToolExecutionResponse response = tools.execute(new ToolExecutionRequest(
+                task.getId(), "qa-engineer", "terminal.inspect", task.getMode(),
+                Map.of("command", request.qaCommand(), "workingDirectory", request.workingDirectory() == null ? "" : request.workingDirectory())));
+        boolean passed = response.status() == ToolExecutionStatus.SUCCEEDED
+                && response.output() instanceof CommandExecutionResult commandResult
+                && commandResult.passed();
+        String detail = response.output() instanceof CommandExecutionResult commandResult ? commandResult.output() : response.detail();
+        evidence.record(workflow.getId(), task.getId(), "QA", "qa-engineer", "QA_COMMAND", passed,
+                passed ? "QA command passed" : "QA command failed", detail);
+        if (!passed) {
+            tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.FAILED, "qa-engineer", "QA evidence failed"));
+            workflow.moveTo(EngineeringWorkflowPhase.FAILED);
+            return;
+        }
+        tasks.recordProgress(task.getId(), "software-architect", "Independent verification evaluating recorded evidence",
+                Map.of("workflowPhase", "VERIFICATION"));
+        workflow.moveTo(EngineeringWorkflowPhase.VERIFICATION);
+    }
+
+    private void executeVerification(EngineeringWorkflowEntity workflow, TaskEntity task, WorkflowExecutionRequest request) {
+        boolean passed = evidence.satisfies(workflow.getId(), request.acceptanceCriteria());
+        evidence.record(workflow.getId(), task.getId(), "VERIFICATION", "software-architect", "ACCEPTANCE_CRITERIA", passed,
+                passed ? "Acceptance criteria satisfied" : "Acceptance criteria not satisfied",
+                String.join(",", request.acceptanceCriteria().isEmpty() ? List.of("source-readable", "qa-command-passed") : request.acceptanceCriteria()));
+        if (!passed) {
+            tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.FAILED, "software-architect", "Independent verifier rejected evidence"));
+            workflow.moveTo(EngineeringWorkflowPhase.FAILED);
+            return;
+        }
+        tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.COMPLETED, "software-architect",
+                "Engineering workflow completed with adapter evidence and independent verification"));
+        workflow.moveTo(EngineeringWorkflowPhase.COMPLETED);
+    }
+
+    private WorkflowExecutionResult result(EngineeringWorkflowEntity workflow, String detail) {
+        return new WorkflowExecutionResult(workflow, evidence.forWorkflow(workflow.getId()), detail);
+    }
+
+    private String required(String value, String name) {
+        if (value == null || value.isBlank()) throw new IllegalArgumentException(name + " is required for this workflow phase");
+        return value;
     }
 }

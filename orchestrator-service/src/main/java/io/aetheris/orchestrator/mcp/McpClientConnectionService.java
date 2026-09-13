@@ -56,8 +56,8 @@ public class McpClientConnectionService {
             return new McpDiscoveryResult(serverId, false, PROTOCOL_VERSION, Set.of(), List.of(), "MCP server is disabled", entry.getId());
         }
 
-        URI endpoint = validateEndpoint(server);
         try {
+            URI endpoint = validateEndpoint(server);
             Map<?, ?> discovery = post(endpoint, "server/discover", Map.of());
             Set<String> capabilities = readCapabilities(discovery);
             Map<?, ?> toolsResponse = post(endpoint, "tools/list", Map.of());
@@ -79,7 +79,6 @@ public class McpClientConnectionService {
         mergedParams.put("_meta", Map.of(
                 "io.modelcontextprotocol/clientInfo", Map.of("name", "aetheris-platform", "version", "0.4.0"),
                 "io.modelcontextprotocol/clientCapabilities", Map.of()));
-
         Map<String, Object> body = Map.of(
                 "jsonrpc", "2.0",
                 "id", java.util.UUID.randomUUID().toString(),
@@ -105,12 +104,8 @@ public class McpClientConnectionService {
         String scheme = endpoint.getScheme() == null ? "" : endpoint.getScheme().toLowerCase(Locale.ROOT);
         String host = endpoint.getHost() == null ? "" : endpoint.getHost().toLowerCase(Locale.ROOT);
         if (server.isLocal()) {
-            if (!(scheme.equals("http") || scheme.equals("https"))) {
-                throw new IllegalArgumentException("Local MCP HTTP endpoint must use http or https");
-            }
-            if (!allowedLocalHosts.contains(host)) {
-                throw new IllegalArgumentException("Local MCP host is not allowlisted: " + host);
-            }
+            if (!(scheme.equals("http") || scheme.equals("https"))) throw new IllegalArgumentException("Local MCP HTTP endpoint must use http or https");
+            if (!allowedLocalHosts.contains(host)) throw new IllegalArgumentException("Local MCP host is not allowlisted: " + host);
         } else if (!scheme.equals("https")) {
             throw new IllegalArgumentException("Remote MCP endpoints must use HTTPS");
         }
