@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#070a12"><title>Syntra + Aetheris — Stage 23</title><style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#eff8ff;background:#070a12;color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 10% 0,#244765 0,transparent 34%),radial-gradient(circle at 90% 0,#3d2e65 0,transparent 34%),#070a12}.wrap{max-width:1200px;margin:auto;padding:36px 22px 70px}.top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.tag{display:inline-flex;padding:7px 11px;border:1px solid #81a9cf;border-radius:999px;background:#18314c;font-size:11px;font-weight:850;letter-spacing:.08em}.top h1{font-size:clamp(34px,5vw,58px);line-height:1;margin:12px 0}.muted{color:#a6bdd2;max-width:860px;line-height:1.65}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #456783;background:#10283a;color:#edf8ff;border-radius:10px;padding:10px 13px;font-weight:760;text-decoration:none}.banner{margin:22px 0;border:1px solid #bd9a51;background:#2f2718;border-radius:16px;padding:16px 18px;color:#ffe0a0;font-weight:800}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}.card{border:1px solid #29455f;background:linear-gradient(180deg,rgba(15,31,47,.96),rgba(7,18,29,.96));border-radius:17px;padding:18px}.card h2{margin:0 0 9px;font-size:17px}.card p,.card li{font-size:14px;line-height:1.6;color:#a9bfd3}.ok{color:#85efb9}.warn{color:#ffd17b}.danger{color:#ff9a9a}.info{color:#91dcff}.code{font:12px/1.55 ui-monospace,monospace;white-space:pre-wrap;background:#081522;border:1px solid #1e3a4e;border-radius:10px;padding:12px}.foot{margin-top:24px;color:#718aa2;font-size:13px}@media(max-width:760px){.top{flex-direction:column}.wrap{padding:24px 15px 56px}}</style></head><body><main class="wrap">
+<div class="top"><div><span class="tag">STAGE 23 · CONTRACT FREEZE</span><h1>Compatibility Baseline</h1><p class="muted">Stage 23 freezes the repository-visible API, persistence, agent-catalog, workflow and evidence-console contract behind a deterministic SHA-256. Contract changes become explicit review events instead of silently drifting through a long-running branch.</p></div><div class="actions"><a class="btn" href="/">Mission Control</a><a class="btn" href="/stage22.html">Stage 22</a></div></div>
+<div class="banner">Hardware truth is unchanged: Stage 21 remains <code>BLOCKED_PENDING_HARDWARE</code>. Contract certification does not activate a PC, merge PR #7, or enable financial execution.</div>
+<section class="grid">
+<article class="card"><h2 class="ok">HTTP contract inventory</h2><p>Spring controller mappings are normalized into method/path/controller/source records and hashed deterministically.</p></article>
+<article class="card"><h2 class="ok">Persistence contract</h2><p>Explicit JPA table names are inventoried; duplicate table-name declarations fail the compatibility guard.</p></article>
+<article class="card"><h2 class="ok">Agent catalog baseline</h2><p>The configured specialist-agent IDs are included so accidental removals or identity drift become visible.</p></article>
+<article class="card"><h2 class="ok">Workflow contract</h2><p>Required jobs include backend, dashboard, workstation-agent, Stage 22 release hardening and Stage 23 contract freeze.</p></article>
+<article class="card"><h2 class="info">Evidence surfaces</h2><p>Stage consoles are inventoried, including Stages 21–23, so operational evidence pages cannot disappear unnoticed.</p></article>
+<article class="card"><h2 class="warn">Pinned contract hash</h2><p>The first Stage 23 CI pass bootstraps the deterministic contract SHA. The closure commit pins that exact SHA and future drift fails CI until deliberately reviewed.</p></article>
+<article class="card"><h2 class="danger">Financial authority remains absent</h2><p>No withdrawal, transfer or live-order Java API contract is permitted by the Stage 23 compatibility guard. Testnet execution still defaults to false.</p></article>
+<article class="card"><h2 class="danger">No activation promotion</h2><p>Production activation, unrestricted shell and admin bypass remain false. Stage 23 cannot satisfy physical Stage 21 evidence.</p></article>
+</section>
+<h2 style="margin-top:24px">Frozen safety payload</h2><div class="code">physicalStage21BlockedPendingHardware = true
+productionActivationAllowed = false
+liveMoneyOrdersAllowed = false
+withdrawalsAllowed = false
+transfersAllowed = false
+unrestrictedShellAllowed = false
+adminBypassAllowed = false</div>
+<p class="foot">CI artifacts: contract-baseline.json · contract-guard.json. Any intentional compatibility change must update the pinned contract hash through owner-reviewed source control.</p>
+</main></body></html>
