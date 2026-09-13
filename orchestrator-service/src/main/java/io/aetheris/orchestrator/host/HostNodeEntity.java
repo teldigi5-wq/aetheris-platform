@@ -1,18 +1,8 @@
 package io.aetheris.orchestrator.host;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import jakarta.persistence.Version;
-
+import jakarta.persistence.*;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Entity
@@ -40,6 +30,10 @@ public class HostNodeEntity {
     public String getPublicKeyFingerprint(){return publicKeyFingerprint;} public HostStatus getStatus(){return status;}
     public Instant getLastSeenAt(){return lastSeenAt;} public Instant getCreatedAt(){return createdAt;} public Instant getUpdatedAt(){return updatedAt;} public long getVersion(){return version;}
     public boolean canExecute(){return status==HostStatus.ONLINE;}
+    public void markPaired(){if(status!=HostStatus.UNPAIRED)throw new IllegalStateException("Host is not awaiting pairing");status=HostStatus.OFFLINE;updatedAt=Instant.now();}
+    public void heartbeat(){if(status==HostStatus.UNPAIRED||status==HostStatus.REVOKED)throw new IllegalStateException("Host is not paired");status=HostStatus.ONLINE;lastSeenAt=Instant.now();updatedAt=lastSeenAt;}
+    public void markOffline(){if(status==HostStatus.ONLINE){status=HostStatus.OFFLINE;updatedAt=Instant.now();}}
+    public void revoke(){status=HostStatus.REVOKED;updatedAt=Instant.now();}
     private static String join(Set<String> values){if(values==null)return "";return values.stream().map(String::trim).filter(v->!v.isBlank()).sorted().collect(Collectors.joining(","));}
     private static Set<String> split(String csv){if(csv==null||csv.isBlank())return Set.of();return Arrays.stream(csv.split(",")).map(String::trim).filter(v->!v.isBlank()).collect(Collectors.toCollection(TreeSet::new));}
 }

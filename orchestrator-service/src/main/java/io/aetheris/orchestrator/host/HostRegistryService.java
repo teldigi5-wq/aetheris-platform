@@ -1,9 +1,8 @@
 package io.aetheris.orchestrator.host;
 
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class HostRegistryService {
@@ -16,5 +15,6 @@ public class HostRegistryService {
     }
     public List<HostNodeEntity> list(){return repository.findTop100ByOrderByCreatedAtDesc();}
     public HostNodeEntity getRequired(UUID id){return repository.findById(id).orElseThrow(()->new NoSuchElementException("Unknown host: "+id));}
+    @Transactional public HostNodeEntity save(HostNodeEntity host){return repository.save(host);}
     public void requireExecutable(UUID id){HostNodeEntity host=getRequired(id);if(!host.canExecute())throw new IllegalStateException("Host is not paired and online; execution is unavailable");}
 }
