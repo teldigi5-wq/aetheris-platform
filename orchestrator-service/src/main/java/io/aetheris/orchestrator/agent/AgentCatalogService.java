@@ -2,6 +2,7 @@ package io.aetheris.orchestrator.agent;
 
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,12 +18,13 @@ public class AgentCatalogService {
 
     public AgentCatalogService(AgentCatalogProperties properties) {
         this.agents = List.copyOf(properties.agents());
-        this.agentsById = this.agents.stream()
-                .collect(Collectors.toUnmodifiableMap(
+        Map<String, AgentDefinition> indexed = this.agents.stream()
+                .collect(Collectors.toMap(
                         AgentDefinition::id,
                         Function.identity(),
                         (first, ignored) -> first,
                         LinkedHashMap::new));
+        this.agentsById = Collections.unmodifiableMap(indexed);
     }
 
     public List<AgentDefinition> listAll() {
