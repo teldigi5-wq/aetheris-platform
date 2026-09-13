@@ -135,7 +135,7 @@ class Stage9IntegrationTest {
         trading.accept(signal.getId());
         PaperExecutionResult opened=stage9Paper.openConsensus(signal.getId(),symbol,2,60,15,1.0);
         assertThat(opened.executed()).isTrue();
-        assertThat(opened.executionState()).isEqualTo("PAPER_ONLY");
+        assertThat(opened.mode()).isEqualTo("PAPER_ONLY");
         PaperEquitySnapshotEntity mark=portfolio.mark(2,60,15,1.0);
         assertThat(mark.getOpenPositions()).isPositive();
         assertThat(mark.getEquity()).isPositive();
