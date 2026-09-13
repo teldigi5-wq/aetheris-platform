@@ -104,3 +104,28 @@ jobs:
           path: build/stage22/
           if-no-files-found: warn
           retention-days: 14
+
+  contract-freeze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate deterministic compatibility contract
+        run: python scripts/stage23/contract_baseline.py --output build/stage23/contract-baseline.json
+      - name: Verify compatibility and safety boundaries
+        run: python scripts/stage23/contract_guard.py --baseline build/stage23/contract-baseline.json --expected scripts/stage23/expected-contract.sha256 --output build/stage23/contract-guard.json
+      - name: Verify deterministic contract generation
+        run: |
+          cp build/stage23/contract-baseline.json /tmp/stage23-contract-a.json
+          python scripts/stage23/contract_baseline.py --output build/stage23/contract-baseline.json
+          cmp /tmp/stage23-contract-a.json build/stage23/contract-baseline.json
+      - name: Upload Stage 23 contract evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage23-contract-evidence
+          path: build/stage23/
+          if-no-files-found: warn
+          retention-days: 14
