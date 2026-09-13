@@ -38,6 +38,9 @@ public class Stage12IntegrationController {
         return providers.recordHealth(providerId, evidence);
     }
 
+    @GetMapping("/release/readiness")
+    public Object releaseReadiness() { return releases.readiness(); }
+
     @PostMapping("/release/verify")
     public Object release(@RequestBody Stage12ReleaseTrustService.ReleaseManifest manifest) {
         return releases.verify(manifest);
