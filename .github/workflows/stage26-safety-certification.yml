@@ -1,0 +1,66 @@
+name: Stage 26 Safety Certification
+
+on:
+  push:
+    branches: [ feature/syntra-aetheris-foundation-v2 ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  safety-certification:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python 3.13.15
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile Stage 26 verifier
+        run: python -m py_compile scripts/stage26/safety_certification.py
+
+      - name: Run Stage 26 tests
+        run: python -m unittest discover -s tests -p 'test_stage26_safety_certification.py' -v
+
+      - name: Generate deterministic evidence - pass 1
+        run: python scripts/stage26/safety_certification.py --output-dir build/stage26/pass-1
+
+      - name: Generate deterministic evidence - pass 2
+        run: python scripts/stage26/safety_certification.py --output-dir build/stage26/pass-2
+
+      - name: Compare evidence bytes
+        run: |
+          cmp build/stage26/pass-1/safety-report.json build/stage26/pass-2/safety-report.json
+          cmp build/stage26/pass-1/manifest.sha256 build/stage26/pass-2/manifest.sha256
+
+      - name: Assert Stage 26 truth boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/stage26/pass-1/safety-report.json').read_text())
+          assert report['certification'] == 'PASS', report
+          assert report['simulation_only'] is True, report
+          assert report['live_side_effects'] is False, report
+          assert report['external_action_attempted'] is False, report
+          assert report['physical_pc_status'] == 'NOT_TESTED', report
+          assert report['network_required'] is False, report
+          assert report['shell_execution_required'] is False, report
+          assert report['fail_count'] == 0, report
+          print(f"Stage 26 certified {report['pass_count']} safety scenarios with no live side effects")
+          PY
+
+      - name: Publish certification evidence
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: stage26-safety-certification
+          path: |
+            build/stage26/pass-1/safety-report.json
+            build/stage26/pass-1/manifest.sha256
+          if-no-files-found: error
+          retention-days: 30
