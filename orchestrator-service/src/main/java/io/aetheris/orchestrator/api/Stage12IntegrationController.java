@@ -44,7 +44,9 @@ public class Stage12IntegrationController {
     }
 
     @GetMapping("/target-attestation/{kind}")
-    public Object target(@PathVariable String kind) { return targetAttestation.assess(kind); }
+    public Object target(@PathVariable String kind, @RequestParam String attestationSha256) {
+        return targetAttestation.assess(kind, attestationSha256);
+    }
 
     @PostMapping("/transport/evaluate")
     public Object transport(@RequestBody Stage12PrivateTransportService.TransportEvidence evidence) {
