@@ -34,7 +34,7 @@ public class SafeToolRegistryService {
                 new ToolDescriptor("terminal.execute-workspace", "Terminal Workspace Execute", ToolTransport.CLI, Set.of("workspace:execute"), RiskLevel.HIGH, false, false)
         );
         this.byId = tools.stream().collect(Collectors.toUnmodifiableMap(
-                ToolDescriptor::id, Function.identity(), (first, ignored) -> first, LinkedHashMap::new));
+                ToolDescriptor::id, Function.identity()));
     }
 
     public List<ToolDescriptor> list() {
