@@ -1,0 +1,60 @@
+name: One-Time Legacy Branch Retirement
+
+on:
+  push:
+    branches: [ feature/syntra-aetheris-foundation-v2 ]
+
+permissions:
+  contents: write
+
+jobs:
+  retire-legacy-refs:
+    if: github.event.head_commit.message == 'chore(repo): retire legacy branches'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Delete only branches declared legacy by Stage 27 policy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          policy = json.loads(Path('configs/stage27/repository-governance.json').read_text())
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          stable = policy['stable_branch']
+          canonical = policy['canonical_development_branch']
+
+          for branch in policy['legacy_branches']:
+              if branch in {stable, canonical}:
+                  raise SystemExit(f'refusing to delete protected logical branch: {branch}')
+
+              encoded = urllib.parse.quote(branch, safe='')
+              url = f'https://api.github.com/repos/{repo}/git/refs/heads/{encoded}'
+              request = urllib.request.Request(
+                  url,
+                  method='DELETE',
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'aetheris-stage27-branch-retirement',
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request) as response:
+                      print(f'deleted {branch}: HTTP {response.status}')
+              except urllib.error.HTTPError as error:
+                  if error.code == 404:
+                      print(f'already absent: {branch}')
+                      continue
+                  raise
+          PY
