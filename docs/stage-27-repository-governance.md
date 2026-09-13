@@ -10,15 +10,22 @@ The repository model is intentionally simple:
 
 - `main` is the stable/release history.
 - `feature/syntra-aetheris-foundation-v2` is the single canonical active development line.
-- temporary Stage 24/25/26 and integration branches are legacy references and must not receive new development.
+- temporary Stage 24/25/26 and integration branches are retired and must not receive new development.
 
 Stage 27 is PC-independent. It does not start services, invoke models, execute financial actions, or claim validation on the owner's future physical PC.
 
-## What Stage 27 fixes
+## What Stage 27 fixed
 
 Before Stage 27, the repository still displayed multiple temporary development branches even after Stage 24/25 had been consolidated. A later Stage 26 evidence-integrity branch also diverged from the canonical branch.
 
-The Stage 26 evidence-integrity files were reconciled onto the canonical development line. Stage 27 then adds a permanent CI rule that rejects workflow trigger references to those legacy branches and rejects release promotion to `main` from any branch other than the canonical development branch.
+The Stage 26 evidence-integrity files were reconciled onto the canonical development line. The retired Stage 24, Stage 25, Stage 26 and integration refs were then removed with a one-time cleanup workflow. That temporary write-capable cleanup workflow was removed immediately after the cleanup completed.
+
+The repository now retains only the two intended branches:
+
+- `main`
+- `feature/syntra-aetheris-foundation-v2`
+
+Stage 27 adds a permanent CI rule that rejects workflow trigger references to retired branch names and rejects release promotion to `main` from any branch other than the canonical development branch.
 
 ## Policy
 
@@ -36,6 +43,8 @@ It records:
 - the only allowed pull-request source for `main`;
 - the pre-PC truth boundary.
 
+The retired branch names remain in this policy intentionally. They are negative-test inputs used to prevent those branch names from being reintroduced into active CI/development workflows.
+
 ## Offline verifier
 
 `scripts/stage27/repository_governance.py` is standard-library-only and deterministic.
@@ -48,7 +57,7 @@ It verifies:
 4. the README exposes the canonical development-line policy and physical-PC truth boundary;
 5. a push validation run is occurring on the canonical development branch;
 6. a pull request to `main` originates from the canonical development branch;
-7. a legacy branch cannot be used for active release promotion.
+7. a retired branch cannot be used for active release promotion.
 
 The verifier does not call the GitHub API and does not pretend that CI policy is the same thing as GitHub branch protection.
 
@@ -88,4 +97,4 @@ After Stage 27, new PC-independent work continues on one branch only:
 
 `feature/syntra-aetheris-foundation-v2`
 
-`main` remains the stable promotion target.
+`main` remains the stable promotion target, and the repository no longer contains temporary Stage 24/25/26 or integration branches.
