@@ -46,6 +46,12 @@ class Stage29TradingTests(unittest.TestCase):
         with self.assertRaises(module.PolicyError):
             module.validate_policy(bad)
 
+    def test_policy_rejects_live_in_allowed_modes(self):
+        bad = deepcopy(self.policy)
+        bad["allowedModes"] = ["PAPER", "LIVE"]
+        with self.assertRaises(module.PolicyError):
+            module.validate_policy(bad)
+
     def test_approved_paper_setup_is_proposal_only(self):
         result = module.plan(self.policy, self.fixture("approved-paper.json"))
         self.assertEqual(result["status"], "PROPOSAL_READY")
@@ -56,14 +62,36 @@ class Stage29TradingTests(unittest.TestCase):
         self.assertEqual(result["cappedLeverage"], 3)
         self.assertEqual(result["rewardRiskRatio"], "2.00000000")
 
+    def test_approved_short_geometry(self):
+        result = module.plan(self.policy, self.fixture("short-approved.json"))
+        self.assertEqual(result["status"], "PROPOSAL_READY")
+        self.assertEqual(result["rewardRiskRatio"], "2.00000000")
+        self.assertFalse(result["executionPermitted"])
+
+    def test_boundary_values_remain_valid(self):
+        for name in (
+            "min-score-boundary.json",
+            "max-risk-boundary.json",
+            "max-leverage-boundary.json",
+            "daily-loss-boundary.json",
+            "max-position-boundary.json",
+            "rr-boundary.json",
+        ):
+            with self.subTest(name=name):
+                result = module.plan(self.policy, self.fixture(name))
+                self.assertEqual(result["status"], "PROPOSAL_READY")
+                self.assertFalse(result["orderSubmitted"])
+
     def test_low_score_rejected(self):
         result = module.plan(self.policy, self.fixture("low-score.json"))
         self.assertIn("SETUP_SCORE_BELOW_MINIMUM", result["rejectionReasons"])
         self.assertEqual(result["proposedNotional"], "0.00000000")
 
-    def test_invalid_geometry_rejected(self):
-        result = module.plan(self.policy, self.fixture("invalid-geometry.json"))
-        self.assertIn("INVALID_TP_SL_GEOMETRY", result["rejectionReasons"])
+    def test_invalid_long_and_short_geometry_rejected(self):
+        for name in ("invalid-geometry.json", "short-invalid-geometry.json"):
+            with self.subTest(name=name):
+                result = module.plan(self.policy, self.fixture(name))
+                self.assertIn("INVALID_TP_SL_GEOMETRY", result["rejectionReasons"])
 
     def test_daily_loss_lockout(self):
         result = module.plan(self.policy, self.fixture("daily-loss-lockout.json"))
@@ -79,12 +107,69 @@ class Stage29TradingTests(unittest.TestCase):
         self.assertFalse(result["executionPermitted"])
         self.assertFalse(result["orderSubmitted"])
 
+    def test_testnet_is_disabled_by_default(self):
+        result = module.plan(self.policy, self.fixture("testnet-disabled.json"))
+        self.assertIn("TESTNET_EXECUTION_DISABLED", result["rejectionReasons"])
+        self.assertFalse(result["executionPermitted"])
+
+    def test_unknown_mode_is_rejected(self):
+        result = module.plan(self.policy, self.fixture("unknown-mode.json"))
+        self.assertIn("MODE_NOT_ALLOWED", result["rejectionReasons"])
+
+    def test_risk_reward_and_stop_limits(self):
+        cases = {
+            "risk-limit.json": "RISK_PER_TRADE_EXCEEDS_POLICY",
+            "reward-risk.json": "REWARD_RISK_BELOW_MINIMUM",
+            "stop-distance.json": "STOP_DISTANCE_EXCEEDS_POLICY",
+            "bad-risk-zero.json": "RISK_PER_TRADE_EXCEEDS_POLICY",
+        }
+        for name, reason in cases.items():
+            with self.subTest(name=name):
+                result = module.plan(self.policy, self.fixture(name))
+                self.assertIn(reason, result["rejectionReasons"])
+                self.assertEqual(result["proposedNotional"], "0.00000000")
+
     def test_requested_leverage_is_capped_for_reporting(self):
-        candidate = self.fixture("approved-paper.json")
-        candidate["requestedLeverage"] = 10
-        result = module.plan(self.policy, candidate)
+        result = module.plan(self.policy, self.fixture("leverage-cap.json"))
+        self.assertEqual(result["status"], "PROPOSAL_READY")
+        self.assertEqual(result["requestedLeverage"], 10)
         self.assertEqual(result["cappedLeverage"], 3)
         self.assertFalse(result["executionPermitted"])
+
+    def test_invalid_leverage_rejected(self):
+        result = module.plan(self.policy, self.fixture("invalid-leverage.json"))
+        self.assertIn("INVALID_LEVERAGE", result["rejectionReasons"])
+
+    def test_impossible_account_inputs_fail_closed(self):
+        cases = {
+            "negative-loss.json": "DAILY_LOSS_FRACTION_INVALID",
+            "negative-open-positions.json": "OPEN_POSITION_COUNT_INVALID",
+            "score-over-100.json": "SETUP_SCORE_OUT_OF_RANGE",
+            "score-negative.json": "SETUP_SCORE_OUT_OF_RANGE",
+            "negative-balance.json": "NON_POSITIVE_PRICE_OR_BALANCE",
+            "zero-balance.json": "NON_POSITIVE_PRICE_OR_BALANCE",
+            "zero-entry.json": "NON_POSITIVE_PRICE_OR_BALANCE",
+        }
+        for name, reason in cases.items():
+            with self.subTest(name=name):
+                result = module.plan(self.policy, self.fixture(name))
+                self.assertEqual(result["status"], "REJECTED")
+                self.assertIn(reason, result["rejectionReasons"])
+                self.assertEqual(result["proposedNotional"], "0.00000000")
+                self.assertFalse(result["executionPermitted"])
+                self.assertFalse(result["orderSubmitted"])
+
+    def test_non_integral_counts_fail_closed(self):
+        candidate = self.fixture("approved-paper.json")
+        candidate["openPositions"] = 1.5
+        with self.assertRaises(module.PolicyError):
+            module.plan(self.policy, candidate)
+
+    def test_non_finite_numbers_fail_closed(self):
+        candidate = self.fixture("approved-paper.json")
+        candidate["accountBalance"] = "NaN"
+        with self.assertRaises(module.PolicyError):
+            module.plan(self.policy, candidate)
 
     def test_deterministic_serialization(self):
         candidate = self.fixture("approved-paper.json")
