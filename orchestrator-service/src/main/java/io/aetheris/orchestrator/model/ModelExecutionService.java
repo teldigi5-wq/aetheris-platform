@@ -1,96 +1,24 @@
 package io.aetheris.orchestrator.model;
 
 import io.aetheris.orchestrator.agent.AgentCatalogService;
-import io.aetheris.orchestrator.execution.InvocationAuditEntity;
-import io.aetheris.orchestrator.execution.InvocationAuditService;
-import io.aetheris.orchestrator.execution.InvocationKind;
-import io.aetheris.orchestrator.execution.InvocationStatus;
-import io.aetheris.orchestrator.task.TaskControlService;
-import io.aetheris.orchestrator.task.TaskService;
+import io.aetheris.orchestrator.execution.*;
+import io.aetheris.orchestrator.task.*;
 import org.springframework.stereotype.Service;
-
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class ModelExecutionService {
-
-    private final ModelRouterService router;
-    private final ModelProviderRegistry providers;
-    private final ProviderUsageService usage;
-    private final InvocationAuditService audit;
-    private final TaskControlService control;
-    private final TaskService tasks;
-    private final AgentCatalogService agents;
-
-    public ModelExecutionService(
-            ModelRouterService router,
-            ModelProviderRegistry providers,
-            ProviderUsageService usage,
-            InvocationAuditService audit,
-            TaskControlService control,
-            TaskService tasks,
-            AgentCatalogService agents) {
-        this.router = router;
-        this.providers = providers;
-        this.usage = usage;
-        this.audit = audit;
-        this.control = control;
-        this.tasks = tasks;
-        this.agents = agents;
+    private final ModelRouterService router; private final ModelProviderRegistry providers; private final ProviderUsageService usage; private final ProviderReliabilityService reliability; private final ModelArenaService arena; private final InvocationAuditService audit; private final TaskControlService control; private final TaskService tasks; private final AgentCatalogService agents;
+    public ModelExecutionService(ModelRouterService router,ModelProviderRegistry providers,ProviderUsageService usage,ProviderReliabilityService reliability,ModelArenaService arena,InvocationAuditService audit,TaskControlService control,TaskService tasks,AgentCatalogService agents){this.router=router;this.providers=providers;this.usage=usage;this.reliability=reliability;this.arena=arena;this.audit=audit;this.control=control;this.tasks=tasks;this.agents=agents;}
+    public ModelExecutionResponse execute(ModelExecutionRequest request){
+        if(request.prompt()==null||request.prompt().isBlank())throw new IllegalArgumentException("Model prompt is required");agents.getRequired(request.agentId());if(request.taskId()!=null)tasks.getRequired(request.taskId());
+        ModelRouteRequest routeRequest=new ModelRouteRequest(request.modelClass(),request.mode(),request.protectedData(),request.allowPaid());List<ModelProviderAdapter> candidates=providers.candidates(routeRequest);ModelRouteDecision initial=router.route(routeRequest);
+        InvocationAuditEntity entry=audit.start(request.taskId(),request.agentId(),InvocationKind.MODEL,candidates.isEmpty()?"unrouted":candidates.getFirst().id(),Map.of("candidateCount",candidates.size(),"mode",request.mode()==null?"BALANCED":request.mode().name()));
+        if(control.isEmergencyStopActive()){audit.finish(entry.getId(),InvocationStatus.CANCELLED,"Emergency stop is active",Map.of());return new ModelExecutionResponse(ModelExecutionStatus.CANCELLED,null,null,null,"Emergency stop is active",entry.getId());}
+        if(candidates.isEmpty()){audit.finish(entry.getId(),InvocationStatus.BLOCKED,initial.reason(),Map.of());return new ModelExecutionResponse(ModelExecutionStatus.BLOCKED,null,null,null,initial.reason(),entry.getId());}
+        List<String> reasons=new ArrayList<>();boolean attempted=false;int index=0;
+        for(ModelProviderAdapter provider:candidates){ProviderBudgetSnapshot budget=usage.check(provider,request.prompt().length());if(!budget.allowed()){reasons.add(provider.id()+": "+budget.detail());index++;continue;}attempted=true;long started=System.nanoTime();String model=request.model()==null||request.model().isBlank()?provider.snapshot().model():request.model();try{LocalGenerateResponse generated=provider.generate(new LocalGenerateRequest(request.prompt(),model));long latency=(System.nanoTime()-started)/1_000_000L;reliability.success(provider.id(),latency);arena.runtime(provider.id(),generated.model(),true,latency,"fallbackIndex="+index);long units=Math.max(1,request.prompt().length()+(generated.response()==null?0:generated.response().length()));ProviderUsageEntity recorded=usage.record(provider,request.taskId(),units);audit.finish(entry.getId(),InvocationStatus.SUCCEEDED,"Model invocation completed",Map.of("provider",provider.id(),"model",generated.model(),"fallbackIndex",index,"usageUnits",recorded.getUnits(),"estimatedCostUsd",recorded.getEstimatedCostUsd().toPlainString()));return new ModelExecutionResponse(ModelExecutionStatus.SUCCEEDED,generated.provider(),generated.model(),generated.response(),index==0?"Model invocation completed":"Model invocation completed via fallback provider #"+index,entry.getId());}catch(RuntimeException ex){long latency=(System.nanoTime()-started)/1_000_000L;String detail=safeMessage(ex);reliability.failure(provider.id(),detail);arena.runtime(provider.id(),model,false,latency,detail);reasons.add(provider.id()+": "+detail);index++;}}
+        String detail=(attempted?"All eligible model providers failed: ":"All eligible providers were blocked by quota/budget policy: ")+String.join(" | ",reasons);audit.finish(entry.getId(),attempted?InvocationStatus.FAILED:InvocationStatus.BLOCKED,detail,Map.of("attemptedProviders",index));return new ModelExecutionResponse(attempted?ModelExecutionStatus.FAILED:ModelExecutionStatus.BLOCKED,candidates.getFirst().id(),candidates.getFirst().snapshot().model(),null,detail,entry.getId());
     }
-
-    public ModelExecutionResponse execute(ModelExecutionRequest request) {
-        if (request.prompt() == null || request.prompt().isBlank()) throw new IllegalArgumentException("Model prompt is required");
-        agents.getRequired(request.agentId());
-        if (request.taskId() != null) tasks.getRequired(request.taskId());
-
-        ModelRouteDecision route = router.route(new ModelRouteRequest(
-                request.modelClass(), request.mode(), request.protectedData(), request.allowPaid()));
-        InvocationAuditEntity entry = audit.start(
-                request.taskId(), request.agentId(), InvocationKind.MODEL,
-                route.providerId() == null ? "unrouted" : route.providerId(),
-                Map.of("modelClass", request.modelClass() == null ? "GENERAL" : request.modelClass().name(),
-                        "mode", request.mode() == null ? "BALANCED" : request.mode().name()));
-
-        if (control.isEmergencyStopActive()) {
-            audit.finish(entry.getId(), InvocationStatus.CANCELLED, "Emergency stop is active", Map.of());
-            return new ModelExecutionResponse(ModelExecutionStatus.CANCELLED, null, null, null, "Emergency stop is active", entry.getId());
-        }
-        if (!route.routable()) {
-            audit.finish(entry.getId(), InvocationStatus.BLOCKED, route.reason(), Map.of());
-            return new ModelExecutionResponse(ModelExecutionStatus.BLOCKED, null, null, null, route.reason(), entry.getId());
-        }
-
-        ModelProviderAdapter provider = providers.getRequired(route.providerId());
-        ProviderBudgetSnapshot budget = usage.check(provider, request.prompt().length());
-        if (!budget.allowed()) {
-            audit.finish(entry.getId(), InvocationStatus.BLOCKED, budget.detail(), Map.of(
-                    "provider", provider.id(),
-                    "unitsToday", budget.unitsToday(),
-                    "estimatedCostUsdToday", budget.estimatedCostUsdToday().toPlainString()));
-            return new ModelExecutionResponse(ModelExecutionStatus.BLOCKED, provider.id(), route.model(), null, budget.detail(), entry.getId());
-        }
-
-        try {
-            LocalGenerateResponse generated = provider.generate(new LocalGenerateRequest(
-                    request.prompt(), request.model() == null || request.model().isBlank() ? route.model() : request.model()));
-            long units = Math.max(1, request.prompt().length() + (generated.response() == null ? 0 : generated.response().length()));
-            ProviderUsageEntity recorded = usage.record(provider, request.taskId(), units);
-            audit.finish(entry.getId(), InvocationStatus.SUCCEEDED, "Model invocation completed", Map.of(
-                    "provider", provider.id(),
-                    "model", generated.model(),
-                    "usageUnits", recorded.getUnits(),
-                    "estimatedCostUsd", recorded.getEstimatedCostUsd().toPlainString()));
-            return new ModelExecutionResponse(ModelExecutionStatus.SUCCEEDED, generated.provider(), generated.model(), generated.response(), "Model invocation completed", entry.getId());
-        } catch (RuntimeException exception) {
-            audit.finish(entry.getId(), InvocationStatus.FAILED, safeMessage(exception), Map.of());
-            return new ModelExecutionResponse(ModelExecutionStatus.FAILED, route.providerId(), route.model(), null, safeMessage(exception), entry.getId());
-        }
-    }
-
-    private String safeMessage(RuntimeException exception) {
-        return exception.getMessage() == null || exception.getMessage().isBlank()
-                ? exception.getClass().getSimpleName()
-                : exception.getMessage();
-    }
+    private String safeMessage(RuntimeException e){return e.getMessage()==null||e.getMessage().isBlank()?e.getClass().getSimpleName():e.getMessage();}
 }
