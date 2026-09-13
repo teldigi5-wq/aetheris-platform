@@ -1,8 +1,7 @@
-name: Stage 24 Lock Bootstrap
+name: Stage 24 Lock Regeneration
 
 on:
-  push:
-    branches: [ stage24-reproducible-build ]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,10 +10,9 @@ jobs:
   generate-lock-evidence:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact revision
+      - name: Checkout current branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: stage24-reproducible-build
           fetch-depth: 0
 
       - name: Set up Node 22.23.2
@@ -22,7 +20,7 @@ jobs:
         with:
           node-version: '22.23.2'
 
-      - name: Generate npm lockfile
+      - name: Regenerate npm lockfile
         working-directory: dashboard
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
@@ -31,7 +29,7 @@ jobs:
         with:
           python-version: '3.13.15'
 
-      - name: Generate hash-locked Python dependency graph
+      - name: Regenerate Python hash lock
         run: |
           python -m pip install --disable-pip-version-check pip-tools==7.6.1
           python -m piptools compile \
@@ -47,22 +45,22 @@ jobs:
           distribution: temurin
           java-version: '21.0.12'
 
-      - name: Generate Maven 3.9.11 wrapper
-        run: mvn -N org.apache.maven.plugins:maven-wrapper-plugin:3.3.4:wrapper -Dmaven=3.9.11 -Dtype=only-script
-
-      - name: Snapshot Maven runtime dependency graphs
+      - name: Regenerate Maven runtime dependency evidence
         run: |
           mkdir -p build-evidence/maven
-          mvn -f gateway/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/gateway.txt"
-          mvn -f user-service/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/user-service.txt"
-          mvn -f identity-service/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/identity-service.txt"
-          mvn -f audit-service/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/audit-service.txt"
+          ./mvnw -f gateway/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/gateway.txt"
+          ./mvnw -f user-service/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/user-service.txt"
+          ./mvnw -f identity-service/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/identity-service.txt"
+          ./mvnw -f audit-service/pom.xml org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/audit-service.txt"
 
-      - name: Commit generated lock evidence
+      - name: Verify regenerated evidence
+        run: python scripts/check_dependency_lockdown.py --write-hashes
+
+      - name: Commit regenerated evidence
         run: |
           git config user.name "aetheris-stage24-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dashboard/package-lock.json aetheris-quant/requirements.lock.txt .mvn/wrapper mvnw mvnw.cmd build-evidence/maven
+          git add dashboard/package-lock.json aetheris-quant/requirements.lock.txt build-evidence/maven build-evidence/dependency-lock-sha256.txt
           git diff --cached --quiet && exit 0
-          git commit -m "chore(stage24): generate dependency lock evidence [skip ci]"
-          git push origin HEAD:stage24-reproducible-build
+          git commit -m "chore(stage24): regenerate dependency lock evidence [skip ci]"
+          git push
