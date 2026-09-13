@@ -27,9 +27,9 @@ Aetheris is an engineering portfolio and experimentation platform that grows one
 
 ---
 
-## ✅ Current repository milestone — Stage 26
+## ✅ Current repository milestone — Stage 27
 
-The canonical development line has completed the repository/CI side of **Stage 26 — Safety Scenario Certification & Policy Regression Guard**, together with the Stage 24 reproducible-build and Stage 25 first-boot-readiness hardening work.
+The canonical development line has completed **Stage 27 — Canonical Branch Governance & Release Promotion Gate**. It builds on Stage 26 safety/evidence certification, Stage 25 first-boot readiness and Stage 24 reproducible-build hardening.
 
 Current repository status: **`PRE_PC_HARDENED`**.
 
@@ -37,7 +37,18 @@ Current physical-machine status: **`BLOCKED_PENDING_HARDWARE`**.
 
 **Physical-PC validation remains pending.** Hosted CI and repository evidence do not prove that WSL2, Docker Desktop, GPU acceleration, local-model performance, thermals, or the complete local stack work on the owner's future physical machine.
 
-Stage 26 currently verifies safety and truth boundaries such as:
+### Stage 27 repository result
+
+The repository now uses only the intended long-lived branch model:
+
+- **`main`** — stable/release history.
+- **`feature/syntra-aetheris-foundation-v2`** — the single canonical active development line.
+
+Stage 27 adds deterministic governance that rejects legacy stage/integration branch references in CI and rejects release-promotion context to `main` from a non-canonical development branch. GitHub administrative branch protection/rulesets remain a separate repository setting and are not falsely claimed by this CI gate.
+
+### Stage 26 safety foundation
+
+Stage 26 continues to verify safety and truth boundaries such as:
 
 - ZERO_COST and PRIVATE-mode restrictions;
 - explicit approval for high-impact operations;
@@ -54,12 +65,11 @@ Stage 26 currently verifies safety and truth boundaries such as:
 
 ## 🌿 Development-line policy
 
-Aetheris now uses a simple two-line repository model:
+All new PC-independent Syntra/Aetheris work continues on:
 
-- **`main`** — stable/release history.
-- **`feature/syntra-aetheris-foundation-v2`** — the single canonical active development line.
+`feature/syntra-aetheris-foundation-v2`
 
-Temporary stage/integration branches are not valid bases for new work. New PC-independent development continues on the canonical foundation branch until a reviewed release is promoted toward `main`.
+Only reviewed promotion work should move toward `main`. Temporary per-stage branches are not valid development bases anymore.
 
 ---
 
@@ -105,6 +115,7 @@ flowchart LR
 | AI/agents | Mission planning, safe tool registry, policy evaluation and orchestrator foundations |
 | Safety | Approval gates, dry-run controls, incident replay and regression certification |
 | Release integrity | Dependency lockdown, reproducible builds, contract freeze and deterministic evidence |
+| Repository governance | Canonical development-line enforcement and release-promotion checks |
 
 ---
 
@@ -131,6 +142,7 @@ Repository definitions include Docker Compose, Helm and service-level developmen
 - [`docs/first-boot-runbook.md`](docs/first-boot-runbook.md)
 - [`docs/stage-25-first-boot-readiness.md`](docs/stage-25-first-boot-readiness.md)
 - [`docs/stage-26-safety-certification.md`](docs/stage-26-safety-certification.md)
+- [`docs/stage-27-repository-governance.md`](docs/stage-27-repository-governance.md)
 
 The exact commands that are appropriate depend on the machine and the validation stage. The project intentionally does not claim successful owner-PC execution before that machine is available and tested.
 
@@ -138,7 +150,7 @@ The exact commands that are appropriate depend on the machine and the validation
 
 ## 🗺️ Engineering progression
 
-Aetheris has progressed beyond its original Stage 1–7 platform foundation into agent governance and release hardening. The current verified repository milestone is **Stage 26**.
+Aetheris has progressed beyond its original Stage 1–7 platform foundation into agent governance, release hardening and repository governance. The current verified repository milestone is **Stage 27**.
 
 Recent hardening milestones include:
 
@@ -147,7 +159,8 @@ Recent hardening milestones include:
 - **Stage 23** — frozen compatibility contract;
 - **Stage 24** — dependency lockdown and reproducible-build verification;
 - **Stage 25** — deterministic first-boot readiness bundle and physical-PC truth boundary;
-- **Stage 26** — deterministic safety certification plus evidence-integrity controls.
+- **Stage 26** — deterministic safety certification plus evidence-integrity controls;
+- **Stage 27** — canonical branch governance and release-promotion gate.
 
 Physical execution milestones remain blocked until suitable owner hardware exists.
 
@@ -163,6 +176,7 @@ Physical execution milestones remain blocked until suitable owner hardware exist
 - [First-boot runbook](docs/first-boot-runbook.md)
 - [Stage 25 first-boot readiness](docs/stage-25-first-boot-readiness.md)
 - [Stage 26 safety certification](docs/stage-26-safety-certification.md)
+- [Stage 27 repository governance](docs/stage-27-repository-governance.md)
 
 ---
 
