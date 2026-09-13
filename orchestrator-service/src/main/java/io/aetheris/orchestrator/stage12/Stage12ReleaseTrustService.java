@@ -20,6 +20,26 @@ public class Stage12ReleaseTrustService {
         this.trustedPublicKeyBase64 = trustedPublicKeyBase64 == null ? "" : trustedPublicKeyBase64.trim();
     }
 
+    public TrustReadiness readiness() {
+        boolean fingerprintConfigured = trustedSignerSha256.matches("[a-f0-9]{64}");
+        boolean publicKeyConfigured = !trustedPublicKeyBase64.isBlank();
+        boolean keyMatchesFingerprint = false;
+        if (fingerprintConfigured && publicKeyConfigured) {
+            try {
+                byte[] encoded = Base64.getDecoder().decode(trustedPublicKeyBase64);
+                KeyFactory.getInstance("Ed25519").generatePublic(new X509EncodedKeySpec(encoded));
+                keyMatchesFingerprint = sha256(encoded).equals(trustedSignerSha256);
+            } catch (Exception ignored) {
+                keyMatchesFingerprint = false;
+            }
+        }
+        boolean ready = fingerprintConfigured && publicKeyConfigured && keyMatchesFingerprint;
+        return new TrustReadiness(ready ? "TRUST_ANCHOR_CONFIGURED" : "OWNER_TRUST_ANCHOR_REQUIRED",
+                fingerprintConfigured, publicKeyConfigured, keyMatchesFingerprint, false,
+                ready ? "Ed25519 public key and SHA-256 signer fingerprint are configured consistently; every release still requires per-artifact signature verification"
+                        : "A valid owner-configured Ed25519 public key and matching SHA-256 signer fingerprint are required before release promotion");
+    }
+
     public ReleaseVerification verify(ReleaseManifest manifest) {
         List<String> blockers = new ArrayList<>();
         if (manifest == null) return new ReleaseVerification("BLOCKED", List.of("release manifest is required"), false, false, false);
@@ -71,6 +91,8 @@ public class Stage12ReleaseTrustService {
 
     private String safe(String value) { return value == null ? "" : value.trim(); }
 
+    public record TrustReadiness(String status, boolean signerFingerprintConfigured, boolean publicKeyConfigured,
+                                 boolean publicKeyMatchesFingerprint, boolean privateKeyExposed, String detail) {}
     public record ReleaseManifest(String version, String channel, String artifactSha256,
                                   String observedArtifactSha256, String signerSha256, String signatureBase64) {}
     public record ReleaseVerification(String status, List<String> blockers, boolean artifactHashMatches,
