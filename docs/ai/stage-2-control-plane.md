@@ -82,6 +82,8 @@ The development Compose override injects the orchestrator database connection wi
 - rule revision history and active-version selection
 - graceful local-model unavailability when no PC endpoint is present
 
+GitHub Actions run 228 completed successfully across the dashboard and all backend jobs, including the expanded `orchestrator-service` test suite.
+
 ## Next implementation slice
 
 1. policy compiler that evaluates active Owner Rules against proposed actions
