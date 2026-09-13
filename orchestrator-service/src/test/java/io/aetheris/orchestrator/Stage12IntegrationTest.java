@@ -83,16 +83,20 @@ class Stage12IntegrationTest {
     }
 
     @Test
-    void targetAttestationCannotBeInventedFromCiEvidence() {
+    void targetAttestationMustMatchTheExactExpectedEvidenceHash() {
         stage11Evidence.record(new Stage11RuntimeEvidenceService.EvidenceRequest(
                 "WORKSTATION", "PASS", "stage12-ci", false, null, "CI-only Stage 12 precursor"));
-        var ciOnly = attestations.assess("WORKSTATION");
-        assertThat(ciOnly.status()).isEqualTo("EVIDENCE_REQUIRED");
-        assertThat(ciOnly.targetMeasured()).isFalse();
+        var unrelated = attestations.assess("WORKSTATION", "9".repeat(64));
+        assertThat(unrelated.status()).isEqualTo("EVIDENCE_REQUIRED");
+        assertThat(unrelated.targetMeasured()).isFalse();
+        assertThat(unrelated.attestationSha256()).isEqualTo("9".repeat(64));
 
         stage11Evidence.record(new Stage11RuntimeEvidenceService.EvidenceRequest(
                 "WORKSTATION", "PASS", "owner-target", true, "c".repeat(64), "Owner target measurement evidence"));
-        var target = attestations.assess("WORKSTATION");
+        var wrongHash = attestations.assess("WORKSTATION", "8".repeat(64));
+        assertThat(wrongHash.status()).isEqualTo("EVIDENCE_REQUIRED");
+
+        var target = attestations.assess("WORKSTATION", "c".repeat(64));
         assertThat(target.status()).isEqualTo("TARGET_ATTESTATION_AVAILABLE");
         assertThat(target.targetMeasured()).isTrue();
         assertThat(target.attestationSha256()).isEqualTo("c".repeat(64));
