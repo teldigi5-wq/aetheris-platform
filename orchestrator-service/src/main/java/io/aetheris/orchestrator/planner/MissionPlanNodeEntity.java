@@ -6,7 +6,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Entity
-@Table(name="aetheris_mission_plan_nodes",uniqueConstraints=@UniqueConstraint(columnNames={"missionId","stepKey"}))
+@Table(name="aetheris_mission_plan_nodes")
 public class MissionPlanNodeEntity {
     @Id private UUID id; @Column(nullable=false) private UUID missionId; @Column(nullable=false,length=120) private String stepKey; @Column(nullable=false) private UUID taskId; @Column(nullable=false,length=4000) private String dependencyTaskIdsCsv; @Column(nullable=false) private int priority; @Column(length=120) private String agentId; @Enumerated(EnumType.STRING) @Column(nullable=false,length=24) private MissionPlanNodeState state; @Column(nullable=false) private Instant createdAt; @Column(nullable=false) private Instant updatedAt;
     protected MissionPlanNodeEntity(){}

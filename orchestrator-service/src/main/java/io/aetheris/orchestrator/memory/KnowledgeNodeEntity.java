@@ -6,7 +6,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Entity
-@Table(name="aetheris_knowledge_nodes",uniqueConstraints=@UniqueConstraint(columnNames={"scope","namespace","memoryKey"}))
+@Table(name="aetheris_knowledge_nodes")
 public class KnowledgeNodeEntity {
     @Id private UUID id;
     @Enumerated(EnumType.STRING) @Column(nullable=false,length=24) private MemoryScope scope;
