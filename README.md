@@ -4,7 +4,7 @@
 
 ### Build. Secure. Observe. Orchestrate.
 
-**A cloud-native platform engineering project for APIs, identity, distributed systems, observability and future AI-agent governance.**
+**A long-term platform engineering and local-AI foundation focused on secure services, agent governance, deterministic verification and owner-controlled automation.**
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
@@ -13,7 +13,7 @@
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-`Java 21` • `Spring Boot` • `React` • `PostgreSQL` • `Redis` • `RabbitMQ` • `Prometheus` • `Grafana` • `OpenTelemetry` • `Kubernetes` • `Helm`
+`Java 21` • `Spring Boot` • `React` • `PostgreSQL` • `Redis` • `RabbitMQ` • `Prometheus` • `Grafana` • `OpenTelemetry` • `Kubernetes` • `Helm` • `Python verification tooling`
 
 </div>
 
@@ -21,21 +21,45 @@
 
 ## 🎯 What Aetheris demonstrates
 
-Aetheris is a long-term engineering portfolio project designed to show how a modern platform grows from a small service into a distributed, observable and cloud-native system.
+Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository includes API platform work, identity and authorization, distributed data services, observability, resilience, deployment automation, AI-agent governance, safety policy, deterministic release evidence and pre-PC readiness controls.
 
-Instead of building isolated demos, each stage adds one production-relevant capability to the same platform: authentication, authorization, caching, rate limiting, event messaging, observability, resilience, Kubernetes deployment and eventually AI-agent governance.
-
-> **Portfolio goal:** make every architectural decision explainable in an interview and verifiable in running code.
+> **Portfolio goal:** every important capability should be explainable in an interview, visible in code, and backed by reproducible evidence rather than unsupported claims.
 
 ---
 
-## ✅ Current milestone — Stage 7 complete
+## ✅ Current repository milestone — Stage 26
 
-The platform now runs locally through both **Docker Compose** and **Kubernetes + Helm**.
+The canonical development line has completed the repository/CI side of **Stage 26 — Safety Scenario Certification & Policy Regression Guard**, together with the Stage 24 reproducible-build and Stage 25 first-boot-readiness hardening work.
 
-Stage 7 includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, startup/readiness/liveness probes and configurable replicas.
+Current repository status: **`PRE_PC_HARDENED`**.
 
-Runtime verification includes successful authentication, protected gateway routing, two Ready `user-service` replicas, EndpointSlice-backed service discovery, replica self-healing and scaling back to the low-memory default.
+Current physical-machine status: **`BLOCKED_PENDING_HARDWARE`**.
+
+**Physical-PC validation remains pending.** Hosted CI and repository evidence do not prove that WSL2, Docker Desktop, GPU acceleration, local-model performance, thermals, or the complete local stack work on the owner's future physical machine.
+
+Stage 26 currently verifies safety and truth boundaries such as:
+
+- ZERO_COST and PRIVATE-mode restrictions;
+- explicit approval for high-impact operations;
+- fail-closed owner deny rules;
+- high-risk workspace command execution policy;
+- proposal-oriented GitHub write behavior;
+- dry-run rejection of dangerous intent;
+- read-only incident replay;
+- isolated chaos rehearsal;
+- disabled live-money, withdrawal and transfer boundaries in pre-production workstation packages;
+- protection against hosted CI being presented as physical-PC validation.
+
+---
+
+## 🌿 Development-line policy
+
+Aetheris now uses a simple two-line repository model:
+
+- **`main`** — stable/release history.
+- **`feature/syntra-aetheris-foundation-v2`** — the single canonical active development line.
+
+Temporary stage/integration branches are not valid bases for new work. New PC-independent development continues on the canonical foundation branch until a reviewed release is promoted toward `main`.
 
 ---
 
@@ -58,6 +82,8 @@ flowchart LR
     S --> O
     A --> O
     O --> OBS[Prometheus + Grafana + Loki + Tempo]
+    AG[Agent / Orchestrator Layer] --> POL[Owner Policy + Safety Gates]
+    POL --> G
     K[Kubernetes + Helm] --> D
     K --> G
     K --> I
@@ -76,113 +102,54 @@ flowchart LR
 | Resilience | Circuit breakers, retries, timeouts and fallbacks |
 | Observability | Metrics, logs and distributed traces |
 | Cloud native | Docker Compose, Kubernetes, Helm and health probes |
-| Future AI | Agent gateway, policies and local-model integration roadmap |
+| AI/agents | Mission planning, safe tool registry, policy evaluation and orchestrator foundations |
+| Safety | Approval gates, dry-run controls, incident replay and regression certification |
+| Release integrity | Dependency lockdown, reproducible builds, contract freeze and deterministic evidence |
 
 ---
 
-## 🔐 Security model
+## 🔐 Security and owner-control model
 
-Access tokens are signed JWTs containing identity, role and effective scope claims. Refresh tokens are opaque, rotated on use, revocable and stored only as SHA-256 hashes in PostgreSQL.
+Access tokens use signed JWTs containing identity, role and effective-scope claims. Refresh tokens are opaque, rotated on use, revocable and stored as hashes.
 
-The gateway validates tokens and enforces scopes before protected requests reach downstream services.
-
-| Role | Default permissions |
-|---|---|
-| `API_CONSUMER` | `users:read`, `services:read` |
-| `DEVELOPER` | consumer scopes + `users:write`, `identity:read` |
-| `ADMIN` | developer scopes + `identity:write` |
+The agent/orchestrator side adds owner-policy evaluation before high-impact operations. Repository safeguards keep critical pre-PC boundaries fail-closed: no production activation, no live-money execution, no withdrawals, no transfers, no unrestricted shell capability, and no administrative bypass is considered validated by hosted CI.
 
 ---
 
-## ⚡ Distributed traffic model
+## 📈 Observability and resilience
 
-Redis provides shared caching and distributed token-bucket rate limiting. User-cache entries use a 60-second TTL and are evicted on writes.
+The platform contains Prometheus/Grafana/Loki/Tempo/OpenTelemetry integration, structured health checks and resilience patterns such as timeouts, retries for safe reads, circuit breakers and controlled fallbacks.
 
-RabbitMQ carries asynchronous `user.created` and `user.deleted` events to the audit service through the durable `aetheris.events` topic exchange.
-
----
-
-## 📈 Observability
-
-Each Java service exposes Prometheus metrics through Spring Boot Actuator. The observability stack combines:
-
-- **Prometheus** for metrics
-- **Grafana** for dashboards
-- **Loki** for centralized logs
-- **Tempo** for traces
-- **OpenTelemetry** for instrumentation and trace export
-- **Grafana Alloy** for container log discovery
-
-The observability profile remains optional so the core platform stays practical on lower-memory development hardware.
+These are repository capabilities and testable deployment definitions. Runtime performance on the owner's physical hardware is intentionally left unclaimed until physical validation exists.
 
 ---
 
-## 🛡️ Resilience
+## 🚀 Development quick start
 
-The gateway protects downstream calls with Resilience4j circuit breakers and explicit network timeouts.
+Repository definitions include Docker Compose, Helm and service-level development workflows. Use the first-boot and validation runbooks before treating any local environment as validated:
 
-Safe reads can retry with exponential backoff, while mutating requests are not replayed automatically. Dependency failures return structured `503` responses instead of leaking raw connection errors.
+- [`docs/first-boot-runbook.md`](docs/first-boot-runbook.md)
+- [`docs/stage-25-first-boot-readiness.md`](docs/stage-25-first-boot-readiness.md)
+- [`docs/stage-26-safety-certification.md`](docs/stage-26-safety-certification.md)
 
----
-
-## ☸️ Kubernetes + Helm
-
-The Helm chart under `deploy/helm/aetheris` deploys the core platform into one namespace.
-
-Kubernetes Services provide stable internal DNS, stateful infrastructure receives persistent volumes, stateless services use Deployments and health probes keep traffic away from unready pods.
-
-The default values are intentionally sized for a small local machine. Production deployments should use external secrets, stronger storage/backup policies, ingress/TLS and separate production values.
+The exact commands that are appropriate depend on the machine and the validation stage. The project intentionally does not claim successful owner-PC execution before that machine is available and tested.
 
 ---
 
-## 🚀 Quick start
+## 🗺️ Engineering progression
 
-### Docker Compose
+Aetheris has progressed beyond its original Stage 1–7 platform foundation into agent governance and release hardening. The current verified repository milestone is **Stage 26**.
 
-```bash
-git clone https://github.com/teldigi5-wq/aetheris-platform.git
-cd aetheris-platform
-docker compose up --build
-```
+Recent hardening milestones include:
 
-### Full observability stack
+- **Stage 21** — physical-target pilot contract and owner-policy boundaries;
+- **Stage 22** — release hardening, schema/security evidence and merge readiness;
+- **Stage 23** — frozen compatibility contract;
+- **Stage 24** — dependency lockdown and reproducible-build verification;
+- **Stage 25** — deterministic first-boot readiness bundle and physical-PC truth boundary;
+- **Stage 26** — deterministic safety certification plus evidence-integrity controls.
 
-```bash
-docker compose --profile observability up --build
-```
-
-### Main local endpoints
-
-| Service | URL |
-|---|---|
-| Dashboard | `http://localhost:3000` |
-| Gateway health | `http://localhost:8080/actuator/health` |
-| Identity API | `http://localhost:8080/api/auth/*` |
-| User API | `http://localhost:8080/api/users` |
-| Event API | `http://localhost:8080/api/events` |
-| RabbitMQ UI | `http://localhost:15672` |
-| Prometheus | `http://localhost:9090` |
-| Grafana | `http://localhost:3001` |
-| Loki | `http://localhost:3100` |
-| Tempo | `http://localhost:3200` |
-
-For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
-
----
-
-## 🗺️ Roadmap
-
-- [x] Stage 1 — Gateway + user service + PostgreSQL
-- [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors and CI
-- [x] Stage 2 — Identity, JWT authentication, RBAC, refresh tokens and scopes
-- [x] Stage 3 — Redis caching + distributed rate limiting
-- [x] Stage 4 — RabbitMQ event messaging
-- [x] Stage 5 — Prometheus, Grafana, logs and OpenTelemetry
-- [x] Stage 6 — Circuit breakers, retries, timeouts and load balancing
-- [x] Stage 7 — Local Kubernetes + Helm
-- [ ] Stage 8 — Aetheris CLI + SDK generation
-- [ ] Stage 9 — AI Agent Gateway + policy engine + local Ollama integration
-- [ ] Stage 10 — Chaos Lab + Security Lab
+Physical execution milestones remain blocked until suitable owner hardware exists.
 
 ---
 
@@ -193,18 +160,21 @@ For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
 - [Token flow and threat model](docs/security/token-flow.md)
 - [Resilience runbook](docs/resilience.md)
 - [Kubernetes + Helm runbook](docs/kubernetes.md)
+- [First-boot runbook](docs/first-boot-runbook.md)
+- [Stage 25 first-boot readiness](docs/stage-25-first-boot-readiness.md)
+- [Stage 26 safety certification](docs/stage-26-safety-certification.md)
 
 ---
 
 ## 💡 Design rule
 
-The development stack has **no mandatory recurring software fee**. Open-source components and local infrastructure are the default; cloud deployment remains optional.
+The development stack is designed around **no mandatory recurring AI or platform subscription fee**. Open-source and locally controllable components are the default; external/cloud services remain optional and policy-governed.
 
 ---
 
 <div align="center">
 
-### From fundamentals to production-style platform engineering.
+### From platform fundamentals to policy-governed local AI infrastructure.
 
 **Built by Poojana Kaveesh Sellahewa**
 
