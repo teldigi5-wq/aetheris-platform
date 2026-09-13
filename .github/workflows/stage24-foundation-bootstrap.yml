@@ -1,22 +1,18 @@
-name: Stage 24 Foundation Lock Bootstrap
+name: Stage 24 Foundation Lock Regeneration
 
 on:
-  push:
-    branches: [ integration/stage24-25-foundation ]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  generate-full-foundation-evidence:
-    if: github.actor != 'github-actions[bot]'
+  regenerate-full-foundation-evidence:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout integration branch
+      - name: Checkout current branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: integration/stage24-25-foundation
           fetch-depth: 0
 
       - name: Set up Node 22.23.2
@@ -50,7 +46,7 @@ jobs:
           java-version: '21.0.12'
           cache: maven
 
-      - name: Generate six Maven dependency trees
+      - name: Regenerate six Maven dependency trees
         run: |
           mkdir -p build-evidence/maven
           for module in gateway user-service identity-service audit-service orchestrator-service workstation-agent; do
@@ -59,14 +55,14 @@ jobs:
               -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/$module.txt"
           done
 
-      - name: Verify and hash full-foundation lock evidence
+      - name: Verify and hash full-foundation evidence
         run: python scripts/check_dependency_lockdown.py --write-hashes
 
-      - name: Commit generated evidence only
+      - name: Commit regenerated evidence
         run: |
           git config user.name "aetheris-hardening-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dashboard/package-lock.json aetheris-quant/requirements.lock.txt build-evidence/maven build-evidence/dependency-lock-sha256.txt
           git diff --cached --quiet && exit 0
-          git commit -m "chore(integration): generate full-foundation lock evidence"
-          git push origin HEAD:integration/stage24-25-foundation
+          git commit -m "chore: regenerate full-foundation dependency evidence"
+          git push
