@@ -16,14 +16,10 @@ import java.util.UUID;
 public class TaskService {
 
     private static final Map<TaskState, Set<TaskState>> ALLOWED_TRANSITIONS = allowedTransitions();
-
     private final TaskRepository repository;
     private final TaskEventStreamService eventStream;
 
-    public TaskService(TaskRepository repository, TaskEventStreamService eventStream) {
-        this.repository = repository;
-        this.eventStream = eventStream;
-    }
+    public TaskService(TaskRepository repository, TaskEventStreamService eventStream) { this.repository = repository; this.eventStream = eventStream; }
 
     @Transactional
     public TaskEntity create(CreateTaskRequest request) {
@@ -33,71 +29,43 @@ public class TaskService {
         return task;
     }
 
-    public List<TaskEntity> recent() {
-        return repository.findTop50ByOrderByUpdatedAtDesc();
-    }
-
-    public TaskEntity getRequired(UUID id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Unknown task: " + id));
-    }
+    public List<TaskEntity> recent() { return repository.findTop50ByOrderByUpdatedAtDesc(); }
+    public TaskEntity getRequired(UUID id) { return repository.findById(id).orElseThrow(() -> new NoSuchElementException("Unknown task: " + id)); }
 
     @Transactional
     public TaskEntity transition(UUID id, TaskTransitionRequest request) {
-        TaskEntity task = getRequired(id);
-        TaskState current = task.getState();
-        TaskState next = request.state();
-
-        if (current == next) {
-            throw new IllegalStateException("Task is already in state " + current);
-        }
-
+        TaskEntity task = getRequired(id); TaskState current = task.getState(); TaskState next = request.state();
+        if (current == next) throw new IllegalStateException("Task is already in state " + current);
         Set<TaskState> allowed = ALLOWED_TRANSITIONS.getOrDefault(current, Set.of());
-        if (!allowed.contains(next)) {
-            throw new IllegalStateException("Invalid task transition: " + current + " -> " + next);
-        }
-
+        if (!allowed.contains(next)) throw new IllegalStateException("Invalid task transition: " + current + " -> " + next);
         task.transitionTo(next, request.agentId());
         TaskEntity saved = repository.save(task);
-        String message = request.message() == null || request.message().isBlank()
-                ? "Task moved to " + next
-                : request.message();
+        String message = request.message() == null || request.message().isBlank() ? "Task moved to " + next : request.message();
         eventStream.publish(event(saved, request.agentId(), message, Map.of("previousState", current.name())));
         return saved;
     }
 
     public TaskEvent recordProgress(UUID id, String agentId, String message, Map<String, Object> metadata) {
         TaskEntity task = getRequired(id);
-        TaskEvent progress = event(
-                task,
-                agentId,
-                message == null || message.isBlank() ? "Task progress update" : message,
+        TaskEvent progress = event(task, agentId, message == null || message.isBlank() ? "Task progress update" : message,
                 metadata == null ? Map.of() : metadata);
-        eventStream.publish(progress);
-        return progress;
+        eventStream.publish(progress); return progress;
     }
 
-    public TaskEvent snapshotEvent(UUID id) {
-        TaskEntity task = getRequired(id);
-        return event(task, task.getActiveAgentId(), "Current task snapshot", Map.of("mode", task.getMode().name()));
-    }
-
-    private TaskEvent event(TaskEntity task, String agentId, String message, Map<String, Object> metadata) {
-        return new TaskEvent(task.getId(), Instant.now(), task.getState(), agentId, message, metadata);
-    }
+    public TaskEvent snapshotEvent(UUID id) { TaskEntity task = getRequired(id); return event(task, task.getActiveAgentId(), "Current task snapshot", Map.of("mode", task.getMode().name())); }
+    private TaskEvent event(TaskEntity task, String agentId, String message, Map<String, Object> metadata) { return new TaskEvent(task.getId(), Instant.now(), task.getState(), agentId, message, metadata); }
 
     private static Map<TaskState, Set<TaskState>> allowedTransitions() {
         EnumMap<TaskState, Set<TaskState>> map = new EnumMap<>(TaskState.class);
         map.put(TaskState.QUEUED, Set.of(TaskState.PLANNING, TaskState.CANCELLED));
         map.put(TaskState.PLANNING, Set.of(TaskState.AWAITING_APPROVAL, TaskState.RUNNING, TaskState.FAILED, TaskState.CANCELLED));
         map.put(TaskState.AWAITING_APPROVAL, Set.of(TaskState.RUNNING, TaskState.FAILED, TaskState.CANCELLED));
-        map.put(TaskState.RUNNING, Set.of(TaskState.PAUSED, TaskState.VERIFYING, TaskState.FAILED, TaskState.CANCELLED, TaskState.ROLLING_BACK));
+        map.put(TaskState.RUNNING, Set.of(TaskState.AWAITING_APPROVAL, TaskState.PAUSED, TaskState.VERIFYING, TaskState.FAILED, TaskState.CANCELLED, TaskState.ROLLING_BACK));
         map.put(TaskState.PAUSED, Set.of(TaskState.RUNNING, TaskState.CANCELLED, TaskState.ROLLING_BACK));
         map.put(TaskState.VERIFYING, Set.of(TaskState.COMPLETED, TaskState.FAILED, TaskState.CANCELLED, TaskState.ROLLING_BACK));
         map.put(TaskState.FAILED, Set.of(TaskState.ROLLING_BACK));
         map.put(TaskState.ROLLING_BACK, Set.of(TaskState.FAILED, TaskState.CANCELLED));
-        map.put(TaskState.COMPLETED, Set.of());
-        map.put(TaskState.CANCELLED, Set.of());
+        map.put(TaskState.COMPLETED, Set.of()); map.put(TaskState.CANCELLED, Set.of());
         return Map.copyOf(map);
     }
 }
