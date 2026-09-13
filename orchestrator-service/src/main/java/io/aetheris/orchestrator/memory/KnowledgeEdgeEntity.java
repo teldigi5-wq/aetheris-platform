@@ -1,6 +1,7 @@
 package io.aetheris.orchestrator.memory;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 @Entity
 @Table(name="aetheris_knowledge_edges")
