@@ -5,16 +5,16 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "aetheris_stage12_providers", uniqueConstraints = @UniqueConstraint(columnNames = "providerId"))
+@Table(name = "aetheris_stage12_providers")
 public class Stage12ProviderEntity {
     @Id private UUID id;
-    @Column(nullable = false, length = 80) private String providerId;
+    @Column(nullable = false, unique = true, length = 80) private String providerId;
     @Column(nullable = false, length = 32) private String type;
     @Column(nullable = false, length = 180) private String endpoint;
     @Column(nullable = false, length = 120) private String credentialAlias;
     @Column(nullable = false) private boolean enabled;
     @Column(nullable = false, length = 40) private String status;
-    @Column(nullable = false, length = 64) private String capabilitiesCsv;
+    @Column(nullable = false, length = 512) private String capabilitiesCsv;
     @Column(nullable = false) private boolean readOnly;
     @Column(nullable = false) private Instant updatedAt;
 
