@@ -25,17 +25,17 @@ Aetheris is a long-term engineering portfolio project designed to show how a mod
 
 Instead of building isolated demos, each stage adds one production-relevant capability to the same platform: authentication, authorization, caching, rate limiting, event messaging, observability, resilience, Kubernetes deployment and eventually AI-agent governance.
 
-> **Portfolio goal:** make every architectural decision explainable in an interview and verifiable in running code.
+> **Portfolio goal:** make every architectural decision explainable in an interview and verifiable with evidence.
 
 ---
 
-## ✅ Current milestone — Stage 7 complete
+## ✅ Current repository milestone
 
-The platform now runs locally through both **Docker Compose** and **Kubernetes + Helm**.
+The repository contains the Stage 7 Docker Compose and Kubernetes + Helm implementation: PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit and dashboard workloads, plus Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, health probes and configurable replicas.
 
-Stage 7 includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, startup/readiness/liveness probes and configurable replicas.
+**Owner-PC runtime validation is still pending.** Until the owner's physical machine exists and produces its own evidence, this repository does not claim that WSL2, Docker Desktop, Kubernetes, GPU acceleration or the complete local stack have passed on that machine.
 
-Runtime verification includes successful authentication, protected gateway routing, two Ready `user-service` replicas, EndpointSlice-backed service discovery, replica self-healing and scaling back to the low-memory default.
+Stage 24 added reproducible dependency/build evidence. Stage 25 adds an executable first-boot readiness contract and the runbook that will be used for real physical-machine acceptance.
 
 ---
 
@@ -127,15 +127,17 @@ Safe reads can retry with exponential backoff, while mutating requests are not r
 
 ## ☸️ Kubernetes + Helm
 
-The Helm chart under `deploy/helm/aetheris` deploys the core platform into one namespace.
+The Helm chart under `deploy/helm/aetheris` describes the core platform in one namespace.
 
 Kubernetes Services provide stable internal DNS, stateful infrastructure receives persistent volumes, stateless services use Deployments and health probes keep traffic away from unready pods.
 
-The default values are intentionally sized for a small local machine. Production deployments should use external secrets, stronger storage/backup policies, ingress/TLS and separate production values.
+The default values are intended for local development. A production deployment still requires external secret management, stronger storage/backup policies, ingress/TLS, deployment-specific image/version policy and separate production values.
 
 ---
 
 ## 🚀 Quick start
+
+These commands describe the intended local workflow. On the owner's physical PC, follow the [first-boot runbook](docs/first-boot-runbook.md) and record evidence rather than assuming the environment works.
 
 ### Docker Compose
 
@@ -170,7 +172,17 @@ For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
 
 ---
 
-## 🗺️ Roadmap
+## 🧪 Pre-PC hardening track
+
+- [x] Stage 24 — Reproducible Build & Dependency Lockdown
+- [x] Stage 25 preparation — First-Boot Readiness & Environment Contract
+- [ ] Physical-PC acceptance — Windows/WSL2/Docker/GPU/local-stack evidence after the owner's machine arrives
+
+Stage 25 CI validates repository-side readiness only. It intentionally reports the physical PC as **NOT_TESTED**.
+
+---
+
+## 🗺️ Platform roadmap
 
 - [x] Stage 1 — Gateway + user service + PostgreSQL
 - [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors and CI
@@ -179,10 +191,12 @@ For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
 - [x] Stage 4 — RabbitMQ event messaging
 - [x] Stage 5 — Prometheus, Grafana, logs and OpenTelemetry
 - [x] Stage 6 — Circuit breakers, retries, timeouts and load balancing
-- [x] Stage 7 — Local Kubernetes + Helm
+- [x] Stage 7 — Kubernetes + Helm implementation
 - [ ] Stage 8 — Aetheris CLI + SDK generation
 - [ ] Stage 9 — AI Agent Gateway + policy engine + local Ollama integration
 - [ ] Stage 10 — Chaos Lab + Security Lab
+
+Hardware-dependent roadmap items remain gated by real-machine validation.
 
 ---
 
@@ -193,6 +207,10 @@ For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
 - [Token flow and threat model](docs/security/token-flow.md)
 - [Resilience runbook](docs/resilience.md)
 - [Kubernetes + Helm runbook](docs/kubernetes.md)
+- [Dependency and supply-chain policy](docs/dependency-policy.md)
+- [Stage 24 reproducibility evidence](docs/stage-24-reproducible-build.md)
+- [Stage 25 readiness contract](docs/stage-25-first-boot-readiness.md)
+- [Physical-PC first-boot runbook](docs/first-boot-runbook.md)
 
 ---
 
