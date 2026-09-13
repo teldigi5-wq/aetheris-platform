@@ -52,13 +52,22 @@ public class TaskController {
         return tasks.transition(id, request);
     }
 
+    @GetMapping("/{id}/events/history")
+    public List<TaskEvent> history(@PathVariable UUID id) {
+        tasks.getRequired(id);
+        return streams.history(id);
+    }
+
     @GetMapping(value = "/{id}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events(@PathVariable UUID id) {
         tasks.getRequired(id);
         SseEmitter emitter = streams.subscribe(id);
-        TaskEvent snapshot = tasks.snapshotEvent(id);
         try {
-            emitter.send(SseEmitter.event().name("task-event").id(snapshot.timestamp().toString()).data(snapshot));
+            for (TaskEvent event : streams.history(id)) {
+                emitter.send(SseEmitter.event().name("task-replay").id(event.timestamp().toString()).data(event));
+            }
+            TaskEvent snapshot = tasks.snapshotEvent(id);
+            emitter.send(SseEmitter.event().name("task-snapshot").id(snapshot.timestamp().toString()).data(snapshot));
         } catch (IOException exception) {
             emitter.completeWithError(exception);
         }

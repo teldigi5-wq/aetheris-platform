@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface ApprovalRepository extends JpaRepository<ApprovalEntity, UUID> {
     List<ApprovalEntity> findTop100ByStatusOrderByCreatedAtDesc(ApprovalStatus status);
     List<ApprovalEntity> findTop100ByTaskIdOrderByCreatedAtDesc(UUID taskId);
+    long countByTaskIdAndStatus(UUID taskId, ApprovalStatus status);
 }

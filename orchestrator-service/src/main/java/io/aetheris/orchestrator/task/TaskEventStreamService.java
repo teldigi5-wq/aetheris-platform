@@ -16,6 +16,11 @@ public class TaskEventStreamService {
 
     private static final long TIMEOUT_MS = Duration.ofMinutes(30).toMillis();
     private final Map<UUID, CopyOnWriteArrayList<SseEmitter>> emitters = new ConcurrentHashMap<>();
+    private final TaskEventJournalService journal;
+
+    public TaskEventStreamService(TaskEventJournalService journal) {
+        this.journal = journal;
+    }
 
     public SseEmitter subscribe(UUID taskId) {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
@@ -26,7 +31,12 @@ public class TaskEventStreamService {
         return emitter;
     }
 
+    public List<TaskEvent> history(UUID taskId) {
+        return journal.history(taskId);
+    }
+
     public void publish(TaskEvent event) {
+        journal.append(event);
         List<SseEmitter> subscribers = emitters.getOrDefault(event.taskId(), new CopyOnWriteArrayList<>());
         for (SseEmitter emitter : subscribers) {
             try {
