@@ -17,7 +17,7 @@ foreach ($script in $scripts) {
     [System.Management.Automation.Language.Parser]::ParseFile($script, [ref]$tokens, [ref]$errors) | Out-Null
     if ($errors.Count -gt 0) {
         $messages = ($errors | ForEach-Object { $_.Message }) -join '; '
-        throw "PowerShell parse failure in $script: $messages"
+        throw "PowerShell parse failure in ${script}: $messages"
     }
     $content = Get-Content $script -Raw
     foreach ($forbidden in @('Invoke-Expression','IEX ','ExecutionPolicy Bypass','-EncodedCommand','schtasks.exe','reg.exe add','netsh advfirewall')) {
