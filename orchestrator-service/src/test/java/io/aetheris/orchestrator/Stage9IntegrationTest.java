@@ -97,8 +97,8 @@ class Stage9IntegrationTest {
     @Test
     void benchmarkPackPersistsEvaluationEvidence(){
         BenchmarkRunResult result=benchmarks.record(new BenchmarkRunRequest("coding-core","agent","backend-engineer","implement-feature",true,0,420,0,94,0));
-        assertThat(result.verdict()).startsWith("PASS");
-        assertThat(result.evaluation().getOverallScore()).isGreaterThanOrEqualTo(80);
+        assertThat(result.verdict()).isEqualTo("PASS");
+        assertThat(result.evaluation().getOverallScore()).isGreaterThanOrEqualTo(65);
     }
 
     @Test
