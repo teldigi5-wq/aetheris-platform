@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   retire-legacy-refs:
-    if: github.event.head_commit.message == 'chore(repo): retire legacy branches'
+    if: "${{ github.event.head_commit.message == 'chore(repo): retire legacy branches' }}"
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact revision
