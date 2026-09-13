@@ -10,144 +10,91 @@ type Health = 'online' | 'offline' | 'checking';
 type OrchestratorTask = { id: string; title: string; state: string; mode: string; activeAgentId?: string | null; updatedAt: string };
 type Approval = { id: string; taskId: string; actionType: string; riskLevel: string; status: string; createdAt: string };
 type ModelProvider = { providerId: string; available: boolean; local: boolean; zeroCost: boolean; model: string; detail: string };
+type ProviderHealth = { providerId: string; successCount: number; failureCount: number; consecutiveFailures: number; averageLatencyMs: number; circuitOpen: boolean; circuitOpenUntil?: string | null; lastError?: string | null };
+type ProviderBudget = { providerId: string; unitsToday: number; dailyQuotaUnits: number; estimatedCostUsdToday: number; dailyBudgetUsd: number; allowed: boolean; detail: string };
 type Invocation = { id: string; kind: string; targetId: string; status: string; agentId?: string | null; startedAt: string };
 type EmergencyStop = { active: boolean; changedAt: string; reason: string; cancelledTasks: number };
+type WorkItem = { id: string; taskId: string; workflowType: string; state: string; attempt: number; maxAttempts: number; leaseOwner?: string | null; leaseExpiresAt?: string | null; lastError?: string | null; updatedAt: string };
+type Mission = { id: string; title: string; objective: string; status: string; taskIds: string[]; createdAt: string; updatedAt: string; liveStreamPath: string };
+type Host = { id: string; displayName: string; platform: string; status: string; capabilities: string[]; lastSeenAt?: string | null };
+type GitHubProposal = { id: string; taskId?: string | null; repository: string; path: string; baseRef: string; summary: string; status: string; createdAt: string };
+type McpServer = { id: string; serverKey: string; displayName: string; status: string; local: boolean; enabled: boolean; approvedCapabilities: string[]; allowedDataClasses: string[] };
 
 const SESSION_KEY = 'aetheris.session';
+function readSession(): Session | null { try { const raw=sessionStorage.getItem(SESSION_KEY); return raw?JSON.parse(raw) as Session:null; } catch { sessionStorage.removeItem(SESSION_KEY); return null; } }
+function writeSession(session: Session) { sessionStorage.setItem(SESSION_KEY,JSON.stringify(session)); }
+async function rotateSession(current: Session): Promise<Session | null> { const response=await fetch('/api/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refreshToken:current.refreshToken})}); if(!response.ok)return null; const auth=await response.json() as AuthResponse; const next={token:auth.accessToken,refreshToken:auth.refreshToken,account:auth.account}; writeSession(next); return next; }
 
-function readSession(): Session | null {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? JSON.parse(raw) as Session : null;
-  } catch {
-    sessionStorage.removeItem(SESSION_KEY);
-    return null;
-  }
-}
+export default function App(){
+  const [session,setSession]=useState<Session|null>(()=>readSession());
+  const [users,setUsers]=useState<User[]>([]); const [tasks,setTasks]=useState<OrchestratorTask[]>([]); const [approvals,setApprovals]=useState<Approval[]>([]);
+  const [providers,setProviders]=useState<ModelProvider[]>([]); const [providerHealth,setProviderHealth]=useState<ProviderHealth[]>([]); const [budgets,setBudgets]=useState<ProviderBudget[]>([]);
+  const [invocations,setInvocations]=useState<Invocation[]>([]); const [workItems,setWorkItems]=useState<WorkItem[]>([]); const [missions,setMissions]=useState<Mission[]>([]); const [hosts,setHosts]=useState<Host[]>([]);
+  const [proposals,setProposals]=useState<GitHubProposal[]>([]); const [mcpServers,setMcpServers]=useState<McpServer[]>([]); const [emergencyStop,setEmergencyStop]=useState<EmergencyStop|null>(null);
+  const [health,setHealth]=useState<Health>('checking'); const [loading,setLoading]=useState(false); const [message,setMessage]=useState(''); const [authMessage,setAuthMessage]=useState('');
+  const canWriteUsers=useMemo(()=>session?.account.scopes?.includes('users:write')??false,[session]);
+  const canControlOrchestrator=useMemo(()=>session?.account.scopes?.includes('orchestrator:write')??false,[session]);
+  const healthyProviders=useMemo(()=>providers.filter(p=>p.available).length,[providers]);
+  const activeMissions=useMemo(()=>missions.filter(m=>m.status==='ACTIVE').length,[missions]);
+  const leasedWork=useMemo(()=>workItems.filter(w=>w.state==='RUNNING').length,[workItems]);
 
-function writeSession(session: Session) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); }
+  const expireSession=useCallback(()=>{sessionStorage.removeItem(SESSION_KEY);setSession(null);setUsers([]);setTasks([]);setApprovals([]);setProviders([]);setProviderHealth([]);setBudgets([]);setInvocations([]);setWorkItems([]);setMissions([]);setHosts([]);setProposals([]);setMcpServers([]);setEmergencyStop(null);setAuthMessage('Your session ended. Sign in again.');},[]);
+  const protectedFetch=useCallback(async(url:string,init:RequestInit={})=>{if(!session)return null;const withToken=(token:string)=>fetch(url,{...init,headers:{...(init.headers??{}),Authorization:`Bearer ${token}`}});let response=await withToken(session.token);if(response.status!==401)return response;const rotated=await rotateSession(session);if(!rotated){expireSession();return null;}setSession(rotated);return withToken(rotated.token);},[session,expireSession]);
 
-async function rotateSession(current: Session): Promise<Session | null> {
-  const response = await fetch('/api/auth/refresh', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken: current.refreshToken })
-  });
-  if (!response.ok) return null;
-  const auth = await response.json() as AuthResponse;
-  const next = { token: auth.accessToken, refreshToken: auth.refreshToken, account: auth.account };
-  writeSession(next);
-  return next;
-}
-
-export default function App() {
-  const [session, setSession] = useState<Session | null>(() => readSession());
-  const [users, setUsers] = useState<User[]>([]);
-  const [tasks, setTasks] = useState<OrchestratorTask[]>([]);
-  const [approvals, setApprovals] = useState<Approval[]>([]);
-  const [providers, setProviders] = useState<ModelProvider[]>([]);
-  const [invocations, setInvocations] = useState<Invocation[]>([]);
-  const [emergencyStop, setEmergencyStop] = useState<EmergencyStop | null>(null);
-  const [health, setHealth] = useState<Health>('checking');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-  const [authMessage, setAuthMessage] = useState('');
-  const canWriteUsers = useMemo(() => session?.account.scopes?.includes('users:write') ?? false, [session]);
-  const canControlOrchestrator = useMemo(() => session?.account.scopes?.includes('orchestrator:write') ?? false, [session]);
-  const healthyProviders = useMemo(() => providers.filter(provider => provider.available).length, [providers]);
-
-  const expireSession = useCallback(() => {
-    sessionStorage.removeItem(SESSION_KEY); setSession(null); setUsers([]); setTasks([]); setApprovals([]); setProviders([]); setInvocations([]); setEmergencyStop(null);
-    setAuthMessage('Your session ended. Sign in again.');
-  }, []);
-
-  const protectedFetch = useCallback(async (url: string, init: RequestInit = {}) => {
-    if (!session) return null;
-    const withToken = (token: string) => fetch(url, { ...init, headers: { ...(init.headers ?? {}), Authorization: `Bearer ${token}` } });
-    let response = await withToken(session.token);
-    if (response.status !== 401) return response;
-    const rotated = await rotateSession(session);
-    if (!rotated) { expireSession(); return null; }
-    setSession(rotated);
-    return withToken(rotated.token);
-  }, [session, expireSession]);
-
-  const refresh = useCallback(async () => {
+  const refresh=useCallback(async()=>{
     setLoading(true);
-    try {
-      const healthResponse = await fetch('/actuator/health');
-      setHealth(healthResponse.ok ? 'online' : 'offline');
-      if (!session) { setUsers([]); return; }
-
-      const [usersResponse, tasksResponse, approvalsResponse, providersResponse, invocationsResponse, stopResponse] = await Promise.all([
-        protectedFetch('/api/users'),
-        protectedFetch('/api/orchestrator/tasks'),
-        protectedFetch('/api/orchestrator/approvals/pending'),
-        protectedFetch('/api/orchestrator/models/providers'),
-        protectedFetch('/api/orchestrator/invocations'),
-        protectedFetch('/api/orchestrator/control/emergency-stop')
-      ]);
-
-      if (usersResponse?.ok) setUsers(await usersResponse.json());
-      if (tasksResponse?.ok) setTasks(await tasksResponse.json());
-      if (approvalsResponse?.ok) setApprovals(await approvalsResponse.json());
-      if (providersResponse?.ok) setProviders(await providersResponse.json());
-      if (invocationsResponse?.ok) setInvocations(await invocationsResponse.json());
-      if (stopResponse?.ok) setEmergencyStop(await stopResponse.json());
+    try{
+      const healthResponse=await fetch('/actuator/health'); setHealth(healthResponse.ok?'online':'offline');
+      if(!session){setUsers([]);return;}
+      const urls=['/api/users','/api/orchestrator/tasks','/api/orchestrator/approvals/pending','/api/orchestrator/models/providers','/api/orchestrator/models/provider-health','/api/orchestrator/models/budgets','/api/orchestrator/invocations','/api/orchestrator/control/emergency-stop','/api/orchestrator/work-queue','/api/orchestrator/missions','/api/orchestrator/hosts','/api/orchestrator/github/proposals','/api/orchestrator/mcp/servers'];
+      const responses=await Promise.all(urls.map(url=>protectedFetch(url)));
+      const setters=[setUsers,setTasks,setApprovals,setProviders,setProviderHealth,setBudgets,setInvocations,setEmergencyStop,setWorkItems,setMissions,setHosts,setProposals,setMcpServers] as Array<(value:any)=>void>;
+      for(let i=0;i<responses.length;i++){if(responses[i]?.ok)setters[i](await responses[i]!.json());}
       setMessage('');
-    } catch (error) {
-      setHealth('offline'); setMessage(error instanceof Error ? error.message : 'Unable to reach Aetheris');
-    } finally { setLoading(false); }
-  }, [session, protectedFetch]);
+    }catch(error){setHealth('offline');setMessage(error instanceof Error?error.message:'Unable to reach Aetheris');}
+    finally{setLoading(false);}
+  },[session,protectedFetch]);
+  useEffect(()=>{refresh();},[refresh]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  async function login(event:FormEvent<HTMLFormElement>){event.preventDefault();setAuthMessage('');const form=new FormData(event.currentTarget);const response=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:form.get('email'),password:form.get('password')})});if(!response.ok){const body=await response.json().catch(()=>({}));setAuthMessage(body.message??'Sign in failed');return;}const auth=await response.json() as AuthResponse;const next={token:auth.accessToken,refreshToken:auth.refreshToken,account:auth.account};writeSession(next);setSession(next);}
+  async function logout(){const current=session;if(current?.refreshToken)await fetch('/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refreshToken:current.refreshToken})}).catch(()=>undefined);sessionStorage.removeItem(SESSION_KEY);setSession(null);setMessage('');}
+  async function createUser(event:FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);const response=await protectedFetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:form.get('name'),email:form.get('email')})});if(response?.ok){event.currentTarget.reset();setMessage('User created.');await refresh();}else setMessage('Could not create user.');}
+  async function post(url:string,body?:unknown){if(!canControlOrchestrator)return false;const response=await protectedFetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});if(!response?.ok){const error=await response?.json().catch(()=>({}));setMessage(error?.message??`Action failed (${response?.status??'offline'})`);return false;}await refresh();return true;}
+  async function toggleEmergencyStop(){if(!emergencyStop)return;const next=!emergencyStop.active;if(!window.confirm(next?'Engage emergency stop? Active work will be cancelled and new execution blocked.':'Release emergency stop?'))return;await post(`/api/orchestrator/control/emergency-stop/${next?'engage':'release'}`,{reason:next?'Owner engaged from Stage 6 mission control':'Owner released from Stage 6 mission control'});}
+  async function taskControl(task:OrchestratorTask,action:'pause'|'resume'|'take-control'|'cancel'){if((action==='take-control'||action==='cancel')&&!window.confirm(`${action.replace('-',' ')} task ${task.title}?`))return;await post(`/api/orchestrator/control/tasks/${task.id}/${action}`,{reason:`Owner ${action} from Stage 6 mission control`});}
+  async function recoverWorkers(){await post('/api/orchestrator/work-queue/recover-abandoned');}
+  async function proposalAction(id:string,action:'request-publish-approval'|'publish'){if(action==='publish'&&!window.confirm('Publish this exact owner-approved GitHub proposal?'))return;await post(`/api/orchestrator/github/proposals/${id}/${action}`);}
+  async function createMission(event:FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);const ok=await post('/api/orchestrator/missions',{title:form.get('title'),objective:form.get('objective')});if(ok)event.currentTarget.reset();}
+  async function grantMcp(event:FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);const serverId=String(form.get('serverId')??'');if(!serverId){setMessage('Choose an MCP server first.');return;}const ok=await post(`/api/orchestrator/mcp/servers/${serverId}/grants`,{agentId:form.get('agentId'),capability:form.get('capability'),dataClass:form.get('dataClass')});if(ok)event.currentTarget.reset();}
 
-  async function login(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setAuthMessage('');
-    const form = new FormData(event.currentTarget);
-    const response = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: form.get('email'), password: form.get('password') }) });
-    if (!response.ok) { const body = await response.json().catch(() => ({})); setAuthMessage(body.message ?? (response.status === 429 ? 'Too many sign-in attempts. Try again shortly.' : 'Sign in failed')); return; }
-    const auth = await response.json() as AuthResponse;
-    const nextSession = { token: auth.accessToken, refreshToken: auth.refreshToken, account: auth.account };
-    writeSession(nextSession); setSession(nextSession); setAuthMessage('');
-  }
+  if(!session)return <div className="authShell"><div className="authCard"><div className="brand authBrand"><div className="brandMark">A</div><div><strong>Aetheris</strong><span>Control Plane</span></div></div><p className="eyebrow">SYNTRA + AETHERIS · GOVERNED OPS</p><h1>Sign in</h1><p className="authIntro">Authenticate to the governed Syntra/Aetheris control plane.</p><form onSubmit={login}><label>Email<input name="email" type="email" required autoComplete="username"/></label><label>Password<input name="password" type="password" required autoComplete="current-password"/></label><button type="submit"><ShieldCheck size={17}/>Sign in to Aetheris</button></form>{authMessage&&<p className="authError">{authMessage}</p>}<div className="authNote"><ShieldCheck size={15}/><span>JWT scopes · Owner Rules · deterministic kill switch.</span></div></div></div>;
 
-  async function logout() {
-    const current = session;
-    if (current?.refreshToken) await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: current.refreshToken }) }).catch(() => undefined);
-    sessionStorage.removeItem(SESSION_KEY); setSession(null); setUsers([]); setTasks([]); setApprovals([]); setProviders([]); setInvocations([]); setEmergencyStop(null); setMessage('');
-  }
+  return <div className="shell"><aside className="sidebar"><div className="brand"><div className="brandMark">A</div><div><strong>Aetheris</strong><span>Control Plane</span></div></div><nav><a className="active"><Gauge size={18}/>Mission Control</a><a><Network size={18}/>Model Fabric</a><a><Boxes size={18}/>Runtime</a><a><ShieldCheck size={18}/>Security</a><a><Activity size={18}/>Syntra Live</a></nav><div className="identityCard"><span>{session.account.name}</span><strong>{session.account.role}</strong><small>{session.account.email}</small><small>{session.account.scopes?.join(' · ')}</small><button onClick={logout}><LogOut size={15}/>Sign out</button></div><div className="stage">AI STAGE 6 <span>Resilient Workstation Fabric</span></div></aside><main>
+    <header><div><p className="eyebrow">SYNTRA + AETHERIS · STAGE 6</p><h1>Mission control</h1><p>Resumable agents, cryptographic host trust, model fallback, owner intervention and auditable external actions.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading?'spin':''}/>Refresh</button></header>
+    <div className="stage6Banner"><strong>Hardware-safe mode</strong><span>Windows host commands remain simulation-only until a real PC is paired and production execution is explicitly enabled.</span></div>
+    <section className="metrics"><Metric icon={<Activity/>} label="Gateway" value={health==='online'?'Healthy':health==='checking'?'Checking':'Offline'} hint="JWT + scoped orchestrator routes" tone={health}/><Metric icon={<Boxes/>} label="Runtime" value={`${leasedWork} leased`} hint={`${workItems.length} durable work items`}/><Metric icon={<Network/>} label="Model Fabric" value={`${healthyProviders}/${providers.length||1}`} hint={`${providerHealth.filter(p=>p.circuitOpen).length} circuits open`}/><Metric icon={<ShieldCheck/>} label="Missions" value={String(activeMissions)} hint={`${hosts.filter(h=>h.status==='ONLINE').length} paired hosts online`}/></section>
+    <section className="grid"><article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">RESILIENT REQUEST PATH</p><h2>Stage 6 architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Syntra" meta="Mission session"/><Arrow/><Node name="Aetheris" meta="Rules + queue" glow/><Arrow/><Node name="Model Fabric" meta="Fallback + arena"/><Arrow/><Node name="Trusted Host" meta="Signed simulation"/></div></article><article className="panel"><div className="panelHead"><div><p className="eyebrow">OWNER CONTROL</p><h2>Emergency stop</h2></div><StatusPill value={emergencyStop?.active?'ENGAGED':'READY'}/></div><p className="message">{emergencyStop?.reason??'Loading control state…'}</p><button className="dangerControl" onClick={toggleEmergencyStop} disabled={!canControlOrchestrator||!emergencyStop}>{emergencyStop?.active?'Release emergency stop':'Engage emergency stop'}</button></article></section>
 
-  async function createUser(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!session) return;
-    const form = new FormData(event.currentTarget);
-    const response = await protectedFetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.get('name'), email: form.get('email') }) });
-    if (!response) return;
-    if (!response.ok) { const body = await response.json().catch(() => ({})); setMessage(body.message ?? (response.status === 429 ? 'Rate limit reached. Try again shortly.' : 'Could not create user')); return; }
-    event.currentTarget.reset(); setMessage('User created; Redis user caches invalidated.'); await refresh();
-  }
+    <section className="opsGrid"><Panel title="Active tasks" eyebrow="PAUSE · RESUME · TAKE CONTROL" code={`${tasks.length} tasks`} empty={tasks.length===0}>{tasks.slice(0,8).map(task=><div className="opsItem actionItem" key={task.id}><div><strong>{task.title}</strong><span>{task.activeAgentId??'No active agent'} · {task.mode}</span></div><div className="actionStack"><StatusPill value={task.state}/><div className="actionRow">{task.state==='RUNNING'&&<button className="miniButton" onClick={()=>taskControl(task,'pause')}>Pause</button>}{task.state==='PAUSED'&&<button className="miniButton" onClick={()=>taskControl(task,'resume')}>Resume</button>}{['RUNNING','PAUSED'].includes(task.state)&&<button className="miniButton" onClick={()=>taskControl(task,'take-control')}>Take control</button>}{!['COMPLETED','FAILED','CANCELLED'].includes(task.state)&&<button className="miniButton dangerMini" onClick={()=>taskControl(task,'cancel')}>Cancel</button>}</div></div></div>)}</Panel>
+      <Panel title="Durable worker queue" eyebrow="LEASES + RECOVERY" code={`${workItems.length} items`} empty={workItems.length===0} action={<button className="miniButton" onClick={recoverWorkers} disabled={!canControlOrchestrator}>Recover expired leases</button>}>{workItems.slice(0,8).map(item=><div className="opsItem" key={item.id}><div><strong>{item.workflowType}</strong><span>attempt {item.attempt}/{item.maxAttempts} · {item.leaseOwner??'unleased'}</span></div><StatusPill value={item.state}/></div>)}</Panel></section>
 
-  async function toggleEmergencyStop() {
-    if (!canControlOrchestrator || !emergencyStop) return;
-    const nextActive = !emergencyStop.active;
-    const prompt = nextActive
-      ? 'Engage emergency stop? Active Aetheris tasks will be cancelled and new model/tool/MCP executions will be blocked.'
-      : 'Release emergency stop and allow new Aetheris executions?';
-    if (!window.confirm(prompt)) return;
-    const response = await protectedFetch(`/api/orchestrator/control/emergency-stop/${nextActive ? 'engage' : 'release'}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reason: nextActive ? 'Owner engaged from Syntra operations dashboard' : 'Owner released from Syntra operations dashboard' })
-    });
-    if (response?.ok) setEmergencyStop(await response.json());
-    else setMessage('Unable to change emergency-stop state.');
-    await refresh();
-  }
+    <section className="opsGrid"><Panel title="Provider reliability" eyebrow="CIRCUIT BREAKERS + MODEL ARENA" code={`${providerHealth.length} tracked`} empty={providerHealth.length===0}>{providers.map(provider=>{const h=providerHealth.find(x=>x.providerId===provider.providerId);return <div className="opsItem" key={provider.providerId}><div><strong>{provider.providerId} · {provider.model}</strong><span>{provider.local?'LOCAL':'REMOTE'} · avg {h?.averageLatencyMs??0} ms · failures {h?.failureCount??0}</span></div><StatusPill value={h?.circuitOpen?'CIRCUIT OPEN':provider.available?'HEALTHY':'OFFLINE'}/></div>})}</Panel>
+      <Panel title="Quota & cost guard" eyebrow="ZERO-COST / BUDGET ENFORCEMENT" code={`${budgets.length} budgets`} empty={budgets.length===0}>{budgets.map(b=><div className="opsItem" key={b.providerId}><div><strong>{b.providerId}</strong><span>{b.unitsToday} units · ${Number(b.estimatedCostUsdToday).toFixed(4)} today · budget ${Number(b.dailyBudgetUsd).toFixed(2)}</span></div><StatusPill value={b.allowed?'WITHIN LIMIT':'BLOCKED'}/></div>)}</Panel></section>
 
-  if (!session) return <div className="authShell"><div className="authCard"><div className="brand authBrand"><div className="brandMark">A</div><div><strong>Aetheris</strong><span>Control Plane</span></div></div><p className="eyebrow">SYNTRA + AETHERIS · GOVERNED OPS</p><h1>Sign in</h1><p className="authIntro">Authenticate to the platform control plane, including the governed Syntra/Aetheris orchestration APIs.</p><form onSubmit={login}><label>Email<input name="email" type="email" required autoComplete="username" placeholder="poojana@aetheris.local"/></label><label>Password<input name="password" type="password" required autoComplete="current-password" placeholder="••••••••"/></label><button type="submit"><ShieldCheck size={17}/>Sign in to Aetheris</button></form>{authMessage && <p className="authError">{authMessage}</p>}<div className="authNote"><ShieldCheck size={15}/><span>JWT scopes + Redis traffic protection + orchestrator policy boundaries.</span></div></div></div>;
+    <section className="opsGrid"><Panel title="Syntra missions" eyebrow="CONVERSATION + MULTI-TASK CONTEXT" code={`${missions.length} sessions`} empty={missions.length===0} action={<span className="liveDot">GLOBAL SSE</span>}>{missions.slice(0,8).map(m=><div className="opsItem" key={m.id}><div><strong>{m.title}</strong><span>{m.taskIds.length} tasks · {m.objective}</span></div><StatusPill value={m.status}/></div>)}<form onSubmit={createMission} className="compactForm"><input name="title" required placeholder="Mission title"/><input name="objective" required placeholder="Mission objective"/><button type="submit" disabled={!canControlOrchestrator}>Create</button></form></Panel>
+      <Panel title="Trusted Windows hosts" eyebrow="PAIRING + REVOCATION BOUNDARY" code={`${hosts.length} hosts`} empty={hosts.length===0}>{hosts.slice(0,8).map(host=><div className="opsItem" key={host.id}><div><strong>{host.displayName} · {host.platform}</strong><span>{host.capabilities.join(' · ')||'No capabilities'}{host.lastSeenAt?` · ${new Date(host.lastSeenAt).toLocaleTimeString()}`:''}</span></div><StatusPill value={host.status}/></div>)}</Panel></section>
 
-  return <div className="shell"><aside className="sidebar"><div className="brand"><div className="brandMark">A</div><div><strong>Aetheris</strong><span>Control Plane</span></div></div><nav><a className="active"><Gauge size={18}/>Overview</a><a><Network size={18}/>Gateway</a><a><Boxes size={18}/>Services</a><a><ShieldCheck size={18}/>Identity</a><a><Activity size={18}/>Syntra Ops</a></nav><div className="identityCard"><span>{session.account.name}</span><strong>{session.account.role}</strong><small>{session.account.email}</small><small>{session.account.scopes?.join(' · ')}</small><button onClick={logout}><LogOut size={15}/>Sign out</button></div><div className="stage">AI STAGE 4 <span>Governed Execution</span></div></aside><main><header><div><p className="eyebrow">PLATFORM + AI OPERATIONS</p><h1>Control plane</h1><p>Authenticated services plus policy-gated Syntra/Aetheris tasks, models, approvals and execution evidence.</p></div><button onClick={refresh} disabled={loading}><RefreshCw size={17} className={loading ? 'spin' : ''}/>Refresh</button></header><section className="metrics"><Metric icon={<Activity/>} label="Gateway" value={health === 'online' ? 'Healthy' : health === 'checking' ? 'Checking' : 'Offline'} hint="JWT + Redis + policy routes" tone={health}/><Metric icon={<Boxes/>} label="AI Tasks" value={String(tasks.length)} hint={`${tasks.filter(task => !['COMPLETED','FAILED','CANCELLED'].includes(task.state)).length} active/recent`}/><Metric icon={<Network/>} label="Models" value={`${healthyProviders}/${providers.length || 1}`} hint="Healthy approved providers"/><Metric icon={<ShieldCheck/>} label="Emergency Stop" value={emergencyStop?.active ? 'ENGAGED' : 'Ready'} hint={emergencyStop?.active ? `${emergencyStop.cancelledTasks} tasks cancelled` : 'Local kill switch armed'}/></section><section className="grid"><article className="panel architecture"><div className="panelHead"><div><p className="eyebrow">GOVERNED REQUEST PATH</p><h2>Architecture</h2></div><span className="liveDot">LIVE</span></div><div className="flow"><Node name="Syntra UI" meta="Owner intent"/><Arrow/><Node name="Gateway" meta="JWT + scopes" glow/><Arrow/><Node name="Orchestrator" meta="Policy + audit"/><Arrow/><Node name="Adapters" meta="Sandboxed tools"/></div></article><article className="panel"><div className="panelHead"><div><p className="eyebrow">OWNER CONTROL</p><h2>Emergency stop</h2></div><span className={`permission ${emergencyStop?.active ? 'denied' : 'allowed'}`}>{emergencyStop?.active ? 'ENGAGED' : 'READY'}</span></div><p className="message">{emergencyStop?.reason ?? 'Loading control state…'}</p><button className="dangerControl" onClick={toggleEmergencyStop} disabled={!canControlOrchestrator || !emergencyStop}>{emergencyStop?.active ? 'Release emergency stop' : 'Engage emergency stop'}</button>{!canControlOrchestrator && <p className="message warning">Read-only orchestrator scope. Control actions require orchestrator:write.</p>}</article></section><section className="opsGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">SYNTRA / AETHERIS TASKS</p><h2>Recent execution</h2></div><code>{tasks.length} tasks</code></div><div className="opsList">{tasks.slice(0,6).map(task => <div className="opsItem" key={task.id}><div><strong>{task.title}</strong><span>{task.activeAgentId ?? 'No active agent'} · {task.mode}</span></div><StatusPill value={task.state}/></div>)}{tasks.length === 0 && <div className="empty compact">No orchestrator tasks yet.</div>}</div></article><article className="panel"><div className="panelHead"><div><p className="eyebrow">OWNER APPROVALS</p><h2>Pending gates</h2></div><code>{approvals.length} pending</code></div><div className="opsList">{approvals.slice(0,6).map(approval => <div className="opsItem" key={approval.id}><div><strong>{approval.actionType}</strong><span>{approval.riskLevel} · task {approval.taskId.slice(0,8)}</span></div><StatusPill value={approval.status}/></div>)}{approvals.length === 0 && <div className="empty compact">No pending owner approvals.</div>}</div></article></section><section className="opsGrid"><article className="panel"><div className="panelHead"><div><p className="eyebrow">MODEL ROUTER</p><h2>Provider health</h2></div><code>local-first</code></div><div className="opsList">{providers.map(provider => <div className="opsItem" key={provider.providerId}><div><strong>{provider.providerId} · {provider.model}</strong><span>{provider.local ? 'LOCAL' : 'REMOTE'} · {provider.zeroCost ? 'ZERO COST' : 'PAID CAPABLE'}</span></div><StatusPill value={provider.available ? 'HEALTHY' : 'OFFLINE'}/></div>)}{providers.length === 0 && <div className="empty compact">No model providers reported.</div>}</div></article><article className="panel"><div className="panelHead"><div><p className="eyebrow">AUDIT STREAM</p><h2>Recent invocations</h2></div><code>{invocations.length} entries</code></div><div className="opsList">{invocations.slice(0,6).map(item => <div className="opsItem" key={item.id}><div><strong>{item.kind} · {item.targetId}</strong><span>{item.agentId ?? 'system'} · {new Date(item.startedAt).toLocaleTimeString()}</span></div><StatusPill value={item.status}/></div>)}{invocations.length === 0 && <div className="empty compact">No model/tool/MCP invocations yet.</div>}</div></article></section><article className="panel users"><div className="panelHead"><div><p className="eyebrow">PLATFORM USERS</p><h2>Users</h2></div><code>users:read · GET /api/users</code></div>{users.length === 0 ? <div className="empty">No users returned from the protected user resource.</div> : <div className="table">{users.map(user => <div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}{canWriteUsers && <form onSubmit={createUser} className="inlineCreate"><label>Name<input name="name" required maxLength={100} placeholder="Ada Lovelace"/></label><label>Email<input name="email" type="email" required placeholder="ada@example.com"/></label><button type="submit">Create user</button></form>}{message && <p className="message">{message}</p>}</article></main></div>;
+    <section className="opsGrid"><Panel title="GitHub proposals" eyebrow="PROPOSE → APPROVE → PUBLISH" code={`${proposals.length} proposals`} empty={proposals.length===0}>{proposals.slice(0,8).map(p=><div className="opsItem actionItem" key={p.id}><div><strong>{p.repository} · {p.path}</strong><span>{p.summary}</span></div><div className="actionStack"><StatusPill value={p.status}/><div className="actionRow"><button className="miniButton" onClick={()=>proposalAction(p.id,'request-publish-approval')} disabled={!canControlOrchestrator}>Request approval</button><button className="miniButton" onClick={()=>proposalAction(p.id,'publish')} disabled={!canControlOrchestrator}>Publish approved</button></div></div></div>)}</Panel>
+      <Panel title="MCP trust registry" eyebrow="SERVERS + EXACT AGENT GRANTS" code={`${mcpServers.length} servers`} empty={mcpServers.length===0}>{mcpServers.slice(0,6).map(server=><div className="opsItem" key={server.id}><div><strong>{server.displayName}</strong><span>{server.local?'LOCAL':'REMOTE'} · {(server.approvedCapabilities??[]).join(' · ')||'no capabilities'}</span></div><StatusPill value={server.status}/></div>)}<form onSubmit={grantMcp} className="compactForm four"><select name="serverId" required defaultValue=""><option value="" disabled>Server</option>{mcpServers.map(s=><option key={s.id} value={s.id}>{s.displayName}</option>)}</select><input name="agentId" required placeholder="agent id"/><input name="capability" required placeholder="capability"/><input name="dataClass" required placeholder="data class"/><button type="submit" disabled={!canControlOrchestrator}>Grant</button></form></Panel></section>
+
+    <section className="opsGrid"><Panel title="Pending approvals" eyebrow="OWNER GATES" code={`${approvals.length} pending`} empty={approvals.length===0}>{approvals.slice(0,8).map(a=><div className="opsItem" key={a.id}><div><strong>{a.actionType}</strong><span>{a.riskLevel} · task {a.taskId.slice(0,8)}</span></div><StatusPill value={a.status}/></div>)}</Panel><Panel title="Invocation audit" eyebrow="MODEL · TOOL · MCP" code={`${invocations.length} entries`} empty={invocations.length===0}>{invocations.slice(0,8).map(i=><div className="opsItem" key={i.id}><div><strong>{i.kind} · {i.targetId}</strong><span>{i.agentId??'system'} · {new Date(i.startedAt).toLocaleTimeString()}</span></div><StatusPill value={i.status}/></div>)}</Panel></section>
+
+    <article className="panel users"><div className="panelHead"><div><p className="eyebrow">PLATFORM USERS</p><h2>Users</h2></div><code>users:read</code></div>{users.length===0?<div className="empty">No users returned.</div>:<div className="table">{users.map(user=><div className="row" key={user.id}><span className="avatar">{user.name.slice(0,1).toUpperCase()}</span><strong>{user.name}</strong><span>{user.email}</span><code>#{user.id}</code></div>)}</div>}{canWriteUsers&&<form onSubmit={createUser} className="inlineCreate"><label>Name<input name="name" required maxLength={100}/></label><label>Email<input name="email" type="email" required/></label><button type="submit"><Users size={15}/>Create user</button></form>}{message&&<p className="message">{message}</p>}</article>
+  </main></div>;
 }
 
-function Metric({icon,label,value,hint,tone}:{icon:React.ReactNode;label:string;value:string;hint:string;tone?:Health}) { return <article className="metric"><div className="metricIcon">{icon}</div><div><span>{label}</span><strong className={tone ? `status ${tone}` : ''}>{value}</strong><small>{hint}</small></div></article>; }
-function Node({name,meta,glow}:{name:string;meta:string;glow?:boolean}) { return <div className={`node ${glow ? 'glow' : ''}`}><strong>{name}</strong><span>{meta}</span></div>; }
-function Arrow(){ return <span className="arrow">→</span>; }
-function StatusPill({value}:{value:string}) { const safe=value.toLowerCase().replaceAll('_','-'); return <span className={`statusPill ${safe}`}>{value.replaceAll('_',' ')}</span>; }
+function Metric({icon,label,value,hint,tone}:{icon:React.ReactNode;label:string;value:string;hint:string;tone?:Health}){return <article className="metric"><div className="metricIcon">{icon}</div><div><span>{label}</span><strong className={tone?`status ${tone}`:''}>{value}</strong><small>{hint}</small></div></article>;}
+function Node({name,meta,glow}:{name:string;meta:string;glow?:boolean}){return <div className={`node ${glow?'glow':''}`}><strong>{name}</strong><span>{meta}</span></div>;}
+function Arrow(){return <span className="arrow">→</span>;}
+function StatusPill({value}:{value:string}){const safe=value.toLowerCase().replaceAll('_','-').replaceAll(' ','-');return <span className={`statusPill ${safe}`}>{value.replaceAll('_',' ')}</span>;}
+function Panel({title,eyebrow,code,empty,action,children}:{title:string;eyebrow:string;code:string;empty:boolean;action?:React.ReactNode;children:React.ReactNode}){return <article className="panel"><div className="panelHead"><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><div className="panelActions">{action}<code>{code}</code></div></div><div className="opsList">{empty?<div className="empty compact">No data yet.</div>:children}</div></article>;}
