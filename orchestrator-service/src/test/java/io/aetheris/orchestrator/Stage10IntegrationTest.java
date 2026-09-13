@@ -17,6 +17,7 @@ class Stage10IntegrationTest {
     @Autowired Stage10WatcherService watchers;
     @Autowired Stage10RemoteTransportService remote;
     @Autowired Stage10RegressionGateService regression;
+    @Autowired Stage10OperationsService operations;
 
     @Test
     void bootstrapAndReadinessRemainHardwareHonest() {
@@ -98,5 +99,17 @@ class Stage10IntegrationTest {
                 "coding-core", 78, 62, 3, true, 2, 0));
         assertThat(blocked.decision()).isEqualTo("PROMOTION_BLOCKED");
         assertThat(blocked.blockers()).anyMatch(x -> x.contains("below Stage 9 PASS"));
+    }
+
+    @Test
+    void sloAndRecoveryEvidenceCannotPretendTargetRuntimeValidation() {
+        var synthetic = operations.assess(new Stage10OperationsService.SloEvidence(120, 80, 180, 5, 10, .2, 60, false));
+        assertThat(synthetic.status()).isEqualTo("EVIDENCE_REQUIRED");
+        var measured = operations.assess(new Stage10OperationsService.SloEvidence(120, 80, 180, 5, 10, .2, 60, true));
+        assertThat(measured.status()).isEqualTo("HEALTHY");
+        assertThat(operations.recovery().steps()).anyMatch(x -> x.contains("STOP ALL"));
+        assertThat(operations.recovery().prohibitions()).anyMatch(x -> x.contains("never weaken UAC"));
+        assertThat(operations.updatePolicy().installerProduced()).isFalse();
+        assertThat(operations.updatePolicy().state()).isEqualTo("SIGNED_CANARY_REQUIRED");
     }
 }

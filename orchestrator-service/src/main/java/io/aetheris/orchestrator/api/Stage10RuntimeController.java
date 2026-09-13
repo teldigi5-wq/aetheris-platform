@@ -1,6 +1,7 @@
 package io.aetheris.orchestrator.api;
 
 import io.aetheris.orchestrator.host.HostCommandEnvelope;
+import io.aetheris.orchestrator.stage10.Stage10OperationsService;
 import io.aetheris.orchestrator.stage10.Stage10RegressionGateService;
 import io.aetheris.orchestrator.stage10.Stage10RemoteTransportService;
 import io.aetheris.orchestrator.stage10.Stage10WatcherService;
@@ -17,13 +18,16 @@ public class Stage10RuntimeController {
     private final Stage10WatcherService watchers;
     private final Stage10RemoteTransportService remote;
     private final Stage10RegressionGateService regression;
+    private final Stage10OperationsService operations;
 
     public Stage10RuntimeController(Stage10WorkstationService workstation, Stage10WatcherService watchers,
-                                    Stage10RemoteTransportService remote, Stage10RegressionGateService regression) {
+                                    Stage10RemoteTransportService remote, Stage10RegressionGateService regression,
+                                    Stage10OperationsService operations) {
         this.workstation = workstation;
         this.watchers = watchers;
         this.remote = remote;
         this.regression = regression;
+        this.operations = operations;
     }
 
     @GetMapping("/bootstrap-plan")
@@ -87,6 +91,17 @@ public class Stage10RuntimeController {
     public Stage10RegressionGateService.RegressionGateResult regression(@RequestBody Stage10RegressionGateService.RegressionGateRequest request) {
         return regression.evaluate(request);
     }
+
+    @PostMapping("/operations/slo")
+    public Stage10OperationsService.SloAssessment slo(@RequestBody Stage10OperationsService.SloEvidence evidence) {
+        return operations.assess(evidence);
+    }
+
+    @GetMapping("/operations/recovery")
+    public Stage10OperationsService.RecoveryRunbook recovery() { return operations.recovery(); }
+
+    @GetMapping("/operations/update-policy")
+    public Stage10OperationsService.InstallerUpdatePolicy updatePolicy() { return operations.updatePolicy(); }
 
     public record ResourceGovernRequest(Stage10WorkstationService.ResourceSnapshot snapshot,
                                         Stage10WorkstationService.WorkloadRequest workload) {}
