@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
-from decimal import Decimal, ROUND_DOWN, getcontext
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, getcontext
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +17,7 @@ getcontext().prec = 28
 
 
 class PolicyError(ValueError):
-    pass
+    """Raised when a Stage 29 policy or candidate cannot be evaluated safely."""
 
 
 D = Decimal
@@ -26,9 +25,21 @@ D = Decimal
 
 def _d(value: Any, name: str) -> Decimal:
     try:
-        return D(str(value))
-    except Exception as exc:  # pragma: no cover - defensive
+        number = D(str(value))
+    except (InvalidOperation, ValueError, TypeError) as exc:
         raise PolicyError(f"invalid decimal for {name}") from exc
+    if not number.is_finite():
+        raise PolicyError(f"non-finite decimal for {name}")
+    return number
+
+
+def _int_exact(value: Any, name: str) -> int:
+    if isinstance(value, bool):
+        raise PolicyError(f"invalid integer for {name}")
+    number = _d(value, name)
+    if number != number.to_integral_value():
+        raise PolicyError(f"non-integral value for {name}")
+    return int(number)
 
 
 def _quant(value: Decimal, places: str = "0.00000001") -> str:
@@ -66,14 +77,24 @@ def validate_policy(policy: dict[str, Any]) -> None:
     if missing:
         raise PolicyError(f"missing policy fields: {', '.join(missing)}")
 
+    if policy["schemaVersion"] != 1:
+        raise PolicyError("unsupported policy schemaVersion")
     if policy["stage"] != 29:
         raise PolicyError("policy stage must equal 29")
     if policy["defaultMode"] != "PAPER":
         raise PolicyError("default mode must be PAPER")
+    if not isinstance(policy["allowedModes"], list) or not policy["allowedModes"]:
+        raise PolicyError("allowedModes must be a non-empty list")
+    if "PAPER" not in policy["allowedModes"]:
+        raise PolicyError("PAPER must remain allowed")
     if "LIVE" in policy["allowedModes"]:
         raise PolicyError("LIVE must not be in allowedModes")
+    if set(policy["allowedModes"]) - {"PAPER", "TESTNET"}:
+        raise PolicyError("allowedModes contains unsupported mode")
     if policy["liveExecutionEnabled"] is not False:
         raise PolicyError("liveExecutionEnabled must remain false")
+    if policy["testnetExecutionEnabled"] not in {True, False}:
+        raise PolicyError("testnetExecutionEnabled must be boolean")
     if policy["requireExplicitApproval"] is not True:
         raise PolicyError("explicit approval boundary must remain enabled")
     if policy["networkRequiredForCertification"] is not False:
@@ -85,11 +106,11 @@ def validate_policy(policy: dict[str, Any]) -> None:
         raise PolicyError("maxRiskPerTrade outside safe Stage 29 bound")
     if not (D("0") < _d(policy["maxDailyLoss"], "maxDailyLoss") <= D("0.10")):
         raise PolicyError("maxDailyLoss outside safe Stage 29 bound")
-    if not (1 <= int(policy["maxOpenPositions"]) <= 10):
+    if not (1 <= _int_exact(policy["maxOpenPositions"], "maxOpenPositions") <= 10):
         raise PolicyError("maxOpenPositions outside safe Stage 29 bound")
-    if not (1 <= int(policy["maxLeverage"]) <= 5):
+    if not (1 <= _int_exact(policy["maxLeverage"], "maxLeverage") <= 5):
         raise PolicyError("maxLeverage outside safe Stage 29 bound")
-    if not (0 <= int(policy["minSetupScore"]) <= 100):
+    if not (0 <= _int_exact(policy["minSetupScore"], "minSetupScore") <= 100):
         raise PolicyError("minSetupScore must be 0..100")
     if _d(policy["minRewardRiskRatio"], "minRewardRiskRatio") < D("1"):
         raise PolicyError("minRewardRiskRatio must be >= 1")
@@ -97,7 +118,7 @@ def validate_policy(policy: dict[str, Any]) -> None:
         raise PolicyError("maxStopDistancePct outside safe Stage 29 bound")
 
 
-def _validate_candidate(candidate: dict[str, Any]) -> None:
+def _validate_candidate_shape(candidate: dict[str, Any]) -> None:
     required = {
         "symbol",
         "direction",
@@ -117,14 +138,16 @@ def _validate_candidate(candidate: dict[str, Any]) -> None:
         raise PolicyError(f"missing candidate fields: {', '.join(missing)}")
     if candidate["direction"] not in {"LONG", "SHORT"}:
         raise PolicyError("direction must be LONG or SHORT")
+    if not str(candidate["symbol"]).strip():
+        raise PolicyError("symbol must not be empty")
 
 
 def plan(policy: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     validate_policy(policy)
-    _validate_candidate(candidate)
+    _validate_candidate_shape(candidate)
 
     reasons: list[str] = []
-    mode = str(candidate["mode"]).upper()
+    mode = str(candidate["mode"]).upper().strip()
     direction = candidate["direction"]
     entry = _d(candidate["entryPrice"], "entryPrice")
     stop = _d(candidate["stopLossPrice"], "stopLossPrice")
@@ -132,12 +155,18 @@ def plan(policy: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     balance = _d(candidate["accountBalance"], "accountBalance")
     requested_risk = _d(candidate["riskPerTrade"], "riskPerTrade")
     daily_loss = _d(candidate["dailyLossFraction"], "dailyLossFraction")
-    requested_leverage = int(candidate["requestedLeverage"])
-    open_positions = int(candidate["openPositions"])
-    score = int(candidate["setupScore"])
+    requested_leverage = _int_exact(candidate["requestedLeverage"], "requestedLeverage")
+    open_positions = _int_exact(candidate["openPositions"], "openPositions")
+    score = _int_exact(candidate["setupScore"], "setupScore")
 
     if entry <= 0 or stop <= 0 or target <= 0 or balance <= 0:
         reasons.append("NON_POSITIVE_PRICE_OR_BALANCE")
+    if not 0 <= score <= 100:
+        reasons.append("SETUP_SCORE_OUT_OF_RANGE")
+    if open_positions < 0:
+        reasons.append("OPEN_POSITION_COUNT_INVALID")
+    if not D("0") <= daily_loss <= D("1"):
+        reasons.append("DAILY_LOSS_FRACTION_INVALID")
 
     if mode == "LIVE":
         reasons.append("LIVE_EXECUTION_BLOCKED_STAGE_29")
@@ -146,13 +175,13 @@ def plan(policy: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     elif mode == "TESTNET" and policy["testnetExecutionEnabled"] is not True:
         reasons.append("TESTNET_EXECUTION_DISABLED")
 
-    if score < int(policy["minSetupScore"]):
+    if 0 <= score < _int_exact(policy["minSetupScore"], "minSetupScore"):
         reasons.append("SETUP_SCORE_BELOW_MINIMUM")
     if requested_risk <= 0 or requested_risk > _d(policy["maxRiskPerTrade"], "maxRiskPerTrade"):
         reasons.append("RISK_PER_TRADE_EXCEEDS_POLICY")
     if daily_loss >= _d(policy["maxDailyLoss"], "maxDailyLoss"):
         reasons.append("DAILY_LOSS_LOCKOUT")
-    if open_positions >= int(policy["maxOpenPositions"]):
+    if open_positions >= _int_exact(policy["maxOpenPositions"], "maxOpenPositions"):
         reasons.append("OPEN_POSITION_LOCKOUT")
     if requested_leverage < 1:
         reasons.append("INVALID_LEVERAGE")
@@ -160,7 +189,7 @@ def plan(policy: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     geometry_valid = False
     risk_distance = D("0")
     reward_distance = D("0")
-    if entry > 0:
+    if entry > 0 and stop > 0 and target > 0:
         if direction == "LONG":
             geometry_valid = stop < entry < target
             risk_distance = entry - stop if stop < entry else D("0")
@@ -181,10 +210,11 @@ def plan(policy: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     if geometry_valid and rr < _d(policy["minRewardRiskRatio"], "minRewardRiskRatio"):
         reasons.append("REWARD_RISK_BELOW_MINIMUM")
 
-    capped_leverage = min(max(requested_leverage, 1), int(policy["maxLeverage"]))
-    risk_capital = balance * requested_risk if requested_risk > 0 else D("0")
+    max_leverage = _int_exact(policy["maxLeverage"], "maxLeverage")
+    capped_leverage = min(max(requested_leverage, 1), max_leverage)
+    risk_capital = balance * requested_risk if balance > 0 and requested_risk > 0 else D("0")
     max_notional_by_stop = (risk_capital / stop_pct) if stop_pct > 0 else D("0")
-    max_notional_by_leverage = balance * D(capped_leverage)
+    max_notional_by_leverage = balance * D(capped_leverage) if balance > 0 else D("0")
     proposed_notional = min(max_notional_by_stop, max_notional_by_leverage)
     if reasons:
         proposed_notional = D("0")
@@ -194,7 +224,7 @@ def plan(policy: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "stage": 29,
-        "symbol": str(candidate["symbol"]).upper(),
+        "symbol": str(candidate["symbol"]).upper().strip(),
         "direction": direction,
         "mode": mode,
         "status": status,
