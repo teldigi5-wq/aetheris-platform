@@ -21,30 +21,38 @@
 
 ## 🎯 What Aetheris demonstrates
 
-Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository includes API platform work, identity and authorization, distributed data services, observability, resilience, deployment automation, AI-agent governance, safety policy, deterministic release evidence and pre-PC readiness controls.
+Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository includes API platform work, identity and authorization, distributed data services, observability, resilience, deployment automation, AI-agent governance, safety policy, deterministic release evidence, repository governance and pre-PC system-engineering controls.
 
 > **Portfolio goal:** every important capability should be explainable in an interview, visible in code, and backed by reproducible evidence rather than unsupported claims.
 
 ---
 
-## ✅ Current repository milestone — Stage 27
+## ✅ Current repository milestone — Stage 28
 
-The canonical development line has completed **Stage 27 — Canonical Branch Governance & Release Promotion Gate**. It builds on Stage 26 safety/evidence certification, Stage 25 first-boot readiness and Stage 24 reproducible-build hardening.
+The canonical development line has reached **Stage 28 — PC Care & System Engineering** on the repository/CI side.
 
 Current repository status: **`PRE_PC_HARDENED`**.
 
 Current physical-machine status: **`BLOCKED_PENDING_HARDWARE`**.
 
-**Physical-PC validation remains pending.** Hosted CI and repository evidence do not prove that WSL2, Docker Desktop, GPU acceleration, local-model performance, thermals, or the complete local stack work on the owner's future physical machine.
+**Physical-PC validation remains pending.** Hosted CI and repository evidence do not prove that WSL2, Docker Desktop, GPU acceleration, local-model performance, thermals, storage health or the complete local stack work on the owner's future physical machine.
+
+### Stage 28 result
+
+Stage 28 adds deterministic PC-health diagnosis and remediation planning using synthetic fixtures only. It covers CPU pressure, memory pressure, disk-free-space pressure and temperature pressure while preserving a strict no-mutation boundary.
+
+Pre-PC Stage 28 does **not** autonomously kill processes, delete files, edit the Registry, change drivers, restart services, reboot/shutdown the host, change networking or weaken security controls. Any future mutating remediation remains owner-approval gated and requires real physical-machine validation first.
 
 ### Stage 27 repository result
 
-The repository now uses only the intended long-lived branch model:
+The repository uses only the intended long-lived branch model:
 
 - **`main`** — stable/release history.
 - **`feature/syntra-aetheris-foundation-v2`** — the single canonical active development line.
 
-Stage 27 adds deterministic governance that rejects legacy stage/integration branch references in CI and rejects release-promotion context to `main` from a non-canonical development branch. GitHub administrative branch protection/rulesets remain a separate repository setting and are not falsely claimed by this CI gate.
+Stage 27 rejects legacy stage/integration branch references in CI and rejects release-promotion context to `main` from a non-canonical development branch.
+
+GitHub administrative branch protection/rulesets are still a separate account/repository setting. GitHub currently reports the branches as unprotected and no repository ruleset is configured; the connected GitHub integration does not have administration permission to enable those settings. The intended configuration is documented in [`docs/github-branch-protection.md`](docs/github-branch-protection.md).
 
 ### Stage 26 safety foundation
 
@@ -93,6 +101,7 @@ flowchart LR
     A --> O
     O --> OBS[Prometheus + Grafana + Loki + Tempo]
     AG[Agent / Orchestrator Layer] --> POL[Owner Policy + Safety Gates]
+    PC[PC Care Diagnostics] --> POL
     POL --> G
     K[Kubernetes + Helm] --> D
     K --> G
@@ -116,6 +125,7 @@ flowchart LR
 | Safety | Approval gates, dry-run controls, incident replay and regression certification |
 | Release integrity | Dependency lockdown, reproducible builds, contract freeze and deterministic evidence |
 | Repository governance | Canonical development-line enforcement and release-promotion checks |
+| PC care | Deterministic health classification and recommendations-only remediation planning before hardware validation |
 
 ---
 
@@ -123,7 +133,7 @@ flowchart LR
 
 Access tokens use signed JWTs containing identity, role and effective-scope claims. Refresh tokens are opaque, rotated on use, revocable and stored as hashes.
 
-The agent/orchestrator side adds owner-policy evaluation before high-impact operations. Repository safeguards keep critical pre-PC boundaries fail-closed: no production activation, no live-money execution, no withdrawals, no transfers, no unrestricted shell capability, and no administrative bypass is considered validated by hosted CI.
+The agent/orchestrator side adds owner-policy evaluation before high-impact operations. Repository safeguards keep critical pre-PC boundaries fail-closed: no production activation, no live-money execution, no withdrawals, no transfers, no unrestricted shell capability, no autonomous PC repair and no administrative bypass is considered validated by hosted CI.
 
 ---
 
@@ -143,6 +153,8 @@ Repository definitions include Docker Compose, Helm and service-level developmen
 - [`docs/stage-25-first-boot-readiness.md`](docs/stage-25-first-boot-readiness.md)
 - [`docs/stage-26-safety-certification.md`](docs/stage-26-safety-certification.md)
 - [`docs/stage-27-repository-governance.md`](docs/stage-27-repository-governance.md)
+- [`docs/stage-28-pc-care-system-engineering.md`](docs/stage-28-pc-care-system-engineering.md)
+- [`docs/github-branch-protection.md`](docs/github-branch-protection.md)
 
 The exact commands that are appropriate depend on the machine and the validation stage. The project intentionally does not claim successful owner-PC execution before that machine is available and tested.
 
@@ -150,9 +162,9 @@ The exact commands that are appropriate depend on the machine and the validation
 
 ## 🗺️ Engineering progression
 
-Aetheris has progressed beyond its original Stage 1–7 platform foundation into agent governance, release hardening and repository governance. The current verified repository milestone is **Stage 27**.
+Aetheris has progressed beyond its original Stage 1–7 platform foundation into agent governance, release hardening, repository governance and pre-PC system engineering. The current repository milestone is **Stage 28**.
 
-Recent hardening milestones include:
+Recent milestones include:
 
 - **Stage 21** — physical-target pilot contract and owner-policy boundaries;
 - **Stage 22** — release hardening, schema/security evidence and merge readiness;
@@ -160,7 +172,8 @@ Recent hardening milestones include:
 - **Stage 24** — dependency lockdown and reproducible-build verification;
 - **Stage 25** — deterministic first-boot readiness bundle and physical-PC truth boundary;
 - **Stage 26** — deterministic safety certification plus evidence-integrity controls;
-- **Stage 27** — canonical branch governance and release-promotion gate.
+- **Stage 27** — canonical branch governance and release-promotion gate;
+- **Stage 28** — deterministic PC-care diagnostics and safe remediation planning.
 
 Physical execution milestones remain blocked until suitable owner hardware exists.
 
@@ -177,6 +190,8 @@ Physical execution milestones remain blocked until suitable owner hardware exist
 - [Stage 25 first-boot readiness](docs/stage-25-first-boot-readiness.md)
 - [Stage 26 safety certification](docs/stage-26-safety-certification.md)
 - [Stage 27 repository governance](docs/stage-27-repository-governance.md)
+- [Stage 28 PC care & system engineering](docs/stage-28-pc-care-system-engineering.md)
+- [GitHub branch protection target](docs/github-branch-protection.md)
 
 ---
 
