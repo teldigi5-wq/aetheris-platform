@@ -1,13 +1,17 @@
 package io.aetheris.orchestrator.stage33;
 
 import io.aetheris.orchestrator.agent.RiskLevel;
+import io.aetheris.orchestrator.policy.CompiledPolicyDecision;
 import io.aetheris.orchestrator.policy.OperationMode;
+import io.aetheris.orchestrator.rules.OwnerRuleEntity;
+import io.aetheris.orchestrator.rules.RuleEffect;
 import io.aetheris.orchestrator.stage32.EmergencyMode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -66,6 +70,39 @@ class Stage33GovernanceTest {
     }
 
     @Test
+    void existingOwnerRuleAdapterUsesCanonicalCompilerMatchesInsteadOfSecondRuleParser() {
+        GovernanceAction action = localRead("existing-rule");
+        OwnerRuleEntity deny = new OwnerRuleEntity(
+                UUID.randomUUID(), "deny-read", "deny canonical read", "local", "action=read",
+                RuleEffect.DENY, 500, true, 1);
+        CompiledPolicyDecision compiled = new CompiledPolicyDecision(
+                false, false, false, false, List.of("canonical owner deny"), List.of("deny-read"));
+
+        List<OwnerGovernanceRule> normalized = new ExistingOwnerRuleAdapter().normalize(compiled, List.of(deny), action);
+        GovernanceDecision result = engine().preflight(action, normalized, null, true, EmergencyMode.NORMAL, NOW);
+        assertEquals(GovernanceDisposition.BLOCKED, result.disposition());
+        assertTrue(result.matchedRules().contains("deny-read"));
+    }
+
+    @Test
+    void structurallyConflictingExistingOwnerRulesFailClosedForAffectedScope() {
+        GovernanceAction action = localRead("existing-conflict");
+        OwnerRuleEntity allow = new OwnerRuleEntity(
+                UUID.randomUUID(), "allow-read", "allow", "local", "action=read",
+                RuleEffect.ALLOW, 300, true, 1);
+        OwnerRuleEntity deny = new OwnerRuleEntity(
+                UUID.randomUUID(), "deny-read", "deny", "local", "action=read",
+                RuleEffect.DENY, 300, true, 1);
+        CompiledPolicyDecision compiled = new CompiledPolicyDecision(
+                true, false, false, false, List.of("base allowed"), List.of("allow-read"));
+
+        List<OwnerGovernanceRule> normalized = new ExistingOwnerRuleAdapter().normalize(compiled, List.of(allow, deny), action);
+        GovernanceDecision result = engine().preflight(action, normalized, null, true, EmergencyMode.NORMAL, NOW);
+        assertEquals(GovernanceDisposition.BLOCKED, result.disposition());
+        assertTrue(result.matchedRules().contains("existing-owner-rule-conflict"));
+    }
+
+    @Test
     void expiredAndWrongScopeApprovalsAreRejected() {
         GovernanceAction action = action("privileged", OperationMode.BALANCED, RiskLevel.HIGH, false, false, false, false, false, true, false, true, false, 0, DataClassification.INTERNAL);
         ApprovalGrant expired = grant("expired", action, false, false, NOW.minusSeconds(1));
@@ -106,6 +143,15 @@ class Stage33GovernanceTest {
         assertEquals(GovernanceDisposition.ALLOW, result.disposition());
         assertTrue(result.executionEligible());
         assertFalse(result.verificationRequired());
+    }
+
+    @Test
+    void noExecutionObservationDoesNotMarkExecuteComplete() {
+        GovernanceDecision preflight = engine().preflight(localRead("not-run"), List.of(), null, false, EmergencyMode.NORMAL, NOW);
+        GovernanceExecutionRecord result = new GovernanceVerificationService().finalizeExecution(preflight, null, null);
+        assertEquals(ExecutionTruthStatus.UNVERIFIED, result.status());
+        assertFalse(result.completedPhases().contains(GovernancePhase.EXECUTE));
+        assertEquals(GovernancePhase.APPROVE_WHEN_REQUIRED, result.completedPhases().getLast());
     }
 
     @Test

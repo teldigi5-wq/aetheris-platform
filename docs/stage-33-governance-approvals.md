@@ -10,13 +10,21 @@ Every governed action follows the same ordered lifecycle:
 
 The Stage 33 foundation enforces ordering and does not allow a caller to jump from planning directly to execution.
 
+## Existing owner-rule integration
+
+The existing `OwnerRuleService` / `OwnerRuleCompilerService` remains the canonical persisted owner-rule source. Stage 33 does **not** create a second owner-rule database or condition parser.
+
+`ExistingOwnerRuleAdapter` projects only rule keys already reported as matched by the canonical compiler into Stage 33's package-private governance representation. It also detects structurally identical, equal-priority `ALLOW`/`DENY` conflicts in an affected scope and fails that scope closed. This keeps Stage 33 as a governance coordinator over the existing rules rather than a competing policy system.
+
+The legacy PRIVATE-mode base denial can be deferred only to Stage 33's stricter exact-action/exact-scope private override gate; a matched owner `DENY` remains a hard block.
+
 ## Policy precedence
 
 The effective safety order is intentionally conservative:
 
 1. Stage 32 emergency control and platform hard blocks;
 2. Zero-Cost and live-money hard boundaries;
-3. structured owner BLOCK / FORCE_ZERO_COST / FORCE_LOCAL rules;
+3. existing structured owner `DENY` / `FORCE_ZERO_COST` / `FORCE_LOCAL` rules;
 4. risk-driven simulation requirements;
 5. owner approval requirements;
 6. verification requirements;
@@ -40,7 +48,7 @@ The existing database-backed task approval service remains intact; this Stage 33
 
 Public, financial, destructive, privileged, irreversible and high/critical-risk effects receive stronger controls. Destructive, privileged, financial, irreversible and high-risk side-effect work requires a successful simulation/preview before the approval gate.
 
-Preflight `ALLOW` means only that an action is eligible to execute. It is not evidence that execution happened or succeeded. Completion is `VERIFIED_SUCCESS` only when an execution observation is accompanied by a verified receipt with evidence references. Missing evidence yields the explicit `UNVERIFIED` state.
+Preflight `ALLOW` means only that an action is eligible to execute. It is not evidence that execution happened or succeeded. If no execution observation exists, Stage 33 does not mark `EXECUTE` complete. Completion is `VERIFIED_SUCCESS` only when an execution observation is accompanied by a verified receipt with evidence references. Missing evidence yields the explicit `UNVERIFIED` state.
 
 ## Stage 32 integration
 

@@ -21,16 +21,16 @@ public final class GovernanceVerificationService {
         if (observation == null || !observation.attempted()) {
             return new GovernanceExecutionRecord(
                     ExecutionTruthStatus.UNVERIFIED,
-                    lifecycle.through(GovernancePhase.EXECUTE),
+                    preflight.completedPhases(),
                     Set.of(),
-                    "No execution observation exists; success cannot be claimed");
+                    "No execution observation exists; EXECUTE is not marked complete and success cannot be claimed");
         }
         if (receipt == null || !receipt.verified() || receipt.verifier().isBlank() || receipt.evidenceRefs().isEmpty()) {
             return new GovernanceExecutionRecord(
                     ExecutionTruthStatus.UNVERIFIED,
                     lifecycle.through(GovernancePhase.VERIFY),
                     receipt == null ? Set.of() : receipt.evidenceRefs(),
-                    "Execution is explicitly unverified; success cannot be claimed");
+                    "Execution was observed but remains explicitly unverified; success cannot be claimed");
         }
 
         boolean success = observation.completed() && receipt.success();
