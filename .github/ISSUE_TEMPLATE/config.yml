@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability or sensitive report
+    url: https://github.com/teldigi5-wq/aetheris-platform/security/policy
+    about: Do not post exploit details, credentials, tokens, private keys, personal data, or sensitive logs in a public issue.
+  - name: Support and troubleshooting guidance
+    url: https://github.com/teldigi5-wq/aetheris-platform/blob/main/SUPPORT.md
+    about: Check the support guide and current truth boundaries before opening an issue.
+  - name: Architecture and demo documentation
+    url: https://github.com/teldigi5-wq/aetheris-platform/blob/main/docs/demo-guide.md
+    about: Review the reproducible demo path and linked architecture documentation.
