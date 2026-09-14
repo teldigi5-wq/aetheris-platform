@@ -6,6 +6,7 @@
 
 **A cloud-native platform engineering project for APIs, identity, distributed systems, observability and future AI-agent governance.**
 
+[![CI](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/ci.yml)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
@@ -189,9 +190,12 @@ For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
 ## 📚 Documentation
 
 - [Architecture](docs/architecture.md)
+- [Architecture decisions](docs/architecture-decisions.md)
+- [Verification checklist](docs/verification-checklist.md)
 - [Interview talking points](docs/interview-guide.md)
 - [Token flow and threat model](docs/security/token-flow.md)
 - [Resilience runbook](docs/resilience.md)
+- [Observability](docs/observability.md)
 - [Kubernetes + Helm runbook](docs/kubernetes.md)
 
 ---
