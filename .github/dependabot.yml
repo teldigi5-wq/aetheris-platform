@@ -6,7 +6,9 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 3
+    # Keep the repository visually clean: disable routine version-update PRs.
+    # Dependabot security update PRs remain independent of this limit.
+    open-pull-requests-limit: 0
     groups:
       dashboard-minor-patch:
         patterns:
@@ -20,7 +22,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
       quant-minor-patch:
         patterns:
@@ -29,9 +31,8 @@ updates:
           - "minor"
           - "patch"
 
-  # Treat the Java services as one monorepo dependency surface. Dependabot
-  # groups the same Maven dependency across modules into one reviewable PR
-  # instead of opening near-identical PRs for every service.
+  # Treat the Java services as one monorepo dependency surface. Routine
+  # version-update PRs are disabled; security updates remain available.
   - package-ecosystem: "maven"
     directories:
       - "/gateway"
@@ -43,7 +44,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 4
+    open-pull-requests-limit: 0
     groups:
       maven-by-dependency:
         patterns:
@@ -55,7 +56,7 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 0
     groups:
       github-actions-updates:
         patterns:
