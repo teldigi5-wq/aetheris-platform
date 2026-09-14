@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "stage": 25,
+  "name": "Aetheris First-Boot Readiness Contract — Full Syntra/Aetheris Foundation",
+  "truth_boundary": "This file defines expected requirements only. It is not evidence that the owner's physical PC exists or has passed validation.",
+  "host": {
+    "supported_os": ["Windows 11 x64"],
+    "minimum_ram_gib": 16,
+    "preferred_ram_gib": 24,
+    "minimum_free_disk_gib": 100,
+    "virtualization_required": true,
+    "wsl2_required": true,
+    "docker_desktop_required": true,
+    "gpu": {
+      "required_for_core_platform": false,
+      "required_for_accelerated_local_ai": true,
+      "minimum_vram_gib_for_accelerated_profile": 6
+    }
+  },
+  "toolchain": {
+    "java": "21.0.12",
+    "maven": "3.9.11",
+    "node": "22.23.2",
+    "python": "3.13.15",
+    "git": "required",
+    "docker": "required",
+    "docker_compose": "required"
+  },
+  "required_repository_files": [
+    ".java-version",
+    ".nvmrc",
+    ".mvn/maven.config",
+    ".mvn/wrapper/maven-wrapper.properties",
+    "mvnw",
+    "mvnw.cmd",
+    "docker-compose.yml",
+    "dashboard/package-lock.json",
+    "aetheris-quant/.python-version",
+    "aetheris-quant/requirements.lock.txt",
+    "orchestrator-service/pom.xml",
+    "workstation-agent/pom.xml",
+    "docs/dependency-policy.md",
+    "scripts/check_dependency_lockdown.py",
+    "scripts/stage22/release_gate.py",
+    "scripts/stage22/schema_guard.py",
+    "scripts/stage22/generate_sbom.py",
+    "scripts/stage22/release_manifest.py",
+    "scripts/stage22/merge_readiness.py",
+    "scripts/stage23/contract_baseline.py",
+    "scripts/stage23/contract_guard.py",
+    "scripts/stage23/expected-contract.sha256"
+  ],
+  "expected_local_ports": [
+    3000,
+    3001,
+    3100,
+    3200,
+    4317,
+    4318,
+    5432,
+    5672,
+    6379,
+    8080,
+    8081,
+    8082,
+    8083,
+    8090,
+    9090,
+    12345,
+    15672
+  ],
+  "physical_pc_evidence_required": [
+    "host-inventory.json",
+    "virtualization-status.txt",
+    "wsl-status.txt",
+    "docker-info.txt",
+    "toolchain-versions.txt",
+    "first-build.sha256",
+    "second-build.sha256",
+    "service-health.txt",
+    "orchestrator-health.txt",
+    "workstation-agent-validation.txt",
+    "observability-health.txt"
+  ],
+  "forbidden_claims_before_physical_validation": [
+    "Docker Desktop works on the owner's PC",
+    "WSL2 works on the owner's PC",
+    "GPU acceleration works on the owner's PC",
+    "local AI performance has been benchmarked on the owner's PC",
+    "the workstation agent has passed owner-PC activation",
+    "the complete stack has passed physical-machine end-to-end testing"
+  ]
+}

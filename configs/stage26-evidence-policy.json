@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "stage": 26,
+  "name": "Evidence Integrity & Pre-PC Change Control",
+  "repository_status": "PRE_PC_HARDENED",
+  "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
+  "hard_boundaries": {
+    "physicalPilotComplete": false,
+    "ownerPilotActivationAllowed": false,
+    "productionActivationAllowed": false,
+    "liveMoneyOrdersAllowed": false,
+    "withdrawalsAllowed": false,
+    "transfersAllowed": false,
+    "unrestrictedShellAllowed": false,
+    "adminBypassAllowed": false
+  },
+  "stage23_expected_contract_sha256": "a1f345aba3df590436f58ce6bfce1b3132f8a6b571ce3156a149f7f78d1e6761",
+  "required_claims": [
+    {
+      "path": "docs/ai/stage-21-physical-target-pilot.md",
+      "contains": [
+        "BLOCKED_PENDING_HARDWARE",
+        "READY_FOR_OWNER_RESTRICTED_PILOT_REVIEW",
+        "simulated evidence never contributes to physical readiness",
+        "productionActivationAllowed"
+      ]
+    },
+    {
+      "path": "docs/stage-25-first-boot-readiness.md",
+      "contains": [
+        "physical_pc_status: NOT_TESTED",
+        "A hosted CI pass is not a substitute"
+      ]
+    },
+    {
+      "path": "configs/first-boot-contract.json",
+      "contains": [
+        "forbidden_claims_before_physical_validation",
+        "workstation-agent-validation.txt",
+        "orchestrator-health.txt"
+      ]
+    }
+  ],
+  "public_truth_files": [
+    "README.md",
+    "docs/ai/stage-21-physical-target-pilot.md",
+    "docs/ai/stage-21-owner-policy.md",
+    "docs/stage-25-first-boot-readiness.md",
+    "docs/first-boot-runbook.md"
+  ],
+  "forbidden_public_claims_before_hardware": [
+    "The platform now runs locally through both",
+    "Physical-PC validation: COMPLETE",
+    "physicalPilotComplete=true",
+    "ownerPilotActivationAllowed=true",
+    "productionActivationAllowed=true",
+    "liveMoneyOrdersAllowed=true",
+    "GPU acceleration works on the owner's PC",
+    "Docker Desktop works on the owner's PC",
+    "WSL2 works on the owner's PC"
+  ],
+  "evidence_sources": [
+    "scripts/stage22/release_gate.py",
+    "scripts/stage22/schema_guard.py",
+    "scripts/stage22/generate_sbom.py",
+    "scripts/stage22/release_manifest.py",
+    "scripts/stage22/merge_readiness.py",
+    "scripts/stage23/contract_baseline.py",
+    "scripts/stage23/contract_guard.py",
+    "scripts/stage23/expected-contract.sha256",
+    "scripts/check_dependency_lockdown.py",
+    "configs/first-boot-contract.json",
+    "docs/ai/stage-21-physical-target-pilot.md",
+    "docs/stage-25-first-boot-readiness.md",
+    "build-evidence/dependency-lock-sha256.txt"
+  ],
+  "forbidden_workflow_escape_hatches": [
+    "ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION",
+    "continue-on-error: true"
+  ]
+}

@@ -22,3 +22,8 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ['audit-service:8083']
+
+  - job_name: aetheris-orchestrator-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['orchestrator-service:8090']

@@ -1,0 +1,8 @@
+# Stage 22 release governance. Enforcement still requires GitHub branch protection/rulesets.
+* @teldigi5-wq
+/.github/workflows/ @teldigi5-wq
+/.github/CODEOWNERS @teldigi5-wq
+/workstation-agent/ @teldigi5-wq
+/orchestrator-service/src/main/java/io/aetheris/orchestrator/stage*/ @teldigi5-wq
+/scripts/stage22/ @teldigi5-wq
+/SECURITY.md @teldigi5-wq

@@ -1,0 +1,113 @@
+name: Stage 29 Trading Intelligence Certification
+
+on:
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'configs/stage29/**'
+      - 'scripts/stage29/**'
+      - 'tests/fixtures/stage29/**'
+      - 'tests/test_stage29_trading.py'
+      - '.github/workflows/stage29-trading-intelligence.yml'
+      - 'docs/stage-29-trading-intelligence-execution.md'
+  pull_request:
+    paths:
+      - 'configs/stage29/**'
+      - 'scripts/stage29/**'
+      - 'tests/fixtures/stage29/**'
+      - 'tests/test_stage29_trading.py'
+      - '.github/workflows/stage29-trading-intelligence.yml'
+      - 'docs/stage-29-trading-intelligence-execution.md'
+
+permissions:
+  contents: read
+
+jobs:
+  trading-certification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+
+      - name: Compile Stage 29 planner
+        run: python -m py_compile scripts/stage29/trading_intelligence.py
+
+      - name: Run Stage 29 unit tests
+        run: python -m unittest tests/test_stage29_trading.py -v
+
+      - name: Generate deterministic reports - pass 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/stage29/pass1
+          for candidate in tests/fixtures/stage29/*.json; do
+            base="$(basename "$candidate" .json)"
+            python scripts/stage29/trading_intelligence.py \
+              --policy configs/stage29/trading-policy.json \
+              --candidate "$candidate" \
+              --output "artifacts/stage29/pass1/${base}.json"
+          done
+
+      - name: Generate deterministic reports - pass 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/stage29/pass2
+          for candidate in tests/fixtures/stage29/*.json; do
+            base="$(basename "$candidate" .json)"
+            python scripts/stage29/trading_intelligence.py \
+              --policy configs/stage29/trading-policy.json \
+              --candidate "$candidate" \
+              --output "artifacts/stage29/pass2/${base}.json"
+          done
+
+      - name: Compare deterministic report bytes
+        run: diff -ru artifacts/stage29/pass1 artifacts/stage29/pass2
+
+      - name: Assert Stage 29 safety boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          policy = json.loads(Path('configs/stage29/trading-policy.json').read_text())
+          assert policy['liveExecutionEnabled'] is False
+          assert 'LIVE' not in policy['allowedModes']
+          assert policy['requireExplicitApproval'] is True
+          assert policy['networkRequiredForCertification'] is False
+          assert policy['secretsRequiredForCertification'] is False
+
+          reports = [json.loads(p.read_text()) for p in sorted(Path('artifacts/stage29/pass1').glob('*.json'))]
+          assert reports
+          for report in reports:
+              assert report['stage'] == 29
+              assert report['executionPermitted'] is False
+              assert report['orderSubmitted'] is False
+              assert report['networkUsed'] is False
+              assert report['secretsUsed'] is False
+
+          approved = next(r for r in reports if r['symbol'] == 'BTCUSDT' and r['status'] == 'PROPOSAL_READY')
+          assert approved['requiresExplicitApproval'] is True
+
+          live = [r for r in reports if r['mode'] == 'LIVE']
+          assert live and 'LIVE_EXECUTION_BLOCKED_STAGE_29' in live[0]['rejectionReasons']
+          PY
+
+      - name: Publish Stage 29 evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: stage29-trading-certification-${{ github.sha }}
+          path: artifacts/stage29/pass1
+          if-no-files-found: error
+          retention-days: 14
