@@ -4,7 +4,7 @@
 
 ### Build. Secure. Observe. Orchestrate. Verify.
 
-**A long-term platform engineering and local-AI foundation focused on secure services, agent governance, deterministic verification, owner-controlled automation, trading safeguards, system engineering and advanced reasoning.**
+**A long-term platform engineering and local-AI foundation focused on secure services, agent governance, deterministic verification, owner-controlled automation, trading safeguards, system engineering, digital twins and advanced reasoning.**
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
@@ -21,51 +21,39 @@
 
 ## 🎯 What Aetheris demonstrates
 
-Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository includes API platform work, identity and authorization, distributed data services, observability, resilience, deployment automation, AI-agent governance, safety policy, deterministic release evidence, repository governance, PC/system-engineering controls, fail-closed trading intelligence and a dedicated reasoning/verification control plane.
+Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository includes API platform work, identity and authorization, distributed data services, observability, resilience, deployment automation, AI-agent governance, safety policy, deterministic release evidence, repository governance, PC/system-engineering controls, fail-closed trading intelligence, advanced reasoning/verification and digital-twin/proactive-control foundations.
 
 > **Portfolio goal:** every important capability should be explainable in an interview, visible in code, and backed by reproducible evidence rather than unsupported claims.
 
 ---
 
-## ✅ Current repository milestone — Stage 30 / 34
+## ✅ Current repository milestone — Stage 31 / 34
 
-The canonical development line has reached **Stage 30 — Advanced reasoning, verification and decision systems** on the repository/CI side.
+The canonical development line has reached **Stage 31 — Digital twins, proactive intelligence and self-healing** on the repository/CI side.
 
-Current repository status: **`PRE_PC_HARDENED + STAGE30_REASONING`**.
+Current repository status: **`PRE_PC_HARDENED + STAGE31_DIGITAL_TWINS`**.
 
 Current physical-machine status: **`BLOCKED_PENDING_HARDWARE`**.
 
 **Physical-PC validation remains pending.** Hosted CI and repository evidence do not prove that WSL2, Docker Desktop, GPU acceleration, local-model performance, thermals, storage health or the complete local stack work on the owner's future physical machine.
 
+### Stage 31 result
+
+Stage 31 adds structured project, PC and owner-workspace digital twins; deterministic proactive issue detection; goal/priority ranking; bounded self-healing planning; safe canary/update/rollback state transitions; automatic model benchmarking; and `/api/v1/stage31` evaluation endpoints.
+
+The stage remains deliberately fail-closed: it evaluates and plans but does not add an unrestricted privileged host executor. Destructive/user-data, financial and security-control autonomy stays blocked, and synthetic PC evidence cannot become physical-machine validation.
+
 ### Stage 30 result
 
-Stage 30 adds a deterministic reasoning-control layer under [`aetheris-reasoning/`](aetheris-reasoning/) rather than treating one model as infallible. The foundation includes:
-
-- meta-reasoning route selection;
-- uncertainty/confidence assessment;
-- independent verifier/critic checks;
-- simulation gates for risky or irreversible side effects;
-- a tamper-evident SHA-256 decision ledger;
-- source trust and lineage classification;
-- contradiction detection;
-- temporal validity/change reasoning;
-- deterministic owner-rule compilation with conflict detection;
-- task dependency graphs and cycle detection;
-- change-impact analysis before execution.
-
-Stage 30 does **not** silently execute external side effects. Critical or irreversible high-consequence work escalates, and unsupported natural-language policy phrasing fails closed for owner review rather than being guessed.
+Stage 30 adds a deterministic reasoning-control layer under [`aetheris-reasoning/`](aetheris-reasoning/) rather than treating one model as infallible. The foundation includes meta-reasoning route selection, uncertainty/confidence assessment, verifier/critic checks, simulation gates, tamper-evident decision records, source trust/lineage, contradiction and temporal checks, deterministic owner-rule compilation, dependency graphs and change-impact analysis.
 
 ### Stage 29 result
 
-Stage 29 adds fail-closed trading-intelligence policy and verification. Repository tests cover setup-score boundaries, risk-per-trade limits, leverage caps, reward/risk geometry, stop distance, daily-loss lockout, open-position limits, short/long geometry, invalid numeric inputs, deterministic serialization and disabled live/testnet execution boundaries.
-
-Trading outputs remain proposals and hypotheses rather than guaranteed profit. Live-money execution, withdrawals and transfers remain outside the default trusted path.
+Stage 29 adds fail-closed trading-intelligence policy and verification. Trading outputs remain proposals and hypotheses rather than guaranteed profit. Live-money execution, withdrawals and transfers remain outside the default trusted path.
 
 ### Stage 28 result
 
-Stage 28 adds deterministic PC-health diagnosis and remediation planning using synthetic fixtures only. It covers CPU pressure, memory pressure, disk-free-space pressure and temperature pressure while preserving a strict no-mutation boundary.
-
-Pre-PC Stage 28 does **not** autonomously kill processes, delete files, edit the Registry, change drivers, restart services, reboot/shutdown the host, change networking or weaken security controls. Any future mutating remediation remains owner-approval gated and requires real physical-machine validation first.
+Stage 28 adds deterministic PC-health diagnosis and remediation planning using synthetic fixtures only. Pre-PC Stage 28 does **not** autonomously kill processes, delete files, edit the Registry, change drivers, restart services, reboot/shutdown the host, change networking or weaken security controls.
 
 ### Repository governance
 
@@ -74,7 +62,7 @@ The intended long-lived branch model remains:
 - **`main`** — stable/release history.
 - **`feature/syntra-aetheris-foundation-v2`** — canonical active development line.
 
-Stage 30 was reconciled onto the mature development line instead of discarding its Stage 24–29 history. Temporary reconciliation branches are not future development bases.
+Stage 30 was reconciled onto the mature development line without discarding Stage 24–29 history, and Stage 31 continues from that reconciled canonical tip. Temporary stage branches are review branches, not future canonical bases.
 
 GitHub administrative branch protection/rulesets remain a separate account/repository setting. Repository-side CI does not substitute for GitHub-hosted protection.
 
@@ -111,6 +99,7 @@ flowchart LR
     O --> OBS[Prometheus + Grafana + Loki + Tempo]
     AG[Agent / Orchestrator Layer] --> POL[Owner Policy + Safety Gates]
     RSN[Reasoning + Verification] --> POL
+    TWIN[Digital Twins + Proactive Intelligence] --> POL
     PC[PC Care Diagnostics] --> POL
     TRD[Trading Intelligence] --> POL
     POL --> G
@@ -134,6 +123,7 @@ flowchart LR
 | Cloud native | Docker Compose, Kubernetes, Helm and health probes |
 | AI/agents | Mission planning, safe tool registry, policy evaluation and orchestrator foundations |
 | Reasoning | Confidence/uncertainty routing, verifier/critic checks, simulation gates and decision ledger |
+| Digital twins | Structured project/PC/workspace state, proactive detection, priority management and safe recovery planning |
 | Safety | Approval gates, dry-run controls, incident replay and regression certification |
 | Release integrity | Dependency lockdown, reproducible builds, contract freeze and deterministic evidence |
 | Repository governance | Canonical development-line enforcement and release-promotion checks |
@@ -142,10 +132,16 @@ flowchart LR
 
 ---
 
-## 🧠 Stage 30 reasoning-control model
+## 🧠 Reasoning and proactive-control model
 
 ```text
-Task / command
+Task / command / observed state
+    |
+    v
+Digital twins + proactive detector
+    |
+    v
+Goal / priority manager
     |
     v
 Meta-reasoning router
@@ -158,19 +154,16 @@ Meta-reasoning router
     +--> owner-approval path
     |
     v
-Verifier / critic
+Verifier / critic + bounded recovery planner
     |
     v
 Policy + source trust + contradiction + temporal checks
     |
     v
-Decision ledger
-    |
-    v
-Approved execution boundary
+Decision ledger / staged update / rollback boundary
 ```
 
-Models may recommend actions, but they do not outrank deterministic owner policy or verification requirements.
+Models may recommend actions, but they do not outrank deterministic owner policy, safety boundaries or verification requirements.
 
 ---
 
@@ -178,9 +171,9 @@ Models may recommend actions, but they do not outrank deterministic owner policy
 
 Access tokens use signed JWTs containing identity, role and effective-scope claims. Refresh tokens are opaque, rotated on use, revocable and stored as hashes.
 
-The agent/orchestrator side adds owner-policy evaluation before high-impact operations. Repository safeguards keep critical pre-PC boundaries fail-closed: no production activation, no live-money execution, no withdrawals, no transfers, no unrestricted shell capability, no autonomous PC repair and no administrative bypass is considered validated by hosted CI.
+Repository safeguards keep critical pre-PC boundaries fail-closed: no production activation, no live-money execution, no withdrawals, no transfers, no unrestricted shell capability, no autonomous destructive PC repair and no administrative bypass is considered validated by hosted CI.
 
-Stage 30 extends this with explicit confidence, verification, simulation and owner-approval routing rather than trusting model output by default.
+Stage 30 adds confidence, verification, simulation and owner-approval routing. Stage 31 adds bounded self-healing eligibility, staged update/rollback control and explicit digital-twin evidence labels so synthetic state cannot be mistaken for verified physical-machine evidence.
 
 ---
 
@@ -196,9 +189,10 @@ The canonical development line uses pinned GitHub Action revisions and determini
 - dependency lockdown and reproducible-build verification;
 - Stage 25–29 stage-specific validation;
 - Stage 30 reasoning tests, repeated to catch hidden state coupling;
+- Stage 31 digital-twin and bounded-recovery tests, repeated to catch hidden state coupling;
 - CodeQL analysis for Java and JavaScript/TypeScript.
 
-CI success is repository evidence, not proof of physical-machine behavior.
+The Stage 31 API expansion was intentionally re-pinned in the compatibility contract only after the contract guard detected the approved drift. CI success is repository evidence, not proof of physical-machine behavior.
 
 ---
 
@@ -206,7 +200,7 @@ CI success is repository evidence, not proof of physical-machine behavior.
 
 The platform contains Prometheus/Grafana/Loki/Tempo/OpenTelemetry integration, structured health checks and resilience patterns such as timeouts, retries for safe reads, circuit breakers and controlled fallbacks.
 
-These are repository capabilities and testable deployment definitions. Runtime performance on the owner's physical hardware is intentionally left unclaimed until physical validation exists.
+Stage 31 adds deterministic digital-twin health/state interpretation and bounded recovery/update planning on top of those capabilities. Runtime performance on the owner's physical hardware remains intentionally unclaimed until physical validation exists.
 
 ---
 
@@ -221,6 +215,7 @@ Repository definitions include Docker Compose, Helm and service-level developmen
 - [`docs/stage-28-pc-care-system-engineering.md`](docs/stage-28-pc-care-system-engineering.md)
 - [`docs/stage-29-trading-intelligence-execution.md`](docs/stage-29-trading-intelligence-execution.md)
 - [`docs/stage-30-reasoning.md`](docs/stage-30-reasoning.md)
+- [`docs/stage-31-digital-twins-self-healing.md`](docs/stage-31-digital-twins-self-healing.md)
 - [`docs/master-roadmap.md`](docs/master-roadmap.md)
 - [`docs/github-branch-protection.md`](docs/github-branch-protection.md)
 
@@ -229,6 +224,12 @@ Repository definitions include Docker Compose, Helm and service-level developmen
 ```bash
 cd aetheris-reasoning
 python -m unittest discover -s tests -v
+```
+
+### Stage 31 tests
+
+```bash
+mvn -B -f orchestrator-service/pom.xml -Dtest=Stage31FoundationTest test
 ```
 
 The exact commands appropriate for full local execution depend on the machine and validation stage. The project intentionally does not claim successful owner-PC execution before that machine is available and tested.
@@ -248,11 +249,12 @@ Recent milestones include:
 - **Stage 27** — canonical branch governance and release-promotion gate;
 - **Stage 28** — deterministic PC-care diagnostics and safe remediation planning;
 - **Stage 29** — fail-closed trading intelligence and execution-policy foundation;
-- **Stage 30** — advanced reasoning, verification and decision-control foundation.
+- **Stage 30** — advanced reasoning, verification and decision-control foundation;
+- **Stage 31** — digital twins, proactive intelligence and bounded self-healing foundation.
 
-### Next: Stage 31
+### Next: Stage 32
 
-**Digital twins, proactive intelligence and self-healing** — structured project/PC state models, proactive issue detection, priority management, bounded recovery, staged safe updates and automatic model/runtime benchmarking.
+**Automation, observability and emergency control** — build cross-system automation and emergency-control behavior on top of the Stage 31 twin/recovery model while keeping deterministic STOP/PAUSE/TAKE CONTROL, owner approval, rollback and evidence boundaries.
 
 Physical execution milestones remain blocked until suitable owner hardware exists.
 
@@ -272,6 +274,7 @@ Physical execution milestones remain blocked until suitable owner hardware exist
 - [Stage 28 PC care & system engineering](docs/stage-28-pc-care-system-engineering.md)
 - [Stage 29 trading intelligence & execution](docs/stage-29-trading-intelligence-execution.md)
 - [Stage 30 reasoning & verification](docs/stage-30-reasoning.md)
+- [Stage 31 digital twins & bounded self-healing](docs/stage-31-digital-twins-self-healing.md)
 - [Master roadmap](docs/master-roadmap.md)
 - [GitHub branch protection target](docs/github-branch-protection.md)
 
