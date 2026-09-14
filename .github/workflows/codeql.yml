@@ -50,7 +50,7 @@ jobs:
           ./mvnw -f audit-service/pom.xml -DskipTests package
           ./mvnw -f orchestrator-service/pom.xml -DskipTests package
       - name: Analyze
-        uses: github/codeql-action/analyze@faaca9a8f6edddba5725ffe5adefdab6669a2eca
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
         with:
           category: '/language:java-kotlin'
 
@@ -76,6 +76,6 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build
       - name: Analyze
-        uses: github/codeql-action/analyze@faaca9a8f6edddba5725ffe5adefdab6669a2eca
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
         with:
           category: '/language:javascript-typescript'
