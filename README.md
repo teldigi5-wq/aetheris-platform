@@ -1,215 +1,87 @@
-<div align="center">
+# Aetheris Platform
 
-# ⚡ Aetheris Platform
+Aetheris is a local-first, owner-controlled AI operating platform for Syntra: orchestration, reasoning, agents, tools, automation, security, telemetry, recovery, and specialist systems in one evolving ecosystem.
 
-### Build. Secure. Observe. Orchestrate.
+## Current master-roadmap status
 
-**A cloud-native platform engineering project for APIs, identity, distributed systems, observability and future AI-agent governance.**
+**Stage 30 / 34 implemented**
 
-[![CI](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/ci.yml)
-![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
-![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+The canonical 34-stage product blueprint is tracked in [`docs/master-roadmap.md`](docs/master-roadmap.md). The repository has now reached Stage 30: **Advanced reasoning, verification and decision systems**.
 
-`Java 21` • `Spring Boot` • `React` • `PostgreSQL` • `Redis` • `RabbitMQ` • `Prometheus` • `Grafana` • `OpenTelemetry` • `Kubernetes` • `Helm`
+Current high-level capabilities include:
 
-</div>
+- service-oriented Java platform foundations;
+- identity/security and audit components;
+- dashboard and observability foundations;
+- governed Syntra/Aetheris agent-control concepts;
+- PC-care and system-engineering foundations;
+- trading intelligence and controlled execution foundations;
+- Stage 30 reasoning-control primitives: confidence/uncertainty handling, deterministic routing, verifier/critic checks, simulation gates, decision ledger, source trust, contradiction detection, task dependency graphs, temporal checks, owner-rule compilation, and change-impact analysis.
 
----
+## Stage 30 reasoning-control foundation
 
-## 🎯 What Aetheris demonstrates
+The Stage 30 package lives under [`aetheris-reasoning/`](aetheris-reasoning/) and deliberately keeps policy/verification authority outside model output. High-consequence work escalates, high-risk side effects route through simulation, and unsupported policy language fails closed for owner review rather than being guessed.
 
-Aetheris is a long-term engineering portfolio project designed to show how a modern platform grows from a small service into a distributed, observable and cloud-native system.
+See [`docs/stage-30-reasoning.md`](docs/stage-30-reasoning.md) for the implemented contract.
 
-Instead of building isolated demos, each stage adds one production-relevant capability to the same platform: authentication, authorization, caching, rate limiting, event messaging, observability, resilience, Kubernetes deployment and eventually AI-agent governance.
+## Next stage
 
-> **Portfolio goal:** make every architectural decision explainable in an interview and verifiable in running code.
+**Stage 31 — Digital twins, proactive intelligence and self-healing**
 
----
+Stage 31 will add structured project/PC state models, proactive issue detection, priority management, health-driven recovery, safe staged updates, and model/runtime benchmarking while preserving the same owner-control and truth-boundary principles.
 
-## ✅ Current milestone — Stage 7 complete
+## Development and release model
 
-The platform now runs locally through both **Docker Compose** and **Kubernetes + Helm**.
+- `main` is the stable canonical line.
+- New roadmap work should branch from the current `main` tip and return through reviewable pull requests.
+- Merged stage branches are historical/temporary and should not be reused for future stages.
+- Dependabot branches are automated dependency-update branches and should be reviewed through their pull requests instead of manually mixed into roadmap work.
+- The older `feature/syntra-aetheris-foundation-v2` line is retained only as a legacy development history until reconciliation/retirement is complete; new roadmap work must not branch from it.
 
-Stage 7 includes PostgreSQL, Redis, RabbitMQ, gateway, identity, user, audit and dashboard workloads with Services, persistent volumes, ConfigMaps, Secrets, resource requests/limits, startup/readiness/liveness probes and configurable replicas.
+## CI and security
 
-Runtime verification includes successful authentication, protected gateway routing, two Ready `user-service` replicas, EndpointSlice-backed service discovery, replica self-healing and scaling back to the low-memory default.
+Repository-side governance includes:
 
----
+- Java builds and tests;
+- identity security tests;
+- dashboard builds;
+- Stage 30 reasoning tests;
+- CodeQL analysis;
+- Dependabot update proposals.
 
-## 🏗️ Architecture
+GitHub-hosted branch protection/rulesets are a separate repository-administration control. Repository-side CI does not substitute for those GitHub settings.
 
-```mermaid
-flowchart LR
-    U[Browser / Client] --> D[React Dashboard]
-    D --> G[API Gateway]
-    G --> I[Identity Service]
-    G --> S[User Service]
-    G --> A[Audit Service]
-    G --> R[(Redis)]
-    I --> P[(PostgreSQL)]
-    S --> P
-    S --> M[(RabbitMQ)]
-    M --> A
-    G --> O[Metrics / Traces]
-    I --> O
-    S --> O
-    A --> O
-    O --> OBS[Prometheus + Grafana + Loki + Tempo]
-    K[Kubernetes + Helm] --> D
-    K --> G
-    K --> I
-    K --> S
-    K --> A
-```
+## Safety boundaries
 
-### Core engineering domains
+Aetheris is designed around owner authority, reversibility, explicit approvals for high-impact actions, protected handling of private data, and verifiable completion. Models and agents may recommend actions but must not silently bypass deterministic controls.
 
-| Domain | What Aetheris implements |
-|---|---|
-| API platform | Gateway routing, protected endpoints, structured failures |
-| Identity | JWT access tokens, refresh-token rotation, RBAC and scopes |
-| Data | PostgreSQL persistence with shared service data |
-| Distributed systems | Redis caching/rate limiting and RabbitMQ events |
-| Resilience | Circuit breakers, retries, timeouts and fallbacks |
-| Observability | Metrics, logs and distributed traces |
-| Cloud native | Docker Compose, Kubernetes, Helm and health probes |
-| Future AI | Agent gateway, policies and local-model integration roadmap |
+For trading-related functionality, signals are hypotheses rather than promises; live execution remains governed by deterministic risk limits and owner policy.
 
----
+## Local development
 
-## 🔐 Security model
-
-Access tokens are signed JWTs containing identity, role and effective scope claims. Refresh tokens are opaque, rotated on use, revocable and stored only as SHA-256 hashes in PostgreSQL.
-
-The gateway validates tokens and enforces scopes before protected requests reach downstream services.
-
-| Role | Default permissions |
-|---|---|
-| `API_CONSUMER` | `users:read`, `services:read` |
-| `DEVELOPER` | consumer scopes + `users:write`, `identity:read` |
-| `ADMIN` | developer scopes + `identity:write` |
-
----
-
-## ⚡ Distributed traffic model
-
-Redis provides shared caching and distributed token-bucket rate limiting. User-cache entries use a 60-second TTL and are evicted on writes.
-
-RabbitMQ carries asynchronous `user.created` and `user.deleted` events to the audit service through the durable `aetheris.events` topic exchange.
-
----
-
-## 📈 Observability
-
-Each Java service exposes Prometheus metrics through Spring Boot Actuator. The observability stack combines:
-
-- **Prometheus** for metrics
-- **Grafana** for dashboards
-- **Loki** for centralized logs
-- **Tempo** for traces
-- **OpenTelemetry** for instrumentation and trace export
-- **Grafana Alloy** for container log discovery
-
-The observability profile remains optional so the core platform stays practical on lower-memory development hardware.
-
----
-
-## 🛡️ Resilience
-
-The gateway protects downstream calls with Resilience4j circuit breakers and explicit network timeouts.
-
-Safe reads can retry with exponential backoff, while mutating requests are not replayed automatically. Dependency failures return structured `503` responses instead of leaking raw connection errors.
-
----
-
-## ☸️ Kubernetes + Helm
-
-The Helm chart under `deploy/helm/aetheris` deploys the core platform into one namespace.
-
-Kubernetes Services provide stable internal DNS, stateful infrastructure receives persistent volumes, stateless services use Deployments and health probes keep traffic away from unready pods.
-
-The default values are intentionally sized for a small local machine. Production deployments should use external secrets, stronger storage/backup policies, ingress/TLS and separate production values.
-
----
-
-## 🚀 Quick start
-
-### Docker Compose
+### Java platform
 
 ```bash
-git clone https://github.com/teldigi5-wq/aetheris-platform.git
-cd aetheris-platform
-docker compose up --build
+mvn -B test
+mvn -B -DskipTests package
 ```
 
-### Full observability stack
+### Dashboard
 
 ```bash
-docker compose --profile observability up --build
+cd dashboard
+npm install
+npm run build
 ```
 
-### Main local endpoints
+### Stage 30 reasoning package
 
-| Service | URL |
-|---|---|
-| Dashboard | `http://localhost:3000` |
-| Gateway health | `http://localhost:8080/actuator/health` |
-| Identity API | `http://localhost:8080/api/auth/*` |
-| User API | `http://localhost:8080/api/users` |
-| Event API | `http://localhost:8080/api/events` |
-| RabbitMQ UI | `http://localhost:15672` |
-| Prometheus | `http://localhost:9090` |
-| Grafana | `http://localhost:3001` |
-| Loki | `http://localhost:3100` |
-| Tempo | `http://localhost:3200` |
+```bash
+cd aetheris-reasoning
+python -m unittest discover -s tests -v
+```
 
-For Kubernetes deployment, see [`docs/kubernetes.md`](docs/kubernetes.md).
+## Repository
 
----
-
-## 🗺️ Roadmap
-
-- [x] Stage 1 — Gateway + user service + PostgreSQL
-- [x] Stage 1.5 — Dashboard, DTO/service layers, OpenAPI, structured errors and CI
-- [x] Stage 2 — Identity, JWT authentication, RBAC, refresh tokens and scopes
-- [x] Stage 3 — Redis caching + distributed rate limiting
-- [x] Stage 4 — RabbitMQ event messaging
-- [x] Stage 5 — Prometheus, Grafana, logs and OpenTelemetry
-- [x] Stage 6 — Circuit breakers, retries, timeouts and load balancing
-- [x] Stage 7 — Local Kubernetes + Helm
-- [ ] Stage 8 — Aetheris CLI + SDK generation
-- [ ] Stage 9 — AI Agent Gateway + policy engine + local Ollama integration
-- [ ] Stage 10 — Chaos Lab + Security Lab
-
----
-
-## 📚 Documentation
-
-- [Architecture](docs/architecture.md)
-- [Architecture decisions](docs/architecture-decisions.md)
-- [Verification checklist](docs/verification-checklist.md)
-- [Interview talking points](docs/interview-guide.md)
-- [Token flow and threat model](docs/security/token-flow.md)
-- [Resilience runbook](docs/resilience.md)
-- [Observability](docs/observability.md)
-- [Kubernetes + Helm runbook](docs/kubernetes.md)
-
----
-
-## 💡 Design rule
-
-The development stack has **no mandatory recurring software fee**. Open-source components and local infrastructure are the default; cloud deployment remains optional.
-
----
-
-<div align="center">
-
-### From fundamentals to production-style platform engineering.
-
-**Built by Poojana Kaveesh Sellahewa**
-
-</div>
+Owner: **Poojana Kaveesh**  
+Repository: **teldigi5-wq/aetheris-platform**
