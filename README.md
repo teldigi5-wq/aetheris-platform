@@ -197,7 +197,7 @@ A preflight `ALLOW` means **eligible to execute**. It is not proof that executio
 
 ---
 
-## Repository roadmap — 34 / 34
+## Repository roadmap — Stage 34 / 34
 
 **Repository status:** `PRE_PC_HARDENED + ROADMAP_34_COMPLETE`  
 **Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
