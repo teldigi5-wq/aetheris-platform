@@ -34,6 +34,8 @@ The canonical development line has reached the final repository-side roadmap sta
 **Repository status:** `PRE_PC_HARDENED + ROADMAP_34_COMPLETE`  
 **Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
 
+**Physical-PC validation remains pending.** Hosted CI and repository evidence are not substitutes for validation on the owner's target machine.
+
 Stage 34 turns the Syntra × Aetheris Master Blueprint v2.0 into a repository-native constitution at [`docs/master-build-spec.md`](docs/master-build-spec.md). It records product identity, architectural boundaries, the universal governance lifecycle, owner-rule source of truth, Zero-Cost/Private/emergency invariants, build order, validation gates, current evidence, physical-PC truth boundaries and the final continuation prompt.
 
 A deterministic validator at `tools/validate_master_build_spec.py` and the Stage 34 workflow prevent the final roadmap status from silently drifting into unsupported claims.
