@@ -2,9 +2,9 @@
 
 # ⚡ Aetheris Platform
 
-### Build. Secure. Observe. Orchestrate. Verify.
+### Build. Secure. Observe. Orchestrate. Govern. Verify.
 
-**A long-term platform engineering and local-AI foundation focused on secure services, agent governance, deterministic verification, owner-controlled automation, emergency control, trading safeguards, system engineering, digital twins and advanced reasoning.**
+**A long-term platform engineering and local-AI foundation focused on secure services, deterministic verification, owner-controlled automation, cross-system governance, emergency control, trading safeguards, system engineering, digital twins and advanced reasoning.**
 
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
@@ -21,21 +21,29 @@
 
 ## 🎯 What Aetheris demonstrates
 
-Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository includes API platform work, identity and authorization, distributed data services, observability, resilience, deployment automation, AI-agent governance, safety policy, deterministic release evidence, repository governance, PC/system-engineering controls, fail-closed trading intelligence, advanced reasoning/verification, digital-twin/proactive control and emergency-aware automation foundations.
+Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository includes API platform work, identity and authorization, distributed data services, observability, resilience, deployment automation, AI-agent governance, structured owner policy, scoped approvals, deterministic release evidence, repository governance, PC/system-engineering controls, fail-closed trading intelligence, advanced reasoning/verification, digital-twin/proactive control and emergency-aware automation foundations.
 
 > **Portfolio goal:** every important capability should be explainable in an interview, visible in code, and backed by reproducible evidence rather than unsupported claims.
 
 ---
 
-## ✅ Current repository milestone — Stage 32 / 34
+## ✅ Current repository milestone — Stage 33 / 34
 
-The canonical development line is prepared for **Stage 32 — Automation, observability and emergency control** on the repository/CI side. The Stage 32 review branch must pass the complete canonical gate set before merge.
+The canonical development line has reached **Stage 33 — Governance, approvals and cross-system policy** on the repository/CI side.
 
-Current repository target status: **`PRE_PC_HARDENED + STAGE32_AUTOMATION_CONTROL`**.
+Current repository status: **`PRE_PC_HARDENED + STAGE33_CROSS_SYSTEM_GOVERNANCE`**.
 
 Current physical-machine status: **`BLOCKED_PENDING_HARDWARE`**.
 
 **Physical-PC validation remains pending.** Hosted CI and repository evidence do not prove that WSL2, Docker Desktop, GPU acceleration, local-model performance, thermals, storage health, external notification delivery, browser/phone control or the complete local stack work on the owner's future physical machine.
+
+### Stage 33 result
+
+Stage 33 adds one deterministic governance lifecycle across systems: `UNDERSTAND → PLAN → CHECK RULES → ASSESS RISK → SIMULATE/PREVIEW → APPROVE WHEN REQUIRED → EXECUTE → VERIFY → RECORD → LEARN → REPORT`.
+
+It adds explicit policy precedence and conflict detection, Zero-Cost hard blocking, Private-mode scoped overrides, risk escalation, simulation gates, exact-scope expiring approvals, one-time approval replay protection, Stage 32 emergency-control precedence and verified-vs-unverified completion truth. A preflight `ALLOW` means only execution eligibility; success cannot be claimed without verification evidence.
+
+The stage adds no unrestricted shell, privileged executor, new HTTP route, database table, production-activation authority or live-money authority.
 
 ### Stage 32 result
 
@@ -64,7 +72,7 @@ The intended long-lived branch model remains:
 - **`main`** — stable/release history.
 - **`feature/syntra-aetheris-foundation-v2`** — canonical active development line.
 
-Stages 30–32 continue the mature development history without discarding the Stage 24–29 hardening work. Temporary stage branches are review branches, not future canonical bases.
+Stages 30–33 continue the mature development history without discarding the Stage 24–29 hardening work. Temporary stage branches are review branches, not future canonical bases.
 
 GitHub administrative branch protection/rulesets remain a separate account/repository setting. Repository-side CI does not substitute for GitHub-hosted protection.
 
@@ -101,13 +109,14 @@ flowchart LR
     O --> OBS[Prometheus + Grafana + Loki + Tempo]
     EVT[Watchers + Event Triggers] --> AUTO[Scheduler + Automation Control]
     AUTO --> EMG[STOP / TAKE CONTROL / PAUSE]
-    AG[Agent / Orchestrator Layer] --> POL[Owner Policy + Safety Gates]
-    RSN[Reasoning + Verification] --> POL
-    TWIN[Digital Twins + Proactive Intelligence] --> POL
-    AUTO --> POL
-    EMG --> POL
-    PC[PC Care Diagnostics] --> POL
-    TRD[Trading Intelligence] --> POL
+    AG[Agent / Orchestrator Layer] --> GOV[Stage 33 Governance Lifecycle]
+    RSN[Reasoning + Verification] --> GOV
+    TWIN[Digital Twins + Proactive Intelligence] --> GOV
+    AUTO --> GOV
+    EMG --> GOV
+    PC[PC Care Diagnostics] --> GOV
+    TRD[Trading Intelligence] --> GOV
+    GOV --> POL[Owner Policy + Scoped Approval + Evidence]
     POL --> G
     K[Kubernetes + Helm] --> D
     K --> G
@@ -131,6 +140,7 @@ flowchart LR
 | Reasoning | Confidence/uncertainty routing, verifier/critic checks, simulation gates and decision ledger |
 | Digital twins | Structured project/PC/workspace state, proactive detection, priority management and safe recovery planning |
 | Automation control | Workflow composition, event normalization, resource-aware scheduling, focus/notification policy and deterministic emergency preemption |
+| Governance | Ordered cross-system lifecycle, policy precedence, risk escalation, scoped approval, mode enforcement and verification truth |
 | Safety | Approval gates, dry-run controls, emergency control, incident replay and regression certification |
 | Release integrity | Dependency lockdown, reproducible builds, contract freeze and deterministic evidence |
 | Repository governance | Canonical development-line enforcement and release-promotion checks |
@@ -139,47 +149,31 @@ flowchart LR
 
 ---
 
-## 🧠 Reasoning and automation-control model
+## 🧠 Cross-system reasoning and governance model
 
 ```text
 Event / task / command / observed state
     |
     v
-Watcher normalization + dedup/debounce
+Watcher normalization + digital twins + reasoning
     |
     v
-Digital twins + proactive detector
+UNDERSTAND → PLAN → CHECK RULES → ASSESS RISK
     |
     v
-Goal / priority manager
+SIMULATE / PREVIEW when required
     |
     v
-Emergency control check <---- STOP / TAKE CONTROL / PAUSE
+APPROVE when required (exact scope + expiry + replay protection)
     |
     v
-Resource + retry + deadline scheduler
+EXECUTION ELIGIBILITY
     |
     v
-Meta-reasoning router
-    |
-    +--> deterministic/direct path
-    +--> local model / specialist path
-    +--> research / evidence path
-    +--> simulation path
-    +--> council / multi-review path
-    +--> owner-approval path
-    |
-    v
-Verifier / critic + bounded recovery planner
-    |
-    v
-Policy + source trust + contradiction + temporal checks
-    |
-    v
-Timeline / evidence / artifact / rollback boundary
+VERIFY → RECORD → LEARN → REPORT
 ```
 
-Models may recommend actions, but they do not outrank deterministic owner policy, emergency control, safety boundaries or verification requirements.
+Models may recommend actions, but they do not outrank deterministic owner policy, emergency control, Zero-Cost/Private-mode boundaries or verification requirements.
 
 ---
 
@@ -189,7 +183,7 @@ Access tokens use signed JWTs containing identity, role and effective-scope clai
 
 Repository safeguards keep critical pre-PC boundaries fail-closed: no production activation, no live-money execution, no withdrawals, no transfers, no unrestricted shell capability, no autonomous destructive PC repair and no administrative bypass is considered validated by hosted CI.
 
-Stage 30 adds confidence, verification, simulation and owner-approval routing. Stage 31 adds bounded self-healing eligibility and explicit digital-twin evidence labels. Stage 32 adds replay-safe short-lived remote authorization, runtime checkpoints and deterministic STOP/TAKE CONTROL/PAUSE precedence without adding an arbitrary remote executor.
+Stage 30 adds confidence, verification, simulation and owner-approval routing. Stage 31 adds bounded self-healing eligibility and explicit digital-twin evidence labels. Stage 32 adds replay-safe short-lived remote authorization, runtime checkpoints and deterministic STOP/TAKE CONTROL/PAUSE precedence. Stage 33 unifies those controls under ordered governance, exact-scope expiring approvals, rule-conflict detection and verified completion truth.
 
 ---
 
@@ -207,9 +201,10 @@ The canonical development line uses pinned GitHub Action revisions and determini
 - Stage 30 reasoning tests, repeated to catch hidden state coupling;
 - Stage 31 digital-twin and bounded-recovery tests, repeated to catch hidden state coupling;
 - Stage 32 automation, observability and emergency-control tests, repeated to catch hidden state coupling;
+- Stage 33 governance and scoped-approval tests, repeated to catch hidden state coupling;
 - CodeQL analysis for Java and JavaScript/TypeScript.
 
-Stage 32 intentionally adds no HTTP/database contract surface, so the frozen compatibility contract remains unchanged. CI success is repository evidence, not proof of physical-machine behavior.
+Stage 33 intentionally adds no HTTP/database contract surface, so the frozen compatibility contract remains unchanged. CI success is repository evidence, not proof of physical-machine behavior.
 
 ---
 
@@ -217,7 +212,7 @@ Stage 32 intentionally adds no HTTP/database contract surface, so the frozen com
 
 The platform contains Prometheus/Grafana/Loki/Tempo/OpenTelemetry integration, structured health checks and resilience patterns such as timeouts, retries for safe reads, circuit breakers and controlled fallbacks.
 
-Stage 31 adds deterministic digital-twin health/state interpretation and bounded recovery/update planning. Stage 32 adds normalized watcher events, timeline/audit reconstruction, resource/retry/deadline policy and emergency/runtime checkpoints. Runtime performance on the owner's physical hardware remains intentionally unclaimed until physical validation exists.
+Stage 31 adds deterministic digital-twin health/state interpretation and bounded recovery/update planning. Stage 32 adds normalized watcher events, timeline/audit reconstruction, resource/retry/deadline policy and emergency/runtime checkpoints. Stage 33 makes policy decisions and completion truth explicit and owner-auditable. Runtime performance on the owner's physical hardware remains intentionally unclaimed until physical validation exists.
 
 ---
 
@@ -234,6 +229,7 @@ Repository definitions include Docker Compose, Helm and service-level developmen
 - [`docs/stage-30-reasoning.md`](docs/stage-30-reasoning.md)
 - [`docs/stage-31-digital-twins-self-healing.md`](docs/stage-31-digital-twins-self-healing.md)
 - [`docs/stage-32-automation-observability-emergency-control.md`](docs/stage-32-automation-observability-emergency-control.md)
+- [`docs/stage-33-governance-approvals.md`](docs/stage-33-governance-approvals.md)
 - [`docs/master-roadmap.md`](docs/master-roadmap.md)
 - [`docs/github-branch-protection.md`](docs/github-branch-protection.md)
 
@@ -256,6 +252,12 @@ mvn -B -f orchestrator-service/pom.xml -Dtest=Stage31FoundationTest test
 mvn -B -f orchestrator-service/pom.xml -Dtest=Stage32FoundationTest test
 ```
 
+### Stage 33 tests
+
+```bash
+mvn -B -f orchestrator-service/pom.xml -Dtest=Stage33GovernanceTest test
+```
+
 The exact commands appropriate for full local execution depend on the machine and validation stage. The project intentionally does not claim successful owner-PC execution before that machine is available and tested.
 
 ---
@@ -275,11 +277,12 @@ Recent milestones include:
 - **Stage 29** — fail-closed trading intelligence and execution-policy foundation;
 - **Stage 30** — advanced reasoning, verification and decision-control foundation;
 - **Stage 31** — digital twins, proactive intelligence and bounded self-healing foundation;
-- **Stage 32** — automation, observability and deterministic emergency-control foundation.
+- **Stage 32** — automation, observability and deterministic emergency-control foundation;
+- **Stage 33** — cross-system governance, scoped approvals and verified completion truth.
 
-### Next: Stage 33
+### Next: Stage 34
 
-**Governance, approvals and cross-system policy** — unify owner policy, approval semantics, cross-system authority and governance evidence around the Stage 30–32 reasoning, digital-twin and automation-control layers.
+**Master build prompt** — consolidate the implemented architecture, safety invariants, build order, validation gates, physical-PC truth boundary and owner-control rules into the final reproducible master build specification.
 
 Physical execution milestones remain blocked until suitable owner hardware exists.
 
@@ -301,6 +304,7 @@ Physical execution milestones remain blocked until suitable owner hardware exist
 - [Stage 30 reasoning & verification](docs/stage-30-reasoning.md)
 - [Stage 31 digital twins & bounded self-healing](docs/stage-31-digital-twins-self-healing.md)
 - [Stage 32 automation, observability & emergency control](docs/stage-32-automation-observability-emergency-control.md)
+- [Stage 33 governance & approvals](docs/stage-33-governance-approvals.md)
 - [Master roadmap](docs/master-roadmap.md)
 - [GitHub branch protection target](docs/github-branch-protection.md)
 
