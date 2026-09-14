@@ -1,36 +1,85 @@
 # Stage 32 — Automation, observability and emergency control
 
-Status: **implementation candidate — validation required before roadmap completion**.
+Status: **implemented; canonical merge is CI-gated**.
 
 Stage 32 extends the existing orchestrator scheduler, notification, remote-companion, workflow, runtime and proactive subsystems. It does not create a second hidden orchestrator or an unrestricted remote shell.
 
-## Implemented foundation
+## Implemented capabilities
 
-- Agent workflow composition with dependency and cycle validation.
-- Advanced deterministic scheduling with Resource Budget, user-load, energy policy, hard-deadline and Retry Budget checks.
-- Event Trigger Engine with normalized WEBHOOK, FILE, SYSTEM, CI, MARKET and REVIEW events plus dedup/debounce.
-- Notification Hub routing with desktop, sound and configurable external-channel decisions; quiet hours, urgency and Focus Mode are respected.
-- Daily Briefing and End-of-Day Summary generation that always exposes costs, risks, pending approvals and evidence references.
-- Focus Mode that changes notification/automation policy and exits immediately without mutating unrelated state.
-- Append-only in-process Automation Timeline and an Audit Explorer filter model for time, subsystem, action class, actor, outcome, risk and evidence.
-- Remote Control Guard for short-lived owner-authenticated sessions, scoped capabilities, replay-protected nonces and emergency-control precedence. It authorizes control-plane actions only; it is not a remote command executor.
-- Resource-aware scheduling that defers non-urgent work but allows hard deadlines to outrank energy deferral while never outranking STOP/PAUSE/TAKE CONTROL.
-- Artifact Manager with provenance, hash, evidence-reference and retention metadata.
-- Watcher Abstraction Layer that normalizes bounded source events before automation policy sees them.
-- Emergency Control with deterministic `STOP > TAKE_CONTROL > PAUSE > NORMAL` precedence and explicit owner-confirmed release.
-- Runtime checkpointing for emergency-state re-check and maximum-runtime enforcement.
-- Explicit single-orchestrator boundary: canonical runtime remains `orchestrator-service`; no secondary orchestrator is enabled.
+### Agent Workflow Composer
+
+`WorkflowComposer` validates workflow dependencies, rejects unknown dependencies and cycles, and returns deterministic topological execution order.
+
+### Advanced Scheduler
+
+`AdvancedScheduler` consumes Resource Budget, Retry Budget, user-load, energy-saver, hard-deadline and maximum-runtime inputs. It defers non-urgent work under user/energy pressure, blocks hard resource/retry violations, honors hard deadlines over soft energy deferral, and never lets deadlines outrank emergency control.
+
+Runtime checkpoints re-check emergency mode and maximum runtime instead of assuming a decision remains valid forever.
+
+### Event Trigger Engine and Watcher Abstraction
+
+`WatcherAbstraction` normalizes WEBHOOK, FILE, SYSTEM, CI, MARKET and REVIEW sources into one bounded `AutomationEvent` contract. `EventTriggerEngine` rejects duplicate/debounced fingerprints deterministically.
+
+### Notification Hub and Focus Mode
+
+`NotificationHub` produces delivery decisions for desktop, sound and a configurable external-channel abstraction. Quiet hours and Focus Mode suppress ordinary notifications while CRITICAL notifications bypass those soft policies.
+
+`FocusModeService` only changes notification/automation policy and exits immediately without mutating unrelated runtime state.
+
+### Daily and End-of-Day Briefings
+
+`BriefingGenerator` includes completed work, costs, risks, pending approvals and evidence references in both daily and end-of-day summaries.
+
+### Automation Timeline and Audit Explorer
+
+`AutomationTimeline` records what ran, when, subsystem/action class, actor, outcome, risk, evidence, cost and reason. `AuditExplorer` filters those records by time, subsystem, action class, actor, outcome, minimum risk and evidence reference.
+
+### Remote Control Plane Guard
+
+`RemoteControlGuard` requires an owner-authenticated short-lived session, scoped capability, fresh nonce and valid time window. Used nonces are rejected as replay attempts. During PAUSE/TAKE CONTROL/STOP, ordinary remote actions are rejected and only bounded emergency/read-status capabilities remain eligible.
+
+This is an authorization guard only. Stage 32 does **not** add an unrestricted shell, arbitrary command tunnel or hidden remote executor.
+
+### Artifact Manager
+
+`ArtifactManager` requires artifact ID, location, producer, content hash, evidence references, creation time and retention deadline, and rejects duplicate artifact IDs.
+
+### Emergency Stop / Pause / Take Control
+
+`EmergencyControlService` uses deterministic precedence:
+
+`STOP > TAKE_CONTROL > PAUSE > NORMAL`
+
+A lower-priority request cannot silently weaken a stronger emergency state. Returning to NORMAL requires explicit owner confirmation.
+
+### Single-orchestrator invariant
+
+`OrchestratorBoundary` keeps `orchestrator-service` as the canonical runtime and explicitly reports that no hidden secondary orchestrator is enabled.
 
 ## Existing-system integration boundary
 
-The repository already contains persistent scheduler tickets/worker heartbeats, notification delivery, remote companion sessions, workflow/runtime primitives and proactive services. Stage 32 adds policy/evaluation primitives around those systems rather than replacing them.
+The repository already contains persistent scheduler tickets/worker heartbeats, notification delivery, remote companion sessions, workflow/runtime primitives and proactive services. Stage 32 adds deterministic control and evaluation primitives around those systems rather than replacing them.
 
-No new HTTP endpoint, database table, Maven/npm/Python dependency, privileged shell, live-money path or production-activation authority is introduced by this Stage 32 foundation.
+No new HTTP endpoint, database table, Maven/npm/Python dependency, privileged shell, live-money path or production-activation authority is introduced.
 
-## Validation target
+## Validation
 
-`.github/workflows/stage32-automation-control.yml` runs `Stage32FoundationTest` twice using pinned GitHub Actions and Java 21.0.12. Before Stage 32 can be marked complete, the branch must also pass the canonical Build, compatibility contract, dependency lockdown/reproducibility, Stage 30/31 regressions and CodeQL checks.
+`.github/workflows/stage32-automation-control.yml` runs `Stage32FoundationTest` twice using pinned GitHub Actions and Java 21.0.12 to detect regressions and hidden state coupling.
+
+The canonical PR gate also includes:
+
+- full Build and orchestrator regression tests;
+- unchanged Stage 23 compatibility-contract freeze;
+- Stage 30 reasoning regression;
+- Stage 31 digital-twin regression;
+- Stage 32 automation/emergency-control regression;
+- dependency lockdown and two-pass reproducible-build verification;
+- CodeQL for Java and JavaScript/TypeScript.
 
 ## Physical-machine truth boundary
 
 Hosted CI can validate deterministic repository behavior only. It does not prove browser/phone control on the owner's future machine, desktop notifications, sound, external-channel delivery, WSL/Docker/GPU behavior, thermals or real host automation. Those remain `BLOCKED_PENDING_HARDWARE` until real evidence exists.
+
+## Next stage
+
+Stage 33 — **Governance, approvals and cross-system policy** — should unify owner policy, approval semantics, cross-system authority and governance evidence around the Stage 30–32 reasoning/twin/automation control planes.
