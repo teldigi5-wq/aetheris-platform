@@ -8,6 +8,7 @@
 
 ![Roadmap](https://img.shields.io/badge/Roadmap-34%2F34_complete-22c55e?style=for-the-badge)
 ![Main](https://img.shields.io/badge/main-protected-2563eb?style=for-the-badge&logo=github)
+![Release candidate](https://img.shields.io/badge/release_candidate-v0.1.0--pre--pc-7c3aed?style=for-the-badge)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
@@ -32,6 +33,25 @@ The project is built around four ideas:
 4. **Local-first economics** — no mandatory recurring AI or platform subscription is required by the architecture; external services are optional and policy-governed.
 
 > **Truth boundary:** the repository roadmap is complete, but hosted CI is not proof that the complete stack has been validated on the owner's future physical PC.
+
+---
+
+## Release candidate
+
+**Prepared candidate:** `v0.1.0-pre-pc` — `REPOSITORY_PRE_PC`  
+**Publication status:** prepared, **not yet published**  
+**Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
+
+The first formal release candidate is intentionally a **pre-PC repository milestone**. It is suitable for code/architecture review, interview demonstration, repository-side reproduction, CI/security review, and preparation for the future physical first-boot phase. It is not a claim that the complete platform has been validated on the owner's target machine.
+
+Release preparation documents:
+
+- **[Candidate notes](docs/releases/v0.1.0-pre-pc.md)** — scope, highlights, validation expectations and known limitations.
+- **[Versioning policy](docs/versioning.md)** — semantic versioning and the `pre-pc` trust boundary.
+- **[Release-readiness checklist](docs/release-readiness.md)** — required exact-commit gates before publication.
+- **[Changelog](CHANGELOG.md)** — repository-level change history.
+
+A repository-recognized software license has **not** been selected yet. No release, tag or badge should be interpreted as granting third-party reuse rights beyond applicable law until the owner makes that licensing decision explicitly.
 
 ---
 
@@ -291,6 +311,9 @@ Aetheris deliberately documents **what is not validated yet**. That is part of t
 - [Interview guide](docs/interview-guide.md)
 - [Master build specification](docs/master-build-spec.md)
 - [Master roadmap](docs/master-roadmap.md)
+- [Versioning and release classes](docs/versioning.md)
+- [Release-readiness checklist](docs/release-readiness.md)
+- [v0.1.0-pre-pc candidate notes](docs/releases/v0.1.0-pre-pc.md)
 
 ### Safety, operations and verification
 
