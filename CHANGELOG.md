@@ -4,6 +4,14 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### Release preparation
+
+- Prepared the first formal repository pre-PC release candidate: `v0.1.0-pre-pc`.
+- Added semantic versioning and release-class rules that reserve `v1.0.0` for a later, explicitly validated milestone.
+- Added GitHub generated-release-note categorization through `.github/release.yml`.
+- Added dedicated release-candidate notes in `docs/releases/v0.1.0-pre-pc.md`.
+- No GitHub release or immutable tag has been published yet.
+
 ### Added
 
 - Public Excellence documentation and reviewer orientation.
