@@ -1,0 +1,32 @@
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - internal-only
+  categories:
+    - title: "🚀 Features & capabilities"
+      labels:
+        - enhancement
+        - feature
+    - title: "🛡️ Security, safety & governance"
+      labels:
+        - security
+        - safety
+        - governance
+    - title: "⚙️ Platform & infrastructure"
+      labels:
+        - infrastructure
+        - devops
+        - ci
+        - dependencies
+    - title: "📚 Documentation & developer experience"
+      labels:
+        - documentation
+        - dx
+    - title: "🐛 Fixes"
+      labels:
+        - bug
+        - fix
+    - title: "🧰 Other changes"
+      labels:
+        - "*"
