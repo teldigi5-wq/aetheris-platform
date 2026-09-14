@@ -202,6 +202,8 @@ A preflight `ALLOW` means **eligible to execute**. It is not proof that executio
 **Repository status:** `PRE_PC_HARDENED + ROADMAP_34_COMPLETE`  
 **Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
 
+**Physical-PC validation remains pending.** Hosted CI and repository evidence are not substitutes for validation on the owner's target machine.
+
 Stage 34 converts the Syntra × Aetheris Master Blueprint into a repository-native specification in **[docs/master-build-spec.md](docs/master-build-spec.md)** and validates that the final roadmap state does not silently drift into unsupported claims.
 
 ### What 34 / 34 does not mean
@@ -215,6 +217,8 @@ There is **no Stage 35**. The next engineering phase is execution of the existin
 ## Verification, CI and protected stable history
 
 The stable `main` branch is protected by the repository ruleset **`Protect stable main`**. Promotion requires a pull request and the configured checks before stable history changes.
+
+Canonical development line: `feature/syntra-aetheris-foundation-v2`.
 
 The verification surface includes:
 
