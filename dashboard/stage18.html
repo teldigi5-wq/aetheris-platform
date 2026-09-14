@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050811"><title>Syntra + Aetheris — Stage 18</title><style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#eef8ff;background:#050811;color-scheme:dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 12% 0,#123b4f 0,transparent 31%),radial-gradient(circle at 88% 3%,#41214f 0,transparent 28%),#050811}.shell{max-width:1600px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.eyebrow{font-size:11px;letter-spacing:.18em;font-weight:850;color:#84eaff}.top h1{margin:6px 0 5px;font-size:clamp(30px,4vw,50px)}.muted{color:#90acbf;max-width:1120px}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn,button{border:1px solid #365f76;background:#0d202d;color:#edf9ff;border-radius:10px;padding:10px 13px;font-weight:760;text-decoration:none;cursor:pointer}.boundary{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}.boundary div{padding:12px 14px;border:1px solid #304e61;border-radius:12px;background:#0b1823}.boundary strong{display:block;font-size:11px;margin-bottom:4px}.ok{color:#79e9b4}.warn{color:#ffd07d}.danger{color:#ff9898}.info{color:#8adeff}.metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;margin-top:13px}.card{border:1px solid #1f4051;background:linear-gradient(180deg,rgba(15,32,44,.97),rgba(7,18,27,.97));border-radius:16px;padding:16px;box-shadow:0 18px 45px rgba(0,0,0,.18)}.metric span,.card small{color:#86a6ba}.metric strong{display:block;font-size:20px;margin:6px 0;overflow-wrap:anywhere}.head{display:flex;justify-content:space-between;gap:10px;align-items:center}.card h2{font-size:18px;margin:3px 0 12px}.pill{font-size:10px;letter-spacing:.05em;border:1px solid #315b70;border-radius:999px;padding:5px 8px;color:#9de2ff}.list{display:grid}.row{display:flex;justify-content:space-between;gap:15px;padding:10px 0;border-top:1px solid #173141}.row:first-child{border-top:0}.row strong{font-size:13px}.row span{font-size:12px;color:#91adbf;text-align:right;max-width:72%;overflow-wrap:anywhere}.empty{color:#66899e;padding:14px 0}.truth{white-space:pre-wrap;background:#06121a;border:1px solid #183442;border-radius:10px;padding:11px;font:12px/1.55 ui-monospace,monospace}@media(max-width:1250px){.metrics{grid-template-columns:repeat(3,1fr)}.boundary{grid-template-columns:repeat(3,1fr)}}@media(max-width:950px){.grid{grid-template-columns:1fr}.boundary{grid-template-columns:1fr 1fr}}@media(max-width:650px){.metrics{grid-template-columns:1fr 1fr}.top{flex-direction:column}.boundary{grid-template-columns:1fr}.shell{padding:16px}}@media(max-width:430px){.metrics{grid-template-columns:1fr}}
+</style></head><body><div class="shell">
+<div class="top"><div><div class="eyebrow">SYNTRA + AETHERIS · STAGE 18</div><h1>Target Readiness & Provisioning Orchestrator</h1><p class="muted">Signed Windows bootstrap manifests, exact package/device identity correlation, DPAPI/OS-vault evidence, resource/local-model/speech benchmarks, private-transport proof, provider-alias binding, evidence bundles and staged readiness scoring. The strongest Stage 18 state is an owner activation review—not automatic production activation.</p></div><div class="actions"><a class="btn" href="/">Mission Control</a><a class="btn" href="/stage17.html">Stage 17</a><button id="refresh">Refresh</button></div></div>
+<div class="boundary"><div><strong class="info">BOOTSTRAP · ED25519 SIGNED</strong><span class="muted">Canonical manifest content and exact SHA-256 are verified.</span></div><div><strong class="warn">TARGET EVIDENCE · PHYSICAL PC REQUIRED</strong><span class="muted">CI evidence never counts as workstation validation.</span></div><div><strong class="info">PACKAGE / DEVICE · EXACT HASH</strong><span class="muted">Host package and certificate evidence must match the signed manifest.</span></div><div><strong class="ok">READINESS · OWNER REVIEW ONLY</strong><span class="muted">Even score 100 cannot self-activate the adapter.</span></div><div><strong class="danger">PRODUCTION ACTIVATION · FALSE</strong><span class="muted">No shell/admin/live-money authority is introduced.</span></div></div>
+<section class="metrics"><article class="card metric"><span>Bootstrap manifests</span><strong id="manifestCount">—</strong><small>signed revisions</small></article><article class="card metric"><span>Evidence records</span><strong id="evidenceCount">—</strong><small>target + simulated</small></article><article class="card metric"><span>Target measured</span><strong id="targetCount">—</strong><small>physical evidence only</small></article><article class="card metric"><span>CI simulated</span><strong id="simCount">—</strong><small>never target proof</small></article><article class="card metric"><span>Review-ready targets</span><strong id="readyCount">—</strong><small>still owner-gated</small></article><article class="card metric"><span>Production activation</span><strong class="danger">DISABLED</strong><small>Stage 18 invariant</small></article></section>
+<section class="grid">
+<article class="card"><div class="head"><div><div class="eyebrow">TARGETS</div><h2>Signed bootstrap manifests</h2></div><span class="pill">WINDOWS ONLY</span></div><div id="targets" class="list"></div></article>
+<article class="card"><div class="head"><div><div class="eyebrow">READINESS</div><h2>Evidence-backed target scores</h2></div><span class="pill">NO ACTIVATE BUTTON</span></div><div id="readiness" class="list"></div></article>
+<article class="card"><div class="head"><div><div class="eyebrow">EVIDENCE</div><h2>Latest measurements</h2></div><span class="pill">SECRET-FREE</span></div><div id="evidence" class="list"></div></article>
+<article class="card"><div class="head"><div><div class="eyebrow">READINESS CHAIN</div><h2>100-point gate</h2></div><span class="pill">FAIL CLOSED</span></div><div class="truth">10 signed bootstrap manifest
+10 current Stage 17 simulation certification
+10 exact target device identity
+10 exact host-agent package integrity
+10 DPAPI / OS-vault target evidence
+10 RAM / VRAM benchmark
+10 speech / VAD benchmark
+10 local-model benchmark
+10 private transport bound to device certificate
+10 all required provider aliases bound via vault evidence
+
+100/100 → READY_FOR_OWNER_ACTIVATION_REVIEW
+Never → automatic production activation</div></article>
+<article class="card"><div class="head"><div><div class="eyebrow">BENCHMARK CONTRACT</div><h2>Target thresholds</h2></div><span class="pill">MEASURED, NOT CLAIMED</span></div><div class="truth">RESOURCE
+• RAM ≥ signed minimum
+• VRAM ≥ signed minimum
+• crash count = 0
+
+SPEECH
+• STT p95 ≤ 900 ms
+• barge-in p95 ≤ 300 ms
+• crash count = 0
+
+LOCAL MODEL
+• p95 time-to-first-token ≤ 2500 ms
+• throughput ≥ 8 tokens/s
+• crash count = 0</div></article>
+<article class="card"><div class="head"><div><div class="eyebrow">EVIDENCE HONESTY</div><h2>Current limitations</h2></div><span class="pill">TARGET PC PENDING</span></div><div class="truth">Repository/CI completion does NOT mean:
+• Windows is installed or paired
+• DPAPI works in the owner's profile
+• GPU/RAM thresholds were measured on the future PC
+• microphone/speaker latency was measured
+• local Ollama performance was measured
+• a private tunnel is active
+• provider credentials are present
+• a real Windows adapter is activated
+
+CI records stay PASS_SIMULATED and cannot satisfy target gates.</div></article>
+</section></div><script>
+const SESSION_KEY='aetheris.session';const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));function session(){try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null}}async function api(path){const s=session();if(!s?.token)throw new Error('No authenticated Aetheris session. Sign in through Mission Control first.');const r=await fetch(path,{headers:{Authorization:`Bearer ${s.token}`,'Content-Type':'application/json'}});if(!r.ok){let m=`${r.status} ${r.statusText}`;try{const j=await r.json();m=j.message||m}catch{}throw new Error(m)}return r.json()}function rows(id,items,render,empty='No evidence yet.'){document.getElementById(id).innerHTML=items?.length?items.slice(0,60).map(render).join(''):`<div class="empty">${esc(empty)}</div>`}
+async function refresh(){const b=document.getElementById('refresh');b.disabled=true;try{const [overview,manifests,evidence]=await Promise.all([api('/api/orchestrator/stage18/overview'),api('/api/orchestrator/stage18/manifests'),api('/api/orchestrator/stage18/evidence')]);const unique=[...new Map(manifests.map(x=>[x.targetId,x])).values()];const readiness=await Promise.all(unique.map(x=>api('/api/orchestrator/stage18/readiness/'+encodeURIComponent(x.targetId))));document.getElementById('manifestCount').textContent=overview.manifestCount;document.getElementById('evidenceCount').textContent=overview.evidenceCount;document.getElementById('targetCount').textContent=overview.targetMeasuredEvidence;document.getElementById('simCount').textContent=overview.simulatedEvidence;document.getElementById('readyCount').textContent=overview.activationReviewReadyTargets;rows('targets',unique,x=>`<div class="row"><strong>${esc(x.targetId)} · ${esc(x.platform)}</strong><span>adapter ${esc(x.adapterId)} · RAM ${x.minimumRamMb} MB · VRAM ${x.minimumVramMb} MB · providers ${esc((x.providerAliases||[]).join(', ')||'none')}</span></div>`,'No Stage 18 bootstrap manifests registered.');rows('readiness',readiness,x=>`<div class="row"><strong>${esc(x.targetId)} · ${esc(x.status)}</strong><span>score ${x.score}/100 · Stage17 ${x.stage17Certified?'certified':'pending'} · production ${x.productionActivationAllowed?'YES':'no'} · blockers ${esc((x.blockers||[]).join(' | ')||'none')}</span></div>`,'No target readiness assessments available.');rows('evidence',evidence,x=>`<div class="row"><strong>${esc(x.kind)} · ${esc(x.component)}</strong><span>${esc(x.status)} · ${x.measuredOnTarget?'TARGET':'CI'} · source ${esc(x.source)} · subject ${esc(x.subjectSha256||'—')}</span></div>`,'No Stage 18 evidence recorded.')}catch(e){rows('targets',[],()=>'',e.message);rows('readiness',[],()=>'',e.message);rows('evidence',[],()=>'',e.message)}finally{b.disabled=false}}
+document.getElementById('refresh').onclick=refresh;refresh();
+</script></body></html>

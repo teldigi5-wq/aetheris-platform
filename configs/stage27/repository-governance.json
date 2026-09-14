@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "stage": 27,
+  "name": "Canonical Branch Governance & Release Promotion Gate",
+  "stable_branch": "main",
+  "canonical_development_branch": "feature/syntra-aetheris-foundation-v2",
+  "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
+  "release_to_main_requires_review": true,
+  "direct_stage_branch_development_allowed": false,
+  "legacy_branches": [
+    "integration/stage24-25-foundation",
+    "stage24-reproducible-build",
+    "stage25-first-boot-readiness",
+    "stage26-evidence-integrity"
+  ],
+  "allowed_main_pr_heads": [
+    "feature/syntra-aetheris-foundation-v2"
+  ],
+  "required_readme_markers": [
+    "main",
+    "feature/syntra-aetheris-foundation-v2",
+    "Physical-PC validation remains pending",
+    "BLOCKED_PENDING_HARDWARE"
+  ],
+  "workflow_scan_paths": [
+    ".github/workflows"
+  ]
+}

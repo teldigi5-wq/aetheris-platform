@@ -1,0 +1,11 @@
+{
+  "name": "Syntra Desktop",
+  "stage": 6,
+  "apiBase": "/api/orchestrator",
+  "liveStream": "/api/orchestrator/live/events",
+  "controls": ["STOP", "PAUSE", "RESUME", "TAKE_CONTROL", "APPROVE", "REJECT"],
+  "hostPairing": "challenge-response",
+  "hostExecutionDefault": "simulation-only",
+  "secretStorage": "os-backed-required-for-production",
+  "packagingStatus": "contract-only-until-target-windows-pc-arrives"
+}

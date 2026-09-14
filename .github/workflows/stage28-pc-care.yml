@@ -1,0 +1,79 @@
+name: Stage 28 PC Care Certification
+
+on:
+  push:
+    branches: [ feature/syntra-aetheris-foundation-v2 ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  pc-care-simulation:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python 3.13.15
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile Stage 28 diagnostic planner
+        run: python -m py_compile scripts/stage28/pc_care_diagnostics.py
+
+      - name: Run Stage 28 tests
+        run: python -m unittest discover -s tests -p 'test_stage28_pc_care.py' -v
+
+      - name: Generate deterministic diagnostic reports - pass 1
+        run: |
+          mkdir -p build/stage28/pass-1
+          for fixture in healthy memory-pressure critical-pressure; do
+            python scripts/stage28/pc_care_diagnostics.py \
+              --snapshot "tests/fixtures/stage28/${fixture}.json" \
+              --output "build/stage28/pass-1/${fixture}.json"
+          done
+
+      - name: Generate deterministic diagnostic reports - pass 2
+        run: |
+          mkdir -p build/stage28/pass-2
+          for fixture in healthy memory-pressure critical-pressure; do
+            python scripts/stage28/pc_care_diagnostics.py \
+              --snapshot "tests/fixtures/stage28/${fixture}.json" \
+              --output "build/stage28/pass-2/${fixture}.json"
+          done
+
+      - name: Compare deterministic report bytes
+        run: |
+          for fixture in healthy memory-pressure critical-pressure; do
+            cmp "build/stage28/pass-1/${fixture}.json" "build/stage28/pass-2/${fixture}.json"
+          done
+
+      - name: Assert Stage 28 safety and truth boundaries
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          reports = [json.loads(path.read_text()) for path in sorted(Path('build/stage28/pass-1').glob('*.json'))]
+          assert {r['diagnosticSeverity'] for r in reports} == {'HEALTHY', 'WARNING', 'CRITICAL'}, reports
+          for report in reports:
+              assert report['status'] == 'PASS', report
+              assert report['physicalPcStatus'] == 'BLOCKED_PENDING_HARDWARE', report
+              assert report['simulationOnly'] is True, report
+              assert report['recommendationsOnly'] is True, report
+              assert report['hostMutationAttempted'] is False, report
+              assert report['networkRequired'] is False, report
+              assert report['shellExecutionRequired'] is False, report
+          print('Stage 28 synthetic PC-care certification: PASS')
+          PY
+
+      - name: Publish Stage 28 evidence
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: stage28-pc-care-certification
+          path: build/stage28/pass-1/
+          if-no-files-found: error
+          retention-days: 30

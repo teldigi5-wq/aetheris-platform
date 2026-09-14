@@ -1,0 +1,61 @@
+name: Stage 27 Repository Governance
+
+on:
+  push:
+    branches: [ feature/syntra-aetheris-foundation-v2 ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-development-line:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python 3.13.15
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile Stage 27 verifier
+        run: python -m py_compile scripts/stage27/repository_governance.py
+
+      - name: Run Stage 27 tests
+        run: python -m unittest discover -s tests -p 'test_stage27_repository_governance.py' -v
+
+      - name: Verify branch and promotion context
+        run: |
+          python scripts/stage27/repository_governance.py \
+            --event-name '${{ github.event_name }}' \
+            --ref-name '${{ github.ref_name }}' \
+            --head-ref '${{ github.head_ref }}' \
+            --base-ref '${{ github.base_ref }}' \
+            --output build/stage27/governance-report.json
+
+      - name: Assert Stage 27 truth boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build/stage27/governance-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['stableBranch'] == 'main', report
+          assert report['canonicalDevelopmentBranch'] == 'feature/syntra-aetheris-foundation-v2', report
+          assert report['physicalPcStatus'] == 'BLOCKED_PENDING_HARDWARE', report
+          assert report['releaseToMainRequiresReview'] is True, report
+          assert report['directStageBranchDevelopmentAllowed'] is False, report
+          assert report['legacyWorkflowReferences'] == [], report
+          print('Stage 27 canonical development-line governance: PASS')
+          PY
+
+      - name: Publish Stage 27 governance evidence
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: stage27-repository-governance
+          path: build/stage27/governance-report.json
+          if-no-files-found: error
+          retention-days: 30

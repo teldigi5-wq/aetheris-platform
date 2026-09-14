@@ -1,38 +1,58 @@
 version: 2
 updates:
-  - package-ecosystem: "maven"
-    directory: "/"
+  - package-ecosystem: npm
+    directory: /dashboard
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Asia/Colombo"
+      interval: weekly
+      day: monday
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "chore(deps)"
+    groups:
+      dashboard-minor-patch:
+        update-types: [minor, patch]
 
-  - package-ecosystem: "npm"
-    directory: "/dashboard"
+  - package-ecosystem: pip
+    directory: /aetheris-quant
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:15"
-      timezone: "Asia/Colombo"
+      interval: weekly
+      day: monday
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-    commit-message:
-      prefix: "chore(deps)"
+    groups:
+      quant-minor-patch:
+        update-types: [minor, patch]
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  - package-ecosystem: maven
+    directory: /gateway
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: maven
+    directory: /user-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: maven
+    directory: /identity-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: maven
+    directory: /audit-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: maven
+    directory: /orchestrator-service
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: maven
+    directory: /workstation-agent
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "monthly"
-    open-pull-requests-limit: 3
-    labels:
-      - "dependencies"
-      - "ci"
-    commit-message:
-      prefix: "chore(ci)"
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5

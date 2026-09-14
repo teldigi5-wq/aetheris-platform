@@ -1,192 +1,251 @@
-# Aetheris Platform
+<div align="center">
 
-> A local-first, owner-controlled AI operating platform for **Syntra** — combining orchestration, security, agent execution, observability, trading intelligence, PC/system engineering, and advanced reasoning into one evolving platform.
+# ⚡ Aetheris Platform
 
-[![Build](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/build.yml/badge.svg)](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/build.yml)
-[![CI](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/codeql.yml/badge.svg)](https://github.com/teldigi5-wq/aetheris-platform/actions/workflows/codeql.yml)
+### Build. Secure. Observe. Orchestrate. Govern. Verify.
 
-## Current master-roadmap status
+**A long-term platform engineering and local-AI foundation for owner-controlled automation, deterministic verification, cross-system governance, recovery, digital twins, reasoning and safety-critical experimentation.**
 
-**Stage 30 / 34 implemented**
+![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 
-The canonical 34-stage roadmap is tracked in [`docs/master-roadmap.md`](docs/master-roadmap.md). The repository has reached Stage 30: **Advanced reasoning, verification and decision systems**.
+`Java 21` • `Spring Boot` • `React` • `PostgreSQL` • `Redis` • `RabbitMQ` • `Prometheus` • `Grafana` • `OpenTelemetry` • `Kubernetes` • `Helm` • `Python verification tooling`
 
-### Implemented platform areas
+</div>
 
-- Java service platform foundations: gateway, identity, user and audit surfaces
-- dashboard and observability foundations
-- governed Syntra/Aetheris agent-control architecture
-- security, audit, CI and CodeQL governance
-- PC-care and system-engineering foundations
-- trading intelligence and controlled-execution foundations
-- Stage 30 reasoning-control package with confidence/uncertainty handling, deterministic routing, verifier/critic checks, simulation gates, decision ledger, source trust, contradiction detection, dependency graphs, temporal checks, owner-rule compilation and change-impact analysis
+---
 
-## Architecture
+## 🎯 What Aetheris demonstrates
+
+Aetheris is an engineering portfolio and experimentation platform that grows one capability at a time instead of collecting disconnected demos. The repository combines API/identity foundations, distributed data services, observability, resilience, deployment automation, agent orchestration, structured owner policy, scoped approvals, deterministic release evidence, PC/system-engineering controls, fail-closed trading intelligence, advanced reasoning, digital twins, proactive control, emergency-aware automation and cross-system governance.
+
+> **Portfolio rule:** important capabilities should be visible in code, explainable in an interview and backed by reproducible evidence rather than unsupported claims.
+
+---
+
+## ✅ Repository roadmap — Stage 34 / 34
+
+The canonical development line has reached the final repository-side roadmap stage: **Stage 34 — Master Build Prompt / Canonical Build Specification**.
+
+**Repository status:** `PRE_PC_HARDENED + ROADMAP_34_COMPLETE`  
+**Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
+
+Stage 34 turns the Syntra × Aetheris Master Blueprint v2.0 into a repository-native constitution at [`docs/master-build-spec.md`](docs/master-build-spec.md). It records product identity, architectural boundaries, the universal governance lifecycle, owner-rule source of truth, Zero-Cost/Private/emergency invariants, build order, validation gates, current evidence, physical-PC truth boundaries and the final continuation prompt.
+
+A deterministic validator at `tools/validate_master_build_spec.py` and the Stage 34 workflow prevent the final roadmap status from silently drifting into unsupported claims.
+
+### What 34 / 34 does **not** mean
+
+Hosted CI and repository evidence do **not** prove that WSL2, Docker Desktop, GPU acceleration, local-model performance, thermals, storage health, voice hardware, browser/phone control, external notification delivery or the complete local stack work on the owner's future physical machine.
+
+The repository still does not treat unrestricted privileged host execution, production activation, autonomous destructive PC repair, live-money execution, withdrawals or transfers as validated default authority.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart LR
+    U[Browser / Client] --> D[React Dashboard]
+    D --> G[API Gateway]
+    G --> I[Identity Service]
+    G --> S[User Service]
+    G --> A[Audit Service]
+    G --> R[(Redis)]
+    I --> P[(PostgreSQL)]
+    S --> P
+    S --> M[(RabbitMQ)]
+    M --> A
+    G --> O[Metrics / Traces]
+    I --> O
+    S --> O
+    A --> O
+    O --> OBS[Prometheus + Grafana + Loki + Tempo]
+
+    EVT[Watchers + Event Triggers] --> AUTO[Scheduler + Automation Control]
+    AUTO --> EMG[STOP / TAKE CONTROL / PAUSE]
+
+    AG[Agent / Orchestrator] --> GOV[Stage 33 Governance Lifecycle]
+    RSN[Reasoning + Verification] --> GOV
+    TWIN[Digital Twins + Proactive Intelligence] --> GOV
+    AUTO --> GOV
+    EMG --> GOV
+    PC[PC Care Diagnostics] --> GOV
+    TRD[Trading Intelligence] --> GOV
+    GOV --> POL[Owner Policy + Scoped Approval + Evidence]
+    POL --> G
+
+    K[Kubernetes + Helm] --> D
+    K --> G
+    K --> I
+    K --> S
+    K --> A
+```
+
+### Core engineering domains
+
+| Domain | Repository evidence |
+|---|---|
+| API & identity | gateway routing, protected endpoints, JWT/refresh-token foundations, RBAC/scopes |
+| Distributed systems | PostgreSQL, Redis, RabbitMQ, resilience patterns |
+| Observability | metrics, logs, traces, automation timeline and audit exploration |
+| Cloud native | Docker Compose, Kubernetes, Helm and health probes |
+| Agent orchestration | mission planning, safe tool registry, policy evaluation foundations |
+| Reasoning | confidence/uncertainty, verifier/critic, simulation, source trust, decision ledger |
+| Digital twins | project/PC/workspace state, proactive detection, priority and recovery planning |
+| Automation control | workflow/event normalization, scheduling, focus policy and emergency preemption |
+| Governance | ordered lifecycle, risk escalation, canonical owner rules, scoped approval and completion truth |
+| Release integrity | compatibility freeze, dependency lockdown, deterministic evidence and reproducible builds |
+| PC care | deterministic diagnosis/recommendation planning before physical validation |
+| Trading | fail-closed proposal/risk foundation with live-money disabled by default |
+
+---
+
+## 🧠 Universal action lifecycle
 
 ```text
-OWNER
-  |
-  v
-SYNTRA
-  |  voice / text / approvals / live progress
-  v
-AETHERIS CORE
-  |  planning / rules / routing / permissions / memory
-  |
-  +--> Specialist agents
-  +--> Model router
-  +--> Reasoning + verification control plane
-  +--> Computer / browser / IDE / files / APIs
-  +--> Security / audit / observability / recovery
-  +--> Trading / system engineering / automation modules
-  |
-  v
-VERIFIED RESULTS -> SYNTRA -> OWNER
+UNDERSTAND
+  → PLAN
+  → CHECK RULES
+  → ASSESS RISK
+  → SIMULATE / PREVIEW when required
+  → APPROVE when required
+  → EXECUTE
+  → VERIFY
+  → RECORD
+  → LEARN
+  → REPORT
 ```
 
-Aetheris treats models as replaceable workers rather than policy authority. High-consequence actions are gated by deterministic rules, verification and explicit owner control.
+A preflight `ALLOW` means **eligible to execute**. It is not proof that execution happened. If execution is not observed, the `EXECUTE` phase is not complete. Final success requires verification evidence or an explicit `UNVERIFIED` result.
 
-## Repository structure
+Models may recommend actions, but they do not outrank deterministic owner policy, emergency control, Zero-Cost/Private-mode boundaries or verification requirements.
 
-```text
-.github/             GitHub Actions, Dependabot and repository automation
-aetheris-quant/      Trading intelligence and controlled execution foundation
-aetheris-reasoning/  Stage 30 reasoning, verification and decision controls
-audit-service/       Audit and traceability service
-dashboard/           Web dashboard
-deploy/              Deployment assets and configuration
-docs/                Architecture, governance and roadmap documentation
-gateway/              API gateway
-identity-service/    Identity and authentication service
-observability/       Monitoring/telemetry assets
-user-service/        User/profile service
-```
+---
 
-## Stage 30 — reasoning, verification and decision systems
+## 🔐 Owner-control and safety invariants
 
-Stage 30 lives under [`aetheris-reasoning/`](aetheris-reasoning/) and deliberately separates **policy and verification authority** from model output.
+- persisted owner rules remain the canonical owner-rule source of truth;
+- `ZERO-COST` hard-blocks billable/non-zero external-cost paths;
+- `PRIVATE` keeps configured protected content on approved local paths unless exact policy/owner override permits otherwise;
+- emergency precedence is `STOP > TAKE_CONTROL > PAUSE > NORMAL`;
+- public, financial, destructive, privileged and difficult-to-undo work receives stricter control;
+- live-money trading remains outside the default trusted path;
+- secrets must not be committed, logged or exposed through prompts/evidence;
+- physical-machine capability cannot be inferred from hosted CI;
+- GitHub branch protection/rulesets remain separate repository-administration controls.
 
-The foundation includes:
+---
 
-- **Meta-Reasoning Engine** — routes work across deterministic, local-model, specialist, research, simulation, council and owner-approval paths
-- **Uncertainty & Confidence Engine** — triggers verification when uncertainty or consequence is high
-- **Verifier/Critic Layer** — catches missing verification and recovery steps
-- **Simulation Gate** — requires simulation/dry-run treatment for risky side effects
-- **Decision Ledger** — append-only SHA-256 hash-chained decision records
-- **Policy Compiler** — deterministic owner-rule normalization with conflict detection
-- **Task Dependency Graph** — prerequisites, blockers, ready work and cycle detection
-- **Change Impact Analyzer** — affected services, tests and rollback needs
-- **Data Lineage / Source Trust** — source-classification and cross-check requirements
-- **Contradiction Detector** — surfaces conflicting claims instead of flattening disagreement
-- **Temporal Intelligence** — validity windows and change detection
+## 🧪 Verification and CI
 
-See [`docs/stage-30-reasoning.md`](docs/stage-30-reasoning.md).
+The canonical development line uses pinned GitHub Actions and deterministic validation where practical. Current gates include:
 
-## Next roadmap stage
+- Java service/orchestrator tests;
+- workstation-agent packaging and safety checks;
+- dashboard frozen dependency install/build;
+- release hardening and deterministic evidence;
+- compatibility-contract freeze;
+- dependency lockdown and reproducible-build comparison;
+- Stage 25–29 validation;
+- Stage 30 reasoning regression;
+- Stage 31 digital-twin/recovery regression;
+- Stage 32 automation/emergency-control regression;
+- Stage 33 governance regression;
+- Stage 34 master-build-spec integrity validation;
+- CodeQL for Java and JavaScript/TypeScript.
 
-### Stage 31 — Digital twins, proactive intelligence and self-healing
+CI success is repository evidence, not physical-PC validation.
 
-Planned Stage 31 work includes:
-
-- project digital twin
-- PC digital twin
-- owner workspace model
-- proactive issue detection
-- goal/priority management
-- bounded self-healing runtime
-- staged safe-update manager with health checks and rollback
-- automatic model/runtime benchmarking
-
-Stage 31 will preserve the same truth boundary: the system must not claim real machine measurements, repairs or deployment outcomes unless they were actually observed and verified.
-
-## Development model
-
-`main` is the **canonical stable line**. New roadmap work should start from the current `main` tip and return through reviewable pull requests.
-
-The older `feature/syntra-aetheris-foundation-v2` branch remains a legacy development history while reconciliation/retirement is completed. **Do not start new roadmap stages from that branch.** The merged `stage-30-reasoning-foundation` branch is historical and should not be reused.
-
-Dependabot branches are generated automatically. Review their pull requests individually rather than merging dependency branches directly into roadmap work.
-
-## CI and security
-
-Repository-side governance currently includes:
-
-- Java build and tests
-- identity security tests
-- dashboard build
-- Stage 30 reasoning tests
-- CodeQL analysis
-- Dependabot update proposals
-
-GitHub-hosted branch protection/rulesets are a separate repository-administration control. Repository-side CI does not substitute for those account/repository settings.
-
-## Safety principles
-
-- Owner authority is final.
-- STOP/PAUSE/TAKE CONTROL must outrank background or model work.
-- High-impact actions require policy evaluation and approval.
-- Private/protected work must not silently route off-device.
-- Models and agents cannot silently bypass deterministic controls.
-- Important side effects require verification and an audit trail.
-- Completion must never be fabricated; unverified work must be labelled unverified.
-- Trading signals are hypotheses, not guaranteed profit.
-- Live financial execution remains governed by deterministic risk limits and configured owner approval.
-- Unauthorized or destructive cybersecurity activity is outside the intended operating model.
-
-## Local development
-
-### Requirements
-
-- Java 21
-- Maven
-- Node.js 22+ (CI currently validates the dashboard on modern Node runtimes)
-- Python 3.11+ for `aetheris-reasoning`
-- Docker Desktop / Compose when running the full service stack
-
-### Java platform
+### Stage 34 validation
 
 ```bash
-mvn -B test
-mvn -B -DskipTests package
+python tools/validate_master_build_spec.py
 ```
 
-### Dashboard
-
-```bash
-cd dashboard
-npm install
-npm run build
-```
-
-### Stage 30 reasoning tests
+### Later-stage regressions
 
 ```bash
 cd aetheris-reasoning
 python -m unittest discover -s tests -v
+
+mvn -B -f orchestrator-service/pom.xml -Dtest=Stage31FoundationTest test
+mvn -B -f orchestrator-service/pom.xml -Dtest=Stage32FoundationTest test
+mvn -B -f orchestrator-service/pom.xml -Dtest=Stage33GovernanceTest test
 ```
 
-### Docker stack
+---
 
-```bash
-docker compose up --build
-```
+## 🌿 Repository governance
 
-Use the repository environment examples and service documentation before enabling integrations. Never commit secrets or private API credentials.
+Long-lived branch intent:
 
-## Documentation
+- `main` — stable/release history;
+- `feature/syntra-aetheris-foundation-v2` — canonical active development line.
 
-- [`docs/master-roadmap.md`](docs/master-roadmap.md) — canonical 34-stage status
-- [`docs/stage-30-reasoning.md`](docs/stage-30-reasoning.md) — Stage 30 implementation contract
-- [`SECURITY.md`](SECURITY.md) — security reporting and expectations
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution workflow
+Temporary stage branches are review branches, not future canonical bases. GitHub-hosted branch protection/rulesets remain an account/repository administration task and are not replaced by application code.
 
-## Status and truth boundary
+---
 
-Repository/CI success is not the same thing as physical-PC validation. Hardware telemetry, driver behavior, thermals, GPU performance, real desktop control and machine repair remain unverified until exercised on the owner's actual target PC.
+## 🗺️ Roadmap state
 
-## Owner
+Recent hardening and AI-control stages include:
 
-**Poojana Kaveesh**  
-BSc (Hons) in Information Technology — AI-focused development path  
-Repository: `teldigi5-wq/aetheris-platform`
+- **Stage 21** — physical-target pilot contract and owner-policy boundaries;
+- **Stage 22** — release hardening and deterministic evidence;
+- **Stage 23** — frozen compatibility contract;
+- **Stage 24** — dependency lockdown and reproducible-build verification;
+- **Stage 25** — first-boot readiness and physical-PC truth boundary;
+- **Stage 26** — safety certification and evidence-integrity controls;
+- **Stage 27** — canonical repository governance and promotion gate;
+- **Stage 28** — PC-care diagnostics and safe remediation planning;
+- **Stage 29** — fail-closed trading intelligence/risk foundation;
+- **Stage 30** — advanced reasoning and verification;
+- **Stage 31** — digital twins, proactive intelligence and bounded self-healing;
+- **Stage 32** — automation, observability and deterministic emergency control;
+- **Stage 33** — cross-system governance, scoped approvals and completion truth;
+- **Stage 34** — canonical master build/continuation specification.
+
+**Master repository roadmap: 34 / 34 complete.**
+
+The next engineering phase is not “Stage 35.” It is evidence-driven execution of the existing specification: physical-PC first boot, Windows/WSL2/Docker/GPU validation, local model/voice benchmarks, UI performance testing, safe tool execution and integration validation on real owner hardware.
+
+---
+
+## 📚 Key documentation
+
+- [Canonical master build specification](docs/master-build-spec.md)
+- [Master roadmap](docs/master-roadmap.md)
+- [Architecture](docs/architecture.md)
+- [Interview talking points](docs/interview-guide.md)
+- [Token flow and threat model](docs/security/token-flow.md)
+- [Resilience runbook](docs/resilience.md)
+- [First-boot runbook](docs/first-boot-runbook.md)
+- [Stage 25 first-boot readiness](docs/stage-25-first-boot-readiness.md)
+- [Stage 26 safety certification](docs/stage-26-safety-certification.md)
+- [Stage 27 repository governance](docs/stage-27-repository-governance.md)
+- [Stage 28 PC care & system engineering](docs/stage-28-pc-care-system-engineering.md)
+- [Stage 29 trading intelligence & execution](docs/stage-29-trading-intelligence-execution.md)
+- [Stage 30 reasoning & verification](docs/stage-30-reasoning.md)
+- [Stage 31 digital twins & bounded self-healing](docs/stage-31-digital-twins-self-healing.md)
+- [Stage 32 automation, observability & emergency control](docs/stage-32-automation-observability-emergency-control.md)
+- [Stage 33 governance & approvals](docs/stage-33-governance-approvals.md)
+- [GitHub branch-protection target](docs/github-branch-protection.md)
+
+---
+
+## 💡 Design rule
+
+The platform is designed around **no mandatory recurring AI or platform subscription fee**. Open-source and locally controllable components are preferred; external/cloud services remain optional and policy-governed.
+
+<div align="center">
+
+### One coherent assistant experience, backed by modular and verifiable infrastructure.
+
+**Built by Poojana Kaveesh Sellahewa**
+
+</div>
