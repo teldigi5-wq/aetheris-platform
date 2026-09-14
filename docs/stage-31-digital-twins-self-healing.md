@@ -1,10 +1,10 @@
 # Stage 31 — Digital twins, proactive intelligence and self-healing
 
-Status: **implementation candidate — CI validation required before completion is claimed**.
+Status: **implemented and repository-validated**.
 
 Stage 31 extends the existing Aetheris orchestrator rather than creating a second autonomous runtime. The repository already contains proactive task/provider/approval scanning and evaluation services; this stage adds structured digital-twin contracts, deterministic prioritization, bounded recovery planning, safe-update state transitions and model benchmarking around those existing systems.
 
-## Implemented candidate capabilities
+## Implemented capabilities
 
 ### Project Digital Twin
 
@@ -72,8 +72,23 @@ The orchestrator exposes read/evaluation-oriented Stage 31 endpoints under `/api
 
 These endpoints evaluate plans and evidence. They do not directly restart services, delete files, change drivers, trade live money, modify security controls or perform privileged machine mutations.
 
-## Validation target
+## Validation completed
 
 `.github/workflows/stage31-digital-twins.yml` runs `Stage31FoundationTest` twice on pinned Java/GitHub Action versions to detect regressions and hidden state coupling.
 
-Stage 31 should only be marked complete in the master roadmap after this workflow and the canonical repository gates pass.
+Stage 31 also passed the canonical repository gates:
+
+- Build, including backend/orchestrator tests, dashboard build, workstation-agent packaging and release hardening;
+- Stage 23 compatibility-contract freeze after intentional re-pinning for the approved Stage 31 API additions;
+- dependency lockdown and two-pass reproducible-build verification;
+- Stage 30 reasoning regression suite;
+- Stage 31 regression suite;
+- CodeQL for Java and JavaScript/TypeScript.
+
+## Truth boundary
+
+Repository validation proves the checked-in contracts and deterministic control-plane behavior. It does **not** prove physical host repair, WSL/Docker/GPU behavior, thermals, driver recovery, real local-model performance or other machine-specific behavior. Those remain blocked pending real owner-hardware evidence.
+
+## Next stage
+
+Stage 32 — **Automation, observability and emergency control** — should build on Stage 31's digital twins and bounded planning while preserving deterministic STOP/PAUSE/TAKE CONTROL priority, owner approval, rollback and evidence requirements.
