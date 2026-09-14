@@ -1,58 +1,62 @@
 version: 2
+
 updates:
-  - package-ecosystem: npm
-    directory: /dashboard
+  - package-ecosystem: "npm"
+    directory: "/dashboard"
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
     groups:
       dashboard-minor-patch:
-        update-types: [minor, patch]
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
-  - package-ecosystem: pip
-    directory: /aetheris-quant
+  - package-ecosystem: "pip"
+    directory: "/aetheris-quant"
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
     groups:
       quant-minor-patch:
-        update-types: [minor, patch]
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
-  - package-ecosystem: maven
-    directory: /gateway
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: maven
-    directory: /user-service
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: maven
-    directory: /identity-service
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: maven
-    directory: /audit-service
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: maven
-    directory: /orchestrator-service
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: maven
-    directory: /workstation-agent
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: github-actions
-    directory: /
+  # Treat the Java services as one monorepo dependency surface. Dependabot
+  # groups the same Maven dependency across modules into one reviewable PR
+  # instead of opening near-identical PRs for every service.
+  - package-ecosystem: "maven"
+    directories:
+      - "/gateway"
+      - "/user-service"
+      - "/identity-service"
+      - "/audit-service"
+      - "/orchestrator-service"
+      - "/workstation-agent"
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 4
+    groups:
+      maven-by-dependency:
+        patterns:
+          - "*"
+        group-by: "dependency-name"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 2
+    groups:
+      github-actions-updates:
+        patterns:
+          - "*"
