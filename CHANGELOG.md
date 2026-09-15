@@ -14,6 +14,10 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ### Added
 
+- Aetheris Operator v2 site-skill catalog and deterministic autonomous-web-task compiler with per-skill physical-validation gates.
+- Starter LinkedIn profile-inspection/About-update and Vercel deployment-inspection/trigger templates, each constrained to its declared domain and evidence contract.
+- Bounded read-only recovery with a maximum of two attempts, while external mutation skills receive no blind automatic retry.
+- Ephemeral required-value references for mutation inputs, per-skill validation allowlisting, and regression tests that keep unvalidated production-site selectors fail-closed.
 - Aetheris Operator v1 generic browser control plane with domain allowlists, deterministic action/effect classification, owner-policy evaluation, approval gates, emergency-stop enforcement and evidence requirements.
 - A loopback-only W3C WebDriver adapter for future Chrome/Edge browser execution on the owner PC, with redirect containment after every action and no remote WebDriver control path.
 - Generic browser actions for navigation, click, typed input through ephemeral value references, upload through file references, screenshots, bounded extraction and waits; downloads fail closed until file evidence exists.
@@ -37,6 +41,7 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 - Physical-machine status remains `BLOCKED_PENDING_HARDWARE`.
 - Physical-PC validation remains pending.
+- Operator v2 starter site skills are repository templates only until each exact workflow is physically validated; validating one skill never validates another.
 - Generic browser repository support does not assert that Chrome/Edge, WebDriver, authenticated sessions or site-specific workflows are validated on the owner PC.
 - Hosted CI is repository evidence, not physical-PC validation.
 - `ALLOW` means eligible to execute, not proof that execution occurred.
