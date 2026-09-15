@@ -231,28 +231,47 @@ def main() -> int:
             wait_health(service, port)
             passed(check_id)
 
-        email = "deployment-release-proof@aetheris.local"
+        # Identity accounts and user profiles are intentionally separate Aetheris domains.
+        # Register an API consumer for the protected gateway read, then create an explicit
+        # user-service profile to prove persisted application state survives the rollback.
+        identity_email = "deployment-release-proof@aetheris.local"
+        profile_email = "deployment-release-profile@aetheris.local"
         password = "DeploymentReleaseProof123!"
         status, auth = http_json(
             "POST",
             "http://127.0.0.1:8080/api/auth/register",
-            {"name": "Deployment Release Proof", "email": email, "password": password},
+            {"name": "Deployment Release Proof", "email": identity_email, "password": password},
         )
         if status != 201 or not isinstance(auth, dict) or not auth.get("accessToken"):
             raise AssertionError(f"registration failed: HTTP {status} {auth!r}")
         headers = {"Authorization": f"Bearer {auth['accessToken']}"}
+
+        status, created_profile = http_json(
+            "POST",
+            "http://127.0.0.1:8081/api/users",
+            {"name": "Deployment Release Profile", "email": profile_email},
+        )
+        if (
+            status != 201
+            or not isinstance(created_profile, dict)
+            or created_profile.get("email") != profile_email
+        ):
+            raise AssertionError(
+                f"explicit user profile creation failed: HTTP {status} {created_profile!r}"
+            )
+
         status, users = http_json("GET", "http://127.0.0.1:8080/api/users", headers=headers)
         if status != 200 or not isinstance(users, list):
             raise AssertionError(f"protected baseline read failed: HTTP {status} {users!r}")
         baseline = {
             "user_count": len(users),
-            "proof_identity_present": any(
-                isinstance(item, dict) and item.get("email") == email for item in users
+            "proof_profile_present": any(
+                isinstance(item, dict) and item.get("email") == profile_email for item in users
             ),
             "gateway_image_id": image_ids["gateway"],
         }
-        if not baseline["proof_identity_present"]:
-            raise AssertionError("registered proof identity is absent from protected read")
+        if not baseline["proof_profile_present"]:
+            raise AssertionError("explicit proof user profile is absent from protected read")
         passed("deployment.authenticated-read")
 
         run(["docker", "compose", "stop", "gateway"])
@@ -291,15 +310,15 @@ def main() -> int:
         final_state.update(
             {
                 "user_count": len(recovered_users),
-                "proof_identity_present": any(
-                    isinstance(item, dict) and item.get("email") == email
+                "proof_profile_present": any(
+                    isinstance(item, dict) and item.get("email") == profile_email
                     for item in recovered_users
                 ),
             }
         )
         if (
             final_state["user_count"] != baseline["user_count"]
-            or not final_state["proof_identity_present"]
+            or not final_state["proof_profile_present"]
         ):
             raise AssertionError(
                 f"state changed across rollback: baseline={baseline!r} final={final_state!r}"
