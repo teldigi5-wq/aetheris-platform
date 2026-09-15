@@ -1,0 +1,51 @@
+name: Portfolio Evidence
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portfolio-evidence:
+    name: portfolio-evidence
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile evidence validator
+        run: python -m py_compile tools/validate_portfolio_evidence.py
+
+      - name: Run evidence regression tests
+        run: python -m unittest tests/test_portfolio_evidence.py -v
+
+      - name: Generate evidence report twice
+        run: |
+          python tools/validate_portfolio_evidence.py --output build-evidence/portfolio/report-pass1.json
+          python tools/validate_portfolio_evidence.py --output build-evidence/portfolio/report-pass2.json
+
+      - name: Verify deterministic evidence report
+        run: cmp build-evidence/portfolio/report-pass1.json build-evidence/portfolio/report-pass2.json
+
+      - name: Publish recruiter evidence report
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: core-platform-portfolio-evidence
+          path: build-evidence/portfolio/report-pass1.json
+          if-no-files-found: error
+          retention-days: 14
