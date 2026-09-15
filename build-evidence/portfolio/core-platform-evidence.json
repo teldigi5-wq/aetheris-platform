@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "scope": "core-platform",
+  "truth_boundary": "Repository evidence demonstrates source/configuration and CI-verifiable design. Runtime screenshots, external-user adoption, production readiness, and physical-PC validation require separate evidence.",
+  "claims": [
+    {
+      "id": "identity.refresh-token-lifecycle",
+      "title": "Refresh tokens are generated with secure randomness, stored by SHA-256 hash, rotated, and revocable",
+      "maturity": "REPOSITORY_TESTED",
+      "evidence": [
+        {
+          "path": "identity-service/src/main/java/io/aetheris/identity/RefreshTokenService.java",
+          "contains": [
+            "new SecureRandom()",
+            "MessageDigest.getInstance(\"SHA-256\")",
+            "public RotationResult rotate(String rawToken)",
+            "existing.revoke()",
+            "public void revoke(String rawToken)"
+          ]
+        },
+        {
+          "path": "identity-service/src/test/java/io/aetheris/identity/RefreshTokenServiceTest.java",
+          "contains": [
+            "service.rotate(first.token())"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "redis.cache-policy",
+      "title": "User-service caching is configured through Spring Cache backed by Redis configuration",
+      "maturity": "CORE_IMPLEMENTED",
+      "evidence": [
+        {
+          "path": "user-service/src/main/java/io/aetheris/users/CacheConfig.java",
+          "contains": [
+            "@EnableCaching",
+            "RedisCacheConfiguration",
+            "entryTtl(Duration.ofSeconds(60))",
+            "disableCachingNullValues()"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gateway.traffic-and-resilience",
+      "title": "Gateway routes combine Redis-backed rate limiting, circuit breaking, and read-only retry policy",
+      "maturity": "CORE_IMPLEMENTED",
+      "evidence": [
+        {
+          "path": "gateway/src/main/resources/application.yml",
+          "contains": [
+            "name: RequestRateLimiter",
+            "redis-rate-limiter.replenishRate",
+            "name: Retry",
+            "methods: GET,HEAD",
+            "name: CircuitBreaker",
+            "Method=POST,PUT,PATCH,DELETE"
+          ]
+        },
+        {
+          "path": "docs/resilience.md",
+          "contains": [
+            "Mutating user requests are never automatically retried"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "messaging.user-domain-events",
+      "title": "User-domain events are published asynchronously through RabbitMQ",
+      "maturity": "CORE_IMPLEMENTED",
+      "evidence": [
+        {
+          "path": "user-service/src/main/java/io/aetheris/users/events/UserEventPublisher.java",
+          "contains": [
+            "RabbitTemplate",
+            "aetheris.events",
+            "user.created",
+            "user.deleted",
+            "rabbitTemplate.convertAndSend"
+          ]
+        },
+        {
+          "path": "user-service/src/main/java/io/aetheris/users/events/RabbitEventConfig.java",
+          "contains": [
+            "TopicExchange"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "observability.standard-stack",
+      "title": "Repository contains metrics, logs, traces, and OpenTelemetry collector configuration",
+      "maturity": "CORE_IMPLEMENTED",
+      "evidence": [
+        {"path": "observability/prometheus.yml", "contains": []},
+        {"path": "observability/loki.yml", "contains": []},
+        {"path": "observability/tempo.yml", "contains": []},
+        {"path": "observability/otel-collector.yml", "contains": []},
+        {"path": "observability/grafana", "contains": [], "kind": "directory"}
+      ]
+    },
+    {
+      "id": "deployment.helm",
+      "title": "The platform has a repository-native Helm deployment package",
+      "maturity": "CORE_IMPLEMENTED",
+      "evidence": [
+        {"path": "deploy/helm/aetheris/Chart.yaml", "contains": ["apiVersion: v2"]},
+        {"path": "deploy/helm/aetheris/values.yaml", "contains": []},
+        {"path": "deploy/helm/aetheris/templates", "contains": [], "kind": "directory"}
+      ]
+    },
+    {
+      "id": "ci.core-verification",
+      "title": "Core backend, dashboard, compatibility, release-hardening, and workstation checks run in CI",
+      "maturity": "REPOSITORY_TESTED",
+      "evidence": [
+        {
+          "path": ".github/workflows/build.yml",
+          "contains": [
+            "backend:",
+            "dashboard:",
+            "workstation-agent:",
+            "contract-freeze:",
+            "release-hardening:"
+          ]
+        }
+      ]
+    }
+  ]
+}
