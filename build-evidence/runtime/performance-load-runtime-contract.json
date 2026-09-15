@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "name": "performance-load-runtime-proof",
+  "evidence_class": "HOSTED_RUNTIME",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "production_capacity_claim": false,
+  "truth_boundary": "This contract proves only hosted regression behavior observed on a GitHub-hosted Ubuntu Docker Compose runner. It is not a production capacity benchmark, SLA/SLO guarantee, target-PC result, network-edge benchmark, or physical-hardware certification.",
+  "gateway_policy_context": {
+    "protected_user_read_replenish_rate_per_principal": 10,
+    "protected_user_read_burst_capacity_per_principal": 20,
+    "benchmark_strategy": "Use independent real authenticated principals for aggregate load; separately overload one principal to prove HTTP 429 enforcement."
+  },
+  "guardrails": {
+    "max_error_rate": 0.01,
+    "max_p95_latency_ms": 3000,
+    "min_throughput_rps": 1.0
+  },
+  "profiles": {
+    "burst": {
+      "requests": 180,
+      "concurrency": 24,
+      "principals": 20
+    },
+    "sustained": {
+      "requests": 360,
+      "concurrency": 12,
+      "principals": 20
+    }
+  },
+  "rate_limit_probe": {
+    "requests": 40,
+    "concurrency": 24,
+    "principals": 1,
+    "min_429_responses": 1
+  },
+  "checks": [
+    {"id": "service.gateway.health", "claim": "Gateway actuator health reports UP before the load profiles."},
+    {"id": "service.identity.health", "claim": "Identity-service actuator health reports UP before the load profiles."},
+    {"id": "service.user.health", "claim": "User-service actuator health reports UP before the load profiles."},
+    {"id": "load.authenticated-session-created", "claim": "Real authenticated API principals are created through the gateway and used for protected load."},
+    {"id": "load.warmup-completes", "claim": "Protected reads complete before timing and materialize the Redis users-list cache."},
+    {"id": "load.concurrent-requests-complete", "claim": "The configured multi-principal concurrent burst request set completes and is fully observed."},
+    {"id": "load.sustained-profile-completes", "claim": "The configured multi-principal sustained authenticated read profile completes and is fully observed."},
+    {"id": "load.error-rate-within-hosted-guardrail", "claim": "Each policy-compliant hosted profile stays at or below the conservative configured error-rate guardrail."},
+    {"id": "load.p95-within-hosted-guardrail", "claim": "Each policy-compliant hosted profile stays at or below the conservative configured p95 latency guardrail."},
+    {"id": "load.throughput-above-hosted-floor", "claim": "Each policy-compliant hosted profile remains above the conservative configured throughput floor."},
+    {"id": "load.latency-percentiles-recorded", "claim": "Raw p50, p95, p99 and max latency observations are recorded for every policy-compliant profile."},
+    {"id": "load.gateway-responsive-during-load", "claim": "Gateway health continues reporting UP while the sustained profile is running."},
+    {"id": "load.rate-limit-enforced-under-overload", "claim": "A deliberate single-principal overload receives HTTP 429 while initial requests are still admitted."},
+    {"id": "load.services-healthy-after-load", "claim": "Gateway, identity-service and user-service report UP after load and overload probing complete."},
+    {"id": "load.protected-read-recovers", "claim": "A protected gateway read succeeds after the load profiles complete."},
+    {"id": "load.state-integrity-preserved", "claim": "The read-only benchmark leaves the protected user-list state unchanged after benchmark setup."},
+    {"id": "load.truth-boundary", "claim": "Evidence explicitly remains HOSTED_RUNTIME and makes no production-capacity or physical-PC claim."}
+  ]
+}

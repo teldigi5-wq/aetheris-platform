@@ -1,0 +1,141 @@
+name: Performance & Load Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'orchestrator-service/**'
+      - 'docker-compose.yml'
+      - 'tools/performance_load_runtime_smoke.py'
+      - 'build-evidence/runtime/performance-load-runtime-contract.json'
+      - 'docs/performance-load-runtime-proof.md'
+      - '.github/workflows/performance-load-runtime-proof.yml'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'orchestrator-service/**'
+      - 'docker-compose.yml'
+      - 'tools/performance_load_runtime_smoke.py'
+      - 'build-evidence/runtime/performance-load-runtime-contract.json'
+      - 'docs/performance-load-runtime-proof.md'
+      - '.github/workflows/performance-load-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-load-runtime-proof-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance-load-runtime-proof:
+    name: performance-load-runtime-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      AETHERIS_JWT_SECRET: performance-proof-local-ci-secret-change-me-42chars
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile performance proof harness
+        run: python -m py_compile tools/performance_load_runtime_smoke.py
+
+      - name: Validate performance contract JSON
+        run: python -m json.tool build-evidence/runtime/performance-load-runtime-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Start Aetheris core Compose stack
+        run: |
+          docker compose up -d --build \
+            postgres redis rabbitmq \
+            user-service identity-service audit-service orchestrator-service gateway
+          docker compose ps
+
+      - name: Run hosted performance and load proof
+        run: |
+          python tools/performance_load_runtime_smoke.py \
+            --contract build-evidence/runtime/performance-load-runtime-contract.json \
+            --output build-evidence/runtime/performance-load-runtime-report.json
+
+      - name: Verify performance report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('build-evidence/runtime/performance-load-runtime-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['production_capacity_claim'] is False, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          assert set(report['profiles']) == {'burst', 'sustained'}, report
+          assert sum(p['total_requests'] for p in report['profiles'].values()) == 540, report
+          for profile in report['profiles'].values():
+              assert profile['authenticated_principals'] >= 1, profile
+              assert profile['successful_requests'] + profile['errors'] == profile['total_requests'], profile
+              assert profile['latency_ms']['p50'] <= profile['latency_ms']['p95'], profile
+              assert profile['latency_ms']['p95'] <= profile['latency_ms']['p99'], profile
+              assert profile['latency_ms']['p99'] <= profile['latency_ms']['max'], profile
+          probe = report['rate_limit_probe']
+          assert probe['requests'] == 40, probe
+          assert probe['successful_responses'] >= 1, probe
+          assert probe['rate_limited_responses'] >= 1, probe
+          print(
+              f"verified {len(report['checks'])} hosted load checks across "
+              "540 policy-compliant requests plus a 40-request overload probe"
+          )
+          PY
+
+      - name: Capture container resource snapshot
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker stats --no-stream \
+            --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' \
+            > build-evidence/runtime/performance-load-docker-stats.txt || true
+          docker compose ps --all > build-evidence/runtime/performance-load-compose-ps.txt || true
+
+      - name: Capture failure logs
+        if: failure()
+        run: |
+          docker compose logs --no-color --tail=160 \
+            postgres redis rabbitmq user-service identity-service audit-service orchestrator-service gateway \
+            > build-evidence/runtime/performance-load-failure.log 2>&1 || true
+
+      - name: Publish hosted performance evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: performance-load-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans
