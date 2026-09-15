@@ -15,7 +15,7 @@
     {"id": "resilience.fallback-structured", "claim": "Stopping user-service produces the configured structured HTTP 503 fallback through the gateway."},
     {"id": "resilience.user-read-circuit-opens", "claim": "Repeated downstream failures drive userReadCircuit into OPEN state."},
     {"id": "resilience.open-circuit-short-circuits", "claim": "A request while the circuit is OPEN is rejected by the circuit breaker and increments notPermittedCalls."},
-    {"id": "resilience.gateway-health-during-outage", "claim": "Gateway actuator health remains UP while user-service is unavailable."},
+    {"id": "resilience.gateway-control-plane-responsive", "claim": "The gateway actuator info endpoint remains responsive while user-service is unavailable and the read circuit is OPEN."},
     {"id": "resilience.user-service-restarts", "claim": "The stopped user-service can restart and return to actuator health UP."},
     {"id": "resilience.user-read-circuit-half-open", "claim": "After the configured open-state wait, userReadCircuit transitions to HALF_OPEN without restarting the gateway."},
     {"id": "resilience.user-read-circuit-closes", "claim": "Successful half-open probes close userReadCircuit after downstream recovery."},
