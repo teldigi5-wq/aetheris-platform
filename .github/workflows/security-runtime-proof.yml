@@ -69,6 +69,19 @@ jobs:
             user-service identity-service audit-service orchestrator-service gateway
           docker compose ps
 
+      - name: Wait for user-service readiness
+        run: |
+          for attempt in {1..90}; do
+            if curl --fail --silent http://127.0.0.1:8081/actuator/health | grep -q '"status":"UP"'; then
+              echo "user-service is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "user-service did not become ready"
+          docker compose logs --no-color --tail=120 user-service
+          exit 1
+
       - name: Run security runtime proof
         run: |
           python tools/security_runtime_smoke.py \
