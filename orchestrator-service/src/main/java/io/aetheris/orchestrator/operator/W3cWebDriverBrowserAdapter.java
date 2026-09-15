@@ -14,7 +14,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static io.aetheris.orchestrator.operator.BrowserTypes.*;
 
@@ -38,7 +40,8 @@ public class W3cWebDriverBrowserAdapter {
             String browserName,
             List<BrowserAction> actions,
             Map<String, String> valuesByRef,
-            Map<String, String> filesByRef) {
+            Map<String, String> filesByRef,
+            Set<String> allowedDomains) {
         URI base = validatedLoopbackEndpoint(endpoint);
         String sessionId = null;
         List<BrowserActionResult> results = new ArrayList<>();
@@ -56,14 +59,14 @@ public class W3cWebDriverBrowserAdapter {
                 String actionId = action.actionId().isBlank() ? "step-" + (i + 1) : action.actionId();
                 try {
                     BrowserActionResult result = executeAction(base, sessionId, actionId, action, valuesByRef, filesByRef);
+                    finalUrl = currentUrl(base, sessionId);
+                    validateCurrentUrl(finalUrl, allowedDomains);
                     results.add(result);
                 } catch (RuntimeException exception) {
                     results.add(new BrowserActionResult(actionId, action.type(), false, safeMessage(exception), ""));
                     return new AdapterExecution(false, finalUrl, results, "Browser action failed: " + actionId);
                 }
             }
-            JsonNode currentUrl = request(base, "GET", "/session/" + sessionId + "/url", null);
-            finalUrl = currentUrl.path("value").asText("");
             return new AdapterExecution(true, finalUrl, results, "Generic browser workflow completed through local W3C WebDriver");
         } finally {
             if (sessionId != null && !sessionId.isBlank()) {
@@ -116,8 +119,8 @@ public class W3cWebDriverBrowserAdapter {
             case EXTRACT_TEXT -> {
                 String elementId = findElement(base, sessionId, action.selector());
                 JsonNode response = request(base, "GET", "/session/" + sessionId + "/element/" + elementId + "/text", null);
-                String text = response.path("value").asText("");
-                yield new BrowserActionResult(actionId, action.type(), true, truncate(text, 2000), "");
+                String extracted = response.path("value").asText("");
+                yield new BrowserActionResult(actionId, action.type(), true, truncate(extracted, 2000), "");
             }
             case WAIT -> {
                 int seconds = action.timeoutSeconds() == null ? 1 : Math.max(0, Math.min(action.timeoutSeconds(), 30));
@@ -140,6 +143,33 @@ public class W3cWebDriverBrowserAdapter {
         String elementId = response.path("value").path(ELEMENT_KEY).asText("");
         if (elementId.isBlank()) throw new IllegalStateException("WebDriver did not return an element id for selector");
         return elementId;
+    }
+
+    private String currentUrl(URI base, String sessionId) {
+        JsonNode response = request(base, "GET", "/session/" + sessionId + "/url", null);
+        return response.path("value").asText("");
+    }
+
+    private void validateCurrentUrl(String rawUrl, Set<String> allowedDomains) {
+        if (rawUrl == null || rawUrl.isBlank() || rawUrl.equals("about:blank")) return;
+        URI uri = URI.create(rawUrl);
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        if (!scheme.equals("http") && !scheme.equals("https")) {
+            throw new IllegalStateException("Browser left http/https navigation: " + scheme);
+        }
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+        if (host.isBlank() || !domainAllowed(host, allowedDomains)) {
+            throw new IllegalStateException("Browser redirected outside the workflow domain allowlist: " + host);
+        }
+    }
+
+    private boolean domainAllowed(String host, Set<String> allowedDomains) {
+        for (String domain : allowedDomains) {
+            String normalized = domain == null ? "" : domain.trim().toLowerCase(Locale.ROOT);
+            if (normalized.startsWith("*.")) normalized = normalized.substring(2);
+            if (!normalized.isBlank() && (host.equals(normalized) || host.endsWith("." + normalized))) return true;
+        }
+        return false;
     }
 
     private JsonNode request(URI base, String method, String path, Object body) {
@@ -174,8 +204,8 @@ public class W3cWebDriverBrowserAdapter {
 
     private URI validatedLoopbackEndpoint(String endpoint) {
         URI uri = URI.create(endpoint == null || endpoint.isBlank() ? "http://127.0.0.1:9515/" : endpoint.trim());
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase();
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
+        String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
         if (!scheme.equals("http") && !scheme.equals("https")) throw new IllegalArgumentException("WebDriver endpoint must use http or https");
         if (!(host.equals("127.0.0.1") || host.equals("localhost") || host.equals("::1"))) {
             throw new IllegalArgumentException("WebDriver endpoint must be loopback-local; remote browser control is not allowed by this adapter");
