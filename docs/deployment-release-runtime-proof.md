@@ -13,13 +13,16 @@ The GitHub Actions workflow builds the five core application images from the exa
 3. records immutable Docker image identities for gateway, identity, user, audit, and orchestrator services;
 4. writes a machine-readable release manifest and verifies its SHA-256;
 5. verifies gateway, identity, and user-service health;
-6. creates a real authenticated Aetheris identity through the gateway and performs a protected user read;
-7. deliberately stops the gateway and proves the outage is observable;
-8. proves protected traffic is unavailable while the gateway is stopped;
-9. starts the gateway again;
-10. verifies the recovered gateway uses the exact same Docker image identity recorded before the outage;
-11. proves the protected read recovers; and
-12. proves the persisted user state is unchanged across the recovery.
+6. creates a real identity-service account for authenticated gateway access;
+7. creates an explicit persisted user-service profile and confirms it through a protected gateway read;
+8. deliberately stops the gateway and proves the outage is observable;
+9. proves protected traffic is unavailable while the gateway is stopped;
+10. starts the gateway again;
+11. verifies the recovered gateway uses the exact same Docker image identity recorded before the outage;
+12. proves the protected read recovers; and
+13. proves the persisted user profile and user count are unchanged across the recovery.
+
+Identity-service accounts and user-service profiles are deliberately treated as separate Aetheris domains; the proof does not assume that registering an authentication account automatically creates a user-management profile.
 
 ## Evidence
 
