@@ -1,0 +1,124 @@
+name: Deployment & Release Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AETHERIS_JWT_SECRET: deployment-release-proof-local-ci-secret-change-me-42chars
+  AETHERIS_EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  deployment-release-runtime-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile release proof harness
+        run: python -m py_compile tools/deployment_release_runtime_smoke.py
+
+      - name: Validate release proof contract
+        run: python -m json.tool build-evidence/runtime/deployment-release-runtime-contract.json >/dev/null
+
+      - name: Verify exact revision binding
+        run: |
+          test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
+          echo "release proof revision=$AETHERIS_EXPECTED_REVISION"
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Build exact-revision release images
+        run: |
+          docker compose build \
+            user-service identity-service audit-service orchestrator-service gateway
+          docker compose images
+
+      - name: Start exact-revision release candidate
+        run: |
+          docker compose up -d \
+            postgres redis rabbitmq \
+            user-service identity-service audit-service orchestrator-service gateway
+          docker compose ps
+
+      - name: Run deployment and rollback proof
+        run: |
+          python tools/deployment_release_runtime_smoke.py \
+            --contract build-evidence/runtime/deployment-release-runtime-contract.json \
+            --manifest build-evidence/runtime/deployment-release-manifest.json \
+            --output build-evidence/runtime/deployment-release-runtime-report.json
+
+      - name: Verify machine-readable release evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('build-evidence/runtime/deployment-release-runtime-report.json').read_text())
+          manifest = json.loads(Path('build-evidence/runtime/deployment-release-manifest.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['production_deployment_claim'] is False, report
+          assert report['revision'] == manifest['revision'], (report, manifest)
+          assert len(report['checks']) == 17, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          assert report['baseline']['gateway_image_id'] == report['final_state']['gateway_image_id'], report
+          assert report['baseline']['user_count'] == report['final_state']['user_count'], report
+          assert report['final_state']['proof_profile_present'] is True, report
+          assert len(report['release_manifest_sha256']) == 64, report
+          assert set(manifest['service_image_ids']) == {
+              'gateway', 'identity-service', 'user-service', 'audit-service', 'orchestrator-service'
+          }, manifest
+          print('verified 17 hosted deployment/release checks with same-image rollback and state preservation')
+          PY
+
+      - name: Capture release runtime snapshot
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/deployment-release-compose-ps.txt || true
+          docker compose images > build-evidence/runtime/deployment-release-compose-images.txt || true
+          docker stats --no-stream \
+            --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' \
+            > build-evidence/runtime/deployment-release-docker-stats.txt || true
+
+      - name: Capture failure logs
+        if: failure()
+        run: |
+          docker compose logs --no-color --tail=300 \
+            gateway identity-service user-service audit-service orchestrator-service \
+            postgres redis rabbitmq \
+            > build-evidence/runtime/deployment-release-failure.log 2>&1 || true
+
+      - name: Publish hosted release evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: deployment-release-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down release candidate
+        if: always()
+        run: docker compose down -v --remove-orphans
