@@ -14,6 +14,10 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ### Added
 
+- Aetheris Operator v1 generic browser control plane with domain allowlists, deterministic action/effect classification, owner-policy evaluation, approval gates, emergency-stop enforcement and evidence requirements.
+- A loopback-only W3C WebDriver adapter for future Chrome/Edge browser execution on the owner PC, with redirect containment after every action and no remote WebDriver control path.
+- Generic browser actions for navigation, click, typed input through ephemeral value references, upload through file references, screenshots, bounded extraction and waits; downloads fail closed until file evidence exists.
+- Browser regression tests covering runtime truth, domain containment, non-HTTP rejection, `PRIVATE` protected-data blocking, approval-gated mutations, financial hard-blocks and disabled-runtime execution.
 - Aetheris Reach Layer v1 with a 15-channel external-information catalog, preferred/fallback backend modeling, governed routing, runtime doctor reporting, non-mutating install planning, and explicit implementation-state truth.
 - Reach policy integration so runtime routes remain subject to owner rules, `ZERO_COST`, `PRIVATE`, credential readiness, and physical-validation boundaries.
 - Reach regression tests that prevent planned social/web adapters from being reported as working capabilities before their execution adapters exist.
@@ -33,11 +37,12 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 - Physical-machine status remains `BLOCKED_PENDING_HARDWARE`.
 - Physical-PC validation remains pending.
+- Generic browser repository support does not assert that Chrome/Edge, WebDriver, authenticated sessions or site-specific workflows are validated on the owner PC.
 - Hosted CI is repository evidence, not physical-PC validation.
 - `ALLOW` means eligible to execute, not proof that execution occurred.
 - Success requires verification evidence or an explicit `UNVERIFIED` result.
 - Emergency precedence remains `STOP > TAKE_CONTROL > PAUSE > NORMAL`.
-- Live-money execution, withdrawals, and transfers remain outside the default trusted AI path.
+- Live-money execution, withdrawals, and transfers remain outside the default trusted AI path, including the generic browser path.
 
 ## Repository roadmap completion
 
