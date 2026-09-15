@@ -4,6 +4,14 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### Portfolio credibility consolidation
+
+- Reframed the root README so the primary portfolio story is the cloud-native platform foundation: gateway, identity, PostgreSQL, Redis, RabbitMQ, observability, resilience, Docker, Kubernetes and Helm.
+- Added `docs/portfolio-scope.md` with explicit maturity labels separating core platform engineering from later Syntra/Aetheris research and pre-PC integrations.
+- Reworked the interview and demo guides to lead with defensible distributed-systems/platform engineering and discuss AI/operator extensions only as a secondary track.
+- Retained the later **Stage 34 / 34** roadmap statement for historical/validation-contract continuity while explicitly preventing it from becoming the headline portfolio claim.
+- Preserved published development history rather than rewriting it for appearance; stale temporary branches remain scheduled for final project cleanup.
+
 ### Release preparation
 
 - Prepared the first formal repository pre-PC release candidate: `v0.1.0-pre-pc`.
@@ -33,8 +41,8 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ### Changed
 
-- Repository documentation now reflects the completed **Stage 34 / 34** roadmap rather than early-stage architecture.
-- Contribution guidance now follows the canonical development branch `feature/syntra-aetheris-foundation-v2` and protected `main` promotion flow.
+- Repository documentation now reflects the completed **Stage 34 / 34** roadmap without making stage count the primary recruiter narrative.
+- Contribution guidance follows the canonical development branch `feature/syntra-aetheris-foundation-v2` and protected `main` promotion flow.
 - Dependabot routine version-update PRs are disabled while security/vulnerability updates remain available.
 
 ### Safety and truth boundaries
@@ -51,7 +59,7 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Repository roadmap completion
 
-The repository roadmap reached **Stage 34 / 34** before the first formal GitHub release. The roadmap completion represents repository-side architecture, governance, validation, and evidence work. It does not assert validation of the eventual owner PC, local-model performance, GPU acceleration, thermals, voice hardware, or unrestricted host execution.
+The later Syntra × Aetheris repository roadmap reached **Stage 34 / 34** before the first formal GitHub release. This represents repository-side architecture, governance, validation and evidence work. It does not assert validation of the eventual owner PC, local-model performance, GPU acceleration, thermals, voice hardware or unrestricted host execution.
 
 ## Release policy
 

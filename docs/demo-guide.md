@@ -1,21 +1,20 @@
 # Aetheris Demo Guide
 
-This guide is the shortest reviewer-friendly path through the repository. It is designed for interviews, portfolio review and local engineering verification.
+This is the shortest reviewer-friendly path through Aetheris. It is deliberately **platform-first**: demonstrate the cloud-native backend, identity, messaging, observability, resilience and deployment story before discussing the later Syntra/Aetheris control-plane extensions.
 
-The goal is not to prove every capability in one session. The goal is to demonstrate the platform coherently while preserving the repository's truth boundaries.
+## 1. What this demo is meant to prove
 
-## 1. What this demo proves
-
-A successful repository-side demo can show:
+A successful core demo can show:
 
 - the distributed service topology starts locally;
-- gateway, identity, user, audit and orchestrator surfaces are reachable;
+- gateway, identity, user and audit surfaces are reachable;
+- PostgreSQL, Redis and RabbitMQ responsibilities are explicit;
+- authentication/token lifecycle is implemented;
 - the dashboard is served;
-- persistence/cache/messaging dependencies start;
-- the optional observability stack can be enabled;
-- repository governance, safety and verification contracts are visible and reproducible.
+- the observability stack can be enabled;
+- repository resilience/deployment choices can be explained and inspected.
 
-It does **not** prove the complete target-PC stack, GPU acceleration, voice hardware, browser/phone control, sustained thermals or unrestricted workstation authority.
+The optional AI/operator track is a separate extension. It is not required to demonstrate the core portfolio value.
 
 ## 2. Prerequisites
 
@@ -24,28 +23,24 @@ Recommended for the containerized demo:
 - Git
 - Docker with Docker Compose v2
 
-For module-level work you may also need Java 21, Node and Python according to the repository's pinned/local version files and module requirements.
+For module-level work you may also need Java 21, Node and Python.
 
-## 3. Clone and inspect
+## 3. Clone and orient the reviewer
 
 ```bash
 git clone https://github.com/teldigi5-wq/aetheris-platform.git
 cd aetheris-platform
 ```
 
-Before starting anything, orient the reviewer with:
+Open these first:
 
 - `README.md`
-- `docs/architecture.md`
-- `docs/master-build-spec.md`
+- `docs/portfolio-scope.md`
+- `docs/architecture-decisions.md`
 
-Explain the distinction:
+The first message to a reviewer should be simple:
 
-```text
-Syntra = owner-facing assistant experience
-Aetheris = infrastructure, orchestration and governance layer
-Models = replaceable reasoning workers, not policy authority
-```
+> Aetheris is primarily a distributed-systems/platform-engineering project. A later AI/operator track exists, but it is deliberately maturity-labeled separately.
 
 ## 4. Start the core stack
 
@@ -71,9 +66,9 @@ Expected local surfaces include:
 | Orchestrator | `http://localhost:8090` |
 | RabbitMQ management | `http://localhost:15672` |
 
-The credentials and fallback secrets in Compose are development defaults only.
+Compose credentials and fallback secrets are development defaults only.
 
-## 5. Demonstrate identity flow
+## 5. Demonstrate identity and token lifecycle
 
 The identity service exposes:
 
@@ -84,41 +79,54 @@ POST /api/auth/refresh
 POST /api/auth/logout
 ```
 
-A useful interview explanation is that access/refresh tokens are credentials, not ordinary identifiers. Refresh flows should be treated as security-sensitive lifecycle state.
+Explain these design points:
 
-Do not paste real passwords, tokens or private credentials into screenshots, issues or recorded demos.
+- access JWTs are short-lived authorization credentials;
+- refresh tokens are credentials, not ordinary IDs;
+- refresh-token rotation/revocation matters;
+- persisted refresh credentials should be represented by hashes rather than reusable plaintext values;
+- gateway enforcement does not remove the need for downstream authorization assumptions.
 
-## 6. Demonstrate the request path
+Do not paste real credentials or tokens into screenshots or public issues.
 
-Use the architecture diagram to explain the service flow:
+## 6. Demonstrate the distributed request path
+
+Explain the service flow:
 
 ```text
-Dashboard / Client
+Client / Dashboard
   → API Gateway
-  → trusted auth/routing boundary
   → downstream service
-  → PostgreSQL / Redis / RabbitMQ when needed
-  → response
-  → audit / metrics / traces
+  → PostgreSQL / Redis as needed
+  → RabbitMQ event when asynchronous work is appropriate
+  → Audit consumer
+  → metrics / logs / traces
 ```
 
-The important point is not merely that requests return 200. Explain which component owns each responsibility and what should happen when a dependency fails.
+The important part is responsibility ownership. A strong demo explains why each dependency exists and what should happen if it fails.
 
-## 7. Show the dashboard
+## 7. Explain Redis and cache trade-offs
 
-Open:
+Use the code/configuration to discuss:
 
-```text
-http://localhost:3000
-```
+- what is safe to cache;
+- staleness/invalidation trade-offs;
+- which security decisions should not silently become permissive if Redis is unavailable;
+- why caching is an optimization, not a source of truth for everything.
 
-Use the dashboard to explain that the UI is an operator/developer surface. It displays and exercises platform behavior; it is not the final owner-policy authority.
+## 8. Explain RabbitMQ and asynchronous audit flow
 
-If a UI surface is unavailable during a demo, use the service/API and observability evidence rather than hiding the failure.
+Use the producer/consumer path to discuss:
 
-## 8. Enable observability
+- why audit/event processing can be decoupled from the synchronous request;
+- delivery failure;
+- duplicate delivery/idempotency;
+- poison messages/retry strategy;
+- why using a broker does not automatically solve reliability.
 
-Stop the core stack if needed, then start the observability profile:
+## 9. Enable observability
+
+Start the observability profile:
 
 ```bash
 docker compose --profile observability up --build
@@ -139,156 +147,115 @@ Explain the roles:
 - **Grafana** — visualization/exploration;
 - **Loki** — logs;
 - **Tempo** — traces;
-- **OpenTelemetry** — instrumentation/telemetry transport foundation.
+- **OpenTelemetry** — instrumentation and telemetry foundation.
 
-Observability is diagnostic evidence. It does not by itself prove a business action succeeded.
+A strong explanation connects telemetry to a real debugging question rather than simply listing the tools.
 
-## 9. Demonstrate governance
+## 10. Explain resilience
 
-Open `docs/master-build-spec.md` and `docs/stage-33-governance-approvals.md`.
+Show the Resilience4j policies and explain why retry depends on side effects.
 
-Explain the universal lifecycle:
-
-```text
-UNDERSTAND
-  → PLAN
-  → CHECK RULES
-  → ASSESS RISK
-  → SIMULATE / PREVIEW when required
-  → APPROVE when required
-  → EXECUTE
-  → VERIFY
-  → RECORD
-  → LEARN
-  → REPORT
-```
-
-Then explain three key semantics:
-
-1. `ALLOW` means **eligible**, not executed.
-2. no execution observation means `EXECUTE` is incomplete;
-3. success requires verification evidence or an explicit `UNVERIFIED` state.
-
-Emergency precedence is:
+A useful interview contrast is:
 
 ```text
-STOP > TAKE_CONTROL > PAUSE > NORMAL
+safe read fails transiently → a bounded retry may be acceptable
+state-changing request fails ambiguously → blind retry may duplicate the mutation
 ```
 
-## 10. Demonstrate repository quality controls
+Also explain how a circuit breaker reduces pressure on an unhealthy dependency and prevents cascading failure.
 
-Show GitHub Actions and the protected `main` ruleset.
+## 11. Show Kubernetes / Helm assets
 
-Explain that stable promotion is gated by checks covering areas such as:
+Walk through the deployment assets and discuss:
+
+- deployments and services;
+- liveness/readiness;
+- replicas;
+- desired state;
+- configuration through Helm;
+- what happens when a pod is removed or becomes unhealthy.
+
+The value is the operational reasoning, not simply the existence of YAML files.
+
+## 12. Repository-quality controls
+
+Show protected `main` and GitHub Actions. Useful checks include:
 
 - backend/service tests;
 - dashboard build;
-- workstation-agent checks;
 - CodeQL;
+- compatibility-contract freeze;
 - dependency lockdown;
-- reproducible-build comparison;
-- readiness/safety/governance checks;
-- Stage 30–34 regression/integrity validation.
+- two-pass reproducibility comparison.
 
-The repository intentionally separates stable history from temporary development work.
+The repository has additional later-roadmap checks, but do not lead with their stage numbers during a recruiter demo.
 
-## 11. Run focused repository validators
+## 13. Strong 10-minute interview sequence
 
-Stage 34 specification integrity:
+### Minute 0–1 — Architecture
 
-```bash
-python tools/validate_master_build_spec.py
-```
+Gateway + service boundaries.
 
-Reasoning regression:
+### Minute 1–3 — Identity/security
 
-```bash
-cd aetheris-reasoning
-python -m unittest discover -s tests -v
-```
+Registration/login/refresh/logout, token lifecycle, refresh-token hashing.
 
-Later-stage orchestrator regressions can be run from the repository root:
+### Minute 3–5 — Distributed state and messaging
 
-```bash
-mvn -B -f orchestrator-service/pom.xml -Dtest=Stage31FoundationTest test
-mvn -B -f orchestrator-service/pom.xml -Dtest=Stage32FoundationTest test
-mvn -B -f orchestrator-service/pom.xml -Dtest=Stage33GovernanceTest test
-```
+PostgreSQL + Redis + RabbitMQ + audit/event flow.
 
-## 12. Strong 10-minute interview sequence
+### Minute 5–7 — Observability/resilience
 
-### Minute 0–1 — Problem and identity
+Metrics/logs/traces + circuit breaker/retry trade-offs.
 
-Explain Syntra vs Aetheris and the owner-control principle.
+### Minute 7–9 — Deployment
 
-### Minute 1–3 — Architecture
+Docker Compose + Kubernetes + Helm + readiness/replicas.
 
-Walk through gateway, identity, user, audit, orchestrator, PostgreSQL, Redis and RabbitMQ.
+### Minute 9–10 — Engineering quality
 
-### Minute 3–5 — Running system
+Protected `main`, CI, CodeQL and reproducibility.
 
-Show the dashboard/core services and one identity/API flow.
+Stop there unless the reviewer specifically wants the AI/operator work.
 
-### Minute 5–7 — Observability
+## 14. Optional extension demo — Syntra / Aetheris control plane
 
-Show how you would diagnose a distributed request or service failure.
+If the interviewer is interested in AI systems or automation, continue with the secondary track.
 
-### Minute 7–9 — Governance and verification
+Explain the maturity split first:
 
-Explain deterministic owner policy, approval, emergency precedence and the difference between `ALLOW`, execution and verified success.
+- orchestration/policy code is repository-tested;
+- generic-browser/site-skill code exists;
+- exact browser runtime, authenticated LinkedIn/Vercel sessions and target-PC behavior are **not physically validated yet**;
+- live-money trading is disabled by policy.
 
-### Minute 9–10 — Engineering truth
+Then show the relevant orchestrator/operator code and tests rather than presenting the historical stage count as the feature.
 
-Show protected `main`, reproducibility/CI evidence and the physical-PC boundary:
+## 15. Physical validation boundary
 
-```text
-Repository roadmap: 34 / 34 complete
-Physical-machine status: BLOCKED_PENDING_HARDWARE
-```
+**Physical-machine status: `BLOCKED_PENDING_HARDWARE`.**
 
-This ending demonstrates that the project distinguishes implementation from proof.
+Repository CI does not prove GPU acceleration, voice hardware, sustained thermals, local-model latency, browser sessions or workstation behavior on hardware that has not been tested.
 
-## 13. Failure-demo ideas
+The later master roadmap still records **Stage 34 / 34** for historical/contract reasons, but that is not the primary portfolio claim.
 
-When appropriate, demonstrate a controlled failure rather than only the happy path.
+## 16. Failure-demo ideas
 
-Examples:
+Useful controlled demos include:
 
 ```bash
 docker compose stop user-service
 ```
 
-Then observe gateway/service behavior and logs. Restore it afterward:
+Then use metrics/logs/traces and gateway behavior to explain how the failure is observed and contained.
 
-```bash
-docker compose start user-service
-```
+Other useful exercises:
 
-Use `docs/resilience.md` for the intended resilience demonstration and recovery notes.
+- stop RabbitMQ and inspect event-path behavior;
+- stop Redis and discuss which behavior should degrade versus fail closed;
+- remove a Kubernetes pod and inspect desired-state recovery;
+- exercise an endpoint protected by resilience policy and explain why the retry behavior is safe or unsafe.
 
-## 14. Cleanup
+## 17. Demo rule
 
-Stop the stack:
-
-```bash
-docker compose down
-```
-
-To remove local volumes as well, only do so when you intentionally want to destroy local development data:
-
-```bash
-docker compose down -v
-```
-
-## 15. What not to claim during the demo
-
-Do not claim:
-
-- full production readiness;
-- physical-PC validation before hardware evidence exists;
-- unrestricted autonomous workstation/admin authority;
-- autonomous live-money trading;
-- that CI proves GPU/voice/thermal performance;
-- that policy eligibility proves execution success.
-
-The credibility of the demo comes from showing both capabilities **and boundaries**.
+Never hide a failure during a technical demo. If a component fails, use it as evidence that you understand diagnosis, dependency boundaries and recovery.

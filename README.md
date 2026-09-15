@@ -2,99 +2,133 @@
 
 # Aetheris Platform
 
-### Syntra × Aetheris — owner-controlled AI, distributed systems and verifiable automation
+### Cloud-native distributed systems engineering with an experimental AI control plane
 
-**A portfolio-grade engineering platform that combines cloud-native backend services, local-first AI orchestration, deterministic governance, observability, recovery planning and evidence-driven safety.**
+**A portfolio project centered on secure backend services, distributed systems, observability, resilience and Kubernetes — with later Syntra/Aetheris automation research kept as a clearly separated extension track.**
 
-![Roadmap](https://img.shields.io/badge/Roadmap-34%2F34_complete-22c55e?style=for-the-badge)
 ![Main](https://img.shields.io/badge/main-protected-2563eb?style=for-the-badge&logo=github)
-![Release candidate](https://img.shields.io/badge/release_candidate-v0.1.0--pre--pc-7c3aed?style=for-the-badge)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Physical validation](https://img.shields.io/badge/Physical_PC-BLOCKED_PENDING_HARDWARE-f59e0b?style=for-the-badge)
 
-`Java 21` • `Spring Boot` • `React + TypeScript` • `PostgreSQL` • `Redis` • `RabbitMQ` • `OpenTelemetry` • `Prometheus` • `Grafana` • `Kubernetes` • `Helm` • `Python`
+`Java 21` • `Spring Boot` • `PostgreSQL` • `Redis` • `RabbitMQ` • `Resilience4j` • `OpenTelemetry` • `Prometheus` • `Grafana` • `Loki` • `Tempo` • `Kubernetes` • `Helm` • `React + TypeScript`
 
 </div>
 
 ---
 
-## Why Aetheris exists
+## Portfolio pitch
 
-Aetheris is not a collection of disconnected demos. It is one evolving engineering system designed to show how secure APIs, distributed services, local AI, automation and owner policy can work together without letting an AI model become the final authority.
+The strongest way to evaluate Aetheris is as a **platform-engineering project first**.
 
-The project is built around four ideas:
+The core system demonstrates a coherent progression through:
 
-1. **Engineering depth** — real service boundaries, persistence, messaging, resilience, observability, deployment and verification.
-2. **Owner control** — deterministic rules, scoped approvals and emergency precedence outrank model suggestions.
-3. **Evidence over claims** — important capabilities should be visible in code, explainable in an interview and backed by reproducible checks.
-4. **Local-first economics** — no mandatory recurring AI or platform subscription is required by the architecture; external services are optional and policy-governed.
+1. API gateway and service boundaries;
+2. identity, JWT access tokens and refresh-token lifecycle;
+3. PostgreSQL persistence, Redis caching and traffic controls;
+4. asynchronous RabbitMQ events and audit processing;
+5. metrics, logs and traces with OpenTelemetry and the Grafana stack;
+6. bounded resilience with safe retry behavior;
+7. Docker, Kubernetes and Helm deployment foundations.
 
-> **Truth boundary:** the repository roadmap is complete, but hosted CI is not proof that the complete stack has been validated on the owner's future physical PC.
+Those areas are the **primary recruiter/interview story** because they are concrete, independently understandable and directly visible in code and deployment assets.
 
----
+After the cloud-native platform foundation, the repository also grew a separate **experimental control-plane track** for Syntra/Aetheris AI orchestration, browser/operator research, deterministic approvals and evidence-driven automation. Those extensions are real repository work, but they have different maturity levels and must not be confused with the proven core platform.
 
-## Release candidate
-
-**Prepared candidate:** `v0.1.0-pre-pc` — `REPOSITORY_PRE_PC`  
-**Publication status:** prepared, **not yet published**  
-**Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
-
-The first formal release candidate is intentionally a **pre-PC repository milestone**. It is suitable for code/architecture review, interview demonstration, repository-side reproduction, CI/security review, and preparation for the future physical first-boot phase. It is not a claim that the complete platform has been validated on the owner's target machine.
-
-Release preparation documents:
-
-- **[Candidate notes](docs/releases/v0.1.0-pre-pc.md)** — scope, highlights, validation expectations and known limitations.
-- **[Versioning policy](docs/versioning.md)** — semantic versioning and the `pre-pc` trust boundary.
-- **[Release-readiness checklist](docs/release-readiness.md)** — required exact-commit gates before publication.
-- **[Changelog](CHANGELOG.md)** — repository-level change history.
-
-A repository-recognized software license has **not** been selected yet. No release, tag or badge should be interpreted as granting third-party reuse rights beyond applicable law until the owner makes that licensing decision explicitly.
+See **[Portfolio scope & maturity](docs/portfolio-scope.md)** for the exact separation.
 
 ---
 
-## Syntra vs Aetheris
+## What to review first
 
-| Layer | Role |
+| If you have... | Start here |
 |---|---|
-| **Syntra** | The owner-facing assistant experience: planning, conversation, voice/UI interaction and coordinated task intent. |
-| **Aetheris** | The infrastructure and control plane: APIs, identity, agents, tools, policy, approvals, evidence, automation, observability and recovery. |
-| **Models** | Replaceable reasoning workers. They may recommend actions but do not outrank deterministic owner policy. |
-
-This separation keeps the assistant experience flexible while the safety and governance layer remains explicit and testable.
+| **2 minutes** | This README → **Core platform track** → architecture diagram |
+| **10 minutes** | [Demo guide](docs/demo-guide.md) → gateway/auth → messaging → observability |
+| **Interview prep** | [Interview guide](docs/interview-guide.md) → [Architecture decisions](docs/architecture-decisions.md) |
+| **AI/operator interest** | [Portfolio scope & maturity](docs/portfolio-scope.md) → [Architecture](docs/architecture.md) |
+| **Repository governance interest** | [Verification checklist](docs/verification-checklist.md) → [Master roadmap](docs/master-roadmap.md) |
 
 ---
 
-## What is implemented
+## Core platform track — primary portfolio story
 
-| Engineering domain | Repository evidence |
+### 1. Gateway and service boundaries
+
+A Spring Cloud Gateway provides one ingress surface in front of independently bounded services. The repository separates identity, user-domain, audit/event and orchestration responsibilities instead of collapsing them into one application.
+
+### 2. Identity and token lifecycle
+
+The identity service implements registration, login, refresh and logout flows around JWT access tokens and refresh-token state. Refresh tokens are treated as credentials: rotation/revocation and stored token hashes are part of the design rather than storing reusable plaintext refresh credentials.
+
+### 3. Persistence, cache and traffic controls
+
+PostgreSQL provides durable relational state. Redis supports low-latency distributed concerns such as caching/rate-related controls. Security-sensitive behavior is designed to fail closed rather than silently weakening authorization when an infrastructure dependency is unhealthy.
+
+### 4. Messaging and audit flow
+
+RabbitMQ supports asynchronous event delivery so audit/event processing does not have to block every synchronous user request. This creates an explicit delivery and failure boundary that can be observed and reasoned about.
+
+### 5. Observability
+
+The project includes OpenTelemetry instrumentation foundations plus Prometheus, Grafana, Loki and Tempo for metrics, visualization, logs and traces.
+
+### 6. Resilience
+
+Resilience4j policies demonstrate circuit breaking and bounded retry behavior. Retrying is intentionally constrained to operations where repetition is safe rather than being applied blindly to mutating requests.
+
+### 7. Deployment
+
+Docker Compose provides the fast local integration path. Kubernetes and Helm assets demonstrate health/readiness, replicas, deployment topology and cloud-native operational concepts.
+
+---
+
+## Core architecture
+
+```mermaid
+flowchart LR
+    CLIENT[Dashboard / Client] --> GW[API Gateway]
+
+    GW --> ID[Identity Service]
+    GW --> USER[User Service]
+    GW --> AUDIT[Audit Service]
+    GW --> ORCH[Orchestrator]
+
+    ID --> PG[(PostgreSQL)]
+    USER --> PG
+    GW --> REDIS[(Redis)]
+    USER --> MQ[(RabbitMQ)]
+    MQ --> AUDIT
+
+    GW --> OTEL[OpenTelemetry]
+    ID --> OTEL
+    USER --> OTEL
+    AUDIT --> OTEL
+    ORCH --> OTEL
+    OTEL --> OBS[Prometheus / Grafana / Loki / Tempo]
+```
+
+The core story remains useful even if the optional AI/operator track is ignored entirely.
+
+---
+
+## Experimental control-plane extensions
+
+The repository later expanded beyond the original cloud-native foundation. These extensions are intentionally presented as a **secondary engineering/research track**, not as evidence that every planned AI capability already works on a production workstation.
+
+| Extension | Current maturity |
 |---|---|
-| API & identity | Spring Cloud Gateway, protected routes, JWT/refresh-token flows, RBAC/scope foundations |
-| Distributed systems | PostgreSQL, Redis, RabbitMQ, bounded resilience and service separation |
-| Observability | metrics, logs, traces, Prometheus, Grafana, Loki, Tempo, OpenTelemetry |
-| Cloud native | Docker Compose, Kubernetes, Helm, health/readiness behavior |
-| Agent orchestration | orchestrator service, tool/mission foundations, policy-aware action planning |
-| Reasoning & verification | confidence, uncertainty, verifier/critic patterns, simulation and decision evidence |
-| Digital twins | project/PC/workspace state, proactive detection and bounded recovery planning |
-| Automation control | normalized events, scheduling, workflow control and emergency preemption |
-| Governance | owner rules, risk escalation, scoped approval, execution/verification truth |
-| Release integrity | compatibility freeze, dependency lockdown, deterministic evidence, reproducible builds |
-| PC care | deterministic diagnostics and remediation planning before physical validation |
-| Trading intelligence | fail-closed proposal/risk foundation; live-money authority disabled by default |
+| Agent/orchestration service | Repository implemented and tested |
+| Deterministic owner policy / scoped approvals | Repository implemented and regression-tested |
+| Reasoning / verification components | Repository implemented; not a claim of human-level autonomy |
+| Digital-twin / recovery foundations | Repository-side models and bounded recovery logic |
+| Generic browser operator | Repository adapter implemented; physical runtime not yet validated |
+| LinkedIn/Vercel site skills | Repository templates only; exact site flows not physically validated |
+| PC-care / workstation integration | Pre-PC repository foundation; physical validation pending |
+| Trading intelligence | Fail-closed research/risk foundation; live-money authority disabled |
 
----
-
-## 5-minute orientation
-
-If you are reviewing this repository for an interview, contribution or technical evaluation, start here:
-
-1. **[Architecture](docs/architecture.md)** — how the services, control plane and governance layers fit together.
-2. **[Demo guide](docs/demo-guide.md)** — the shortest reproducible path through the platform.
-3. **[Interview guide](docs/interview-guide.md)** — design decisions, trade-offs and questions to be ready to defend.
-4. **[Master build specification](docs/master-build-spec.md)** — the canonical product/safety/build contract.
-5. **[Verification checklist](docs/verification-checklist.md)** — what evidence should exist before claiming success.
+The architectural rule is simple: **models may propose actions, but they are not the final policy authority**. Repository-side automation remains subject to deterministic policy, approval and verification rules.
 
 ---
 
@@ -102,12 +136,10 @@ If you are reviewing this repository for an interview, contribution or technical
 
 ### Prerequisites
 
-For the current repository-side demo path:
-
 - Git
 - Docker with Docker Compose v2
 
-Java 21, Node and Python are needed when running individual modules or validation tools directly rather than through containers.
+Java 21, Node and Python are needed only when running individual modules or repository validators directly.
 
 ### Start the core stack
 
@@ -117,7 +149,7 @@ cd aetheris-platform
 docker compose up --build
 ```
 
-Core local entry points:
+Core local surfaces:
 
 | Surface | Local address |
 |---|---|
@@ -129,135 +161,82 @@ Core local entry points:
 | Orchestrator | `http://localhost:8090` |
 | RabbitMQ management | `http://localhost:15672` |
 
-The Compose credentials and fallback JWT secret are **development-only defaults**. Do not reuse them for a real deployment.
+Compose credentials and fallback secrets are **development-only defaults**.
 
-### Start the observability profile
+### Start observability
 
 ```bash
 docker compose --profile observability up --build
 ```
 
-Additional local surfaces include Grafana on `http://localhost:3001`, Prometheus on `http://localhost:9090`, Tempo on `http://localhost:3200` and Loki on `http://localhost:3100`.
+Additional surfaces include Grafana on `http://localhost:3001`, Prometheus on `http://localhost:9090`, Tempo on `http://localhost:3200` and Loki on `http://localhost:3100`.
 
-See **[docs/demo-guide.md](docs/demo-guide.md)** for the validation/demo sequence and **[docs/first-boot-runbook.md](docs/first-boot-runbook.md)** for the physical-PC execution phase.
-
----
-
-## Architecture at a glance
-
-```mermaid
-flowchart LR
-    OWNER[Owner / Operator] --> SYN[Syntra Experience]
-    SYN --> DASH[React Dashboard]
-    DASH --> GW[API Gateway]
-
-    GW --> ID[Identity Service]
-    GW --> USR[User Service]
-    GW --> AUD[Audit Service]
-    GW --> ORCH[Orchestrator]
-
-    ID --> PG[(PostgreSQL)]
-    USR --> PG
-    GW --> REDIS[(Redis)]
-    USR --> MQ[(RabbitMQ)]
-    MQ --> AUD
-
-    ORCH --> GOV[Governance Lifecycle]
-    RSN[Reasoning + Verification] --> GOV
-    TWIN[Digital Twins] --> GOV
-    AUTO[Automation Control] --> GOV
-    PC[PC Care] --> GOV
-    TRD[Trading Intelligence] --> GOV
-
-    GOV --> POLICY[Owner Policy + Risk + Scoped Approval]
-    POLICY --> EXEC[Eligible Execution]
-    EXEC --> VERIFY[Verification + Evidence]
-
-    GW --> OTEL[OpenTelemetry]
-    ID --> OTEL
-    USR --> OTEL
-    AUD --> OTEL
-    OTEL --> OBS[Prometheus / Grafana / Loki / Tempo]
-
-    EMG[STOP > TAKE_CONTROL > PAUSE > NORMAL] --> GOV
-```
-
-The full architecture, boundaries and failure model are documented in **[docs/architecture.md](docs/architecture.md)**.
+See **[docs/demo-guide.md](docs/demo-guide.md)** for the recommended reviewer sequence.
 
 ---
 
-## Universal action lifecycle
+## Security and reliability highlights
 
-```text
-UNDERSTAND
-  → PLAN
-  → CHECK RULES
-  → ASSESS RISK
-  → SIMULATE / PREVIEW when required
-  → APPROVE when required
-  → EXECUTE
-  → VERIFY
-  → RECORD
-  → LEARN
-  → REPORT
-```
+- access/refresh token lifecycle is treated as a credential-management problem, not just JWT generation;
+- persistence entities are not used as public API contracts by default;
+- Redis/RabbitMQ failures are explicit infrastructure failures, not reasons to weaken authorization;
+- retries are limited to operations where repetition is safe;
+- secrets should never be committed, logged or included in evidence artifacts;
+- stable `main` is protected and changes are promoted through pull requests and CI;
+- dependency lockdown, CodeQL and reproducibility checks provide repository-level evidence.
 
-A preflight `ALLOW` means **eligible to execute**. It is not proof that execution happened. If execution is not observed, the `EXECUTE` phase is incomplete. Final success requires verification evidence or an explicit `UNVERIFIED` result.
-
-### Non-negotiable control boundaries
-
-- deterministic owner policy outranks model recommendations;
-- `ZERO-COST` blocks configured billable/non-zero-cost fallback paths;
-- `PRIVATE` constrains protected content to approved local paths unless exact policy/owner override permits otherwise;
-- emergency precedence is `STOP > TAKE_CONTROL > PAUSE > NORMAL`;
-- public, destructive, privileged, financial and difficult-to-undo work receives stricter control;
-- live-money execution, withdrawals and transfers are outside the default trusted AI path;
-- secrets must not be committed, logged or exposed through prompts/evidence;
-- hosted CI cannot be used as proof of physical-machine capability.
+For the detailed security model, see **[Token flow and threat model](docs/security/token-flow.md)**.
 
 ---
 
-## Repository roadmap — Stage 34 / 34
+## Kubernetes / Helm and operational story
 
-**Repository status:** `PRE_PC_HARDENED + ROADMAP_34_COMPLETE`  
-**Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
+The deployment track is intended to demonstrate more than “I wrote a Dockerfile.” Reviewers can inspect:
 
+- Kubernetes deployments/services;
+- health/readiness behavior;
+- replica configuration and scaling concepts;
+- Helm packaging and configuration;
+- observability integration;
+- recovery behavior when services become unavailable.
+
+See **[Architecture](docs/architecture.md)** and **[Demo guide](docs/demo-guide.md)**.
+
+---
+
+## AI/operator track: explicit truth boundary
+
+The later Syntra/Aetheris work has repository evidence, but some runtime claims depend on hardware and authenticated external services that have not yet been physically tested on the target PC.
+
+**Physical-machine status:** `BLOCKED_PENDING_HARDWARE`  
 **Physical-PC validation remains pending.** Hosted CI and repository evidence are not substitutes for validation on the owner's target machine.
 
-Stage 34 converts the Syntra × Aetheris Master Blueprint into a repository-native specification in **[docs/master-build-spec.md](docs/master-build-spec.md)** and validates that the final roadmap state does not silently drift into unsupported claims.
-
-### What 34 / 34 does not mean
-
-It does **not** prove WSL2, Docker Desktop, GPU acceleration, local-model speed, thermals, storage health, voice hardware, browser/phone control or the complete local stack on the target PC. Those are intentionally deferred to evidence-driven physical validation.
-
-There is **no Stage 35**. The next engineering phase is execution of the existing specification on real hardware.
+That means the repository does **not** currently claim that WSL2, Docker Desktop, GPU acceleration, local-model latency, thermals, voice hardware, Chrome/Edge WebDriver sessions, LinkedIn automation or Vercel browser automation are validated on the future owner PC.
 
 ---
 
-## Verification, CI and protected stable history
+## Roadmap history and why Stage 34 / 34 still appears
 
-The stable `main` branch is protected by the repository ruleset **`Protect stable main`**. Promotion requires a pull request and the configured checks before stable history changes.
+The repository contains two different historical tracks:
+
+1. the original cloud-native platform progression, which is the primary portfolio narrative;
+2. the later Syntra × Aetheris master roadmap, which expanded the repository into AI orchestration, governance and pre-PC automation research.
+
+The later repository roadmap reached **Stage 34 / 34**. That statement is retained for historical/validation-contract consistency; it is **not** the headline claim for the portfolio and it does not mean every aspirational subsystem is production-ready.
+
+There is no Stage 35. New work after that roadmap is treated as normal engineering passes or versioned capabilities, not as an attempt to inflate the stage count.
+
+For the full historical record see **[docs/master-roadmap.md](docs/master-roadmap.md)**.
+
+---
+
+## Verification and stable history
+
+Stable `main` is protected by the repository ruleset **`Protect stable main`**.
 
 Canonical development line: `feature/syntra-aetheris-foundation-v2`.
 
-The verification surface includes:
-
-- Java backend/service tests;
-- dashboard frozen install/build;
-- workstation-agent packaging and safety checks;
-- CodeQL for Java and JavaScript/TypeScript;
-- compatibility-contract freeze;
-- dependency lockdown and two-pass reproducibility comparison;
-- Stage 25 first-boot readiness;
-- Stage 26 safety/evidence certification;
-- Stage 27 repository governance;
-- Stage 28 PC-care regression;
-- Stage 29 trading-safety foundation;
-- Stage 30 reasoning regression;
-- Stage 31 digital-twin/recovery regression;
-- Stage 32 automation/emergency-control regression;
-- Stage 33 governance regression;
-- Stage 34 master-build-spec integrity validation.
+The verification surface includes backend tests, dashboard builds, workstation-agent checks, compatibility-contract freeze, CodeQL for Java and JavaScript/TypeScript, dependency lockdown, two-pass reproducibility and later control-plane regression checks.
 
 Hosted CI is repository evidence, **not physical-PC validation**.
 
@@ -267,20 +246,19 @@ Hosted CI is repository evidence, **not physical-PC validation**.
 
 ```text
 aetheris-platform/
-├── gateway/                 API ingress and policy-enforcement surface
+├── gateway/                 API ingress and cross-cutting gateway concerns
 ├── identity-service/        Authentication and token lifecycle
 ├── user-service/            User-domain service and persistence
 ├── audit-service/           Audit/event consumption surface
-├── orchestrator-service/    Agent/governance/automation orchestration
-├── workstation-agent/       Bounded workstation integration foundation
+├── orchestrator-service/    Optional orchestration/control-plane extensions
+├── workstation-agent/       Pre-PC workstation integration foundation
 ├── dashboard/               React + TypeScript operator UI
-├── aetheris-reasoning/      Reasoning and verification components
-├── aetheris-quant/          Quant/trading analysis foundation
+├── aetheris-reasoning/      Experimental reasoning/verification components
+├── aetheris-quant/          Fail-closed quant/trading research foundation
 ├── observability/           Prometheus/Grafana/Loki/Tempo/OTel config
 ├── deploy/                  Kubernetes and Helm assets
-├── docs/                    Architecture, safety, roadmap and runbooks
-├── tools/                   Deterministic repository validators
-└── build-evidence/          Repository-side evidence artifacts/contracts
+├── docs/                    Architecture, security, runbooks and scope docs
+└── build-evidence/          Repository-side validation evidence/contracts
 ```
 
 ---
@@ -289,61 +267,57 @@ aetheris-platform/
 
 | Area | Discussion value |
 |---|---|
-| Backend engineering | API boundaries, validation, persistence, messaging and failure behavior |
-| Security | identity/token lifecycle, authorization boundaries, secret hygiene and fail-closed design |
-| Distributed systems | gateway/service topology, Redis, RabbitMQ, resilience and asynchronous audit flow |
-| DevOps | containers, Compose, Kubernetes, Helm, pinned CI and reproducible builds |
-| Observability | metrics, traces, logs, dashboards and evidence-based debugging |
-| AI systems | model/tool separation, reasoning workers, governance and verification |
-| Safety engineering | approvals, risk escalation, emergency precedence and explicit truth boundaries |
-| Engineering communication | architecture docs, ADRs, runbooks, verification evidence and trade-off reasoning |
+| Backend engineering | API boundaries, DTOs, validation, persistence and failure behavior |
+| Security | token lifecycle, authorization assumptions and secret hygiene |
+| Distributed systems | gateway topology, Redis, RabbitMQ and asynchronous audit flow |
+| Reliability | circuit breaking, safe retry decisions and failure containment |
+| Observability | metrics, logs, traces and distributed debugging |
+| DevOps | Docker Compose, Kubernetes, Helm and reproducible CI |
+| AI systems — optional | tool/model separation, policy, approvals and verification |
+| Engineering communication | ADRs, runbooks, scope/maturity labeling and trade-off reasoning |
 
-Aetheris deliberately documents **what is not validated yet**. That is part of the engineering standard, not a missing claim to hide.
+The recommended interview approach is to **defend the core platform first** and discuss the AI/operator extensions only when relevant to the role or interviewer.
 
 ---
 
 ## Documentation
 
-### Start here
+### Reviewer / recruiter path
 
-- [Architecture](docs/architecture.md)
+- [Portfolio scope & maturity](docs/portfolio-scope.md)
 - [Demo guide](docs/demo-guide.md)
 - [Interview guide](docs/interview-guide.md)
-- [Master build specification](docs/master-build-spec.md)
+- [Architecture decisions](docs/architecture-decisions.md)
+- [Architecture](docs/architecture.md)
+
+### Deep engineering / governance path
+
 - [Master roadmap](docs/master-roadmap.md)
+- [Master build specification](docs/master-build-spec.md)
+- [Verification checklist](docs/verification-checklist.md)
+- [First-boot runbook](docs/first-boot-runbook.md)
 - [Versioning and release classes](docs/versioning.md)
 - [Release-readiness checklist](docs/release-readiness.md)
-- [v0.1.0-pre-pc candidate notes](docs/releases/v0.1.0-pre-pc.md)
 
-### Safety, operations and verification
+---
 
-- [Token flow and threat model](docs/security/token-flow.md)
-- [Resilience runbook](docs/resilience.md)
-- [First-boot runbook](docs/first-boot-runbook.md)
-- [Verification checklist](docs/verification-checklist.md)
-- [Architecture decisions](docs/architecture-decisions.md)
-- [Stage 26 safety certification](docs/stage-26-safety-certification.md)
-- [Stage 27 repository governance](docs/stage-27-repository-governance.md)
-- [Stage 28 PC care & system engineering](docs/stage-28-pc-care-system-engineering.md)
-- [Stage 29 trading intelligence & execution](docs/stage-29-trading-intelligence-execution.md)
-- [Stage 30 reasoning & verification](docs/stage-30-reasoning.md)
-- [Stage 31 digital twins & bounded self-healing](docs/stage-31-digital-twins-self-healing.md)
-- [Stage 32 automation, observability & emergency control](docs/stage-32-automation-observability-emergency-control.md)
-- [Stage 33 governance & approvals](docs/stage-33-governance-approvals.md)
+## Release status
+
+A repository pre-PC candidate named `v0.1.0-pre-pc` has been prepared but not published. A repository-recognized software license has not yet been selected, so this repository should not imply third-party reuse rights that the owner has not explicitly granted.
 
 ---
 
 ## Contributing
 
-Contributions and review experiments are welcome. Read **[CONTRIBUTING.md](CONTRIBUTING.md)** before changing code, especially for identity, policy, automation, trading, workstation or deployment surfaces.
+Read **[CONTRIBUTING.md](CONTRIBUTING.md)** before changing code, especially identity, policy, workstation, trading or deployment surfaces.
 
-Security-sensitive findings should follow **[SECURITY.md](SECURITY.md)** and should never include secrets or exploit material in a public issue.
+Security-sensitive findings should follow **[SECURITY.md](SECURITY.md)** and should never include secrets in a public issue.
 
 ---
 
 <div align="center">
 
-### Build. Secure. Observe. Orchestrate. Govern. Verify.
+### Build. Secure. Observe. Deploy. Verify.
 
 **Built by Poojana Kaveesh Sellahewa**
 
