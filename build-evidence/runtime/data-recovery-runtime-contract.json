@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "capability": "data-recovery",
+  "evidence_class": "HOSTED_RUNTIME",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "production_disaster_recovery_certification": false,
+  "checks": [
+    {"id": "service.gateway.health", "claim": "Gateway is healthy before recovery operations."},
+    {"id": "service.identity.health", "claim": "Identity service is healthy before recovery operations."},
+    {"id": "service.user.health", "claim": "User service is healthy before recovery operations."},
+    {"id": "data.identity-baseline-persisted", "claim": "A synthetic identity account is persisted in PostgreSQL."},
+    {"id": "data.user-baseline-persisted", "claim": "A synthetic user record is persisted in PostgreSQL."},
+    {"id": "data.refresh-baseline-persisted", "claim": "The synthetic account refresh-token hash metadata is persisted in PostgreSQL."},
+    {"id": "durability.postgres-restart-survives", "claim": "Authoritative synthetic records survive a PostgreSQL container restart."},
+    {"id": "durability.service-restart-survives", "claim": "Protected reads remain correct after core application service restarts."},
+    {"id": "cache.users-list-populated", "claim": "The user-list Redis cache is populated from a protected read."},
+    {"id": "cache.redis-cleared", "claim": "The disposable Redis cache can be cleared independently of PostgreSQL."},
+    {"id": "cache.authoritative-read-recovers", "claim": "A protected read still succeeds after Redis is cleared."},
+    {"id": "cache.users-list-repopulated", "claim": "The user-list cache is reconstructed after an authoritative read."},
+    {"id": "backup.postgres-created", "claim": "A non-empty PostgreSQL custom-format backup is created."},
+    {"id": "backup.checksum-recorded", "claim": "A SHA-256 checksum and byte size are recorded for the backup without publishing the backup itself."},
+    {"id": "recovery.synthetic-records-removed", "claim": "Synthetic proof records are deliberately removed before restore."},
+    {"id": "recovery.database-recreated", "claim": "The application database is dropped and recreated before restore."},
+    {"id": "recovery.restore-completes", "claim": "The PostgreSQL backup restores successfully into the recreated database."},
+    {"id": "recovery.identity-restored", "claim": "The identity record is restored exactly to its baseline snapshot."},
+    {"id": "recovery.user-restored", "claim": "The user record is restored exactly to its baseline snapshot."},
+    {"id": "recovery.refresh-metadata-restored", "claim": "Refresh-token metadata is restored exactly to its baseline snapshot."},
+    {"id": "recovery.post-restore-auth-succeeds", "claim": "The restored identity can authenticate with its original credentials."},
+    {"id": "recovery.post-restore-protected-read-succeeds", "claim": "A newly authenticated session can read the restored user through the gateway."},
+    {"id": "recovery.restored-refresh-token-operational", "claim": "The pre-backup refresh credential remains operational after restore."}
+  ]
+}
