@@ -1,0 +1,121 @@
+name: Resilience Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'docker-compose.yml'
+      - 'tools/resilience_runtime_smoke.py'
+      - 'build-evidence/runtime/resilience-runtime-contract.json'
+      - '.github/workflows/resilience-runtime-proof.yml'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'docker-compose.yml'
+      - 'tools/resilience_runtime_smoke.py'
+      - 'build-evidence/runtime/resilience-runtime-contract.json'
+      - '.github/workflows/resilience-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: resilience-runtime-proof-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  resilience-runtime-proof:
+    name: resilience-runtime-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      AETHERIS_JWT_SECRET: resilience-runtime-proof-local-ci-secret-42chars
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile resilience proof harness
+        run: python -m py_compile tools/resilience_runtime_smoke.py
+
+      - name: Validate resilience proof contract JSON
+        run: python -m json.tool build-evidence/runtime/resilience-runtime-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Start resilience proof stack
+        run: |
+          docker compose up -d --build \
+            postgres redis rabbitmq \
+            user-service identity-service gateway
+          docker compose ps
+
+      - name: Run resilience runtime proof
+        run: |
+          python tools/resilience_runtime_smoke.py \
+            --contract build-evidence/runtime/resilience-runtime-contract.json \
+            --output build-evidence/runtime/resilience-runtime-report.json
+
+      - name: Verify resilience report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/resilience-runtime-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['capability'] == 'resilience', report
+          assert len(report['checks']) == 13, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(f"verified {len(report['checks'])} hosted resilience checks")
+          PY
+
+      - name: Capture Compose and circuit state
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/resilience-compose-ps.txt || true
+          curl --fail-with-body --silent --show-error \
+            http://127.0.0.1:8080/actuator/circuitbreakers \
+            > build-evidence/runtime/resilience-circuitbreakers.json || true
+          curl --fail-with-body --silent --show-error \
+            http://127.0.0.1:8080/actuator/circuitbreakerevents \
+            > build-evidence/runtime/resilience-circuitbreaker-events.json || true
+          if [ "${{ job.status }}" != "success" ]; then
+            docker compose logs --no-color --tail=180 \
+              postgres redis rabbitmq user-service identity-service gateway \
+              > build-evidence/runtime/resilience-failure.log 2>&1 || true
+          fi
+
+      - name: Publish hosted resilience evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: resilience-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans
