@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "core-runtime-proof",
+  "evidence_class": "HOSTED_RUNTIME",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "truth_boundary": "This contract proves only behavior observed in the GitHub-hosted Docker Compose environment. It is not production readiness, external adoption, target-PC validation, or proof that optional Syntra/Aetheris browser and workstation integrations run on the owner's future hardware.",
+  "checks": [
+    {"id": "infrastructure.postgres.ready", "claim": "PostgreSQL accepts connections inside the Compose stack."},
+    {"id": "infrastructure.redis.ready", "claim": "Redis responds to PING inside the Compose stack."},
+    {"id": "infrastructure.rabbitmq.ready", "claim": "RabbitMQ diagnostics report the broker is responsive."},
+    {"id": "service.identity.health", "claim": "Identity-service actuator health reports UP."},
+    {"id": "service.user.health", "claim": "User-service actuator health reports UP."},
+    {"id": "service.audit.health", "claim": "Audit-service actuator health reports UP."},
+    {"id": "service.gateway.health", "claim": "Gateway actuator health reports UP."},
+    {"id": "auth.register", "claim": "Registration through the gateway returns access and refresh tokens."},
+    {"id": "auth.gateway-rejects-missing-token", "claim": "Protected user routes reject missing bearer tokens."},
+    {"id": "auth.gateway-authorized-read", "claim": "A valid access token with users:read can read the user route through the gateway."},
+    {"id": "auth.gateway-rejects-insufficient-scope", "claim": "An API_CONSUMER token is denied users:write access through the gateway."},
+    {"id": "auth.refresh-rotation", "claim": "Refreshing rotates the refresh token."},
+    {"id": "auth.reused-refresh-rejected", "claim": "The previous refresh token is rejected after rotation."},
+    {"id": "auth.logout-revokes-refresh", "claim": "Logout revokes the active refresh token."},
+    {"id": "cache.user-by-id-materialized", "claim": "Reading a user materializes a Redis userById cache entry."},
+    {"id": "cache.users-list-materialized", "claim": "Reading the user list materializes a Redis usersList cache entry."},
+    {"id": "messaging.user-created-audit-event", "claim": "A user.created event published through RabbitMQ is observed by the audit service."},
+    {"id": "resilience.user-service-fallback", "claim": "When user-service is stopped, the gateway returns the configured user-service fallback response."},
+    {"id": "resilience.user-service-recovery", "claim": "After user-service restarts, the protected gateway route becomes healthy again."}
+  ]
+}

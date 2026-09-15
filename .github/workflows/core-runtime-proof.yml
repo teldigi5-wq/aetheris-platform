@@ -1,0 +1,117 @@
+name: Core Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'orchestrator-service/**'
+      - 'docker-compose.yml'
+      - 'tools/core_runtime_smoke.py'
+      - 'build-evidence/runtime/core-runtime-contract.json'
+      - '.github/workflows/core-runtime-proof.yml'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'orchestrator-service/**'
+      - 'docker-compose.yml'
+      - 'tools/core_runtime_smoke.py'
+      - 'build-evidence/runtime/core-runtime-contract.json'
+      - '.github/workflows/core-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-runtime-proof-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-runtime-proof:
+    name: core-runtime-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      AETHERIS_JWT_SECRET: runtime-proof-local-ci-secret-change-me-42chars
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile runtime proof harness
+        run: python -m py_compile tools/core_runtime_smoke.py
+
+      - name: Validate runtime proof contract JSON
+        run: python -m json.tool build-evidence/runtime/core-runtime-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Start core Compose stack
+        run: |
+          docker compose up -d --build \
+            postgres redis rabbitmq \
+            user-service identity-service audit-service orchestrator-service gateway
+          docker compose ps
+
+      - name: Run core runtime proof
+        run: |
+          python tools/core_runtime_smoke.py \
+            --contract build-evidence/runtime/core-runtime-contract.json \
+            --output build-evidence/runtime/core-runtime-report.json
+
+      - name: Verify runtime report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/core-runtime-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(f"verified {len(report['checks'])} hosted runtime checks")
+          PY
+
+      - name: Capture Compose state
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/compose-ps.txt || true
+          if [ "${{ job.status }}" != "success" ]; then
+            docker compose logs --no-color --tail=120 \
+              postgres redis rabbitmq user-service identity-service audit-service gateway \
+              > build-evidence/runtime/compose-failure.log 2>&1 || true
+          fi
+
+      - name: Publish hosted runtime evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: core-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans
