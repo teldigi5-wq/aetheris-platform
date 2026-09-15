@@ -4,6 +4,11 @@
 This harness intentionally measures only the GitHub-hosted Docker Compose
 environment. It is a regression signal, not a production capacity benchmark,
 SLA, target-PC result, or physical-hardware certification.
+
+The Aetheris gateway deliberately rate-limits authenticated user traffic. The
+benchmark therefore uses multiple real authenticated principals for aggregate
+load while separately proving that a single-principal overload is rejected by
+the configured rate limiter.
 """
 
 from __future__ import annotations
@@ -109,15 +114,41 @@ def request_once(url: str, headers: dict[str, str]) -> tuple[bool, float, int | 
         return False, elapsed_ms, type(exc).__name__
 
 
+def register_principal(email: str, password: str) -> dict[str, str]:
+    status, body = http_json(
+        "POST",
+        "http://127.0.0.1:8080/api/auth/register",
+        {"name": "Performance Proof", "email": email, "password": password},
+    )
+    if status != 201 or not isinstance(body, dict) or not body.get("accessToken"):
+        raise AssertionError(f"principal registration failed for {email}: HTTP {status} {body!r}")
+    return {"Authorization": f"Bearer {body['accessToken']}"}
+
+
+def register_principal_pool(prefix: str, count: int, password: str) -> list[dict[str, str]]:
+    """Register below the identity route's 5-token/s per-IP replenish policy."""
+    headers_pool: list[dict[str, str]] = []
+    for index in range(count):
+        email = f"performance-{prefix}-{index:03d}@aetheris.local"
+        headers_pool.append(register_principal(email, password))
+        # Identity registration is IP-keyed before authentication. Keep setup traffic
+        # below its configured replenish rate instead of treating setup 429s as load.
+        time.sleep(0.26)
+    return headers_pool
+
+
 def execute_profile(
     name: str,
     *,
     url: str,
-    headers: dict[str, str],
+    headers_pool: list[dict[str, str]],
     total_requests: int,
     workers: int,
     health_monitor: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    if not headers_pool:
+        raise AssertionError(f"profile {name} has no authenticated principals")
+
     stop_event = threading.Event()
     health_samples: dict[str, Any] | None = None
 
@@ -153,7 +184,10 @@ def execute_profile(
     observations: list[tuple[bool, float, int | str]] = []
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(request_once, url, headers) for _ in range(total_requests)]
+            futures = [
+                pool.submit(request_once, url, headers_pool[index % len(headers_pool)])
+                for index in range(total_requests)
+            ]
             for future in concurrent.futures.as_completed(futures):
                 observations.append(future.result())
     finally:
@@ -173,6 +207,7 @@ def execute_profile(
     metrics = {
         "name": name,
         "workers": workers,
+        "authenticated_principals": len(headers_pool),
         "total_requests": len(observations),
         "successful_requests": successes,
         "errors": errors,
@@ -192,12 +227,41 @@ def execute_profile(
     return metrics, health_samples
 
 
+def execute_rate_limit_probe(
+    *,
+    url: str,
+    headers: dict[str, str],
+    requests: int,
+    workers: int,
+) -> dict[str, Any]:
+    started = time.perf_counter()
+    observations: list[tuple[bool, float, int | str]] = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(request_once, url, headers) for _ in range(requests)]
+        for future in concurrent.futures.as_completed(futures):
+            observations.append(future.result())
+    duration_s = max(time.perf_counter() - started, 0.000001)
+    outcomes: dict[str, int] = {}
+    for _, _, outcome in observations:
+        key = str(outcome)
+        outcomes[key] = outcomes.get(key, 0) + 1
+    return {
+        "requests": len(observations),
+        "workers": workers,
+        "duration_seconds": round(duration_s, 3),
+        "outcomes": dict(sorted(outcomes.items())),
+        "rate_limited_responses": outcomes.get("429", 0),
+        "successful_responses": outcomes.get("200", 0),
+    }
+
+
 def write_report(
     path: Path,
     *,
     checks: dict[str, str],
     status: str,
     profiles: dict[str, dict[str, Any]],
+    rate_limit_probe: dict[str, Any],
     guardrails: dict[str, Any],
     health_during_load: dict[str, Any] | None,
     baseline: dict[str, Any],
@@ -214,6 +278,7 @@ def write_report(
         "status": status,
         "guardrails": guardrails,
         "profiles": profiles,
+        "rate_limit_probe": rate_limit_probe,
         "health_during_load": health_during_load,
         "baseline": baseline,
         "final_state": final_state,
@@ -242,6 +307,7 @@ def main() -> int:
     required_checks = [item["id"] for item in contract["checks"]]
     checks: dict[str, str] = {}
     profiles: dict[str, dict[str, Any]] = {}
+    rate_limit_probe: dict[str, Any] = {}
     health_during_load: dict[str, Any] | None = None
     baseline: dict[str, Any] = {}
     final_state: dict[str, Any] = {}
@@ -265,29 +331,35 @@ def main() -> int:
             wait_health(service, port)
             passed(check_id)
 
-        identity_email = "performance-proof@aetheris.local"
         password = "PerformanceProofPass123!"
-        status, registered = http_json(
-            "POST",
-            "http://127.0.0.1:8080/api/auth/register",
-            {"name": "Performance Proof", "email": identity_email, "password": password},
+        # Keep principals independent so the load proof measures aggregate gateway/service
+        # behavior without invalidly bypassing or exhausting the per-user read limiter.
+        warmup_headers = register_principal("performance-warmup@aetheris.local", password)
+        burst_headers = register_principal_pool(
+            "burst",
+            int(contract["profiles"]["burst"]["principals"]),
+            password,
         )
-        if status != 201 or not isinstance(registered, dict) or not registered.get("accessToken"):
-            raise AssertionError(f"performance identity registration failed: HTTP {status} {registered!r}")
-        access_token = registered["accessToken"]
-        headers = {"Authorization": f"Bearer {access_token}"}
+        sustained_headers = register_principal_pool(
+            "sustained",
+            int(contract["profiles"]["sustained"]["principals"]),
+            password,
+        )
+        overload_headers = register_principal("performance-overload@aetheris.local", password)
         passed("load.authenticated-session-created")
 
-        status, users = http_json("GET", "http://127.0.0.1:8080/api/users", headers=headers)
+        target = "http://127.0.0.1:8080/api/users"
+        status, users = http_json("GET", target, headers=warmup_headers)
         if status != 200 or not isinstance(users, list):
             raise AssertionError(f"baseline protected user read failed: HTTP {status} {users!r}")
         baseline["user_count"] = len(users)
-        baseline["identity_present"] = any(
-            isinstance(item, dict) and item.get("email") == identity_email for item in users
+        baseline["warmup_identity_present"] = any(
+            isinstance(item, dict) and item.get("email") == "performance-warmup@aetheris.local"
+            for item in users
         )
 
-        for _ in range(12):
-            status, body = http_json("GET", "http://127.0.0.1:8080/api/users", headers=headers)
+        for _ in range(4):
+            status, body = http_json("GET", target, headers=warmup_headers)
             if status != 200 or not isinstance(body, list):
                 raise AssertionError(f"warmup failed: HTTP {status} {body!r}")
         cache_keys = run_command(
@@ -297,27 +369,26 @@ def main() -> int:
             raise AssertionError(f"warmup did not materialize usersList cache: {cache_keys!r}")
         passed("load.warmup-completes")
 
-        target = "http://127.0.0.1:8080/api/users"
         burst, _ = execute_profile(
             "burst",
             url=target,
-            headers=headers,
-            total_requests=180,
-            workers=24,
+            headers_pool=burst_headers,
+            total_requests=int(contract["profiles"]["burst"]["requests"]),
+            workers=int(contract["profiles"]["burst"]["concurrency"]),
         )
         sustained, health_during_load = execute_profile(
             "sustained",
             url=target,
-            headers=headers,
-            total_requests=360,
-            workers=12,
+            headers_pool=sustained_headers,
+            total_requests=int(contract["profiles"]["sustained"]["requests"]),
+            workers=int(contract["profiles"]["sustained"]["concurrency"]),
             health_monitor=True,
         )
         profiles = {"burst": burst, "sustained": sustained}
 
-        if any(profile["total_requests"] <= 0 for profile in profiles.values()):
-            raise AssertionError("one or more load profiles produced no observations")
-        if burst["total_requests"] != 180 or sustained["total_requests"] != 360:
+        expected_burst = int(contract["profiles"]["burst"]["requests"])
+        expected_sustained = int(contract["profiles"]["sustained"]["requests"])
+        if burst["total_requests"] != expected_burst or sustained["total_requests"] != expected_sustained:
             raise AssertionError(f"incomplete load profile observations: {profiles!r}")
         passed("load.concurrent-requests-complete")
         passed("load.sustained-profile-completes")
@@ -356,6 +427,19 @@ def main() -> int:
             raise AssertionError(f"gateway health failed during sustained load: {health_during_load!r}")
         passed("load.gateway-responsive-during-load")
 
+        probe_config = contract["rate_limit_probe"]
+        rate_limit_probe = execute_rate_limit_probe(
+            url=target,
+            headers=overload_headers,
+            requests=int(probe_config["requests"]),
+            workers=int(probe_config["concurrency"]),
+        )
+        if rate_limit_probe["rate_limited_responses"] < int(probe_config["min_429_responses"]):
+            raise AssertionError(f"single-principal overload did not trigger expected 429s: {rate_limit_probe!r}")
+        if rate_limit_probe["successful_responses"] < 1:
+            raise AssertionError(f"rate-limit probe never admitted an initial request: {rate_limit_probe!r}")
+        passed("load.rate-limit-enforced-under-overload")
+
         for service, port in [
             ("gateway", 8080),
             ("identity-service", 8082),
@@ -364,14 +448,15 @@ def main() -> int:
             wait_health(service, port, timeout=60)
         passed("load.services-healthy-after-load")
 
-        status, final_users = http_json("GET", target, headers=headers)
+        status, final_users = http_json("GET", target, headers=warmup_headers)
         if status != 200 or not isinstance(final_users, list):
             raise AssertionError(f"post-load protected read failed: HTTP {status} {final_users!r}")
         passed("load.protected-read-recovers")
 
         final_state["user_count"] = len(final_users)
-        final_state["identity_present"] = any(
-            isinstance(item, dict) and item.get("email") == identity_email for item in final_users
+        final_state["warmup_identity_present"] = any(
+            isinstance(item, dict) and item.get("email") == "performance-warmup@aetheris.local"
+            for item in final_users
         )
         if final_state != baseline:
             raise AssertionError(
@@ -382,6 +467,8 @@ def main() -> int:
 
         if contract.get("evidence_class") != "HOSTED_RUNTIME" or contract.get("physical_pc_validation") is not False:
             raise AssertionError("contract truth boundary is not hosted-runtime-only")
+        if contract.get("production_capacity_claim") is not False:
+            raise AssertionError("contract must explicitly reject production-capacity claims")
         passed("load.truth-boundary")
 
         missing = sorted(set(required_checks) - set(checks))
@@ -394,12 +481,23 @@ def main() -> int:
             checks=checks,
             status="PASS",
             profiles=profiles,
+            rate_limit_probe=rate_limit_probe,
             guardrails=guardrails,
             health_during_load=health_during_load,
             baseline=baseline,
             final_state=final_state,
         )
-        print(json.dumps({"status": "PASS", "checks": len(checks), "profiles": profiles}, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "status": "PASS",
+                    "checks": len(checks),
+                    "profiles": profiles,
+                    "rate_limit_probe": rate_limit_probe,
+                },
+                sort_keys=True,
+            )
+        )
         return 0
     except Exception as exc:  # noqa: BLE001
         write_report(
@@ -407,6 +505,7 @@ def main() -> int:
             checks=checks,
             status="FAIL",
             profiles=profiles,
+            rate_limit_probe=rate_limit_probe,
             guardrails=guardrails,
             health_during_load=health_during_load,
             baseline=baseline,
