@@ -84,7 +84,7 @@ jobs:
           assert all(value == 'PASS' for value in report['checks'].values()), report
           assert report['baseline']['gateway_image_id'] == report['final_state']['gateway_image_id'], report
           assert report['baseline']['user_count'] == report['final_state']['user_count'], report
-          assert report['final_state']['proof_identity_present'] is True, report
+          assert report['final_state']['proof_profile_present'] is True, report
           assert len(report['release_manifest_sha256']) == 64, report
           assert set(manifest['service_image_ids']) == {
               'gateway', 'identity-service', 'user-service', 'audit-service', 'orchestrator-service'
