@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "capability": "proactive-executive-agent",
+  "evidence_class": "HOSTED_RUNTIME",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "checks": [
+    {"id": "service.orchestrator.health", "claim": "The real orchestrator service is healthy."},
+    {"id": "executive.run-created", "claim": "A synthetic overnight executive run produces a briefing."},
+    {"id": "executive.low-risk-auto-handled", "claim": "Only trusted low-risk FAQ/community/product-interest signals are auto-handled."},
+    {"id": "executive.untrusted-external-drafted", "claim": "An untrusted external-message signal is drafted without claiming a send."},
+    {"id": "executive.billing-approval-gated", "claim": "Billing work is paused behind explicit owner approval."},
+    {"id": "executive.deployment-approval-gated", "claim": "Deployment work is paused behind explicit owner approval."},
+    {"id": "executive.signups-tracked", "claim": "Signup/conversion evidence is included in the briefing."},
+    {"id": "executive.code-update-verified", "claim": "A code/product update requires repeated passing verification evidence before being marked verified."},
+    {"id": "executive.voice-briefing-created", "claim": "The overnight report creates a persisted voice-session handoff."},
+    {"id": "executive.next-briefing-retained", "claim": "The requested future briefing time is retained."},
+    {"id": "executive.actions-explainable", "claim": "Every input signal produces an explicit disposition and summary."},
+    {"id": "executive.pending-approvals-visible", "claim": "Approval-gated actions are visible in the existing pending-approval surface."},
+    {"id": "executive.briefing-persisted", "claim": "The generated briefing is queryable from the executive briefing history."},
+    {"id": "executive.truth-boundary", "claim": "Evidence remains synthetic-source hosted runtime proof, not proof of real email, phone, DM, billing, or deployment connector execution."}
+  ]
+}
