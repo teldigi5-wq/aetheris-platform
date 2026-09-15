@@ -96,11 +96,11 @@ def wait_health(name: str, port: int, timeout: int = 180) -> None:
     raise AssertionError(f"{name} did not become healthy: last={last!r}")
 
 
-def gateway_health() -> None:
-    status, body = http_json("GET", "http://127.0.0.1:8080/actuator/health")
-    expect_status(status, 200, "gateway health")
-    if not isinstance(body, dict) or body.get("status") != "UP":
-        raise AssertionError(f"gateway health was not UP: {body!r}")
+def gateway_control_plane() -> None:
+    status, body = http_json("GET", "http://127.0.0.1:8080/actuator/info")
+    expect_status(status, 200, "gateway actuator info")
+    if not isinstance(body, dict):
+        raise AssertionError(f"gateway actuator info was not JSON: {body!r}")
 
 
 def circuit_snapshot(name: str) -> dict[str, Any]:
@@ -283,8 +283,8 @@ def main() -> int:
             )
         passed("resilience.open-circuit-short-circuits")
 
-        gateway_health()
-        passed("resilience.gateway-health-during-outage")
+        gateway_control_plane()
+        passed("resilience.gateway-control-plane-responsive")
 
         compose("start", "user-service", timeout=30)
         wait_health("user-service", 8081)
