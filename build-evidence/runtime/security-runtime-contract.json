@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "name": "security-runtime-proof",
+  "evidence_class": "HOSTED_RUNTIME",
+  "capability": "security",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "truth_boundary": "This contract proves only the checked authentication, authorization, anti-spoofing, token-rotation, and credential-storage behavior observed in the GitHub-hosted Docker Compose environment. It is not a penetration test, formal security audit or certification, production-secret/KMS validation, load/DoS testing, Kubernetes security validation, or physical-PC validation.",
+  "checks": [
+    {"id": "service.gateway.health", "claim": "Gateway actuator health reports UP before the security exercise."},
+    {"id": "service.identity.health", "claim": "Identity-service actuator health reports UP before the security exercise."},
+    {"id": "security.register-user", "claim": "Registration returns an access token, opaque refresh token, and API_CONSUMER account context."},
+    {"id": "security.protected-route-rejects-anonymous", "claim": "A protected gateway route rejects a request without a bearer token with HTTP 401."},
+    {"id": "security.forged-identity-headers-rejected", "claim": "Caller-supplied X-Aetheris identity headers do not bypass bearer-token authentication."},
+    {"id": "security.valid-consumer-read", "claim": "The issued API_CONSUMER access token can perform its authorized users:read request."},
+    {"id": "security.forged-admin-header-cannot-escalate", "claim": "A valid API_CONSUMER token plus forged ADMIN/scopes headers cannot obtain users:write and is rejected with HTTP 403."},
+    {"id": "security.tampered-access-token-rejected", "claim": "A signature-tampered access token is rejected with HTTP 401."},
+    {"id": "security.refresh-token-cannot-authenticate", "claim": "The opaque refresh token cannot be used as an access bearer token on a protected route."},
+    {"id": "security.password-stored-as-bcrypt", "claim": "The registered password is persisted only as a BCrypt cost-12 hash rather than plaintext."},
+    {"id": "security.refresh-token-not-stored-raw", "claim": "The raw refresh bearer token is absent from the persisted refresh-token values."},
+    {"id": "security.refresh-token-stored-as-sha256", "claim": "The persisted refresh-token value matches the SHA-256 digest of the issued raw refresh token."},
+    {"id": "security.refresh-rotation-issues-new-token", "claim": "Refreshing rotates the credential and returns a distinct replacement refresh token."},
+    {"id": "security.rotated-token-revokes-old-hash", "claim": "After rotation, the original token hash is marked revoked in PostgreSQL."},
+    {"id": "security.replacement-token-hash-active", "claim": "The replacement token is represented by a distinct SHA-256 hash that remains active after rotation."},
+    {"id": "security.rotated-token-replay-rejected", "claim": "Replaying the already-rotated refresh token is rejected with HTTP 401."}
+  ]
+}
