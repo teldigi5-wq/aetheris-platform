@@ -4,6 +4,17 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### Evidence-first portfolio proof
+
+- Added a machine-readable core-platform evidence manifest at `build-evidence/portfolio/core-platform-evidence.json`.
+- Added `tools/validate_portfolio_evidence.py`, which fails closed when a claimed core-platform evidence path or required marker disappears.
+- Added regression tests for missing evidence, missing markers and truth-boundary drift.
+- Added the dedicated `Portfolio Evidence` CI workflow, including two-pass deterministic report comparison and an uploaded evidence artifact.
+- Added `docs/portfolio-evidence.md` with claim-to-source mappings, reviewer commands and explicit limits on what repository evidence proves.
+- Added `docs/portfolio-case-study.md` as a recruiter/interview case study centered on defensible platform-engineering decisions and trade-offs.
+- Linked the evidence pack and case study from `docs/portfolio-scope.md` so the current README reviewer path leads to verifiable proof rather than feature-count claims.
+- Runtime proof remains separate: no screenshots, external adoption, production-readiness or physical-machine success is claimed by this repository validator.
+
 ### Portfolio credibility consolidation
 
 - Reframed the root README so the primary portfolio story is the cloud-native platform foundation: gateway, identity, PostgreSQL, Redis, RabbitMQ, observability, resilience, Docker, Kubernetes and Helm.
