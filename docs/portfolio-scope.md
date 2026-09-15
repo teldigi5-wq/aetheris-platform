@@ -4,6 +4,13 @@ This document separates the parts of Aetheris that should be presented as the pr
 
 The goal is simple: make it easy for a reviewer to distinguish **implemented and defensible platform engineering** from **repository-side research or pre-PC capabilities that still require runtime validation**.
 
+For a proof-oriented review, use these two documents alongside this scope guide:
+
+- **[Core Platform Evidence Pack](portfolio-evidence.md)** — machine-traceable claims, source/config paths and reproducible verification commands.
+- **[Core Platform Portfolio Case Study](portfolio-case-study.md)** — concise problem, architecture, design trade-offs and interview narrative.
+
+The evidence pack is backed by `build-evidence/portfolio/core-platform-evidence.json`, `tools/validate_portfolio_evidence.py` and the dedicated `Portfolio Evidence` CI workflow. Repository proof is intentionally kept separate from live runtime proof.
+
 ## 1. Primary portfolio track — cloud-native platform engineering
 
 This is the recommended recruiter/interview narrative.
