@@ -96,11 +96,19 @@ jobs:
           assert set(report['profiles']) == {'burst', 'sustained'}, report
           assert sum(p['total_requests'] for p in report['profiles'].values()) == 540, report
           for profile in report['profiles'].values():
+              assert profile['authenticated_principals'] >= 1, profile
               assert profile['successful_requests'] + profile['errors'] == profile['total_requests'], profile
               assert profile['latency_ms']['p50'] <= profile['latency_ms']['p95'], profile
               assert profile['latency_ms']['p95'] <= profile['latency_ms']['p99'], profile
               assert profile['latency_ms']['p99'] <= profile['latency_ms']['max'], profile
-          print(f"verified {len(report['checks'])} hosted load checks across 540 authenticated requests")
+          probe = report['rate_limit_probe']
+          assert probe['requests'] == 40, probe
+          assert probe['successful_responses'] >= 1, probe
+          assert probe['rate_limited_responses'] >= 1, probe
+          print(
+              f"verified {len(report['checks'])} hosted load checks across "
+              "540 policy-compliant requests plus a 40-request overload probe"
+          )
           PY
 
       - name: Capture container resource snapshot
