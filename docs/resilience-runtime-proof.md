@@ -16,7 +16,7 @@ The proof verifies that:
 4. stopping `user-service` produces the configured structured HTTP `503` fallback;
 5. repeated failures drive `userReadCircuit` to `OPEN`;
 6. an additional request is rejected by the open circuit and increments `notPermittedCalls`;
-7. the gateway itself remains healthy while the downstream service is unavailable;
+7. the gateway actuator control plane remains responsive while the downstream service is unavailable;
 8. `user-service` can restart and become healthy again;
 9. after the configured open-state wait, the circuit transitions to `HALF_OPEN` without restarting the gateway;
 10. three successful half-open probes close the circuit;
@@ -36,6 +36,8 @@ The workflow also captures Compose state, the gateway circuit-breaker snapshot a
 ## Why this is stronger than a configuration-only claim
 
 `docs/resilience.md` explains the intended policy: bounded read retries, circuit breaking, structured fallbacks and recovery. This proof does not merely parse that configuration. It boots the Compose stack, removes the downstream service, observes the live actuator state, drives the circuit open, restores the service and verifies the circuit closes again.
+
+The liveness assertion deliberately uses the gateway actuator control plane instead of requiring aggregate `/actuator/health` to remain `UP` during an intentionally open circuit. That keeps the proof compatible with health-indicator policies that may correctly report a degraded dependency while the gateway process itself remains responsive.
 
 That makes the resilience story easier to defend in interviews while keeping the claim narrow and reproducible.
 
