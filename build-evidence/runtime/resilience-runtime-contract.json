@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "name": "resilience-runtime-proof",
+  "evidence_class": "HOSTED_RUNTIME",
+  "capability": "resilience",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "truth_boundary": "This contract proves only the checked resilience behavior observed in the GitHub-hosted Docker Compose environment. It is not production readiness, load testing, chaos-engineering certification, target-PC validation, or proof of optional Syntra/Aetheris workstation and browser integrations.",
+  "checks": [
+    {"id": "service.gateway.health", "claim": "Gateway actuator health reports UP before the resilience exercise."},
+    {"id": "service.identity.health", "claim": "Identity-service actuator health reports UP before authentication."},
+    {"id": "service.user.health", "claim": "User-service actuator health reports UP before the outage."},
+    {"id": "resilience.read-baseline", "claim": "An authenticated user read succeeds through the gateway before the outage."},
+    {"id": "resilience.circuit-initially-closed", "claim": "The userReadCircuit is CLOSED after a successful baseline request."},
+    {"id": "resilience.fallback-structured", "claim": "Stopping user-service produces the configured structured HTTP 503 fallback through the gateway."},
+    {"id": "resilience.user-read-circuit-opens", "claim": "Repeated downstream failures drive userReadCircuit into OPEN state."},
+    {"id": "resilience.open-circuit-short-circuits", "claim": "A request while the circuit is OPEN is rejected by the circuit breaker and increments notPermittedCalls."},
+    {"id": "resilience.gateway-health-during-outage", "claim": "Gateway actuator health remains UP while user-service is unavailable."},
+    {"id": "resilience.user-service-restarts", "claim": "The stopped user-service can restart and return to actuator health UP."},
+    {"id": "resilience.user-read-circuit-half-open", "claim": "After the configured open-state wait, userReadCircuit transitions to HALF_OPEN without restarting the gateway."},
+    {"id": "resilience.user-read-circuit-closes", "claim": "Successful half-open probes close userReadCircuit after downstream recovery."},
+    {"id": "resilience.protected-read-recovers", "claim": "The authenticated user read returns HTTP 200 again after circuit recovery."}
+  ]
+}
