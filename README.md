@@ -238,6 +238,8 @@ Canonical development line: `feature/syntra-aetheris-foundation-v2`.
 
 The verification surface includes backend tests, dashboard builds, workstation-agent checks, compatibility-contract freeze, CodeQL for Java and JavaScript/TypeScript, dependency lockdown, two-pass reproducibility and later control-plane regression checks.
 
+Historical validation contracts retained by the repository include **Stage 26** safety/evidence certification and **Stage 27** repository governance; they remain CI guards, not the primary recruiter narrative.
+
 Hosted CI is repository evidence, **not physical-PC validation**.
 
 ---
