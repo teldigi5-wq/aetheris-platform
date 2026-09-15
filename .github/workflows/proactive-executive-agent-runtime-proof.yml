@@ -1,0 +1,103 @@
+name: Proactive Executive Agent Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'orchestrator-service/**'
+      - 'tools/proactive_executive_agent_smoke.py'
+      - 'build-evidence/runtime/proactive-executive-agent-contract.json'
+      - '.github/workflows/proactive-executive-agent-runtime-proof.yml'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'orchestrator-service/**'
+      - 'tools/proactive_executive_agent_smoke.py'
+      - 'build-evidence/runtime/proactive-executive-agent-contract.json'
+      - '.github/workflows/proactive-executive-agent-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proactive-executive-agent-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proactive-executive-agent-runtime-proof:
+    name: proactive-executive-agent-runtime-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile proof harness
+        run: python -m py_compile tools/proactive_executive_agent_smoke.py
+
+      - name: Validate proof contract JSON
+        run: python -m json.tool build-evidence/runtime/proactive-executive-agent-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Start real orchestrator service
+        run: |
+          docker compose up -d --build orchestrator-service
+          docker compose ps
+
+      - name: Run proactive executive agent proof
+        run: |
+          python tools/proactive_executive_agent_smoke.py \
+            --contract build-evidence/runtime/proactive-executive-agent-contract.json \
+            --output build-evidence/runtime/proactive-executive-agent-report.json
+
+      - name: Verify proof report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/proactive-executive-agent-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['capability'] == 'proactive-executive-agent', report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(f"verified {len(report['checks'])} proactive executive agent runtime checks")
+          PY
+
+      - name: Capture sanitized state
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/proactive-executive-agent-compose-ps.txt || true
+          if [ "${{ job.status }}" != "success" ]; then
+            docker compose logs --no-color --tail=180 orchestrator-service \
+              > build-evidence/runtime/proactive-executive-agent-failure.log 2>&1 || true
+          fi
+
+      - name: Publish hosted executive-agent evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: proactive-executive-agent-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans
