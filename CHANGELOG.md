@@ -14,6 +14,9 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ### Added
 
+- Aetheris Reach Layer v1 with a 15-channel external-information catalog, preferred/fallback backend modeling, governed routing, runtime doctor reporting, non-mutating install planning, and explicit implementation-state truth.
+- Reach policy integration so runtime routes remain subject to owner rules, `ZERO_COST`, `PRIVATE`, credential readiness, and physical-validation boundaries.
+- Reach regression tests that prevent planned social/web adapters from being reported as working capabilities before their execution adapters exist.
 - Public Excellence documentation and reviewer orientation.
 - Current Syntra × Aetheris architecture and interview guide.
 - Reproducible demo guide.
