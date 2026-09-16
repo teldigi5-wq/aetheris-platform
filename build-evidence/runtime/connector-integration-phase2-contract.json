@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "capability": "connector-integration-layer-phase2",
+  "evidence_class": "HOSTED_RUNTIME",
+  "checks": [
+    {"id": "service.orchestrator.health", "claim": "The real orchestrator service becomes healthy before adapter proof begins."},
+    {"id": "adapter.generic-configured-with-secret-reference", "claim": "A generic HMAC adapter is configured through a secret-reference boundary without returning the reference or key."},
+    {"id": "adapter.github-configured-with-secret-reference", "claim": "A GitHub HMAC adapter is configured through the same runtime-secret boundary."},
+    {"id": "adapter.generic-valid-signature-accepted", "claim": "A correctly signed fresh generic webhook is cryptographically accepted."},
+    {"id": "adapter.verified-delivery-establishes-trust", "claim": "Trusted-low-risk state is established only after the signed delivery verifies."},
+    {"id": "adapter.generic-invalid-signature-rejected", "claim": "A generic webhook with an invalid HMAC-SHA256 signature is rejected before connector ingestion."},
+    {"id": "adapter.generic-stale-timestamp-rejected", "claim": "A correctly signed but stale generic webhook is rejected by the freshness window."},
+    {"id": "adapter.generic-replay-deduplicated", "claim": "Replaying an already accepted signed generic delivery reuses the original receipt and executive run."},
+    {"id": "adapter.github-valid-signature-accepted", "claim": "A GitHub-style X-Hub-Signature-256 payload is verified and accepted."},
+    {"id": "adapter.github-safe-event-normalized", "claim": "A verified GitHub push is normalized into a review-gated code-update signal instead of an automatic deployment."},
+    {"id": "adapter.github-invalid-signature-rejected", "claim": "A GitHub webhook with an invalid X-Hub-Signature-256 value is rejected."},
+    {"id": "adapter.github-delivery-id-deduplicated", "claim": "X-GitHub-Delivery identity is reused as the connector replay boundary."},
+    {"id": "adapter.github-unsupported-event-rejected", "claim": "Unsupported GitHub event classes are rejected rather than guessed into an unsafe action."},
+    {"id": "adapter.secret-material-not-exposed", "claim": "Neither runtime HMAC keys nor persisted secret references are exposed through adapter API views."},
+    {"id": "adapter.only-verified-deliveries-persisted", "claim": "Rejected signature/freshness cases create no connector receipt; accepted unique deliveries are persisted as verified."},
+    {"id": "adapter.executive-routing-preserved", "claim": "Verified provider deliveries route into persisted executive-agent runs through the Phase 1 core."},
+    {"id": "adapter.no-outbound-provider-mutation", "claim": "Phase 2 adds inbound verification only and no provider write/send mutation capability."},
+    {"id": "adapter.truth-boundary", "claim": "Evidence remains hosted synthetic webhook proof and does not claim a live provider installation, OAuth session or production ingress."}
+  ],
+  "truth_boundary": {
+    "live_github_app_installation": false,
+    "live_provider_oauth": false,
+    "internet_facing_ingress_hardening": false,
+    "production_secret_manager_integration": false,
+    "outbound_provider_mutation": false,
+    "telephony": false,
+    "production_provider_sla": false,
+    "physical_pc_validation": false
+  }
+}
