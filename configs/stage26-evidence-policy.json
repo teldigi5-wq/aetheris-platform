@@ -14,7 +14,7 @@
     "unrestrictedShellAllowed": false,
     "adminBypassAllowed": false
   },
-  "stage23_expected_contract_sha256": "85d5c5c3f9d62557a199fe1b1fe8d9fb0b1077d5da0ea1f159c0d3e3e5c71e16",
+  "stage23_expected_contract_sha256": "e61e0c46c74f127a2432b5a7077b0d1d604eb3dff5af446587d60fb0b724c25d",
   "required_claims": [
     {
       "path": "docs/ai/stage-21-physical-target-pilot.md",
