@@ -1,6 +1,5 @@
 package io.aetheris.orchestrator.connector.adapter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.aetheris.orchestrator.connector.*;
@@ -12,6 +11,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -105,7 +105,7 @@ public class VerifiedWebhookAdapterService {
         GenericSignedWebhookPayload payload;
         try {
             payload = mapper.readValue(rawBody, GenericSignedWebhookPayload.class);
-        } catch (JsonProcessingException error) {
+        } catch (IOException error) {
             throw badRequest("Webhook JSON payload is invalid");
         }
         if (payload.type() == null) throw badRequest("Webhook payload type is required");
@@ -138,7 +138,7 @@ public class VerifiedWebhookAdapterService {
         JsonNode root;
         try {
             root = mapper.readTree(rawBody);
-        } catch (JsonProcessingException error) {
+        } catch (IOException error) {
             throw badRequest("GitHub webhook JSON payload is invalid");
         }
 
