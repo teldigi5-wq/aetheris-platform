@@ -6,7 +6,7 @@ import java.util.UUID;
 public record ConnectorAdapterView(
         UUID connectionId,
         ConnectorAdapterType adapterType,
-        boolean secretReferenceConfigured,
+        boolean secretConfigured,
         int maxClockSkewSeconds,
         Instant createdAt,
         Instant updatedAt
