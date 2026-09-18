@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "capability": "connector-live-write-phase7",
+  "evidence_class": "HOSTED_RUNTIME_PROVIDER_WRITE_STUB",
+  "physical_pc_validation": false,
+  "production_provider_mutation_proven": false,
+  "provider_exactly_once_proven": false,
+  "truth_boundary": "HOSTED_RUNTIME_PROVIDER_WRITE_STUB proves owner-approved LIVE-mode connector actions perform real HTTP POST requests using runtime OAuth credentials against a local synthetic provider stub. It does not prove mutation of production Gmail, Google Calendar or GitHub accounts, provider-side exactly-once guarantees, production secret-manager durability, unattended production autonomy, or physical-PC validation.",
+  "checks": [
+    {"id": "service.orchestrator.health"},
+    {"id": "live.policy-enabled-in-proof-runtime"},
+    {"id": "oauth.github-write-scope-issued"},
+    {"id": "oauth.gmail-write-scope-issued"},
+    {"id": "oauth.calendar-write-scope-issued"},
+    {"id": "live.gmail-unapproved-blocked"},
+    {"id": "live.calendar-unapproved-blocked"},
+    {"id": "live.github-unapproved-blocked"},
+    {"id": "live.provider-untouched-before-approval"},
+    {"id": "live.gmail-approved-executes"},
+    {"id": "live.calendar-approved-executes"},
+    {"id": "live.github-approved-executes"},
+    {"id": "live.gmail-provider-post-observed"},
+    {"id": "live.calendar-provider-post-observed"},
+    {"id": "live.github-provider-post-observed"},
+    {"id": "live.provider-no-unsafe-mutations"},
+    {"id": "live.execution-replay-idempotent"},
+    {"id": "live.receipts-persisted"},
+    {"id": "live.approval-audit-preserved"},
+    {"id": "live.truth-boundary"}
+  ]
+}
