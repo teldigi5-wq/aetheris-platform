@@ -24,13 +24,13 @@ Provider-side exactly-once behavior is intentionally **not** claimed.
 
 ## Required repository secrets
 
-Use credentials belonging to dedicated test accounts only. Do not use primary personal, school, employer, or production credentials.
+Use credentials belonging to dedicated test accounts and test resources only. Do not use primary personal, school, employer, or production credentials.
 
-Phase 8 intentionally reuses the three repository-level live provider token secrets already established by the earlier connector work instead of requiring duplicate Phase 8 token entries. The tokens are mapped into the Phase 8 broker only inside the ephemeral GitHub Actions runner.
+Phase 8 uses a dedicated GitHub write token so the earlier Phase 5 read-only GitHub credential remains read-only. Gmail and Calendar continue to use the existing live test-account access-token secrets. Provider tokens are mapped into the Phase 8 broker only inside the ephemeral GitHub Actions runner.
 
 | Secret | Purpose |
 | --- | --- |
-| `AETHERIS_LIVE_GITHUB_ACCESS_TOKEN` | Test-repository GitHub token with permission to create issues. |
+| `AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN` | Dedicated fine-grained token restricted to the Phase 8 test repository with Issues read/write permission. |
 | `AETHERIS_LIVE_GMAIL_ACCESS_TOKEN` | Google OAuth access token containing `gmail.send`. |
 | `AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN` | Google OAuth access token containing `calendar.events`. |
 | `AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT` | Test recipient email address. |
@@ -38,7 +38,7 @@ Phase 8 intentionally reuses the three repository-level live provider token secr
 | `AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY` | Separate `owner/repository` used only for test issues. |
 | `AETHERIS_PHASE8_ARM_CONFIRMATION` | Must equal `I_UNDERSTAND_PHASE8_CREATES_LIVE_TEST_DATA`. |
 
-The live validator refuses `teldigi5-wq/aetheris-platform` as the GitHub mutation target.
+The live validator refuses `teldigi5-wq/aetheris-platform` as the GitHub mutation target. The dedicated Phase 8 GitHub token should likewise exclude that repository and be scoped only to the separate test repository.
 
 Google access tokens are normally short-lived. A stale token should fail the Phase 8 run rather than silently falling back to synthetic evidence.
 
