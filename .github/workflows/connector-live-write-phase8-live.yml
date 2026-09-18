@@ -48,7 +48,7 @@ jobs:
       - name: Require dedicated test-account credentials and explicit arm confirmation
         shell: bash
         env:
-          GITHUB_TOKEN_VALUE: ${{ secrets.AETHERIS_LIVE_GITHUB_ACCESS_TOKEN }}
+          GITHUB_TOKEN_VALUE: ${{ secrets.AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN }}
           GMAIL_TOKEN_VALUE: ${{ secrets.AETHERIS_LIVE_GMAIL_ACCESS_TOKEN }}
           CALENDAR_TOKEN_VALUE: ${{ secrets.AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN }}
           GMAIL_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT }}
@@ -62,7 +62,7 @@ jobs:
           from pathlib import Path
 
           required = {
-              'GITHUB_TOKEN_VALUE': 'AETHERIS_LIVE_GITHUB_ACCESS_TOKEN',
+              'GITHUB_TOKEN_VALUE': 'AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN',
               'GMAIL_TOKEN_VALUE': 'AETHERIS_LIVE_GMAIL_ACCESS_TOKEN',
               'CALENDAR_TOKEN_VALUE': 'AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN',
               'GMAIL_TARGET_VALUE': 'AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT',
@@ -108,7 +108,7 @@ jobs:
       - name: Start ephemeral Phase 8 credential broker
         shell: bash
         env:
-          AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN: ${{ secrets.AETHERIS_LIVE_GITHUB_ACCESS_TOKEN }}
+          AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN: ${{ secrets.AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN }}
           AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN: ${{ secrets.AETHERIS_LIVE_GMAIL_ACCESS_TOKEN }}
           AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN: ${{ secrets.AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN }}
         run: |
