@@ -54,12 +54,12 @@ class Handler(BaseHTTPRequestHandler):
             if not authorized(self):
                 return
             if path == "/github/user":
-                payload(self, 200, {"id": 424242, "login": "phase4-proof", "name": "Phase 4 Proof User"})
+                payload(self, 200, {"id": 424242, "login": "phase3-proof", "name": "Phase 3 Proof User"})
             else:
                 payload(self, 200, {
-                    "sub": "google-phase4-proof",
-                    "email": "phase4@example.test",
-                    "name": "Phase 4 Proof User",
+                    "sub": "google-phase3-proof",
+                    "email": "phase3@example.test",
+                    "name": "Phase 3 Proof User",
                 })
             return
 
