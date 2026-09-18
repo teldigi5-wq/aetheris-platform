@@ -1,0 +1,29 @@
+services:
+  orchestrator-service:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      AETHERIS_CONNECTORS_LIVE_WRITES_ENABLED: "true"
+      AETHERIS_CONNECTORS_WRITE_SCOPES_ENABLED: "true"
+
+      AETHERIS_OAUTH_GITHUB_CLIENT_ID: ${AETHERIS_OAUTH_GITHUB_CLIENT_ID}
+      AETHERIS_OAUTH_GITHUB_CLIENT_SECRET: ${AETHERIS_OAUTH_GITHUB_CLIENT_SECRET}
+      AETHERIS_OAUTH_GITHUB_AUTH_URL: http://host.docker.internal:19091/github/authorize
+      AETHERIS_OAUTH_GITHUB_TOKEN_URL: http://host.docker.internal:19091/github/token
+      AETHERIS_OAUTH_GITHUB_USERINFO_URL: http://host.docker.internal:19091/github/user
+
+      AETHERIS_OAUTH_GOOGLE_CLIENT_ID: ${AETHERIS_OAUTH_GOOGLE_CLIENT_ID}
+      AETHERIS_OAUTH_GOOGLE_CLIENT_SECRET: ${AETHERIS_OAUTH_GOOGLE_CLIENT_SECRET}
+      AETHERIS_OAUTH_GOOGLE_AUTH_URL: http://host.docker.internal:19091/google/authorize
+      AETHERIS_OAUTH_GOOGLE_TOKEN_URL: http://host.docker.internal:19091/google/token
+      AETHERIS_OAUTH_GOOGLE_USERINFO_URL: http://host.docker.internal:19091/google/userinfo
+
+      AETHERIS_WRITE_GMAIL_SEND_URL: https://gmail.googleapis.com/gmail/v1/users/me/messages/send
+      AETHERIS_WRITE_CALENDAR_EVENTS_URL_TEMPLATE: https://www.googleapis.com/calendar/v3/calendars/{calendarId}/events
+      AETHERIS_WRITE_GITHUB_ISSUES_URL_TEMPLATE: https://api.github.com/repos/{repository}/issues
+    depends_on:
+      postgres:
+        condition: service_healthy
