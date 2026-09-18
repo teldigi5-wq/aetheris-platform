@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "capability": "connector-live-write-phase8",
+  "evidence_class": "LIVE_PROVIDER_TEST_ACCOUNT_WRITES",
+  "truth_boundary": "LIVE_PROVIDER_TEST_ACCOUNT_WRITES proves that explicitly armed, owner-approved Aetheris connector actions can create test data through the real Gmail, Google Calendar, and GitHub provider APIs using repository-scoped test-account credentials. Evidence is sanitized and does not persist tokens, provider response bodies, account identifiers, message/event/issue identifiers, or target values. It does not prove provider-side exactly-once guarantees, safety for production accounts, production secret-manager durability, unattended production autonomy, or physical-PC validation.",
+  "checks": [
+    {"id": "gate.confirmation"},
+    {"id": "gate.credentials-present"},
+    {"id": "gate.targets-present"},
+    {"id": "gate.project-repo-blocked"},
+    {"id": "service.orchestrator.health"},
+    {"id": "live.policy-enabled"},
+    {"id": "oauth.github-write-scope-issued"},
+    {"id": "oauth.gmail-write-scope-issued"},
+    {"id": "oauth.calendar-write-scope-issued"},
+    {"id": "live.github-unapproved-blocked"},
+    {"id": "live.gmail-unapproved-blocked"},
+    {"id": "live.calendar-unapproved-blocked"},
+    {"id": "live.github-approved-executes"},
+    {"id": "live.gmail-approved-executes"},
+    {"id": "live.calendar-approved-executes"},
+    {"id": "live.execution-replay-idempotent"},
+    {"id": "live.receipts-persisted"},
+    {"id": "live.approval-audit-preserved"},
+    {"id": "live.evidence-sanitized"},
+    {"id": "live.truth-boundary"}
+  ],
+  "provider_mutations": [
+    "gmail.send",
+    "calendar.events.create",
+    "github.issues.create"
+  ],
+  "required_repository_secrets": [
+    "AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN",
+    "AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN",
+    "AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN",
+    "AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT",
+    "AETHERIS_PHASE8_TEST_CALENDAR_ID",
+    "AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY",
+    "AETHERIS_PHASE8_ARM_CONFIRMATION"
+  ],
+  "arm_confirmation": "I_UNDERSTAND_PHASE8_CREATES_LIVE_TEST_DATA",
+  "forbidden_github_target": "teldigi5-wq/aetheris-platform",
+  "physical_pc_validation": false,
+  "physical_pc_status": "BLOCKED_PENDING_HARDWARE"
+}
