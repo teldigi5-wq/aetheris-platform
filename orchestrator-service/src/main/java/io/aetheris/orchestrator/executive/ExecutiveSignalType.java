@@ -7,6 +7,7 @@ public enum ExecutiveSignalType {
     PRODUCT_INTEREST,
     SIGNUP,
     CODE_UPDATE,
+    CALENDAR_EVENT,
     BILLING,
     DEPLOYMENT
 }

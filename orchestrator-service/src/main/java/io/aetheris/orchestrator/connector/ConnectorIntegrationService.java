@@ -164,6 +164,7 @@ public class ConnectorIntegrationService {
             case EMAIL, DM, FAQ, PRODUCT_INTEREST -> ConnectorCapability.INGEST_MESSAGES;
             case SIGNUP -> ConnectorCapability.INGEST_ANALYTICS;
             case CODE_UPDATE -> ConnectorCapability.INGEST_CODE_UPDATES;
+            case CALENDAR_EVENT -> ConnectorCapability.READ_CALENDAR;
             case BILLING -> ConnectorCapability.INGEST_BILLING;
             case DEPLOYMENT -> ConnectorCapability.INGEST_DEPLOYMENTS;
         };

@@ -80,6 +80,14 @@ public class ExecutiveAgentService {
                                 null, null));
                     }
                 }
+                case CALENDAR_EVENT -> actions.add(new ExecutiveAction(
+                        source,
+                        signal.type(),
+                        ExecutiveDisposition.TRACKED,
+                        "Tracked upcoming read-only calendar item: " + subject,
+                        null,
+                        null
+                ));
                 case BILLING, DEPLOYMENT -> {
                     TaskEntity task = tasks.create(new CreateTaskRequest(
                             "Executive approval: " + subject, detail, OperationMode.BALANCED));
