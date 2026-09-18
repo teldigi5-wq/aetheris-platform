@@ -57,6 +57,8 @@ It has no `pull_request` trigger. Ordinary pushes to the Phase 8 branch execute 
 
 The arm marker alone is insufficient. Missing credentials, missing targets, a wrong arm-confirmation secret, or use of the real Aetheris project repository as the GitHub target causes the live lane to fail closed before provider mutation.
 
+A dedicated acceptance-trigger commit may contain the arm marker solely to request this gated proof. The credential gate remains authoritative: the run must fail closed before any provider request whenever a required Phase 8 secret or test target is absent.
+
 ## Non-mutating CI proof
 
 `.github/workflows/connector-live-write-phase8-contract.yml` is safe for normal PR and push CI. It compiles the Phase 8 harnesses, validates the exact 20-check contract, verifies the live workflow has no pull-request trigger, confirms all required secret gates are present, and confirms the compose override points only to the expected real provider hosts.
