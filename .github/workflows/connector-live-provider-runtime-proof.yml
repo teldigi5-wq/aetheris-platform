@@ -1,0 +1,134 @@
+name: Connector Live Providers Phase 3 Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'orchestrator-service/**'
+      - 'tools/connector_live_provider_runtime_smoke.py'
+      - 'tools/oauth_provider_stub.py'
+      - 'build-evidence/runtime/connector-live-providers-phase3-*'
+      - '.github/workflows/connector-live-provider-runtime-proof.yml'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'orchestrator-service/**'
+      - 'tools/connector_live_provider_runtime_smoke.py'
+      - 'tools/oauth_provider_stub.py'
+      - 'build-evidence/runtime/connector-live-providers-phase3-*'
+      - '.github/workflows/connector-live-provider-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-live-provider-phase3-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connector-live-provider-runtime-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Create ephemeral OAuth proof credentials
+        shell: bash
+        run: |
+          echo "AETHERIS_OAUTH_GITHUB_CLIENT_ID=phase3-github-$(openssl rand -hex 8)" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GITHUB_CLIENT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_ID=phase3-google-$(openssl rand -hex 8)" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Compile proof harnesses
+        run: |
+          python -m py_compile tools/oauth_provider_stub.py
+          python -m py_compile tools/connector_live_provider_runtime_smoke.py
+
+      - name: Validate Phase 3 evidence contract
+        run: python -m json.tool build-evidence/runtime/connector-live-providers-phase3-contract.json >/dev/null
+
+      - name: Start local synthetic OAuth provider
+        shell: bash
+        run: |
+          python tools/oauth_provider_stub.py > build-evidence/runtime/connector-live-provider-stub.log 2>&1 &
+          echo $! > /tmp/aetheris-oauth-stub.pid
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:19090/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat build-evidence/runtime/connector-live-provider-stub.log
+          exit 1
+
+      - name: Start real orchestrator with CI-only OAuth endpoints
+        shell: bash
+        run: |
+          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-providers-phase3-compose.override.yml \
+            up -d --build orchestrator-service
+          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-providers-phase3-compose.override.yml ps
+
+      - name: Run live-provider OAuth foundation proof
+        run: |
+          python tools/connector_live_provider_runtime_smoke.py \
+            --contract build-evidence/runtime/connector-live-providers-phase3-contract.json \
+            --output build-evidence/runtime/connector-live-providers-phase3-report.json
+
+      - name: Verify Phase 3 report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/connector-live-providers-phase3-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['capability'] == 'connector-live-providers-phase3', report
+          assert report['physical_pc_validation'] is False, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(f"verified {len(report['checks'])} OAuth/live-provider foundation checks")
+          PY
+
+      - name: Capture sanitized Phase 3 state
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-providers-phase3-compose.override.yml \
+            ps --all > build-evidence/runtime/connector-live-provider-compose-ps.txt || true
+          if [ "${{ job.status }}" != "success" ]; then
+            docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-providers-phase3-compose.override.yml \
+              logs --no-color --tail=220 orchestrator-service \
+              > build-evidence/runtime/connector-live-provider-failure.log 2>&1 || true
+          fi
+
+      - name: Publish hosted Phase 3 evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: connector-live-providers-phase3-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down OAuth proof runtime
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-providers-phase3-compose.override.yml \
+            down -v --remove-orphans || true
+          if [ -f /tmp/aetheris-oauth-stub.pid ]; then
+            kill "$(cat /tmp/aetheris-oauth-stub.pid)" 2>/dev/null || true
+          fi
