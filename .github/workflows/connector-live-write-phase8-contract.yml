@@ -66,15 +66,16 @@ jobs:
           required_workflow_fragments = [
               "[phase8-live-write]",
               "AETHERIS_PHASE8_ARM_CONFIRMATION",
-              "AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN",
-              "AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN",
-              "AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN",
+              "AETHERIS_LIVE_GITHUB_ACCESS_TOKEN",
+              "AETHERIS_LIVE_GMAIL_ACCESS_TOKEN",
+              "AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN",
               "AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY",
               "AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT",
               "AETHERIS_PHASE8_TEST_CALENDAR_ID",
           ]
           for fragment in required_workflow_fragments:
               assert fragment in workflow, fragment
+              assert fragment in contract or fragment == "[phase8-live-write]", fragment
 
           assert "pull_request:" not in workflow, "live mutation workflow must never run from pull_request"
           assert "AETHERIS_WRITE_GMAIL_SEND_URL: https://gmail.googleapis.com/" in compose
