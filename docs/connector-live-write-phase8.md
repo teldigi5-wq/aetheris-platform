@@ -65,6 +65,8 @@ A dedicated acceptance-trigger commit may contain the arm marker solely to reque
 
 Every armed run writes `connector-live-write-phase8-readiness.json` before any provider mutation. The report records only the names of missing configuration items, never their values. When configuration is incomplete it reports `BLOCKED_MISSING_CONFIGURATION`, `provider_mutation_started=false`, and preserves `BLOCKED_PENDING_HARDWARE` for physical-PC validation. This readiness report is uploaded even when the live proof fails closed.
 
+When an armed provider execution fails, the sanitized report may additionally record only the failed provider stage plus numeric orchestrator/provider HTTP status codes when available. It never persists the provider response body, target, token, account identifier, or provider-created object identifier.
+
 ## Non-mutating CI proof
 
 `.github/workflows/connector-live-write-phase8-contract.yml` is safe for normal PR and push CI. It compiles the Phase 8 harnesses, validates the exact 20-check contract, verifies the live workflow has no pull-request trigger, confirms all required secret gates are present, and confirms the compose override points only to the expected real provider hosts.
