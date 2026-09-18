@@ -59,6 +59,10 @@ The arm marker alone is insufficient. Missing credentials, missing targets, a wr
 
 A dedicated acceptance-trigger commit may contain the arm marker solely to request this gated proof. The credential gate remains authoritative: the run must fail closed before any provider request whenever a required Phase 8 secret or test target is absent.
 
+### Readiness evidence
+
+Every armed run now writes `connector-live-write-phase8-readiness.json` before any provider mutation. The report records only the names of missing configuration items, never their values. When configuration is incomplete it reports `BLOCKED_MISSING_CONFIGURATION`, `provider_mutation_started=false`, and preserves `BLOCKED_PENDING_HARDWARE` for physical-PC validation. This readiness report is uploaded even when the live proof fails closed.
+
 ## Non-mutating CI proof
 
 `.github/workflows/connector-live-write-phase8-contract.yml` is safe for normal PR and push CI. It compiles the Phase 8 harnesses, validates the exact 20-check contract, verifies the live workflow has no pull-request trigger, confirms all required secret gates are present, and confirms the compose override points only to the expected real provider hosts.
