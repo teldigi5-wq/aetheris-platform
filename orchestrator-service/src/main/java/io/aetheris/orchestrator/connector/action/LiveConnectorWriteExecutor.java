@@ -179,13 +179,14 @@ public class LiveConnectorWriteExecutor {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
             );
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new ConnectorActionBlockedException(
-                        "Live provider write failed with HTTP " + response.statusCode());
+                throw new LiveProviderWriteException(response.statusCode());
             }
             if (response.body() == null || response.body().isBlank()) {
                 return mapper.createObjectNode();
             }
             return mapper.readTree(response.body());
+        } catch (LiveProviderWriteException error) {
+            throw error;
         } catch (ConnectorActionBlockedException error) {
             throw error;
         } catch (InterruptedException error) {
