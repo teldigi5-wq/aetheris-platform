@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Component
@@ -25,16 +27,44 @@ public class OAuthProviderRegistry {
                     value("AETHERIS_OAUTH_GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize"),
                     value("AETHERIS_OAUTH_GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
                     value("AETHERIS_OAUTH_GITHUB_USERINFO_URL", "https://api.github.com/user"),
-                    List.of("read:user", "user:email"),
+                    githubScopes(),
                     true
             );
-            case GMAIL -> google(provider, List.of(
-                    "openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"));
-            case CALENDAR -> google(provider, List.of(
-                    "openid", "email", "profile", "https://www.googleapis.com/auth/calendar.readonly"));
+            case GMAIL -> google(provider, gmailScopes());
+            case CALENDAR -> google(provider, calendarScopes());
             default -> throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "OAuth live-provider foundation is not enabled for provider: " + provider);
         };
+    }
+
+    private List<String> githubScopes() {
+        List<String> scopes = new ArrayList<>(List.of("read:user", "user:email"));
+        if (writeScopesEnabled()) {
+            scopes.add(value("AETHERIS_OAUTH_GITHUB_WRITE_SCOPE", "public_repo"));
+        }
+        return distinct(scopes);
+    }
+
+    private List<String> gmailScopes() {
+        List<String> scopes = new ArrayList<>(List.of(
+                "openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"));
+        if (writeScopesEnabled()) {
+            scopes.add("https://www.googleapis.com/auth/gmail.send");
+        }
+        return distinct(scopes);
+    }
+
+    private List<String> calendarScopes() {
+        List<String> scopes = new ArrayList<>(List.of(
+                "openid", "email", "profile", "https://www.googleapis.com/auth/calendar.readonly"));
+        if (writeScopesEnabled()) {
+            scopes.add("https://www.googleapis.com/auth/calendar.events");
+        }
+        return distinct(scopes);
+    }
+
+    private boolean writeScopesEnabled() {
+        return Boolean.parseBoolean(value("AETHERIS_CONNECTORS_WRITE_SCOPES_ENABLED", "false"));
     }
 
     private ProviderOAuthConfig google(ConnectorProvider provider, List<String> scopes) {
@@ -48,6 +78,10 @@ public class OAuthProviderRegistry {
                 scopes,
                 true
         );
+    }
+
+    private static List<String> distinct(List<String> scopes) {
+        return List.copyOf(new LinkedHashSet<>(scopes));
     }
 
     private String required(String key) {

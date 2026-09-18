@@ -31,17 +31,20 @@ public class ConnectorActionService {
     private final ConnectorConnectionRepository connections;
     private final TaskService tasks;
     private final ApprovalService approvals;
+    private final LiveConnectorWriteExecutor liveExecutor;
     private final boolean liveWritesEnabled;
 
     public ConnectorActionService(ConnectorActionRepository actions,
                                   ConnectorConnectionRepository connections,
                                   TaskService tasks,
                                   ApprovalService approvals,
+                                  LiveConnectorWriteExecutor liveExecutor,
                                   @Value("${aetheris.connectors.live-writes-enabled:false}") boolean liveWritesEnabled) {
         this.actions = actions;
         this.connections = connections;
         this.tasks = tasks;
         this.approvals = approvals;
+        this.liveExecutor = liveExecutor;
         this.liveWritesEnabled = liveWritesEnabled;
     }
 
@@ -107,24 +110,33 @@ public class ConnectorActionService {
         if (!approvals.hasApproved(action.getTaskId(), action.getActionType())) {
             throw new ConnectorActionBlockedException("Owner approval is required before connector write execution");
         }
-        if (action.getExecutionMode() == ConnectorActionExecutionMode.LIVE) {
-            if (!liveWritesEnabled) {
-                throw new ConnectorActionBlockedException("Live connector writes are disabled by default");
-            }
-            throw new ConnectorActionBlockedException("Live provider mutation adapter is not installed in this hosted Phase 6 proof");
-        }
 
         TaskEntity task = tasks.getRequired(action.getTaskId());
         if (task.getState() != TaskState.RUNNING) {
             throw new ConnectorActionBlockedException("Approved connector task is not RUNNING: " + task.getState());
         }
 
-        String externalReference = "synthetic://" + action.getProvider().name().toLowerCase()
-                + "/" + action.getActionKind().name().toLowerCase() + "/" + action.getId();
+        String externalReference;
+        String progressMessage;
+        String completionMessage;
+        if (action.getExecutionMode() == ConnectorActionExecutionMode.LIVE) {
+            if (!liveWritesEnabled) {
+                throw new ConnectorActionBlockedException("Live connector writes are disabled by default");
+            }
+            externalReference = liveExecutor.execute(action);
+            progressMessage = "Approved live connector write executed";
+            completionMessage = "Live provider write receipt persisted and completed";
+        } else {
+            externalReference = "synthetic://" + action.getProvider().name().toLowerCase()
+                    + "/" + action.getActionKind().name().toLowerCase() + "/" + action.getId();
+            progressMessage = "Synthetic connector write executed";
+            completionMessage = "Synthetic connector write verified and completed";
+        }
+
         action.markExecuted(externalReference);
         ConnectorActionEntity saved = actions.save(action);
 
-        tasks.recordProgress(task.getId(), "automation-engineer", "Synthetic connector write executed", Map.of(
+        tasks.recordProgress(task.getId(), "automation-engineer", progressMessage, Map.of(
                 "provider", action.getProvider().name(),
                 "actionKind", action.getActionKind().name(),
                 "executionMode", action.getExecutionMode().name(),
@@ -132,7 +144,7 @@ public class ConnectorActionService {
         tasks.transition(task.getId(), new TaskTransitionRequest(
                 TaskState.VERIFYING, "automation-engineer", "Connector write receipt persisted; verifying action"));
         tasks.transition(task.getId(), new TaskTransitionRequest(
-                TaskState.COMPLETED, "automation-engineer", "Synthetic connector write verified and completed"));
+                TaskState.COMPLETED, "automation-engineer", completionMessage));
         return view(saved, false);
     }
 
