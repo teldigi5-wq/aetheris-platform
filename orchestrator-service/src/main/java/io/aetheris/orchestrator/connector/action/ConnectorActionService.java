@@ -25,7 +25,7 @@ import java.util.UUID;
 @Service
 public class ConnectorActionService {
     public static final String EVIDENCE_CLASS = "HOSTED_RUNTIME_SYNTHETIC_WRITE";
-    public static final String TRUTH_BOUNDARY = "Proves owner-approval orchestration, persisted idempotent action receipts and synthetic Gmail/Calendar/GitHub write adapters in hosted runtime. Live provider mutation remains fail-closed and is not proven; this is not production autonomy or physical-PC validation.";
+    public static final String TRUTH_BOUNDARY = "HOSTED_RUNTIME_SYNTHETIC_WRITE proves owner-approval orchestration, persisted idempotent action receipts and synthetic Gmail/Calendar/GitHub write adapters in hosted runtime. Live provider mutation remains fail-closed and is not proven; this is not production autonomy or physical-PC validation.";
 
     private final ConnectorActionRepository actions;
     private final ConnectorConnectionRepository connections;
