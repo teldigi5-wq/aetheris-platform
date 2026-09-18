@@ -50,6 +50,22 @@ CHECK_IDS = (
 )
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+PROVIDER_HTTP_STATUS = re.compile(r"\bHTTP\s+(\d{3})\b")
+
+
+class Phase8ValidationError(AssertionError):
+    def __init__(
+        self,
+        stage: str,
+        message: str,
+        *,
+        orchestrator_http_status: int | None = None,
+        provider_http_status: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.stage = stage
+        self.orchestrator_http_status = orchestrator_http_status
+        self.provider_http_status = provider_http_status
 
 
 def request(base: str, method: str, path: str, payload: Any | None = None, timeout: int = 20) -> tuple[int, Any]:
@@ -71,6 +87,16 @@ def request(base: str, method: str, path: str, payload: Any | None = None, timeo
         return status, json.loads(raw)
     except json.JSONDecodeError:
         return status, raw
+
+
+def safe_provider_status(payload: Any) -> int | None:
+    """Extract only a provider HTTP status code; never persist the response payload itself."""
+    try:
+        rendered = payload if isinstance(payload, str) else json.dumps(payload, separators=(",", ":"))
+    except (TypeError, ValueError):
+        return None
+    match = PROVIDER_HTTP_STATUS.search(rendered)
+    return int(match.group(1)) if match else None
 
 
 def required_env(name: str) -> str:
@@ -168,16 +194,39 @@ def approve(action: dict[str, Any]) -> None:
         raise AssertionError("owner approval failed")
 
 
-def execute(action: dict[str, Any]) -> dict[str, Any]:
+def execute(action: dict[str, Any], provider: str) -> dict[str, Any]:
     status, result = request(BASE, "POST", f"/api/orchestrator/connectors/actions/{action['id']}/execute", timeout=30)
-    if status != 200 or not isinstance(result, dict):
-        raise AssertionError("live provider execution failed")
+    if status != 200:
+        raise Phase8ValidationError(
+            f"{provider}.orchestrator-execute-http",
+            "live provider execution failed",
+            orchestrator_http_status=status,
+            provider_http_status=safe_provider_status(result),
+        )
+    if not isinstance(result, dict):
+        raise Phase8ValidationError(
+            f"{provider}.orchestrator-response-shape",
+            "live provider execution returned a non-object receipt",
+            orchestrator_http_status=status,
+        )
     if result.get("status") != "EXECUTED" or result.get("replay") is not False or not result.get("executedAt"):
-        raise AssertionError("live execution receipt is incomplete")
+        raise Phase8ValidationError(
+            f"{provider}.execution-receipt",
+            "live execution receipt is incomplete",
+            orchestrator_http_status=status,
+        )
     return result
 
 
-def report_payload(checks: dict[str, str], status: str, error_type: str | None = None) -> dict[str, Any]:
+def report_payload(
+    checks: dict[str, str],
+    status: str,
+    error_type: str | None = None,
+    *,
+    failure_stage: str | None = None,
+    orchestrator_http_status: int | None = None,
+    provider_http_status: int | None = None,
+) -> dict[str, Any]:
     data: dict[str, Any] = {
         "schema_version": 1,
         "evidence_class": EVIDENCE_CLASS,
@@ -197,12 +246,35 @@ def report_payload(checks: dict[str, str], status: str, error_type: str | None =
     }
     if error_type:
         data["error_type"] = error_type
+    if failure_stage:
+        data["failure_stage"] = failure_stage
+    if orchestrator_http_status is not None:
+        data["orchestrator_http_status"] = int(orchestrator_http_status)
+    if provider_http_status is not None:
+        data["provider_http_status"] = int(provider_http_status)
     return data
 
 
-def write_report(path: Path, checks: dict[str, str], status: str, error_type: str | None = None) -> None:
+def write_report(
+    path: Path,
+    checks: dict[str, str],
+    status: str,
+    error_type: str | None = None,
+    *,
+    failure_stage: str | None = None,
+    orchestrator_http_status: int | None = None,
+    provider_http_status: int | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(report_payload(checks, status, error_type), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    payload = report_payload(
+        checks,
+        status,
+        error_type,
+        failure_stage=failure_stage,
+        orchestrator_http_status=orchestrator_http_status,
+        provider_http_status=provider_http_status,
+    )
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def validate_contract(contract: dict[str, Any]) -> None:
@@ -317,19 +389,31 @@ def main() -> int:
         for action in (github_action, gmail_action, calendar_action):
             approve(action)
 
-        github_result = execute(github_action)
+        github_result = execute(github_action, "github")
         if not str(github_result.get("externalReference", "")).startswith(("https://github.com/", "github:issue:")):
-            raise AssertionError("GitHub provider did not return an issue receipt")
+            raise Phase8ValidationError(
+                "github.external-reference",
+                "GitHub provider did not return an issue receipt",
+                orchestrator_http_status=200,
+            )
         passed("live.github-approved-executes")
 
-        gmail_result = execute(gmail_action)
+        gmail_result = execute(gmail_action, "gmail")
         if not str(gmail_result.get("externalReference", "")).startswith("gmail:"):
-            raise AssertionError("Gmail provider did not return a message receipt")
+            raise Phase8ValidationError(
+                "gmail.external-reference",
+                "Gmail provider did not return a message receipt",
+                orchestrator_http_status=200,
+            )
         passed("live.gmail-approved-executes")
 
-        calendar_result = execute(calendar_action)
+        calendar_result = execute(calendar_action, "calendar")
         if not str(calendar_result.get("externalReference", "")).startswith("calendar:"):
-            raise AssertionError("Calendar provider did not return an event receipt")
+            raise Phase8ValidationError(
+                "calendar.external-reference",
+                "Calendar provider did not return an event receipt",
+                orchestrator_http_status=200,
+            )
         passed("live.calendar-approved-executes")
 
         status, replay = request(BASE, "POST", f"/api/orchestrator/connectors/actions/{gmail_action['id']}/execute")
@@ -378,9 +462,36 @@ def main() -> int:
         write_report(output, checks, "PASS")
         print(json.dumps({"status": "PASS", "capability": CAPABILITY, "checks": len(checks)}))
         return 0
+    except Phase8ValidationError as error:
+        write_report(
+            output,
+            checks,
+            "FAIL",
+            type(error).__name__,
+            failure_stage=error.stage,
+            orchestrator_http_status=error.orchestrator_http_status,
+            provider_http_status=error.provider_http_status,
+        )
+        safe_summary = {
+            "status": "FAIL",
+            "capability": CAPABILITY,
+            "error_type": type(error).__name__,
+            "failure_stage": error.stage,
+        }
+        if error.orchestrator_http_status is not None:
+            safe_summary["orchestrator_http_status"] = error.orchestrator_http_status
+        if error.provider_http_status is not None:
+            safe_summary["provider_http_status"] = error.provider_http_status
+        print(json.dumps(safe_summary, sort_keys=True))
+        return 1
     except Exception as error:  # noqa: BLE001
-        write_report(output, checks, "FAIL", type(error).__name__)
-        print(json.dumps({"status": "FAIL", "capability": CAPABILITY, "error_type": type(error).__name__}))
+        write_report(output, checks, "FAIL", type(error).__name__, failure_stage="validator.unclassified")
+        print(json.dumps({
+            "status": "FAIL",
+            "capability": CAPABILITY,
+            "error_type": type(error).__name__,
+            "failure_stage": "validator.unclassified",
+        }, sort_keys=True))
         return 1
 
 
