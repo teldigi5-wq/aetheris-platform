@@ -56,14 +56,46 @@ jobs:
           GITHUB_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY }}
           ARM_VALUE: ${{ secrets.AETHERIS_PHASE8_ARM_CONFIRMATION }}
         run: |
-          test -n "$GITHUB_TOKEN_VALUE" || { echo 'Missing Phase 8 GitHub test-account token'; exit 1; }
-          test -n "$GMAIL_TOKEN_VALUE" || { echo 'Missing Phase 8 Gmail test-account token'; exit 1; }
-          test -n "$CALENDAR_TOKEN_VALUE" || { echo 'Missing Phase 8 Calendar test-account token'; exit 1; }
-          test -n "$GMAIL_TARGET_VALUE" || { echo 'Missing Phase 8 Gmail test target'; exit 1; }
-          test -n "$CALENDAR_TARGET_VALUE" || { echo 'Missing Phase 8 Calendar test target'; exit 1; }
-          test -n "$GITHUB_TARGET_VALUE" || { echo 'Missing Phase 8 GitHub test repository'; exit 1; }
-          test "$ARM_VALUE" = 'I_UNDERSTAND_PHASE8_CREATES_LIVE_TEST_DATA' || { echo 'Phase 8 arm confirmation is absent or incorrect'; exit 1; }
-          echo 'Phase 8 dedicated test-account credential gate is armed.'
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          required = {
+              'GITHUB_TOKEN_VALUE': 'AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN',
+              'GMAIL_TOKEN_VALUE': 'AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN',
+              'CALENDAR_TOKEN_VALUE': 'AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN',
+              'GMAIL_TARGET_VALUE': 'AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT',
+              'CALENDAR_TARGET_VALUE': 'AETHERIS_PHASE8_TEST_CALENDAR_ID',
+              'GITHUB_TARGET_VALUE': 'AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY',
+          }
+          missing = [secret_name for env_name, secret_name in required.items() if not os.environ.get(env_name, '').strip()]
+          expected_arm = 'I_UNDERSTAND_PHASE8_CREATES_LIVE_TEST_DATA'
+          if os.environ.get('ARM_VALUE', '').strip() != expected_arm:
+              missing.append('AETHERIS_PHASE8_ARM_CONFIRMATION')
+
+          report = {
+              'schema_version': 1,
+              'capability': 'connector-live-write-phase8',
+              'evidence_class': 'LIVE_PROVIDER_TEST_ACCOUNT_WRITE_READINESS',
+              'status': 'READY' if not missing else 'BLOCKED_MISSING_CONFIGURATION',
+              'missing_configuration': sorted(missing),
+              'secret_values_persisted': False,
+              'target_values_persisted': False,
+              'provider_mutation_started': False,
+              'physical_pc_validation': False,
+              'physical_pc_status': 'BLOCKED_PENDING_HARDWARE',
+          }
+          path = Path('build-evidence/runtime/connector-live-write-phase8-readiness.json')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+
+          if missing:
+              print('Phase 8 live validation is blocked before provider mutation.')
+              print('Missing configuration: ' + ', '.join(sorted(missing)))
+              raise SystemExit(1)
+          print('Phase 8 dedicated test-account credential gate is armed.')
+          PY
 
       - name: Create ephemeral local OAuth client credentials
         shell: bash
@@ -137,7 +169,9 @@ jobs:
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: connector-live-write-phase8-sanitized-evidence
-          path: build-evidence/runtime/connector-live-write-phase8-report.json
+          path: |
+            build-evidence/runtime/connector-live-write-phase8-readiness.json
+            build-evidence/runtime/connector-live-write-phase8-report.json
           if-no-files-found: warn
           retention-days: 7
 
