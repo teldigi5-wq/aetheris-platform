@@ -1,0 +1,152 @@
+name: Connector Live Write Phase 8 Live Test-Account Validation
+
+on:
+  push:
+    branches:
+      - feature/connector-live-test-write-phase8
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-live-write-phase8-live
+  cancel-in-progress: false
+
+jobs:
+  gate-closed:
+    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[phase8-live-write]')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Keep live provider mutations disarmed
+        run: echo 'Phase 8 live provider writes are disarmed. Use an explicit [phase8-live-write] commit signal with repository test-account secrets configured.'
+
+  live-test-account-write-validation:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[phase8-live-write]')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Validate Phase 8 harness before arming
+        run: |
+          python -m py_compile tools/connector_live_write_phase8_token_broker.py
+          python -m py_compile tools/connector_live_write_phase8_validation.py
+          python tools/connector_live_write_phase8_validation.py \
+            --contract build-evidence/runtime/connector-live-write-phase8-contract.json \
+            --preflight
+
+      - name: Require dedicated test-account credentials and explicit arm confirmation
+        shell: bash
+        env:
+          GITHUB_TOKEN_VALUE: ${{ secrets.AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN }}
+          GMAIL_TOKEN_VALUE: ${{ secrets.AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN }}
+          CALENDAR_TOKEN_VALUE: ${{ secrets.AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN }}
+          GMAIL_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT }}
+          CALENDAR_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_CALENDAR_ID }}
+          GITHUB_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY }}
+          ARM_VALUE: ${{ secrets.AETHERIS_PHASE8_ARM_CONFIRMATION }}
+        run: |
+          test -n "$GITHUB_TOKEN_VALUE" || { echo 'Missing Phase 8 GitHub test-account token'; exit 1; }
+          test -n "$GMAIL_TOKEN_VALUE" || { echo 'Missing Phase 8 Gmail test-account token'; exit 1; }
+          test -n "$CALENDAR_TOKEN_VALUE" || { echo 'Missing Phase 8 Calendar test-account token'; exit 1; }
+          test -n "$GMAIL_TARGET_VALUE" || { echo 'Missing Phase 8 Gmail test target'; exit 1; }
+          test -n "$CALENDAR_TARGET_VALUE" || { echo 'Missing Phase 8 Calendar test target'; exit 1; }
+          test -n "$GITHUB_TARGET_VALUE" || { echo 'Missing Phase 8 GitHub test repository'; exit 1; }
+          test "$ARM_VALUE" = 'I_UNDERSTAND_PHASE8_CREATES_LIVE_TEST_DATA' || { echo 'Phase 8 arm confirmation is absent or incorrect'; exit 1; }
+          echo 'Phase 8 dedicated test-account credential gate is armed.'
+
+      - name: Create ephemeral local OAuth client credentials
+        shell: bash
+        run: |
+          echo "AETHERIS_OAUTH_GITHUB_CLIENT_ID=phase8-github-$(openssl rand -hex 8)" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GITHUB_CLIENT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_ID=phase8-google-$(openssl rand -hex 8)" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Start ephemeral Phase 8 credential broker
+        shell: bash
+        env:
+          AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN: ${{ secrets.AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN }}
+          AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN: ${{ secrets.AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN }}
+          AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN: ${{ secrets.AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN }}
+        run: |
+          python tools/connector_live_write_phase8_token_broker.py > /tmp/aetheris-phase8-broker.log 2>&1 &
+          echo $! > /tmp/aetheris-phase8-broker.pid
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:19091/health >/dev/null; then
+              echo 'Phase 8 credential broker is ready.'
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Phase 8 credential broker did not become ready.'
+          exit 1
+
+      - name: Start Aetheris with real provider write endpoints
+        shell: bash
+        run: |
+          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml \
+            up -d --build orchestrator-service
+          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml ps
+
+      - name: Run credential-gated real test-account write validation
+        env:
+          AETHERIS_PHASE8_ARM_CONFIRMATION: ${{ secrets.AETHERIS_PHASE8_ARM_CONFIRMATION }}
+          AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT: ${{ secrets.AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT }}
+          AETHERIS_PHASE8_TEST_CALENDAR_ID: ${{ secrets.AETHERIS_PHASE8_TEST_CALENDAR_ID }}
+          AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY: ${{ secrets.AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY }}
+          AETHERIS_PHASE8_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python tools/connector_live_write_phase8_validation.py \
+            --contract build-evidence/runtime/connector-live-write-phase8-contract.json \
+            --output build-evidence/runtime/connector-live-write-phase8-report.json
+
+      - name: Verify sanitized live-provider report
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/connector-live-write-phase8-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'LIVE_PROVIDER_TEST_ACCOUNT_WRITES', report
+          assert report['capability'] == 'connector-live-write-phase8', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['physical_pc_status'] == 'BLOCKED_PENDING_HARDWARE', report
+          assert report['provider_response_bodies_persisted'] is False, report
+          assert report['account_identifiers_persisted'] is False, report
+          assert report['target_values_persisted'] is False, report
+          assert report['token_material_persisted'] is False, report
+          assert report['provider_exactly_once_proven'] is False, report
+          assert len(report['checks']) == 20, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print('verified 20 Phase 8 credential-gated live test-account write checks')
+          PY
+
+      - name: Publish sanitized Phase 8 evidence only
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: connector-live-write-phase8-sanitized-evidence
+          path: build-evidence/runtime/connector-live-write-phase8-report.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Tear down Phase 8 runtime
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml \
+            down -v --remove-orphans || true
+          if [ -f /tmp/aetheris-phase8-broker.pid ]; then
+            kill "$(cat /tmp/aetheris-phase8-broker.pid)" 2>/dev/null || true
+          fi
