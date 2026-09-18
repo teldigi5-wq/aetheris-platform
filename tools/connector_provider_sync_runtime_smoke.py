@@ -192,7 +192,7 @@ def main() -> int:
         status, receipts = request(BASE, "GET", "/api/orchestrator/connectors/receipts")
         if status != 200 or not isinstance(receipts, list):
             raise AssertionError(f"connector receipts unavailable: {status=} {receipts=!r}")
-        provider_types = {(item.get("provider"), item.get("type")) for item in receipts}
+        provider_types = {(item.get("provider"), item.get("signalType")) for item in receipts}
         if ("GITHUB", "CODE_UPDATE") not in provider_types:
             raise AssertionError(f"GitHub normalization missing: {provider_types!r}")
         passed("sync.github.normalized-to-code-update")
