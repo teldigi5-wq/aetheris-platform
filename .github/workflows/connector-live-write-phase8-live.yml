@@ -100,10 +100,18 @@ jobs:
       - name: Create ephemeral local OAuth client credentials
         shell: bash
         run: |
-          echo "AETHERIS_OAUTH_GITHUB_CLIENT_ID=phase8-github-$(openssl rand -hex 8)" >> "$GITHUB_ENV"
-          echo "AETHERIS_OAUTH_GITHUB_CLIENT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_ID=phase8-google-$(openssl rand -hex 8)" >> "$GITHUB_ENV"
-          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          github_client_id="phase8-github-$(openssl rand -hex 8)"
+          github_client_secret="$(openssl rand -hex 32)"
+          google_client_id="phase8-google-$(openssl rand -hex 8)"
+          google_client_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$github_client_id"
+          echo "::add-mask::$github_client_secret"
+          echo "::add-mask::$google_client_id"
+          echo "::add-mask::$google_client_secret"
+          echo "AETHERIS_OAUTH_GITHUB_CLIENT_ID=$github_client_id" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GITHUB_CLIENT_SECRET=$github_client_secret" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_ID=$google_client_id" >> "$GITHUB_ENV"
+          echo "AETHERIS_OAUTH_GOOGLE_CLIENT_SECRET=$google_client_secret" >> "$GITHUB_ENV"
 
       - name: Start ephemeral Phase 8 credential broker
         shell: bash
