@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "capability": "connector-approved-actions-phase6",
+  "evidence_class": "HOSTED_RUNTIME_SYNTHETIC_WRITE",
+  "physical_pc_validation": false,
+  "live_provider_mutation_proven": false,
+  "checks": [
+    {"id": "service.orchestrator.health", "description": "The real orchestrator container reports healthy."},
+    {"id": "connector.write-policy-live-disabled", "description": "Live connector writes are disabled by default while synthetic writes are enabled."},
+    {"id": "connector.gmail-write-approval-required", "description": "A Gmail send request creates a task-scoped owner approval."},
+    {"id": "connector.calendar-write-approval-required", "description": "A Calendar create-event request creates a task-scoped owner approval."},
+    {"id": "connector.github-write-approval-required", "description": "A GitHub create-issue request creates a task-scoped owner approval."},
+    {"id": "connector.unapproved-write-blocked", "description": "Execution before owner approval is rejected."},
+    {"id": "connector.approvals-visible", "description": "All connector write approvals are visible in the existing approval queue."},
+    {"id": "connector.approved-gmail-synthetic-executes", "description": "Approved Gmail synthetic execution completes and persists a receipt reference."},
+    {"id": "connector.approved-calendar-synthetic-executes", "description": "Approved Calendar synthetic execution completes and persists a receipt reference."},
+    {"id": "connector.approved-github-synthetic-executes", "description": "Approved GitHub synthetic execution completes and persists a receipt reference."},
+    {"id": "connector.idempotent-request-replay", "description": "Repeating an idempotency key reuses the original action and approval."},
+    {"id": "connector.idempotent-execution-replay", "description": "Re-executing an already completed action does not create a second mutation receipt."},
+    {"id": "connector.receipts-persisted", "description": "Connector action history retains completed synthetic receipts and timestamps."},
+    {"id": "connector.audit-explainable", "description": "Each action links provider, kind, summary, task, approval and action type for review."},
+    {"id": "connector.live-write-fails-closed", "description": "Even after approval, a LIVE mutation attempt is rejected while live writes are disabled."},
+    {"id": "connector.truth-boundary", "description": "Evidence explicitly distinguishes synthetic hosted writes from live provider mutation, production autonomy and physical-PC validation."}
+  ]
+}

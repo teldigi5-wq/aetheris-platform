@@ -1,0 +1,104 @@
+name: Connector Approved Actions Phase 6 Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'orchestrator-service/**'
+      - 'tools/connector_approved_actions_runtime_smoke.py'
+      - 'build-evidence/runtime/connector-approved-actions-phase6-contract.json'
+      - '.github/workflows/connector-approved-actions-runtime-proof.yml'
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'orchestrator-service/**'
+      - 'tools/connector_approved_actions_runtime_smoke.py'
+      - 'build-evidence/runtime/connector-approved-actions-phase6-contract.json'
+      - '.github/workflows/connector-approved-actions-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-approved-actions-phase6-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connector-approved-actions-runtime-proof:
+    name: connector-approved-actions-runtime-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile Phase 6 proof harness
+        run: python -m py_compile tools/connector_approved_actions_runtime_smoke.py
+
+      - name: Validate Phase 6 evidence contract
+        run: python -m json.tool build-evidence/runtime/connector-approved-actions-phase6-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Start real orchestrator service
+        env:
+          AETHERIS_CONNECTORS_LIVE_WRITES_ENABLED: 'false'
+        run: |
+          docker compose up -d --build orchestrator-service
+          docker compose ps
+
+      - name: Run connector approved-actions proof
+        run: |
+          python tools/connector_approved_actions_runtime_smoke.py \
+            --contract build-evidence/runtime/connector-approved-actions-phase6-contract.json \
+            --output build-evidence/runtime/connector-approved-actions-phase6-report.json
+
+      - name: Verify Phase 6 proof report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/connector-approved-actions-phase6-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['live_provider_mutation_proven'] is False, report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME_SYNTHETIC_WRITE', report
+          assert report['capability'] == 'connector-approved-actions-phase6', report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(f"verified {len(report['checks'])} connector approved-action checks")
+          PY
+
+      - name: Capture sanitized Phase 6 runtime state
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/connector-approved-actions-compose-ps.txt || true
+          if [ "${{ job.status }}" != "success" ]; then
+            docker compose logs --no-color --tail=240 orchestrator-service \
+              > build-evidence/runtime/connector-approved-actions-failure.log 2>&1 || true
+          fi
+
+      - name: Publish hosted Phase 6 evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: connector-approved-actions-phase6-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans
