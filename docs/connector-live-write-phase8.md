@@ -26,11 +26,13 @@ Provider-side exactly-once behavior is intentionally **not** claimed.
 
 Use credentials belonging to dedicated test accounts only. Do not use primary personal, school, employer, or production credentials.
 
+Phase 8 intentionally reuses the three repository-level live provider token secrets already established by the earlier connector work instead of requiring duplicate Phase 8 token entries. The tokens are mapped into the Phase 8 broker only inside the ephemeral GitHub Actions runner.
+
 | Secret | Purpose |
 | --- | --- |
-| `AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN` | Test-repository GitHub token with permission to create issues. |
-| `AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN` | Google OAuth access token containing `gmail.send`. |
-| `AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN` | Google OAuth access token containing `calendar.events`. |
+| `AETHERIS_LIVE_GITHUB_ACCESS_TOKEN` | Test-repository GitHub token with permission to create issues. |
+| `AETHERIS_LIVE_GMAIL_ACCESS_TOKEN` | Google OAuth access token containing `gmail.send`. |
+| `AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN` | Google OAuth access token containing `calendar.events`. |
 | `AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT` | Test recipient email address. |
 | `AETHERIS_PHASE8_TEST_CALENDAR_ID` | Test calendar ID (for a dedicated test account, `primary` is acceptable). |
 | `AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY` | Separate `owner/repository` used only for test issues. |
@@ -61,7 +63,7 @@ A dedicated acceptance-trigger commit may contain the arm marker solely to reque
 
 ### Readiness evidence
 
-Every armed run now writes `connector-live-write-phase8-readiness.json` before any provider mutation. The report records only the names of missing configuration items, never their values. When configuration is incomplete it reports `BLOCKED_MISSING_CONFIGURATION`, `provider_mutation_started=false`, and preserves `BLOCKED_PENDING_HARDWARE` for physical-PC validation. This readiness report is uploaded even when the live proof fails closed.
+Every armed run writes `connector-live-write-phase8-readiness.json` before any provider mutation. The report records only the names of missing configuration items, never their values. When configuration is incomplete it reports `BLOCKED_MISSING_CONFIGURATION`, `provider_mutation_started=false`, and preserves `BLOCKED_PENDING_HARDWARE` for physical-PC validation. This readiness report is uploaded even when the live proof fails closed.
 
 ## Non-mutating CI proof
 
