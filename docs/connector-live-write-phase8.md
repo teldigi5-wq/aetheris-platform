@@ -61,6 +61,8 @@ The arm marker alone is insufficient. Missing credentials, missing targets, a wr
 
 A dedicated acceptance-trigger commit may contain the arm marker solely to request this gated proof. The credential gate remains authoritative: the run must fail closed before any provider request whenever a required Phase 8 secret or test target is absent.
 
+After any executor, credential-boundary, or provider-error-handling change, the exact-head non-mutating CI must pass again before another armed acceptance rerun.
+
 ### Readiness evidence
 
 Every armed run writes `connector-live-write-phase8-readiness.json` before any provider mutation. The report records only the names of missing configuration items, never their values. When configuration is incomplete it reports `BLOCKED_MISSING_CONFIGURATION`, `provider_mutation_started=false`, and preserves `BLOCKED_PENDING_HARDWARE` for physical-PC validation. This readiness report is uploaded even when the live proof fails closed.
