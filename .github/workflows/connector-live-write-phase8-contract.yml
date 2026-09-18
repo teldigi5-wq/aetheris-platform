@@ -1,0 +1,85 @@
+name: Connector Live Write Phase 8 Contract
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'tools/connector_live_write_phase8_*.py'
+      - 'build-evidence/runtime/connector-live-write-phase8-*'
+      - 'docs/connector-live-write-phase8.md'
+      - '.github/workflows/connector-live-write-phase8-*.yml'
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+      - feature/connector-live-test-write-phase8
+    paths:
+      - 'tools/connector_live_write_phase8_*.py'
+      - 'build-evidence/runtime/connector-live-write-phase8-*'
+      - 'docs/connector-live-write-phase8.md'
+      - '.github/workflows/connector-live-write-phase8-*.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-live-write-phase8-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase8-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile Phase 8 harnesses
+        run: |
+          python -m py_compile tools/connector_live_write_phase8_token_broker.py
+          python -m py_compile tools/connector_live_write_phase8_validation.py
+
+      - name: Validate Phase 8 evidence contract
+        run: |
+          python -m json.tool build-evidence/runtime/connector-live-write-phase8-contract.json >/dev/null
+          python tools/connector_live_write_phase8_validation.py \
+            --contract build-evidence/runtime/connector-live-write-phase8-contract.json \
+            --preflight
+
+      - name: Verify live lane stays explicit and non-automatic
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/connector-live-write-phase8-live.yml').read_text()
+          compose = Path('build-evidence/runtime/connector-live-write-phase8-compose.override.yml').read_text()
+          contract = Path('build-evidence/runtime/connector-live-write-phase8-contract.json').read_text()
+
+          required_workflow_fragments = [
+              "[phase8-live-write]",
+              "AETHERIS_PHASE8_ARM_CONFIRMATION",
+              "AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN",
+              "AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN",
+              "AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN",
+              "AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY",
+              "AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT",
+              "AETHERIS_PHASE8_TEST_CALENDAR_ID",
+          ]
+          for fragment in required_workflow_fragments:
+              assert fragment in workflow, fragment
+
+          assert "pull_request:" not in workflow, "live mutation workflow must never run from pull_request"
+          assert "AETHERIS_WRITE_GMAIL_SEND_URL: https://gmail.googleapis.com/" in compose
+          assert "AETHERIS_WRITE_CALENDAR_EVENTS_URL_TEMPLATE: https://www.googleapis.com/" in compose
+          assert "AETHERIS_WRITE_GITHUB_ISSUES_URL_TEMPLATE: https://api.github.com/" in compose
+          assert "BLOCKED_PENDING_HARDWARE" in contract
+          print('Phase 8 contract is explicit, credential-gated, and non-mutating in ordinary CI.')
+          PY
