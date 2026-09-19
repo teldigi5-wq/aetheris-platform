@@ -10,6 +10,7 @@ import io.aetheris.orchestrator.execution.InvocationStatus;
 import io.aetheris.orchestrator.policy.CompiledPolicyDecision;
 import io.aetheris.orchestrator.policy.OwnerRuleCompilerService;
 import io.aetheris.orchestrator.policy.PolicyEvaluationRequest;
+import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
 import io.aetheris.orchestrator.task.TaskControlService;
 import io.aetheris.orchestrator.task.TaskService;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,12 +33,14 @@ public class BrowserOperatorService {
     public static final String RUNTIME_ID = "browser.webdriver-local";
     public static final String PHYSICAL_MACHINE_STATUS = "BLOCKED_PENDING_HARDWARE";
     private static final String APPROVAL_ACTION = "browser:workflow";
+    private static final String DIRECT_TOOL_FAMILY = "browser";
 
     private final AgentCatalogService agents;
     private final OwnerRuleCompilerService policy;
     private final ApprovalService approvals;
     private final TaskControlService control;
     private final TaskService tasks;
+    private final DirectExecutionAuthorityService directAuthority;
     private final InvocationAuditService audit;
     private final W3cWebDriverBrowserAdapter adapter;
     private final boolean runtimeEnabled;
@@ -51,6 +54,7 @@ public class BrowserOperatorService {
             ApprovalService approvals,
             TaskControlService control,
             TaskService tasks,
+            DirectExecutionAuthorityService directAuthority,
             InvocationAuditService audit,
             W3cWebDriverBrowserAdapter adapter,
             @Value("${aetheris.browser.runtime-enabled:false}") boolean runtimeEnabled,
@@ -62,6 +66,7 @@ public class BrowserOperatorService {
         this.approvals = approvals;
         this.control = control;
         this.tasks = tasks;
+        this.directAuthority = directAuthority;
         this.audit = audit;
         this.adapter = adapter;
         this.runtimeEnabled = runtimeEnabled;
@@ -213,8 +218,17 @@ public class BrowserOperatorService {
             return finish(entry, BrowserExecutionStatus.PHYSICAL_VALIDATION_REQUIRED, InvocationStatus.BLOCKED,
                     "Physical-PC browser validation remains pending", "", List.of());
         }
+
+        try {
+            directAuthority.requireRunningSpecialist(
+                    workflow.taskId(), workflow.agentId(), DIRECT_TOOL_FAMILY, workflow.mode());
+        } catch (RuntimeException exception) {
+            return finish(entry, BrowserExecutionStatus.BLOCKED, InvocationStatus.BLOCKED,
+                    "Direct browser execution authority denied: " + safeMessage(exception), "", List.of());
+        }
+
         if (plan.requiresApproval()
-                && (workflow.taskId() == null || !approvals.hasApproved(workflow.taskId(), APPROVAL_ACTION))) {
+                && !approvals.hasApproved(workflow.taskId(), APPROVAL_ACTION)) {
             return finish(entry, BrowserExecutionStatus.APPROVAL_REQUIRED, InvocationStatus.BLOCKED,
                     "Owner approval is required for " + APPROVAL_ACTION, "", List.of());
         }
@@ -246,7 +260,7 @@ public class BrowserOperatorService {
         } else if (!physicalValidated) {
             detail = "Runtime is enabled, but physical validation is still required before browser actions may execute.";
         } else {
-            detail = "Runtime is enabled and marked physically validated; owner policy and approval gates still apply to every workflow.";
+            detail = "Runtime is enabled and marked physically validated; durable specialist authority, owner policy and approval gates still apply to every workflow.";
         }
         return new BrowserRuntimeStatus(RUNTIME_ID, true, runtimeEnabled, physicalValidated,
                 webdriverEndpoint, PHYSICAL_MACHINE_STATUS, detail);
