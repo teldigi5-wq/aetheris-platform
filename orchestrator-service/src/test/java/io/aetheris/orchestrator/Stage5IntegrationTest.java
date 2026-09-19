@@ -13,6 +13,8 @@ import io.aetheris.orchestrator.policy.OperationMode;
 import io.aetheris.orchestrator.runtime.DurableWorkQueueService;
 import io.aetheris.orchestrator.runtime.EnqueueWorkItemRequest;
 import io.aetheris.orchestrator.runtime.WorkItemState;
+import io.aetheris.orchestrator.scheduler.SchedulerService;
+import io.aetheris.orchestrator.scheduler.WorkerHeartbeatRequest;
 import io.aetheris.orchestrator.task.CreateTaskRequest;
 import io.aetheris.orchestrator.task.TaskControlService;
 import io.aetheris.orchestrator.task.TaskService;
@@ -26,6 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +39,7 @@ class Stage5IntegrationTest {
     @Autowired TaskService tasks;
     @Autowired TaskControlService control;
     @Autowired DurableWorkQueueService queue;
+    @Autowired SchedulerService scheduler;
     @Autowired HostRegistryService hosts;
     @Autowired CredentialVault vault;
     @Autowired McpRegistryService mcpRegistry;
@@ -58,7 +62,9 @@ class Stage5IntegrationTest {
     void durableQueueRetriesAndOwnerPauseResumePropagate(){
         var task=runningTask("Stage5 durable queue");
         var item=queue.enqueue(new EnqueueWorkItemRequest(task.getId(),"engineering","{}",2));
-        assertThat(queue.claim(item.getId()).getState()).isEqualTo(WorkItemState.RUNNING);
+        String workerId="stage5-backend-"+UUID.randomUUID();
+        scheduler.heartbeat(new WorkerHeartbeatRequest(workerId,"backend-engineer",1,0));
+        assertThat(queue.claim(item.getId(),workerId,60).getState()).isEqualTo(WorkItemState.RUNNING);
         assertThat(queue.fail(item.getId(),"transient").getState()).isEqualTo(WorkItemState.RETRY_WAIT);
 
         assertThat(control.pauseTask(task.getId(),"inspect").getState()).isEqualTo(TaskState.PAUSED);
@@ -69,7 +75,7 @@ class Stage5IntegrationTest {
 
     @Test
     void futureHostRegistersUnpairedAndCannotExecute(){
-        var host=hosts.register(new HostRegistrationRequest("stage5-host-"+java.util.UUID.randomUUID(),"Future Windows PC","WINDOWS",
+        var host=hosts.register(new HostRegistrationRequest("stage5-host-"+UUID.randomUUID(),"Future Windows PC","WINDOWS",
                 Set.of("PROCESS_READ","APP_LAUNCH","PC_TELEMETRY","OLLAMA"),"AA:BB:CC:DD:EE:FF:11:22"));
         assertThat(host.getStatus()).isEqualTo(HostStatus.UNPAIRED);
         assertThatThrownBy(()->hosts.requireExecutable(host.getId())).isInstanceOf(IllegalStateException.class).hasMessageContaining("not paired");
@@ -77,7 +83,7 @@ class Stage5IntegrationTest {
 
     @Test
     void mcpToolInvocationFailsClosedWithoutAgentGrant(){
-        var server=mcpRegistry.register(new McpServerRegistrationRequest("stage5-mcp-"+java.util.UUID.randomUUID(),"Stage5 MCP","http://127.0.0.1:65534/mcp",true,true,
+        var server=mcpRegistry.register(new McpServerRegistrationRequest("stage5-mcp-"+UUID.randomUUID(),"Stage5 MCP","http://127.0.0.1:65534/mcp",true,true,
                 Set.of("tools.call"),Set.of("public")));
         mcpRegistry.updateHealth(server.getId(),new io.aetheris.orchestrator.mcp.McpHealthUpdateRequest(true,"test healthy"));
         var result=mcpTools.invoke(new McpToolInvocationRequest(server.getId(),null,"backend-engineer","tools.call","public","read_file",Map.of("path","README.md")));

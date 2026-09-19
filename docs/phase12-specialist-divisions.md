@@ -1,16 +1,10 @@
 # Phase 12 — Specialist Divisions Production Hardening
 
-Phase 12 follows the certified Phase 11 security hardening pass and begins the master-build-spec item **remaining specialist divisions**.
-
-This phase does not add catalog-only personas. Each slice closes a concrete runtime-governance gap in the specialist organization that already exists.
+Phase 12 follows the certified Phase 11 security hardening pass and implements the master-build-spec item **remaining specialist divisions** as concrete runtime-governance slices rather than catalog-only personas.
 
 ## Slice 1 — Specialist tool authority
 
-Aetheris already defines each specialist with an `allowed-tools` list, and the safe-tool registry already requires a known agent. Before Phase 12, however, the registry did not enforce the specialist's declared tool families. Any known agent could therefore request any registered safe tool and rely only on the ordinary owner policy, risk and approval layers.
-
-That made `allowed-tools` descriptive metadata rather than an execution boundary.
-
-`SpecialistToolAuthorizationService` now sits in front of ordinary safe-tool policy evaluation.
+Aetheris already declared `allowed-tools` per specialist, but before Slice 1 those declarations were descriptive metadata. `SpecialistToolAuthorizationService` now sits in front of ordinary safe-tool policy evaluation and requires an exact registered tool-family grant for the active specialist.
 
 Current safe-tool families are explicit and finite:
 
@@ -23,175 +17,143 @@ Current safe-tool families are explicit and finite:
 | `terminal.inspect` | `terminal` |
 | `terminal.execute-workspace` | `terminal` |
 
-For a safe-tool request, the runtime resolves the registered tool and known specialist, requires an explicit tool-family mapping and exact catalog family grant, then evaluates ordinary owner policy, mode, risk and approval requirements. A specialist deny cannot be overridden by owner approval.
+A specialist deny cannot be overridden by owner approval. Ordinary owner policy, mode, risk, approval, emergency and runtime controls still apply after specialist authorization succeeds.
 
 ## Slice 2 — Independent specialist verification and governed completion
 
-The generic task state machine previously allowed `VERIFYING -> COMPLETED` when a caller supplied any `agentId`. Engineering workflows happened to use a separate Software Architect, but that independence was a workflow convention rather than a platform completion rule.
+The generic task state machine previously allowed `VERIFYING -> COMPLETED` from a caller-supplied `agentId`. `TaskVerificationService` now makes completion a reusable governance boundary.
 
-`TaskVerificationService` now creates a reusable governed-completion boundary using the existing durable task-event journal and agent catalog. It adds no new persistence table or public endpoint.
+A task can complete from `VERIFYING` only when:
 
-A task can complete from `VERIFYING` only when all of the following are true:
+1. a known non-executive specialist was recorded as executor while the task was `RUNNING`;
+2. a distinct known QA/review specialist performed the `RUNNING -> VERIFYING` handoff;
+3. a third known specialist recorded the final verification decision;
+4. that verifier differs from both executor and reviewer;
+5. the verifier has an explicit verification-oriented catalog capability;
+6. the recorded decision is `PASS` for the current executor/reviewer context; and
+7. the completing `agentId` is the same specialist that recorded the passing decision.
 
-1. a known non-executive specialist is recorded while the task is `RUNNING`;
-2. a distinct known QA/review specialist performs the `RUNNING -> VERIFYING` handoff;
-3. a third known specialist records the final verification decision;
-4. the final verifier is different from both executor and QA/reviewer;
-5. the final verifier has at least one explicit verification-oriented catalog capability such as `code-review`, `integration-testing`, `release-gates`, `architecture-review`, `secure-code-review`, `source-verification`, `remediation-verification` or `evaluation`;
-6. the decision is a recorded `PASS` for the current executor/reviewer context;
-7. the completing `agentId` is the same specialist that recorded that passing decision.
-
-The verification event records only governance metadata: decision, evidence type, executor id, reviewer id and the verifier identity already present on the task event. Existing engineering evidence remains in `aetheris_verification_evidence`; the task-level decision does not replace substantive QA evidence.
-
-### Fail-closed behavior
-
-- direct API completion without a recorded decision is denied;
-- the execution specialist cannot self-verify;
-- the QA/review handoff specialist cannot self-promote to final verifier;
-- an unknown verifier is denied by the existing agent catalog;
-- a known specialist without a verification-oriented capability is denied;
-- a failed verification decision cannot complete a task;
-- owner approval permits an approved action but cannot become verification evidence or bypass completion governance;
-- stale/mismatched decisions are rejected because the recorded executor/reviewer context must match the current task history.
-
-`EngineeringWorkflowService` records its Software Architect decision through this shared boundary before task completion. Both the state-only Stage 3 workflow path and the adapter-backed evidence path remain governed by the same final completion rule.
-
-### Connector approved-action compatibility
-
-The full PR runtime suite exposed an existing connector lifecycle that used `automation-engineer` as executor, review handoff and final completer. The new boundary correctly rejected that self-certifying path during the Connector Approved Actions Phase 6 proof.
-
-The connector lifecycle is now migrated rather than exempted:
-
-- `automation-engineer` executes the approved connector action and records the provider receipt;
-- `qa-engineer` performs the `RUNNING -> VERIFYING` review handoff and reviews the receipt;
-- `mcp-integration-engineer` records the final independent `CONNECTOR_RECEIPT` decision using its existing `integration-testing` capability and owns completion.
-
-No connector-specific bypass was added. Synthetic and enabled live-write paths therefore use the same generic independent-verification boundary as other governed specialist work.
+Owner approval can authorize an approved action but cannot become verification evidence. Connector approved-action execution was migrated to the same generic rule: `automation-engineer` executes, `qa-engineer` reviews, and `mcp-integration-engineer` independently verifies and completes.
 
 ## Slice 3 — Governed specialist delegation
 
-The catalog has long declared a `delegation` capability for the Executive Planner, but task assignment itself previously accepted a different `agentId` when moving into execution without checking whether the current specialist was allowed to delegate. Mission plans also persisted their requested `agentId` without enforcing that the identity existed in the current specialist catalog.
+`TaskDelegationService` turns specialist assignment into an explicit authority boundary. A change of execution specialist during `PLANNING/AWAITING_APPROVAL -> RUNNING` is a delegation and succeeds only when the delegator and delegate are known, distinct catalog identities and the delegator has the exact `delegation` capability.
 
-`TaskDelegationService` now creates the reusable delegation boundary.
+The current catalog therefore makes `executive-planner` the coordinator allowed to assign another specialist. Delegation is assignment, not privilege inheritance:
 
-A change of execution specialist during `PLANNING/AWAITING_APPROVAL -> RUNNING` is treated as a delegation and succeeds only when:
+- the same task and `OperationMode` are retained;
+- the delegate receives only its own catalog capabilities and tool families;
+- `authorityTransferred=false` is recorded in durable delegation evidence;
+- `verificationRequired=true` remains attached to the downstream lifecycle;
+- owner approval cannot substitute for delegation authority.
 
-1. the current task agent is a known catalog specialist;
-2. the requested execution specialist is also a known catalog specialist;
-3. the delegator and delegate are different identities;
-4. the delegator has the exact catalog capability `delegation`;
-5. the task itself is reused, so its `OperationMode`, audit history and independent-verification requirement are not replaced by a less restrictive child task.
+Mission plans validate every specialist before materialization, record planned delegation lineage, keep `executive-planner` as planning authority, and carry delegator/delegate lineage into durable work-item payloads. Approval-resumed engineering work explicitly activates the governed `executive-planner -> backend-engineer` delegation before backend execution is recorded.
 
-The current catalog therefore makes `executive-planner` the explicit coordinator allowed to hand execution to another specialist. Ordinary specialists cannot chain work into a more privileged role merely by supplying a different `agentId`.
+## Slice 4 — Scheduler/worker specialist identity binding
 
-### No authority transfer
+The scheduler audit found a separate execution-identity gap after delegation was already governed: worker heartbeats, scheduler dispatch and direct queue claims were keyed by arbitrary `workerId` strings. Stage 9 capability routing also selected workers by those strings. A worker could therefore be capability-compatible without proving that it represented the specialist assigned to the work item.
 
-Delegation is assignment, not privilege inheritance.
+Slice 4 closes that gap at the lease boundary.
 
-The delegation event records:
+### Worker binding
 
-- `delegationDecision=ALLOW`;
-- `delegationStage=PLANNED|ACTIVATED`;
-- delegator and delegate IDs;
-- delegate division and risk class;
-- unchanged task mode;
-- `authorityTransferred=false`;
-- `verificationRequired=true`;
-- the delegate's catalog tool/capability snapshot for audit context.
+`WorkerHeartbeatRequest` now accepts an optional `agentId`. When supplied:
 
-The delegate still passes through Slice 1 using only its own exact `allowed-tools` families. A delegated Research Scientist therefore does not gain GitHub or terminal authority just because the Executive Planner assigned the task. `PRIVATE` and `ZERO_COST` task modes remain attached to the same task and continue to constrain downstream owner-policy evaluation.
+1. the agent must exist in the canonical `AgentCatalogService`;
+2. the heartbeat row records that specialist identity;
+3. a worker may bind once from unbound to a known specialist;
+4. a bound worker cannot later rebind to another specialist by sending a new heartbeat.
 
-### Assignment boundary rather than every handoff
+Legacy infrastructure workers may remain unbound, but they are eligible only for work that has no specialist requirement.
 
-Only a change of specialist for execution is classified as delegation. The following remain their existing concepts instead of being incorrectly reclassified:
+This is an application-level catalog identity binding. It does **not** claim cryptographic machine attestation. Network/API authentication and any future host attestation remain separate security layers.
 
-- a specialist continuing its own task from planning into execution;
-- owner pause/resume and emergency controls;
-- an approval pause/resume under the same active agent;
-- `RUNNING -> VERIFYING` QA/review handoff;
-- final independent verification.
+### Work-item binding
 
-This keeps delegation governance narrow and prevents accidental interference with recovery and approval state machines.
+`WorkItemEntity` now carries nullable `requiredAgentId` authority metadata.
 
-### Owner-approval continuation
+- ordinary enqueue derives the required specialist from the task's current active agent only when that identity is a known catalog specialist;
+- generic/unassigned infrastructure work remains compatible with legacy workers;
+- `enqueueForSpecialist(...)` creates an explicit, validated specialist requirement for cases where the execution specialist intentionally differs from the task's current planning authority.
 
-An approval-required engineering workflow exposes a subtle two-step lifecycle: owner approval first resumes the task as `RUNNING` under the same `executive-planner` identity, and only then may engineering execution be assigned to `backend-engineer`.
+Mission release uses `enqueueForSpecialist(...)` with the mission node's validated delegate. A mission task can therefore correctly remain under `executive-planner` during planning while the queued execution lease is restricted to the delegated `research-scientist`, `backend-engineer`, or other validated specialist.
 
-`TaskService.activateDelegatedExecution(...)` handles that internal post-approval handoff. It requires the task to already be `RUNNING`, reuses `TaskDelegationService` against the current active planner, records the `ACTIVATED` delegation evidence, changes only the active execution specialist, and leaves the task mode and history untouched. `EngineeringWorkflowService` uses this boundary before recording any backend execution after approval.
+### One claim boundary
 
-Owner approval therefore authorizes the workflow but does not silently become delegation authority. The planner still has to pass the explicit delegation-capability boundary.
+`WorkerIdentityBindingService` is the shared fail-closed boundary for work claims.
 
-### Mission-plan hardening
+For specialist-bound work, a claim succeeds only when:
 
-`MissionPlannerService` now validates every materialized step against the same delegation boundary before creating tasks. Blank or invented specialist IDs fail closed.
+1. the work item has an exact known `requiredAgentId`;
+2. the supplied `workerId` has a current heartbeat row;
+3. that heartbeat is bound to the same exact specialist identity.
 
-For valid mission steps it:
+The rule is enforced by:
 
-1. records a durable `PLANNED` delegation event on the new task;
-2. keeps `executive-planner` as the task's planning authority when dependencies release;
-3. preserves the requested specialist as the delegate on the mission-plan node;
-4. embeds `delegatorId`, `delegateId` and `authorityTransferred=false` in the durable work-item payload so scheduler evidence retains delegation lineage.
+- direct `DurableWorkQueueService.claim(...)` calls;
+- lease renewal;
+- ordinary `SchedulerService.dispatch(...)`;
+- `CapabilityAwareDispatchService` Stage 9 routing.
 
-An old Stage 7 fixture used the nonexistent `research-director` identity. The stricter boundary exposed that stale fixture, which is now corrected to the real `research-scientist` catalog identity rather than receiving a compatibility bypass.
+A capability declaration therefore cannot override specialist identity. A research-bound worker advertising `coding` cannot claim backend-engineer work merely because its Stage 9 capability set matches.
+
+### Compatibility behavior
+
+Work items with no known specialist assignment retain the legacy generic-worker path. This preserves Stage 7/Stage 9 infrastructure scheduling behavior while making specialist execution fail closed.
+
+The scheduler skips ready tickets whose required specialist does not match the requesting worker instead of turning an identity mismatch into a lease. Direct claim attempts fail with an explicit identity-binding error and leave the item queued.
 
 ## Phase 12 acceptance proof
 
-`Phase12SpecialistDivisionsIntegrationTest` proves specialist tool-family isolation and approval precedence.
+The dedicated **Phase 12 Specialist Divisions Proof** workflow runs four integration suites:
 
-`Phase12SpecialistVerificationIntegrationTest` proves:
+- `Phase12SpecialistDivisionsIntegrationTest` — exact specialist tool-family isolation and approval precedence;
+- `Phase12SpecialistVerificationIntegrationTest` — independent verification and governed completion;
+- `Phase12GovernedDelegationIntegrationTest` — delegation authority, no privilege transfer, mission lineage and approval-resume activation;
+- `Phase12WorkerIdentityBindingIntegrationTest` — scheduler/worker execution identity.
 
-1. completion without a verification decision fails closed;
-2. executor self-verification is denied;
-3. QA/reviewer self-promotion is denied;
-4. a known non-verifier specialist is denied;
-5. an invented verifier identity is denied;
-6. owner approval cannot bypass verification;
-7. a failed verification decision cannot complete the task;
-8. a valid independent decision permits completion and is present in the durable task history;
-9. the existing engineering workflow completes through the governed boundary.
+The Slice 4 suite proves:
 
-`Phase12GovernedDelegationIntegrationTest` proves:
+1. a worker heartbeat cannot bind to an invented specialist;
+2. a worker's specialist binding cannot be changed by a later heartbeat;
+3. direct queue claims cannot cross specialist identity;
+4. mission work is lease-bound to the validated delegate while the task retains planner authority during planning;
+5. Stage 9 capability matching cannot override specialist identity;
+6. generic work with no specialist requirement remains compatible with an unbound legacy worker.
 
-1. Executive Planner delegation succeeds and is durably audited;
-2. delegation cannot expand the delegate's tool families;
-3. the parent `PRIVATE` mode survives delegation and still blocks off-device policy access;
-4. a specialist without `delegation` capability cannot assign another specialist;
-5. an invented delegate identity is denied;
-6. self-delegation is denied;
-7. mission planning rejects an unknown specialist before task materialization;
-8. a valid mission records planned delegation lineage and retains the Executive Planner as planning authority;
-9. an owner-rule approval path resumes under the planner and then explicitly activates a governed `executive-planner -> backend-engineer` delegation before engineering continues.
+The workflow also contains source guards proving the worker binding is used by the direct queue, ordinary scheduler, capability-aware scheduler and mission enqueue path, with no wildcard specialist grant.
 
-The dedicated **Phase 12 Specialist Divisions Proof** workflow runs all three integration suites plus source guards on the feature branch, pull request and canonical development branch. The repository's Connector Approved Actions Phase 6 Runtime Proof remains an independent runtime compatibility gate for the connector write lifecycle.
+Repository-wide Build, contract-freeze, Stage 26, CodeQL, connector proofs, hosted runtime proofs and reproducibility remain independent merge gates.
 
 ## Contract and migration impact
 
-These slices intentionally add no:
+Slices 1–3 intentionally added no endpoint, table, credential or execution-adapter surface.
 
-- agent IDs;
-- HTTP endpoints;
-- JPA tables;
-- external credentials;
-- tool execution adapters;
-- remote-control surfaces;
-- live-money capability.
+Slice 4 still adds no endpoint, table, agent ID, credential, remote-control surface or execution adapter, but it adds two nullable persistence fields to existing entities:
 
-Verification and delegation decisions reuse the existing task-event journal. Mission work-item delegation lineage reuses the existing payload field. The frozen Stage 23 public/runtime compatibility surface should therefore remain unchanged and must be confirmed by ordinary CI before merge.
+- `aetheris_worker_heartbeats.agent_id`;
+- `aetheris_work_items.required_agent_id`.
+
+It also additively exposes optional specialist identity in the existing worker-heartbeat/work-item JSON contracts. Existing three-argument Java heartbeat construction remains supported for generic tests and infrastructure workers.
+
+The Stage 23 frozen endpoint/table/agent surface is expected to remain unchanged; ordinary CI must still confirm that before merge. Any environment using explicit schema migrations rather than repository test/create-update behavior must add equivalent nullable columns before activating Slice 4.
 
 ## Security review
 
-Phase 12 now narrows authority at three independent layers:
+Phase 12 now narrows authority through this chain:
 
-`governed delegation -> specialist tool boundary -> owner policy/mode/risk -> approval -> emergency/runtime controls -> execution/sandbox -> QA/review -> independent verifier -> governed completion`
+`governed delegation -> specialist-bound work item -> specialist-bound worker lease -> specialist tool boundary -> owner policy/mode/risk -> approval -> emergency/runtime controls -> execution/sandbox -> QA/review -> independent verifier -> governed completion`
 
-Delegation cannot manufacture a new identity, give a specialist another role's tools, replace the task's policy mode, or remove the downstream verifier requirement. Owner approval cannot substitute for delegation authority. Neither owner approval nor a caller-supplied `agentId` can expand specialist tool authority or manufacture a completion decision.
+A worker cannot change its persisted specialist binding, an arbitrary worker ID cannot claim specialist-bound work, and a matching Stage 9 capability set cannot substitute for the required specialist identity. Delegation still cannot manufacture a new identity, transfer tools, replace the task mode or remove verification.
+
+The worker binding is deliberately not described as cryptographic attestation. A future trusted-host/device identity layer may strengthen who is allowed to assert a worker identity, but that is outside this repository-side Slice 4 claim.
 
 ## Rollback
 
-Rollback remains code-only. No persistence migration or credential movement is involved.
+Slice 4 is rollback-safe at application level because both new persistence fields are nullable and existing generic work remains valid.
 
-If Slice 3 must be rolled back for compatibility, revert the delegation service, task-assignment and post-approval hooks, mission planner changes, corrected fixture, proof tests/workflow and documentation as one unit. Do not leave mission payloads claiming governed delegation if the runtime assignment guard has been removed.
+If Slice 4 must be rolled back, revert the worker binding service, heartbeat identity field/request extension, work-item required-agent field, queue/scheduler/capability-dispatch enforcement, mission specialist enqueue hook, Slice 4 tests/workflow guard and this documentation as one unit. Existing nullable columns may remain harmlessly unused until a migration cleanup is deliberately scheduled.
 
-## Next Phase 12 slices
+## Next Phase 12 audit
 
-After execution authority, completion independence and delegation are certified, the next audit should inspect scheduler/worker identity binding and any remaining specialist execution surfaces before deciding whether Phase 12 is complete.
+With tool authority, independent completion, governed delegation and scheduler/worker identity binding covered, the next audit should inspect **remaining specialist execution surfaces that bypass the durable work-queue/scheduler path**. Phase 12 should be declared complete only if every such consequential execution surface already consumes the catalog specialist boundary, owner policy/mode/risk controls and independent verification where applicable; otherwise the next slice should close the concrete gap rather than add new personas.
