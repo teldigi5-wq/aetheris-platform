@@ -71,9 +71,17 @@ jobs:
           task_service=orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskService.java
           verification_service=orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskVerificationService.java
           workflow=orchestrator-service/src/main/java/io/aetheris/orchestrator/workflow/EngineeringWorkflowService.java
+          connector=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/ConnectorActionService.java
           grep -q 'verification.assertCompletionAllowed' "$task_service"
           grep -q 'The execution specialist cannot verify its own work' "$verification_service"
           grep -q 'cannot self-promote to final verifier' "$verification_service"
           grep -q 'does not have an independent verification capability' "$verification_service"
           grep -q 'verification.recordDecision' "$workflow"
-          echo 'Governed completion and independent-verifier boundary are wired into task completion.'
+          grep -q 'TaskState.VERIFYING, "qa-engineer"' "$connector"
+          grep -q '"mcp-integration-engineer"' "$connector"
+          grep -q 'TaskState.COMPLETED, "mcp-integration-engineer"' "$connector"
+          if grep -q 'TaskState.COMPLETED, "automation-engineer"' "$connector"; then
+            echo 'Connector action lifecycle still allows executor self-certification.' >&2
+            exit 1
+          fi
+          echo 'Governed completion and independent-verifier boundary are wired into task and connector completion.'
