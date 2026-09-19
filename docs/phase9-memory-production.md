@@ -11,7 +11,7 @@ Phase 9 turns the existing semantic/vector memory foundation into an owner-visib
 - **Fail closed:** sensitive writes/decryption fail when the memory master key is absent or invalid.
 - **Deterministic retrieval:** identical repository state and query input use explicit score, updated-time, and UUID tie-breaking.
 - **Provenance:** every record carries a provenance type and optional reference, and search results explain the retrieval reason.
-- **Retention:** expired records are excluded from retrieval and are physically purged by the scheduled retention sweep or explicit purge endpoint.
+- **Retention:** expired records are excluded from retrieval immediately and physically purged by the internal scheduled retention sweep.
 - **Correction/deletion:** owners can correct records without weakening encryption; delete physically removes the row.
 - **Inspectable:** the guarded inspector endpoint exposes owner-scoped memory without direct database access.
 - **Observable:** writes, retrieval hit/miss, authorization denials, correction, deletion, retention purge, and crypto failures emit Micrometer counters.
@@ -30,8 +30,9 @@ Endpoints:
 - `DELETE /records/{id}` — physical delete.
 - `GET /search` — deterministic owner/project-scoped retrieval with provenance reason.
 - `GET /inspector` — owner-visible filtering/inspection.
-- `POST /retention/purge` — explicit physical purge of expired rows.
 - `GET /capabilities` — reports Phase 9 security/runtime capabilities without exposing key material.
+
+The global retention purge is deliberately **not exposed as a public HTTP operation**. It is an internal lifecycle action used by the scheduled retention component, which avoids a caller being able to trigger cross-owner deletion through the inspector API.
 
 ## Encryption key
 
@@ -47,7 +48,7 @@ Changing or losing the key makes existing encrypted records unreadable. Producti
 
 ## Retention
 
-The scheduled sweep uses `aetheris.memory.retention-sweep-ms` and defaults to 300000 ms (5 minutes). Retrieval also filters expired records immediately, so an expired item is unavailable even before the next physical purge.
+The internal scheduled sweep uses `aetheris.memory.retention-sweep-ms` and defaults to 300000 ms (5 minutes). Retrieval also filters expired records immediately, so an expired item is unavailable even before the next physical purge.
 
 ## Security review notes
 
@@ -57,7 +58,8 @@ The scheduled sweep uses `aetheris.memory.retention-sweep-ms` and defaults to 30
 4. Query candidates are selected by owner before decryption; project boundaries are then enforced before project memory is returned.
 5. Wrong owner/project requests increment denial telemetry and do not reveal plaintext.
 6. Physical deletion is verified against the repository in the Phase 9 integration proof.
-7. Existing semantic/vector memory APIs remain unchanged to minimize regression risk.
+7. Global retention purge is kept internal rather than exposed through an owner-facing endpoint.
+8. Existing semantic/vector memory APIs remain unchanged to minimize regression risk.
 
 ## Rollback
 
