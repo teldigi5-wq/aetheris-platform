@@ -9,10 +9,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -27,9 +29,13 @@ public class W3cWebDriverBrowserAdapter {
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final BrowserDownloadEvidenceService downloadEvidence;
 
-    public W3cWebDriverBrowserAdapter(ObjectMapper objectMapper) {
+    public W3cWebDriverBrowserAdapter(
+            ObjectMapper objectMapper,
+            BrowserDownloadEvidenceService downloadEvidence) {
         this.objectMapper = objectMapper;
+        this.downloadEvidence = downloadEvidence;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
@@ -46,10 +52,11 @@ public class W3cWebDriverBrowserAdapter {
         String sessionId = null;
         List<BrowserActionResult> results = new ArrayList<>();
         String finalUrl = "";
+        Path downloadDirectory = actions.stream().anyMatch(action -> action != null && action.type() == BrowserActionType.DOWNLOAD)
+                ? downloadEvidence.createExecutionDirectory()
+                : null;
         try {
-            JsonNode session = request(base, "POST", "/session", Map.of(
-                    "capabilities", Map.of("alwaysMatch", Map.of(
-                            "browserName", browserName == null || browserName.isBlank() ? "chrome" : browserName.trim()))));
+            JsonNode session = request(base, "POST", "/session", sessionRequest(browserName, downloadDirectory));
             sessionId = text(session.path("value"), "sessionId");
             if (sessionId.isBlank()) sessionId = text(session, "sessionId");
             if (sessionId.isBlank()) throw new IllegalStateException("WebDriver did not return a session id");
@@ -58,7 +65,14 @@ public class W3cWebDriverBrowserAdapter {
                 BrowserAction action = actions.get(i);
                 String actionId = action.actionId().isBlank() ? "step-" + (i + 1) : action.actionId();
                 try {
-                    BrowserActionResult result = executeAction(base, sessionId, actionId, action, valuesByRef, filesByRef);
+                    BrowserActionResult result = executeAction(
+                            base,
+                            sessionId,
+                            actionId,
+                            action,
+                            valuesByRef,
+                            filesByRef,
+                            downloadDirectory);
                     finalUrl = currentUrl(base, sessionId);
                     validateCurrentUrl(finalUrl, allowedDomains);
                     results.add(result);
@@ -79,13 +93,34 @@ public class W3cWebDriverBrowserAdapter {
         }
     }
 
+    private Map<String, Object> sessionRequest(String browserName, Path downloadDirectory) {
+        String effectiveBrowserName = browserName == null || browserName.isBlank() ? "chrome" : browserName.trim();
+        Map<String, Object> alwaysMatch = new LinkedHashMap<>();
+        alwaysMatch.put("browserName", effectiveBrowserName);
+
+        if (downloadDirectory != null) {
+            Map<String, Object> prefs = new LinkedHashMap<>();
+            prefs.put("download.default_directory", downloadDirectory.toAbsolutePath().normalize().toString());
+            prefs.put("download.prompt_for_download", false);
+            prefs.put("download.directory_upgrade", true);
+            prefs.put("safebrowsing.enabled", true);
+
+            String lower = effectiveBrowserName.toLowerCase(Locale.ROOT);
+            String optionsKey = lower.contains("edge") ? "ms:edgeOptions" : "goog:chromeOptions";
+            alwaysMatch.put(optionsKey, Map.of("prefs", prefs));
+        }
+
+        return Map.of("capabilities", Map.of("alwaysMatch", alwaysMatch));
+    }
+
     private BrowserActionResult executeAction(
             URI base,
             String sessionId,
             String actionId,
             BrowserAction action,
             Map<String, String> valuesByRef,
-            Map<String, String> filesByRef) {
+            Map<String, String> filesByRef,
+            Path downloadDirectory) {
         return switch (action.type()) {
             case NAVIGATE -> {
                 request(base, "POST", "/session/" + sessionId + "/url", Map.of("url", action.url()));
@@ -108,6 +143,29 @@ public class W3cWebDriverBrowserAdapter {
                 String elementId = findElement(base, sessionId, action.selector());
                 request(base, "POST", "/session/" + sessionId + "/element/" + elementId + "/value", Map.of("text", file));
                 yield new BrowserActionResult(actionId, action.type(), true, "File input populated from a supplied file reference", "");
+            }
+            case DOWNLOAD -> {
+                if (downloadDirectory == null) throw new IllegalStateException("Isolated download directory was not prepared");
+                String expectedFilename = requiredRef(filesByRef, action.fileRef(), "fileRef");
+                downloadEvidence.prepareExpectedTarget(downloadDirectory, expectedFilename);
+                String elementId = findElement(base, sessionId, action.selector());
+                request(base, "POST", "/session/" + sessionId + "/element/" + elementId + "/click", Map.of());
+                int seconds = action.timeoutSeconds() == null ? 15 : Math.max(1, Math.min(action.timeoutSeconds(), 30));
+                BrowserDownloadEvidenceService.VerifiedDownload verified = downloadEvidence.awaitVerifiedDownload(
+                        downloadDirectory,
+                        expectedFilename,
+                        Duration.ofSeconds(seconds));
+                BrowserArtifactEvidence artifact = new BrowserArtifactEvidence(
+                        verified.relativePath(),
+                        verified.sizeBytes(),
+                        verified.sha256());
+                yield new BrowserActionResult(
+                        actionId,
+                        action.type(),
+                        true,
+                        "Downloaded artifact verified inside the isolated browser download root",
+                        "sha256:" + verified.sha256(),
+                        artifact);
             }
             case SCREENSHOT -> {
                 JsonNode response = request(base, "GET", "/session/" + sessionId + "/screenshot", null);
@@ -132,7 +190,6 @@ public class W3cWebDriverBrowserAdapter {
                 }
                 yield new BrowserActionResult(actionId, action.type(), true, "Wait completed for " + seconds + " second(s)", "");
             }
-            case DOWNLOAD -> throw new IllegalStateException("DOWNLOAD execution remains disabled until downloaded-file evidence is implemented");
         };
     }
 

@@ -31,6 +31,7 @@ class AetherisBrowserOperatorTest {
         assertThat(status.runtimeEnabled()).isFalse();
         assertThat(status.physicalValidated()).isFalse();
         assertThat(status.physicalMachineStatus()).isEqualTo("BLOCKED_PENDING_HARDWARE");
+        assertThat(status.detail()).contains("sandboxed download evidence");
     }
 
     @Test
@@ -132,7 +133,30 @@ class AetherisBrowserOperatorTest {
     }
 
     @Test
-    void downloadCannotClaimSuccessWithoutFileEvidence() {
+    void downloadPlanRequiresVerifiedArtifactEvidenceButStillRespectsRuntimeTruth() {
+        var plan = browser.plan(new BrowserPlanRequest(
+                null,
+                "research-scientist",
+                OperationMode.BALANCED,
+                false,
+                Set.of("example.com"),
+                List.of(
+                        action("open", BrowserActionType.NAVIGATE, "https://example.com/report", "", "", "", BrowserEffect.OBSERVE),
+                        action("download", BrowserActionType.DOWNLOAD, "", "a[data-download='report']", "", "download.report", BrowserEffect.OBSERVE)
+                )));
+
+        assertThat(plan.status()).isEqualTo(BrowserPlanStatus.RUNTIME_UNAVAILABLE);
+        assertThat(plan.blockedReasons()).isEmpty();
+        assertThat(plan.actions()).anySatisfy(step -> {
+            if (step.actionId().equals("download")) {
+                assertThat(step.effect()).isEqualTo(BrowserEffect.LOCAL_DRAFT);
+                assertThat(step.evidenceRequired()).anyMatch(evidence -> evidence.contains("SHA-256"));
+            }
+        });
+    }
+
+    @Test
+    void downloadWithoutSelectorAndFileReferenceFailsClosed() {
         var plan = browser.plan(new BrowserPlanRequest(
                 null,
                 "research-scientist",
@@ -145,7 +169,7 @@ class AetherisBrowserOperatorTest {
                 )));
 
         assertThat(plan.status()).isEqualTo(BrowserPlanStatus.BLOCKED);
-        assertThat(plan.blockedReasons()).contains("download:DOWNLOAD_EVIDENCE_ADAPTER_REQUIRED");
+        assertThat(plan.blockedReasons()).anyMatch(reason -> reason.contains("CSS selector is required for DOWNLOAD"));
     }
 
     @Test
