@@ -8,6 +8,7 @@ on:
     branches:
       - feature/syntra-aetheris-foundation-v2
       - feature/specialist-divisions-phase12
+      - feature/specialist-verification-phase12
   workflow_dispatch:
 
 permissions:
@@ -19,7 +20,7 @@ concurrency:
 
 jobs:
   specialist-divisions-proof:
-    name: Specialist tool isolation and approval-boundary proof
+    name: Specialist isolation and governed-completion proof
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -33,8 +34,8 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Run specialist boundary proof
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest test
+      - name: Run Phase 12 specialist boundary proofs
+        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest test
 
       - name: Verify safe-tool gateway enforces specialist boundary first
         shell: bash
@@ -63,3 +64,16 @@ jobs:
             exit 1
           fi
           echo 'Specialist tool families are explicit and exact.'
+
+      - name: Verify task completion cannot bypass independent verification
+        shell: bash
+        run: |
+          task_service=orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskService.java
+          verification_service=orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskVerificationService.java
+          workflow=orchestrator-service/src/main/java/io/aetheris/orchestrator/workflow/EngineeringWorkflowService.java
+          grep -q 'verification.assertCompletionAllowed' "$task_service"
+          grep -q 'The execution specialist cannot verify its own work' "$verification_service"
+          grep -q 'cannot self-promote to final verifier' "$verification_service"
+          grep -q 'does not have an independent verification capability' "$verification_service"
+          grep -q 'verification.recordDecision' "$workflow"
+          echo 'Governed completion and independent-verifier boundary are wired into task completion.'
