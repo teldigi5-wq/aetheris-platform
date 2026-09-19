@@ -1,5 +1,8 @@
 package io.aetheris.orchestrator;
 
+import io.aetheris.orchestrator.approval.ApprovalDecisionRequest;
+import io.aetheris.orchestrator.approval.ApprovalEntity;
+import io.aetheris.orchestrator.approval.ApprovalService;
 import io.aetheris.orchestrator.mission.CreateMissionRequest;
 import io.aetheris.orchestrator.mission.MissionService;
 import io.aetheris.orchestrator.mission.MissionSessionView;
@@ -8,6 +11,9 @@ import io.aetheris.orchestrator.planner.MissionPlannerService;
 import io.aetheris.orchestrator.planner.PlanMissionRequest;
 import io.aetheris.orchestrator.planner.PlanStepRequest;
 import io.aetheris.orchestrator.policy.OperationMode;
+import io.aetheris.orchestrator.rules.OwnerRuleRevisionRequest;
+import io.aetheris.orchestrator.rules.OwnerRuleService;
+import io.aetheris.orchestrator.rules.RuleEffect;
 import io.aetheris.orchestrator.task.CreateTaskRequest;
 import io.aetheris.orchestrator.task.TaskDelegationService;
 import io.aetheris.orchestrator.task.TaskEntity;
@@ -18,6 +24,9 @@ import io.aetheris.orchestrator.task.TaskTransitionRequest;
 import io.aetheris.orchestrator.tool.SafeToolRegistryService;
 import io.aetheris.orchestrator.tool.ToolAccessDecision;
 import io.aetheris.orchestrator.tool.ToolAccessRequest;
+import io.aetheris.orchestrator.workflow.EngineeringWorkflowPhase;
+import io.aetheris.orchestrator.workflow.EngineeringWorkflowRequest;
+import io.aetheris.orchestrator.workflow.EngineeringWorkflowService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,6 +49,9 @@ class Phase12GovernedDelegationIntegrationTest {
     @Autowired SafeToolRegistryService tools;
     @Autowired MissionService missions;
     @Autowired MissionPlannerService planner;
+    @Autowired EngineeringWorkflowService workflows;
+    @Autowired ApprovalService approvals;
+    @Autowired OwnerRuleService rules;
 
     @Test
     void executivePlannerCanDelegateAndDelegationIsDurablyAudited() {
@@ -226,5 +239,58 @@ class Phase12GovernedDelegationIntegrationTest {
         TaskEntity releasedTask = tasks.getRequired(node.getTaskId());
         assertThat(releasedTask.getState()).isEqualTo(TaskState.PLANNING);
         assertThat(releasedTask.getActiveAgentId()).isEqualTo("executive-planner");
+    }
+
+    @Test
+    void approvalRequiredEngineeringWorkflowActivatesGovernedBackendDelegation() {
+        String ruleKey = "phase12-engineering-approval-" + UUID.randomUUID();
+        rules.createRevision(new OwnerRuleRevisionRequest(
+                ruleKey,
+                "Require owner approval for the Phase 12 engineering delegation proof",
+                "software-engineering",
+                "action=workflow.engineering-review",
+                RuleEffect.REQUIRE_APPROVAL,
+                1000,
+                true));
+
+        try {
+            var workflow = workflows.start(new EngineeringWorkflowRequest(
+                    "Approved governed engineering delegation",
+                    "Prove backend execution is assigned only after owner approval",
+                    OperationMode.BALANCED));
+
+            assertThat(workflow.getPhase()).isEqualTo(EngineeringWorkflowPhase.AWAITING_APPROVAL);
+            TaskEntity waiting = tasks.getRequired(workflow.getTaskId());
+            assertThat(waiting.getState()).isEqualTo(TaskState.AWAITING_APPROVAL);
+            assertThat(waiting.getActiveAgentId()).isEqualTo("executive-planner");
+
+            ApprovalEntity approval = approvals.forTask(workflow.getTaskId()).getFirst();
+            approvals.decide(approval.getId(), new ApprovalDecisionRequest(true, "Approve governed delegation proof"));
+
+            TaskEntity resumed = tasks.getRequired(workflow.getTaskId());
+            assertThat(resumed.getState()).isEqualTo(TaskState.RUNNING);
+            assertThat(resumed.getActiveAgentId()).isEqualTo("executive-planner");
+
+            workflow = workflows.advance(workflow.getId());
+            assertThat(workflow.getPhase()).isEqualTo(EngineeringWorkflowPhase.ENGINEERING);
+            TaskEntity delegated = tasks.getRequired(workflow.getTaskId());
+            assertThat(delegated.getActiveAgentId()).isEqualTo("backend-engineer");
+            assertThat(events.history(workflow.getTaskId()))
+                    .anySatisfy(event -> assertThat(event.metadata())
+                            .containsEntry("delegationDecision", "ALLOW")
+                            .containsEntry("delegationStage", "ACTIVATED")
+                            .containsEntry("delegatorId", "executive-planner")
+                            .containsEntry("delegateId", "backend-engineer")
+                            .containsEntry("authorityTransferred", false));
+        } finally {
+            rules.createRevision(new OwnerRuleRevisionRequest(
+                    ruleKey,
+                    "Disable Phase 12 engineering delegation proof rule",
+                    "software-engineering",
+                    "action=workflow.engineering-review",
+                    RuleEffect.REQUIRE_APPROVAL,
+                    1000,
+                    false));
+        }
     }
 }
