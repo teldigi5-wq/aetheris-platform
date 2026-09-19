@@ -7,6 +7,7 @@ import io.aetheris.orchestrator.approval.CreateApprovalRequest;
 import io.aetheris.orchestrator.connector.ConnectorConnectionEntity;
 import io.aetheris.orchestrator.connector.ConnectorConnectionRepository;
 import io.aetheris.orchestrator.connector.ConnectorStatus;
+import io.aetheris.orchestrator.connector.oauth.ProviderAccountContinuityService;
 import io.aetheris.orchestrator.policy.OperationMode;
 import io.aetheris.orchestrator.task.CreateTaskRequest;
 import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
@@ -38,6 +39,7 @@ public class ConnectorActionService {
     private final LiveConnectorWriteExecutor liveExecutor;
     private final TaskVerificationService verification;
     private final DirectExecutionAuthorityService authority;
+    private final ProviderAccountContinuityService accountContinuity;
     private final boolean liveWritesEnabled;
 
     public ConnectorActionService(ConnectorActionRepository actions,
@@ -47,6 +49,7 @@ public class ConnectorActionService {
                                   LiveConnectorWriteExecutor liveExecutor,
                                   TaskVerificationService verification,
                                   DirectExecutionAuthorityService authority,
+                                  ProviderAccountContinuityService accountContinuity,
                                   @Value("${aetheris.connectors.live-writes-enabled:false}") boolean liveWritesEnabled) {
         this.actions = actions;
         this.connections = connections;
@@ -55,6 +58,7 @@ public class ConnectorActionService {
         this.liveExecutor = liveExecutor;
         this.verification = verification;
         this.authority = authority;
+        this.accountContinuity = accountContinuity;
         this.liveWritesEnabled = liveWritesEnabled;
     }
 
@@ -88,6 +92,9 @@ public class ConnectorActionService {
 
         ConnectorActionExecutionMode mode = request.executionMode() == null
                 ? ConnectorActionExecutionMode.SYNTHETIC : request.executionMode();
+        String accountFingerprint = mode == ConnectorActionExecutionMode.LIVE
+                ? accountContinuity.snapshot(connection.getId(), connection.getProvider())
+                : null;
         String actionType = "CONNECTOR_WRITE_" + request.actionKind().name();
 
         TaskEntity task = tasks.create(new CreateTaskRequest(
@@ -99,7 +106,8 @@ public class ConnectorActionService {
 
         ConnectorActionEntity saved = actions.save(new ConnectorActionEntity(
                 UUID.randomUUID(), connection.getId(), connection.getProvider(), request.actionKind(), mode,
-                idempotencyKey, targetRef, summary, task.getId(), approval.getId(), actionType));
+                idempotencyKey, targetRef, summary, task.getId(), approval.getId(), actionType,
+                accountFingerprint));
         return view(saved, false);
     }
 
