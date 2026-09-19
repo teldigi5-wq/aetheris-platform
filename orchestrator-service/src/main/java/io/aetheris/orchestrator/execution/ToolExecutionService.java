@@ -2,12 +2,9 @@ package io.aetheris.orchestrator.execution;
 
 import io.aetheris.orchestrator.approval.ApprovalService;
 import io.aetheris.orchestrator.github.GitHubAdapterService;
-import io.aetheris.orchestrator.policy.OperationMode;
-import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
 import io.aetheris.orchestrator.task.TaskControlService;
 import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.tool.SafeToolRegistryService;
-import io.aetheris.orchestrator.tool.SpecialistToolAuthorizationService;
 import io.aetheris.orchestrator.tool.ToolAccessDecision;
 import io.aetheris.orchestrator.tool.ToolAccessRequest;
 import io.aetheris.orchestrator.tool.ToolDescriptor;
@@ -21,8 +18,7 @@ import java.util.Map;
 public class ToolExecutionService {
 
     private final SafeToolRegistryService registry;
-    private final SpecialistToolAuthorizationService specialistTools;
-    private final DirectExecutionAuthorityService directAuthority;
+    private final ToolExecutionAuthorityService executionAuthority;
     private final WorkspaceSandboxService workspace;
     private final CommandSandboxService commands;
     private final GitHubAdapterService github;
@@ -32,8 +28,7 @@ public class ToolExecutionService {
 
     public ToolExecutionService(
             SafeToolRegistryService registry,
-            SpecialistToolAuthorizationService specialistTools,
-            DirectExecutionAuthorityService directAuthority,
+            ToolExecutionAuthorityService executionAuthority,
             WorkspaceSandboxService workspace,
             CommandSandboxService commands,
             GitHubAdapterService github,
@@ -41,8 +36,7 @@ public class ToolExecutionService {
             InvocationAuditService audit,
             TaskControlService control) {
         this.registry = registry;
-        this.specialistTools = specialistTools;
-        this.directAuthority = directAuthority;
+        this.executionAuthority = executionAuthority;
         this.workspace = workspace;
         this.commands = commands;
         this.github = github;
@@ -53,7 +47,6 @@ public class ToolExecutionService {
 
     public ToolExecutionResponse execute(ToolExecutionRequest request) {
         ToolDescriptor tool = registry.getRequired(request.toolId());
-        String toolFamily = specialistTools.toolFamilyFor(tool.id());
         boolean offDevice = request.toolId() != null && request.toolId().startsWith("github.");
         InvocationAuditEntity entry = audit.start(
                 request.taskId(), request.agentId(), InvocationKind.TOOL,
@@ -64,16 +57,10 @@ public class ToolExecutionService {
         if (control.isEmergencyStopActive()) {
             return finish(entry, ToolExecutionStatus.CANCELLED, InvocationStatus.CANCELLED, "Emergency stop is active", null);
         }
-        if (toolFamily == null) {
-            return finish(entry, ToolExecutionStatus.BLOCKED, InvocationStatus.BLOCKED,
-                    "No specialist tool-family mapping exists for registered tool " + tool.id(), null);
-        }
 
         TaskEntity task;
         try {
-            task = request.mode() == null
-                    ? directAuthority.requireRunningSpecialist(request.taskId(), request.agentId(), toolFamily)
-                    : directAuthority.requireRunningSpecialist(request.taskId(), request.agentId(), toolFamily, request.mode());
+            task = executionAuthority.requireExecution(request, tool);
         } catch (RuntimeException exception) {
             return finish(entry, ToolExecutionStatus.BLOCKED, InvocationStatus.BLOCKED,
                     "Direct tool execution authority denied: " + safeMessage(exception), null);
