@@ -103,8 +103,8 @@ jobs:
           grep -q 'tasks.activateDelegatedExecution' "$workflow"
           grep -q 'delegations.assertPlannedAssignmentAllowed' "$planner"
           grep -q 'delegations.recordPlannedAssignment' "$planner"
-          grep -q '"delegatorId"' "$planner"
-          grep -q '"delegateId"' "$planner"
+          grep -q 'delegatorId' "$planner"
+          grep -q 'delegateId' "$planner"
           grep -q 'authorityTransferred.*false' "$planner"
           if grep -nE 'DELEGATION_CAPABILITY\s*=\s*"\*"|contains\("\*"\)' "$delegation"; then
             echo 'Delegation boundary contains wildcard authority expansion.' >&2
