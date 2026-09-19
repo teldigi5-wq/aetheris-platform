@@ -66,6 +66,30 @@ public class TaskService {
         return saved;
     }
 
+    @Transactional
+    public TaskEntity activateDelegatedExecution(UUID id, String delegateId, String message) {
+        TaskEntity task = getRequired(id);
+        if (task.getState() != TaskState.RUNNING) {
+            throw new IllegalStateException("Post-approval delegation requires a RUNNING task");
+        }
+        if (sameAgent(task.getActiveAgentId(), delegateId)) {
+            throw new IllegalStateException("Task execution is already assigned to " + normalizeAgent(delegateId));
+        }
+
+        String delegatorId = task.getActiveAgentId();
+        delegation.recordExecutionAssignment(task, delegatorId, delegateId);
+        task.transitionTo(TaskState.RUNNING, delegateId);
+        TaskEntity saved = repository.save(task);
+        String normalizedMessage = message == null || message.isBlank()
+                ? "Owner-approved task execution delegated to " + normalizeAgent(delegateId)
+                : message;
+        eventStream.publish(event(saved, delegateId, normalizedMessage, Map.of(
+                "previousState", TaskState.RUNNING.name(),
+                "delegatedFrom", normalizeAgent(delegatorId),
+                "governedDelegation", true)));
+        return saved;
+    }
+
     public TaskEvent recordProgress(UUID id, String agentId, String message, Map<String, Object> metadata) {
         TaskEntity task = getRequired(id);
         TaskEvent progress = event(task, agentId, message == null || message.isBlank() ? "Task progress update" : message,
