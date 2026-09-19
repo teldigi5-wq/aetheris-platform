@@ -15,6 +15,7 @@ on:
       - feature/browser-execution-authority-phase12
       - feature/github-publish-authority-phase12
       - feature/connector-live-authority-phase12
+      - feature/connector-account-continuity-phase12
   workflow_dispatch:
 
 permissions:
@@ -41,7 +42,7 @@ jobs:
           cache: maven
 
       - name: Run Phase 12 specialist boundary proofs
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest test
+        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12ProviderAccountContinuityTest test
 
       - name: Verify safe-tool gateway enforces specialist boundary first
         shell: bash
@@ -149,6 +150,9 @@ jobs:
           browser=orchestrator-service/src/main/java/io/aetheris/orchestrator/operator/BrowserOperatorService.java
           github_publish=orchestrator-service/src/main/java/io/aetheris/orchestrator/github/GitHubProposalPublishService.java
           connector=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/ConnectorActionService.java
+          continuity=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/oauth/ProviderAccountContinuityService.java
+          live_executor=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/LiveConnectorWriteExecutor.java
+          action_entity=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/ConnectorActionEntity.java
           grep -q 'task.getState() != TaskState.RUNNING' "$authority"
           grep -q "task's active specialist" "$authority"
           grep -q 'allowedTools' "$authority"
@@ -188,4 +192,20 @@ jobs:
             echo 'Live connector specialist authority does not precede provider execution.' >&2
             exit 1
           fi
-          echo 'MCP, non-simulation host, physically enabled browser, GitHub publish and live connector effects consume exact task-specialist authority before external execution.'
+          grep -q 'account_fingerprint' "$action_entity"
+          grep -q 'accountContinuity.snapshot' "$connector"
+          grep -q 'accountContinuity.assertCurrent(action)' "$live_executor"
+          grep -q 'Provider account changed after this live connector action was approved' "$continuity"
+          grep -q 'root.path("id")' "$continuity"
+          grep -q 'root.path("sub")' "$continuity"
+          if grep -nE 'fingerprint\(.*accessToken|fingerprint\(.*refreshToken' "$continuity"; then
+            echo 'Provider account continuity must not derive identity from rotating token material.' >&2
+            exit 1
+          fi
+          continuity_line=$(grep -n 'accountContinuity.assertCurrent(action)' "$live_executor" | head -1 | cut -d: -f1)
+          credential_line=$(grep -n 'credentials.findByConnectionId' "$live_executor" | head -1 | cut -d: -f1)
+          if [ "$continuity_line" -ge "$credential_line" ]; then
+            echo 'Provider account continuity must be checked before the live writer resolves its mutation credential.' >&2
+            exit 1
+          fi
+          echo 'Direct effects and delayed live connector actions preserve task-specialist and provider-account authority before mutation.'
