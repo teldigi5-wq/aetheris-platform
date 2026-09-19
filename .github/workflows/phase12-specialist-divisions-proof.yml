@@ -11,6 +11,7 @@ on:
       - feature/specialist-verification-phase12
       - feature/governed-delegation-phase12
       - feature/scheduler-worker-identity-phase12
+      - feature/direct-execution-authority-phase12
   workflow_dispatch:
 
 permissions:
@@ -22,7 +23,7 @@ concurrency:
 
 jobs:
   specialist-divisions-proof:
-    name: Specialist isolation, governed-completion, delegation and worker-identity proof
+    name: Specialist isolation, governed-completion, delegation, worker-identity and direct-execution proof
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -37,7 +38,7 @@ jobs:
           cache: maven
 
       - name: Run Phase 12 specialist boundary proofs
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest test
+        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest test
 
       - name: Verify safe-tool gateway enforces specialist boundary first
         shell: bash
@@ -134,3 +135,22 @@ jobs:
             exit 1
           fi
           echo 'Worker heartbeat, direct claim and both scheduler paths preserve exact specialist identity.'
+
+      - name: Verify direct effect paths consume specialist task authority
+        shell: bash
+        run: |
+          authority=orchestrator-service/src/main/java/io/aetheris/orchestrator/task/DirectExecutionAuthorityService.java
+          mcp=orchestrator-service/src/main/java/io/aetheris/orchestrator/mcp/McpToolInvocationService.java
+          host=orchestrator-service/src/main/java/io/aetheris/orchestrator/host/HostCommandService.java
+          request=orchestrator-service/src/main/java/io/aetheris/orchestrator/host/HostCommandRequest.java
+          grep -q 'task.getState() != TaskState.RUNNING' "$authority"
+          grep -q "task's active specialist" "$authority"
+          grep -q 'allowedTools' "$authority"
+          grep -q 'mode mismatch' "$authority"
+          grep -q 'authority.requireRunningSpecialist(request.taskId(), request.agentId(), "mcp")' "$mcp"
+          grep -q 'PRIVATE mode blocks remote MCP tool execution' "$mcp"
+          grep -q 'authority.requireRunningSpecialist(request.taskId(), request.agentId(), "pc-control")' "$host"
+          grep -q 'approvals.hasApproved(request.taskId(), REMOTE_APPROVAL_ACTION)' "$host"
+          grep -q 'UUID taskId' "$request"
+          grep -q 'String agentId' "$request"
+          echo 'MCP and non-simulation host effects consume exact task-specialist authority before external execution.'
