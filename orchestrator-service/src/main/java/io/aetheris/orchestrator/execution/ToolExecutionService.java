@@ -3,11 +3,14 @@ package io.aetheris.orchestrator.execution;
 import io.aetheris.orchestrator.approval.ApprovalService;
 import io.aetheris.orchestrator.github.GitHubAdapterService;
 import io.aetheris.orchestrator.policy.OperationMode;
+import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
 import io.aetheris.orchestrator.task.TaskControlService;
-import io.aetheris.orchestrator.task.TaskService;
+import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.tool.SafeToolRegistryService;
+import io.aetheris.orchestrator.tool.SpecialistToolAuthorizationService;
 import io.aetheris.orchestrator.tool.ToolAccessDecision;
 import io.aetheris.orchestrator.tool.ToolAccessRequest;
+import io.aetheris.orchestrator.tool.ToolDescriptor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,51 +21,73 @@ import java.util.Map;
 public class ToolExecutionService {
 
     private final SafeToolRegistryService registry;
+    private final SpecialistToolAuthorizationService specialistTools;
+    private final DirectExecutionAuthorityService directAuthority;
     private final WorkspaceSandboxService workspace;
     private final CommandSandboxService commands;
     private final GitHubAdapterService github;
     private final ApprovalService approvals;
     private final InvocationAuditService audit;
     private final TaskControlService control;
-    private final TaskService tasks;
 
     public ToolExecutionService(
             SafeToolRegistryService registry,
+            SpecialistToolAuthorizationService specialistTools,
+            DirectExecutionAuthorityService directAuthority,
             WorkspaceSandboxService workspace,
             CommandSandboxService commands,
             GitHubAdapterService github,
             ApprovalService approvals,
             InvocationAuditService audit,
-            TaskControlService control,
-            TaskService tasks) {
+            TaskControlService control) {
         this.registry = registry;
+        this.specialistTools = specialistTools;
+        this.directAuthority = directAuthority;
         this.workspace = workspace;
         this.commands = commands;
         this.github = github;
         this.approvals = approvals;
         this.audit = audit;
         this.control = control;
-        this.tasks = tasks;
     }
 
     public ToolExecutionResponse execute(ToolExecutionRequest request) {
-        if (request.taskId() != null) tasks.getRequired(request.taskId());
+        ToolDescriptor tool = registry.getRequired(request.toolId());
+        String toolFamily = specialistTools.toolFamilyFor(tool.id());
         boolean offDevice = request.toolId() != null && request.toolId().startsWith("github.");
-        ToolAccessDecision decision = registry.evaluate(new ToolAccessRequest(
-                request.agentId(), request.toolId(), request.mode(), false, offDevice, Map.of("execution", "stage4")));
         InvocationAuditEntity entry = audit.start(
                 request.taskId(), request.agentId(), InvocationKind.TOOL,
-                request.toolId(), Map.of("offDevice", offDevice, "mode", effectiveMode(request.mode()).name()));
+                request.toolId(), Map.of(
+                        "offDevice", offDevice,
+                        "claimedMode", request.mode() == null ? "UNSPECIFIED" : request.mode().name()));
 
         if (control.isEmergencyStopActive()) {
             return finish(entry, ToolExecutionStatus.CANCELLED, InvocationStatus.CANCELLED, "Emergency stop is active", null);
         }
+        if (toolFamily == null) {
+            return finish(entry, ToolExecutionStatus.BLOCKED, InvocationStatus.BLOCKED,
+                    "No specialist tool-family mapping exists for registered tool " + tool.id(), null);
+        }
+
+        TaskEntity task;
+        try {
+            task = request.mode() == null
+                    ? directAuthority.requireRunningSpecialist(request.taskId(), request.agentId(), toolFamily)
+                    : directAuthority.requireRunningSpecialist(request.taskId(), request.agentId(), toolFamily, request.mode());
+        } catch (RuntimeException exception) {
+            return finish(entry, ToolExecutionStatus.BLOCKED, InvocationStatus.BLOCKED,
+                    "Direct tool execution authority denied: " + safeMessage(exception), null);
+        }
+
+        ToolAccessDecision decision = registry.evaluate(new ToolAccessRequest(
+                request.agentId(), request.toolId(), task.getMode(), false, offDevice,
+                Map.of("execution", "stage4", "durableTaskMode", task.getMode().name())));
         if (!decision.policy().allowed()) {
             return finish(entry, ToolExecutionStatus.BLOCKED, InvocationStatus.BLOCKED,
                     String.join(" | ", decision.policy().reasons()), null);
         }
         String approvalAction = "tool:" + request.toolId();
-        if (decision.policy().requiresApproval() && (request.taskId() == null || !approvals.hasApproved(request.taskId(), approvalAction))) {
+        if (decision.policy().requiresApproval() && !approvals.hasApproved(request.taskId(), approvalAction)) {
             return finish(entry, ToolExecutionStatus.APPROVAL_REQUIRED, InvocationStatus.BLOCKED,
                     "Owner approval is required for " + approvalAction, null);
         }
@@ -98,10 +123,6 @@ public class ToolExecutionService {
     private ToolExecutionResponse finish(InvocationAuditEntity entry, ToolExecutionStatus status, InvocationStatus auditStatus, String detail, Object output) {
         audit.finish(entry.getId(), auditStatus, detail, Map.of("status", status.name()));
         return new ToolExecutionResponse(status, entry.getTargetId(), detail, output, entry.getId());
-    }
-
-    private OperationMode effectiveMode(OperationMode mode) {
-        return mode == null ? OperationMode.BALANCED : mode;
     }
 
     private String requiredString(Map<String, Object> parameters, String key) {
