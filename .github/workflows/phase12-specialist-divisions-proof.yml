@@ -13,6 +13,7 @@ on:
       - feature/scheduler-worker-identity-phase12
       - feature/direct-execution-authority-phase12
       - feature/browser-execution-authority-phase12
+      - feature/github-publish-authority-phase12
   workflow_dispatch:
 
 permissions:
@@ -24,7 +25,7 @@ concurrency:
 
 jobs:
   specialist-divisions-proof:
-    name: Specialist isolation, completion, delegation, worker and direct-browser authority proof
+    name: Specialist isolation, completion, delegation, worker and direct-effect authority proof
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -39,7 +40,7 @@ jobs:
           cache: maven
 
       - name: Run Phase 12 specialist boundary proofs
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest test
+        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest test
 
       - name: Verify safe-tool gateway enforces specialist boundary first
         shell: bash
@@ -145,6 +146,7 @@ jobs:
           host=orchestrator-service/src/main/java/io/aetheris/orchestrator/host/HostCommandService.java
           request=orchestrator-service/src/main/java/io/aetheris/orchestrator/host/HostCommandRequest.java
           browser=orchestrator-service/src/main/java/io/aetheris/orchestrator/operator/BrowserOperatorService.java
+          github_publish=orchestrator-service/src/main/java/io/aetheris/orchestrator/github/GitHubProposalPublishService.java
           grep -q 'task.getState() != TaskState.RUNNING' "$authority"
           grep -q "task's active specialist" "$authority"
           grep -q 'allowedTools' "$authority"
@@ -158,11 +160,20 @@ jobs:
           grep -q 'DIRECT_TOOL_FAMILY = "browser"' "$browser"
           grep -q 'directAuthority.requireRunningSpecialist' "$browser"
           grep -q 'workflow.mode()' "$browser"
-          authority_line=$(grep -n 'directAuthority.requireRunningSpecialist' "$browser" | head -1 | cut -d: -f1)
-          approval_line=$(grep -n 'approvals.hasApproved' "$browser" | head -1 | cut -d: -f1)
-          adapter_line=$(grep -n 'adapter.execute' "$browser" | head -1 | cut -d: -f1)
-          if [ "$authority_line" -ge "$approval_line" ] || [ "$approval_line" -ge "$adapter_line" ]; then
+          browser_authority_line=$(grep -n 'directAuthority.requireRunningSpecialist' "$browser" | head -1 | cut -d: -f1)
+          browser_approval_line=$(grep -n 'approvals.hasApproved' "$browser" | head -1 | cut -d: -f1)
+          browser_adapter_line=$(grep -n 'adapter.execute' "$browser" | head -1 | cut -d: -f1)
+          if [ "$browser_authority_line" -ge "$browser_approval_line" ] || [ "$browser_approval_line" -ge "$browser_adapter_line" ]; then
             echo 'Browser authority/approval checks do not precede WebDriver execution in fail-closed order.' >&2
             exit 1
           fi
-          echo 'MCP, non-simulation host and physically enabled browser effects consume exact task-specialist authority before external execution.'
+          grep -q 'DIRECT_TOOL_FAMILY = "github"' "$github_publish"
+          grep -q 'directAuthority.requireRunningSpecialist(proposal.getTaskId(), proposal.getAgentId(), DIRECT_TOOL_FAMILY)' "$github_publish"
+          github_authority_line=$(grep -n 'directAuthority.requireRunningSpecialist' "$github_publish" | head -1 | cut -d: -f1)
+          github_approval_line=$(grep -n 'approvals.hasApproved' "$github_publish" | head -1 | cut -d: -f1)
+          github_effect_line=$(grep -n 'github.publishExistingFile' "$github_publish" | head -1 | cut -d: -f1)
+          if [ "$github_authority_line" -ge "$github_approval_line" ] || [ "$github_approval_line" -ge "$github_effect_line" ]; then
+            echo 'GitHub authority/approval checks do not precede publish execution in fail-closed order.' >&2
+            exit 1
+          fi
+          echo 'MCP, non-simulation host, physically enabled browser and GitHub publish effects consume exact task-specialist authority before external execution.'
