@@ -136,11 +136,11 @@ public class MissionPlannerService {
                         + "\",\"delegatorId\":\"" + PLANNER_AGENT_ID
                         + "\",\"delegateId\":\"" + escape(node.getAgentId())
                         + "\",\"authorityTransferred\":false}";
-                WorkItemEntity item = queue.enqueue(new EnqueueWorkItemRequest(
+                WorkItemEntity item = queue.enqueueForSpecialist(new EnqueueWorkItemRequest(
                         node.getTaskId(),
                         "MISSION_STEP",
                         payload,
-                        3));
+                        3), node.getAgentId());
                 scheduler.schedule(new ScheduleWorkRequest(item.getId(), node.getPriority(), "mission"));
                 node.enqueued();
                 nodes.save(node);
