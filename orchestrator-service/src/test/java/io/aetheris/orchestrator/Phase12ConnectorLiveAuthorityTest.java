@@ -11,6 +11,7 @@ import io.aetheris.orchestrator.connector.action.ConnectorActionRepository;
 import io.aetheris.orchestrator.connector.action.ConnectorActionService;
 import io.aetheris.orchestrator.connector.action.ConnectorActionStatus;
 import io.aetheris.orchestrator.connector.action.LiveConnectorWriteExecutor;
+import io.aetheris.orchestrator.connector.oauth.ProviderAccountContinuityService;
 import io.aetheris.orchestrator.policy.OperationMode;
 import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
 import io.aetheris.orchestrator.task.TaskEntity;
@@ -76,6 +77,7 @@ class Phase12ConnectorLiveAuthorityTest {
         LiveConnectorWriteExecutor liveExecutor = mock(LiveConnectorWriteExecutor.class);
         TaskVerificationService verification = mock(TaskVerificationService.class);
         DirectExecutionAuthorityService authority = mock(DirectExecutionAuthorityService.class);
+        ProviderAccountContinuityService continuity = mock(ProviderAccountContinuityService.class);
         TaskEntity task = mock(TaskEntity.class);
 
         UUID actionId = UUID.randomUUID();
@@ -93,7 +95,8 @@ class Phase12ConnectorLiveAuthorityTest {
                 "Create a governed test issue",
                 taskId,
                 approvalId,
-                "CONNECTOR_WRITE_GITHUB_CREATE_ISSUE");
+                "CONNECTOR_WRITE_GITHUB_CREATE_ISSUE",
+                "0123456789abcdef0123456789abcdef");
 
         when(actions.findById(actionId)).thenReturn(Optional.of(action));
         when(approvals.hasApproved(taskId, "CONNECTOR_WRITE_GITHUB_CREATE_ISSUE")).thenReturn(true);
@@ -109,6 +112,7 @@ class Phase12ConnectorLiveAuthorityTest {
                 liveExecutor,
                 verification,
                 authority,
+                continuity,
                 true);
 
         return new Fixture(service, actions, liveExecutor, verification, authority, task, action, taskId, actionId);
