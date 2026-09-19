@@ -4,24 +4,28 @@ Phase 12 Slice 9 closes the remaining caller-selected specialist gap in the gene
 
 The safe-tool registry already enforced exact tool-family authorization before owner policy, but `ToolExecutionService` previously accepted `taskId`, `agentId` and `OperationMode` as independent request fields. A caller could therefore name a specialist that owned a registered tool even when that specialist was not the durable task's current execution specialist. The same request-supplied mode was also used for owner-policy evaluation without first proving it matched the task's stored mode.
 
-Slice 9 does not add a tool, endpoint, agent, credential, shell primitive or external write capability. It makes existing safe-tool adapters consume the same durable task authority used by the other Phase 12 direct-effect boundaries.
+Slice 9 does not add a tool, endpoint, agent, credential, shell primitive or external write capability. It makes existing safe-tool adapters consume durable task authority while preserving the existing engineering QA lifecycle.
 
 ## Execution-time boundary
 
-Before owner policy, owner approval, or a tool adapter can execute, `ToolExecutionService` now:
+Before owner policy, owner approval, or a tool adapter can execute, `ToolExecutionService` now delegates to `ToolExecutionAuthorityService`, which:
 
-1. resolves the registered tool and its explicit specialist tool family;
-2. preserves emergency-stop precedence so an active stop cancels the invocation without requiring live authority;
-3. requires a durable task context;
-4. requires the task to be `RUNNING`;
-5. requires the request `agentId` to exactly equal the task's current `activeAgentId`;
-6. requires that specialist to still own the exact tool family in the agent catalog;
-7. when the caller supplies a mode, requires it to exactly match the task's durable mode;
-8. evaluates ordinary owner policy using the **durable task mode**, not a caller-selected fallback;
-9. preserves any required exact owner approval;
-10. only then invokes filesystem, terminal or GitHub adapters.
+1. requires a durable task context;
+2. requires the request `agentId` to exactly equal the task's current `activeAgentId`;
+3. requires that specialist to still own the exact mapped tool family in the agent catalog;
+4. when the caller supplies a mode, requires it to exactly match the task's durable mode;
+5. permits **read-only** registered tools only while the task is `RUNNING` or `VERIFYING`;
+6. permits **mutating** registered tools only while the task is `RUNNING`.
 
-A missing task, reassigned task, paused task, tool-family mismatch or mode mismatch returns a fail-closed `BLOCKED` execution result and no tool adapter is invoked.
+`ToolExecutionService` preserves emergency-stop precedence, then applies the authority result, evaluates ordinary owner policy using the **durable task mode**, checks any required exact owner approval, and only then invokes filesystem, terminal or GitHub adapters.
+
+A missing task, reassigned task, invalid state, tool-family mismatch or mode mismatch returns a fail-closed `BLOCKED` execution result and no tool adapter is invoked.
+
+### Verification-state compatibility
+
+The `VERIFYING` exception is deliberately limited to tools whose registered `ToolDescriptor.readOnly()` value is `true`. This preserves the established Engineering -> QA -> independent-verification lifecycle, where `qa-engineer` legitimately runs `terminal.inspect` while the task is `VERIFYING`.
+
+A mutating tool such as `terminal.execute-workspace`, `files.write-workspace` or `github.propose-change` remains ineligible in `VERIFYING` even when the active verifier owns its tool family. Owner approval cannot expand that state boundary.
 
 ## Durable mode is authoritative
 
@@ -51,13 +55,15 @@ Slice 9 preserves all earlier boundaries:
 - an authority mismatch blocks before owner-policy evaluation or any filesystem/terminal/GitHub adapter interaction;
 - when request mode is omitted, owner policy receives the task's durable mode;
 - specialist authority succeeds before owner approval is checked;
-- denied owner approval still prevents the mutation adapter from running.
+- denied owner approval still prevents the mutation adapter from running;
+- a read-only QA inspection tool can run in `VERIFYING` under the exact active specialist;
+- a mutating terminal tool remains blocked in `VERIFYING` even when that specialist owns the terminal family.
 
 The Phase 12 workflow additionally verifies source order:
 
-`task-specialist authority -> durable-mode policy -> owner approval -> tool adapter`
+`task-specialist/state authority -> durable-mode policy -> owner approval -> tool adapter`
 
-and continues to run every prior Phase 12 specialist-governance suite.
+and statically asserts that read-only states are exactly `RUNNING + VERIFYING` while mutating states remain exactly `RUNNING`.
 
 ## Contract and truth boundaries
 
@@ -65,7 +71,7 @@ No HTTP endpoint, JPA table/field, agent ID, credential, tool descriptor or exte
 
 ## Rollback
 
-Revert the `ToolExecutionService` authority/mode binding, `Phase12SafeToolExecutionAuthorityTest`, the Phase 12 workflow additions and this document as one unit.
+Revert `ToolExecutionAuthorityService`, the `ToolExecutionService` authority/mode binding, `Phase12SafeToolExecutionAuthorityTest`, the Phase 12 workflow additions and this document as one unit.
 
 ## Remaining Phase 12 audit
 
