@@ -54,7 +54,7 @@ The verification event records only governance metadata: decision, evidence type
 - owner approval permits an approved action but cannot become verification evidence or bypass completion governance;
 - stale/mismatched decisions are rejected because the recorded executor/reviewer context must match the current task history.
 
-`EngineeringWorkflowService` now records its Software Architect decision through this shared boundary before task completion. Both the state-only Stage 3 workflow path and the adapter-backed evidence path remain governed by the same final completion rule.
+`EngineeringWorkflowService` records its Software Architect decision through this shared boundary before task completion. Both the state-only Stage 3 workflow path and the adapter-backed evidence path remain governed by the same final completion rule.
 
 ### Connector approved-action compatibility
 
@@ -66,7 +66,7 @@ The connector lifecycle is now migrated rather than exempted:
 - `qa-engineer` performs the `RUNNING -> VERIFYING` review handoff and reviews the receipt;
 - `mcp-integration-engineer` records the final independent `CONNECTOR_RECEIPT` decision using its existing `integration-testing` capability and owns completion.
 
-No connector-specific bypass was added. Synthetic and enabled live-write paths therefore use the same generic independent-verification boundary as other governed specialist work. The Phase 12 proof contains a source guard that rejects any regression back to `automation-engineer` self-completion, while the existing Connector Approved Actions runtime proof exercises the behavior end to end.
+No connector-specific bypass was added. Synthetic and enabled live-write paths therefore use the same generic independent-verification boundary as other governed specialist work.
 
 ## Slice 3 — Governed specialist delegation
 
@@ -103,15 +103,23 @@ The delegate still passes through Slice 1 using only its own exact `allowed-tool
 
 ### Assignment boundary rather than every handoff
 
-Only a change of specialist when a task enters execution is classified as delegation. The following remain their existing concepts instead of being incorrectly reclassified:
+Only a change of specialist for execution is classified as delegation. The following remain their existing concepts instead of being incorrectly reclassified:
 
 - a specialist continuing its own task from planning into execution;
 - owner pause/resume and emergency controls;
-- approval pause/resume under the same active agent;
+- an approval pause/resume under the same active agent;
 - `RUNNING -> VERIFYING` QA/review handoff;
 - final independent verification.
 
 This keeps delegation governance narrow and prevents accidental interference with recovery and approval state machines.
+
+### Owner-approval continuation
+
+An approval-required engineering workflow exposes a subtle two-step lifecycle: owner approval first resumes the task as `RUNNING` under the same `executive-planner` identity, and only then may engineering execution be assigned to `backend-engineer`.
+
+`TaskService.activateDelegatedExecution(...)` handles that internal post-approval handoff. It requires the task to already be `RUNNING`, reuses `TaskDelegationService` against the current active planner, records the `ACTIVATED` delegation evidence, changes only the active execution specialist, and leaves the task mode and history untouched. `EngineeringWorkflowService` uses this boundary before recording any backend execution after approval.
+
+Owner approval therefore authorizes the workflow but does not silently become delegation authority. The planner still has to pass the explicit delegation-capability boundary.
 
 ### Mission-plan hardening
 
@@ -138,7 +146,7 @@ An old Stage 7 fixture used the nonexistent `research-director` identity. The st
 4. a known non-verifier specialist is denied;
 5. an invented verifier identity is denied;
 6. owner approval cannot bypass verification;
-7. a failed verifier decision cannot complete the task;
+7. a failed verification decision cannot complete the task;
 8. a valid independent decision permits completion and is present in the durable task history;
 9. the existing engineering workflow completes through the governed boundary.
 
@@ -151,7 +159,8 @@ An old Stage 7 fixture used the nonexistent `research-director` identity. The st
 5. an invented delegate identity is denied;
 6. self-delegation is denied;
 7. mission planning rejects an unknown specialist before task materialization;
-8. a valid mission records planned delegation lineage and retains the Executive Planner as planning authority.
+8. a valid mission records planned delegation lineage and retains the Executive Planner as planning authority;
+9. an owner-rule approval path resumes under the planner and then explicitly activates a governed `executive-planner -> backend-engineer` delegation before engineering continues.
 
 The dedicated **Phase 12 Specialist Divisions Proof** workflow runs all three integration suites plus source guards on the feature branch, pull request and canonical development branch. The repository's Connector Approved Actions Phase 6 Runtime Proof remains an independent runtime compatibility gate for the connector write lifecycle.
 
@@ -175,13 +184,13 @@ Phase 12 now narrows authority at three independent layers:
 
 `governed delegation -> specialist tool boundary -> owner policy/mode/risk -> approval -> emergency/runtime controls -> execution/sandbox -> QA/review -> independent verifier -> governed completion`
 
-Delegation cannot manufacture a new identity, give a specialist another role's tools, replace the task's policy mode, or remove the downstream verifier requirement. Neither owner approval nor a caller-supplied `agentId` can expand specialist tool authority or manufacture a completion decision. Existing connector actions are migrated through the same separation-of-duties boundary rather than receiving an exemption.
+Delegation cannot manufacture a new identity, give a specialist another role's tools, replace the task's policy mode, or remove the downstream verifier requirement. Owner approval cannot substitute for delegation authority. Neither owner approval nor a caller-supplied `agentId` can expand specialist tool authority or manufacture a completion decision.
 
 ## Rollback
 
 Rollback remains code-only. No persistence migration or credential movement is involved.
 
-If Slice 3 must be rolled back for compatibility, revert the delegation service, task-assignment hook, mission planner changes, corrected fixture, proof tests/workflow and documentation as one unit. Do not leave mission payloads claiming governed delegation if the runtime assignment guard has been removed.
+If Slice 3 must be rolled back for compatibility, revert the delegation service, task-assignment and post-approval hooks, mission planner changes, corrected fixture, proof tests/workflow and documentation as one unit. Do not leave mission payloads claiming governed delegation if the runtime assignment guard has been removed.
 
 ## Next Phase 12 slices
 
