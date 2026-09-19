@@ -56,6 +56,18 @@ The verification event records only governance metadata: decision, evidence type
 
 `EngineeringWorkflowService` now records its Software Architect decision through this shared boundary before task completion. Both the state-only Stage 3 workflow path and the adapter-backed evidence path remain governed by the same final completion rule.
 
+### Connector approved-action compatibility
+
+The full PR runtime suite exposed an existing connector lifecycle that used `automation-engineer` as executor, review handoff and final completer. The new boundary correctly rejected that self-certifying path during the Connector Approved Actions Phase 6 proof.
+
+The connector lifecycle is now migrated rather than exempted:
+
+- `automation-engineer` executes the approved connector action and records the provider receipt;
+- `qa-engineer` performs the `RUNNING -> VERIFYING` review handoff and reviews the receipt;
+- `mcp-integration-engineer` records the final independent `CONNECTOR_RECEIPT` decision using its existing `integration-testing` capability and owns completion.
+
+No connector-specific bypass was added. Synthetic and enabled live-write paths therefore use the same generic independent-verification boundary as other governed specialist work. The Phase 12 proof contains a source guard that rejects any regression back to `automation-engineer` self-completion, while the existing Connector Approved Actions runtime proof exercises the behavior end to end.
+
 ## Phase 12 acceptance proof
 
 `Phase12SpecialistDivisionsIntegrationTest` proves specialist tool-family isolation and approval precedence.
@@ -72,7 +84,7 @@ The verification event records only governance metadata: decision, evidence type
 8. a valid independent decision permits completion and is present in the durable task history;
 9. the existing engineering workflow completes through the governed boundary.
 
-The dedicated **Phase 12 Specialist Divisions Proof** workflow runs both integration suites plus source guards on the feature branch, pull request and canonical development branch.
+The dedicated **Phase 12 Specialist Divisions Proof** workflow runs both integration suites plus source guards on the feature branch, pull request and canonical development branch. The repository's Connector Approved Actions Phase 6 Runtime Proof remains an independent runtime compatibility gate for the connector write lifecycle.
 
 ## Contract and migration impact
 
@@ -94,13 +106,13 @@ Phase 12 narrows authority in two independent places:
 
 `specialist tool boundary -> owner policy/mode/risk -> approval -> emergency/runtime controls -> execution/sandbox -> QA/review -> independent verifier -> governed completion`
 
-Neither owner approval nor a caller-supplied `agentId` can expand specialist tool authority or manufacture a completion decision.
+Neither owner approval nor a caller-supplied `agentId` can expand specialist tool authority or manufacture a completion decision. Existing connector actions are migrated through the same separation-of-duties boundary rather than receiving an exemption.
 
 ## Rollback
 
 Rollback is code-only. No persistence migration or credential movement is involved.
 
-If Slice 2 must be rolled back for compatibility, revert the governed-completion commit as a unit so the task service, engineering workflow, tests, workflow guard and documentation remain consistent. Do not selectively remove only the completion assertion while leaving verification events in place.
+If Slice 2 must be rolled back for compatibility, revert the governed-completion changes as a unit so the task service, engineering workflow, connector action lifecycle, tests, workflow guard and documentation remain consistent. Do not selectively remove only the completion assertion while leaving verification events in place.
 
 ## Next Phase 12 slices
 
