@@ -51,6 +51,9 @@ jobs:
           GITHUB_TOKEN_VALUE: ${{ secrets.AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN }}
           GMAIL_TOKEN_VALUE: ${{ secrets.AETHERIS_LIVE_GMAIL_ACCESS_TOKEN }}
           CALENDAR_TOKEN_VALUE: ${{ secrets.AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN }}
+          GOOGLE_REFRESH_CLIENT_ID_VALUE: ${{ secrets.AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_ID }}
+          GOOGLE_REFRESH_CLIENT_SECRET_VALUE: ${{ secrets.AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN_VALUE: ${{ secrets.AETHERIS_PHASE8_GOOGLE_REFRESH_TOKEN }}
           GMAIL_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT }}
           CALENDAR_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_CALENDAR_ID }}
           GITHUB_TARGET_VALUE: ${{ secrets.AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY }}
@@ -61,25 +64,62 @@ jobs:
           import os
           from pathlib import Path
 
-          required = {
+          always_required = {
               'GITHUB_TOKEN_VALUE': 'AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN',
-              'GMAIL_TOKEN_VALUE': 'AETHERIS_LIVE_GMAIL_ACCESS_TOKEN',
-              'CALENDAR_TOKEN_VALUE': 'AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN',
               'GMAIL_TARGET_VALUE': 'AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT',
               'CALENDAR_TARGET_VALUE': 'AETHERIS_PHASE8_TEST_CALENDAR_ID',
               'GITHUB_TARGET_VALUE': 'AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY',
           }
-          missing = [secret_name for env_name, secret_name in required.items() if not os.environ.get(env_name, '').strip()]
+          legacy_google = {
+              'GMAIL_TOKEN_VALUE': 'AETHERIS_LIVE_GMAIL_ACCESS_TOKEN',
+              'CALENDAR_TOKEN_VALUE': 'AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN',
+          }
+          refresh_google = {
+              'GOOGLE_REFRESH_CLIENT_ID_VALUE': 'AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_ID',
+              'GOOGLE_REFRESH_CLIENT_SECRET_VALUE': 'AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_SECRET',
+              'GOOGLE_REFRESH_TOKEN_VALUE': 'AETHERIS_PHASE8_GOOGLE_REFRESH_TOKEN',
+          }
+
+          missing = [
+              secret_name
+              for env_name, secret_name in always_required.items()
+              if not os.environ.get(env_name, '').strip()
+          ]
+
+          legacy_ready = all(os.environ.get(name, '').strip() for name in legacy_google)
+          refresh_ready = all(os.environ.get(name, '').strip() for name in refresh_google)
+
+          if not (legacy_ready or refresh_ready):
+              missing.extend(
+                  secret_name
+                  for env_name, secret_name in refresh_google.items()
+                  if not os.environ.get(env_name, '').strip()
+              )
+              missing.extend(
+                  secret_name
+                  for env_name, secret_name in legacy_google.items()
+                  if not os.environ.get(env_name, '').strip()
+              )
+
           expected_arm = 'I_UNDERSTAND_PHASE8_CREATES_LIVE_TEST_DATA'
           if os.environ.get('ARM_VALUE', '').strip() != expected_arm:
               missing.append('AETHERIS_PHASE8_ARM_CONFIRMATION')
+
+          google_auth_mode = (
+              'REFRESH_TOKEN'
+              if refresh_ready
+              else 'LEGACY_ACCESS_TOKENS'
+              if legacy_ready
+              else 'UNCONFIGURED'
+          )
 
           report = {
               'schema_version': 1,
               'capability': 'connector-live-write-phase8',
               'evidence_class': 'LIVE_PROVIDER_TEST_ACCOUNT_WRITE_READINESS',
               'status': 'READY' if not missing else 'BLOCKED_MISSING_CONFIGURATION',
-              'missing_configuration': sorted(missing),
+              'missing_configuration': sorted(set(missing)),
+              'google_auth_mode': google_auth_mode,
               'secret_values_persisted': False,
               'target_values_persisted': False,
               'provider_mutation_started': False,
@@ -92,9 +132,101 @@ jobs:
 
           if missing:
               print('Phase 8 live validation is blocked before provider mutation.')
-              print('Missing configuration: ' + ', '.join(sorted(missing)))
+              print('Missing configuration: ' + ', '.join(sorted(set(missing))))
               raise SystemExit(1)
           print('Phase 8 dedicated test-account credential gate is armed.')
+          print('Google credential mode: ' + google_auth_mode)
+          PY
+
+      - name: Resolve Google provider access tokens
+        shell: bash
+        env:
+          LEGACY_GMAIL_ACCESS_TOKEN: ${{ secrets.AETHERIS_LIVE_GMAIL_ACCESS_TOKEN }}
+          LEGACY_CALENDAR_ACCESS_TOKEN: ${{ secrets.AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN }}
+          GOOGLE_REFRESH_CLIENT_ID: ${{ secrets.AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_ID }}
+          GOOGLE_REFRESH_CLIENT_SECRET: ${{ secrets.AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.AETHERIS_PHASE8_GOOGLE_REFRESH_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          refresh_client_id = os.environ.get('GOOGLE_REFRESH_CLIENT_ID', '').strip()
+          refresh_client_secret = os.environ.get('GOOGLE_REFRESH_CLIENT_SECRET', '').strip()
+          refresh_token = os.environ.get('GOOGLE_REFRESH_TOKEN', '').strip()
+          legacy_gmail = os.environ.get('LEGACY_GMAIL_ACCESS_TOKEN', '').strip()
+          legacy_calendar = os.environ.get('LEGACY_CALENDAR_ACCESS_TOKEN', '').strip()
+
+          refresh_ready = all([refresh_client_id, refresh_client_secret, refresh_token])
+          legacy_ready = bool(legacy_gmail and legacy_calendar)
+
+          def export_secret(name: str, value: str) -> None:
+              if not value or '\n' in value or '\r' in value:
+                  raise SystemExit('Resolved Google credential is invalid.')
+              print(f'::add-mask::{value}')
+              with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
+                  env_file.write(f'{name}={value}\n')
+
+          if refresh_ready:
+              form = urllib.parse.urlencode({
+                  'client_id': refresh_client_id,
+                  'client_secret': refresh_client_secret,
+                  'refresh_token': refresh_token,
+                  'grant_type': 'refresh_token',
+              }).encode('utf-8')
+              request = urllib.request.Request(
+                  'https://oauth2.googleapis.com/token',
+                  data=form,
+                  headers={
+                      'Accept': 'application/json',
+                      'Content-Type': 'application/x-www-form-urlencoded',
+                  },
+                  method='POST',
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      raw = response.read().decode('utf-8')
+                      status = response.status
+              except urllib.error.HTTPError as error:
+                  print(f'Google OAuth refresh failed with HTTP {error.code}.')
+                  raise SystemExit(1)
+              except (OSError, urllib.error.URLError):
+                  print('Google OAuth refresh request could not be completed.')
+                  raise SystemExit(1)
+
+              if status != 200:
+                  print(f'Google OAuth refresh failed with HTTP {status}.')
+                  raise SystemExit(1)
+
+              try:
+                  payload = json.loads(raw)
+              except json.JSONDecodeError:
+                  print('Google OAuth refresh returned an invalid response shape.')
+                  raise SystemExit(1)
+
+              access_token = str(payload.get('access_token', '')).strip()
+              try:
+                  expires_in = int(payload.get('expires_in', 0))
+              except (TypeError, ValueError):
+                  expires_in = 0
+
+              if not access_token or expires_in < 120:
+                  print('Google OAuth refresh did not return a usable access token.')
+                  raise SystemExit(1)
+
+              export_secret('AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN', access_token)
+              export_secret('AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN', access_token)
+              print('Fresh Google provider access token resolved from the stored refresh token.')
+          elif legacy_ready:
+              export_secret('AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN', legacy_gmail)
+              export_secret('AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN', legacy_calendar)
+              print('Using legacy short-lived Google provider access tokens.')
+          else:
+              print('No complete Google credential mode is configured.')
+              raise SystemExit(1)
           PY
 
       - name: Create ephemeral local OAuth client credentials
@@ -117,8 +249,6 @@ jobs:
         shell: bash
         env:
           AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN: ${{ secrets.AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN }}
-          AETHERIS_PHASE8_GMAIL_ACCESS_TOKEN: ${{ secrets.AETHERIS_LIVE_GMAIL_ACCESS_TOKEN }}
-          AETHERIS_PHASE8_CALENDAR_ACCESS_TOKEN: ${{ secrets.AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN }}
         run: |
           python tools/connector_live_write_phase8_token_broker.py > /tmp/aetheris-phase8-broker.log 2>&1 &
           echo $! > /tmp/aetheris-phase8-broker.pid
