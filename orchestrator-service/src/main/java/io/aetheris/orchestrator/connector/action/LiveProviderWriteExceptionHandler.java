@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -15,11 +16,38 @@ import java.util.Map;
 public class LiveProviderWriteExceptionHandler {
 
     @ExceptionHandler(LiveProviderWriteException.class)
-    public ResponseEntity<Map<String, Object>> handleLiveProviderWriteFailure(LiveProviderWriteException error) {
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
-                "code", "LIVE_PROVIDER_WRITE_FAILED",
-                "message", error.getMessage(),
-                "providerStatus", error.getProviderStatus()
-        ));
+    public ResponseEntity<Map<String, Object>> handleLiveProviderWriteFailure(
+            LiveProviderWriteException error
+    ) {
+
+        Map<String, Object> body =
+                new LinkedHashMap<>();
+
+        body.put(
+                "code",
+                "LIVE_PROVIDER_WRITE_FAILED"
+        );
+
+        body.put(
+                "message",
+                error.getMessage()
+        );
+
+        body.put(
+                "providerStatus",
+                error.getProviderStatus()
+        );
+
+        if (error.getAcceptedPermissions() != null
+                && !error.getAcceptedPermissions().isBlank()) {
+            body.put(
+                    "acceptedPermissions",
+                    error.getAcceptedPermissions()
+            );
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(body);
     }
 }
