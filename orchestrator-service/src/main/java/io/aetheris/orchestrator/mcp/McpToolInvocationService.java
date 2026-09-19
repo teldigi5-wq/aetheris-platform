@@ -5,7 +5,10 @@ import io.aetheris.orchestrator.execution.InvocationAuditEntity;
 import io.aetheris.orchestrator.execution.InvocationAuditService;
 import io.aetheris.orchestrator.execution.InvocationKind;
 import io.aetheris.orchestrator.execution.InvocationStatus;
+import io.aetheris.orchestrator.policy.OperationMode;
+import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
 import io.aetheris.orchestrator.task.TaskControlService;
+import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.task.TaskService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -26,6 +29,7 @@ public class McpToolInvocationService {
     private final McpCapabilityGrantRepository grants;
     private final AgentCatalogService agents;
     private final TaskService tasks;
+    private final DirectExecutionAuthorityService authority;
     private final TaskControlService control;
     private final InvocationAuditService audit;
     private final RestClient client;
@@ -36,6 +40,7 @@ public class McpToolInvocationService {
             McpCapabilityGrantRepository grants,
             AgentCatalogService agents,
             TaskService tasks,
+            DirectExecutionAuthorityService authority,
             TaskControlService control,
             InvocationAuditService audit,
             RestClient.Builder builder,
@@ -44,6 +49,7 @@ public class McpToolInvocationService {
         this.grants = grants;
         this.agents = agents;
         this.tasks = tasks;
+        this.authority = authority;
         this.control = control;
         this.audit = audit;
         this.client = builder.build();
@@ -67,6 +73,16 @@ public class McpToolInvocationService {
             if (grants.findTopByServerIdAndAgentIdAndCapabilityAndDataClassAndEnabledTrueOrderByCreatedAtDesc(
                     server.getId(), request.agentId(), request.capability(), request.dataClass()).isEmpty()) {
                 return blocked(entry, request, "Agent has no active MCP capability grant", InvocationStatus.BLOCKED);
+            }
+
+            TaskEntity task;
+            try {
+                task = authority.requireRunningSpecialist(request.taskId(), request.agentId(), "mcp");
+            } catch (RuntimeException exception) {
+                return blocked(entry, request, "Direct execution authority denied: " + safeMessage(exception), InvocationStatus.BLOCKED);
+            }
+            if (task.getMode() == OperationMode.PRIVATE && !server.isLocal()) {
+                return blocked(entry, request, "PRIVATE mode blocks remote MCP tool execution", InvocationStatus.BLOCKED);
             }
 
             URI endpoint = validateEndpoint(server);
