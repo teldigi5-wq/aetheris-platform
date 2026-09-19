@@ -69,6 +69,9 @@ jobs:
               "AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN",
               "AETHERIS_LIVE_GMAIL_ACCESS_TOKEN",
               "AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN",
+              "AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_ID",
+              "AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_SECRET",
+              "AETHERIS_PHASE8_GOOGLE_REFRESH_TOKEN",
               "AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY",
               "AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT",
               "AETHERIS_PHASE8_TEST_CALENDAR_ID",
@@ -77,10 +80,13 @@ jobs:
               assert fragment in workflow, fragment
               assert fragment in contract or fragment == "[phase8-live-write]", fragment
 
+          assert "https://oauth2.googleapis.com/token" in workflow
+          assert "grant_type': 'refresh_token'" in workflow
+          assert "google_auth_mode" in workflow
           assert "pull_request:" not in workflow, "live mutation workflow must never run from pull_request"
           assert "AETHERIS_WRITE_GMAIL_SEND_URL: https://gmail.googleapis.com/" in compose
           assert "AETHERIS_WRITE_CALENDAR_EVENTS_URL_TEMPLATE: https://www.googleapis.com/" in compose
           assert "AETHERIS_WRITE_GITHUB_ISSUES_URL_TEMPLATE: https://api.github.com/" in compose
           assert "BLOCKED_PENDING_HARDWARE" in contract
-          print('Phase 8 contract is explicit, credential-gated, and non-mutating in ordinary CI.')
+          print('Phase 8 contract is explicit, credential-gated, refresh-capable, and non-mutating in ordinary CI.')
           PY
