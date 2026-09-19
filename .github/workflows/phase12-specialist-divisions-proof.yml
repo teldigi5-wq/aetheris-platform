@@ -15,6 +15,7 @@ on:
       - feature/browser-execution-authority-phase12
       - feature/github-publish-authority-phase12
       - feature/connector-live-authority-phase12
+      - feature/connector-account-continuity-phase12-v2
   workflow_dispatch:
 
 permissions:
@@ -41,7 +42,7 @@ jobs:
           cache: maven
 
       - name: Run Phase 12 specialist boundary proofs
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest test
+        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12ProviderAccountContinuityTest test
 
       - name: Verify safe-tool gateway enforces specialist boundary first
         shell: bash
@@ -149,6 +150,10 @@ jobs:
           browser=orchestrator-service/src/main/java/io/aetheris/orchestrator/operator/BrowserOperatorService.java
           github_publish=orchestrator-service/src/main/java/io/aetheris/orchestrator/github/GitHubProposalPublishService.java
           connector=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/ConnectorActionService.java
+          continuity=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/ProviderAccountContinuityService.java
+          identity=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/oauth/ProviderIdentityResolver.java
+          live_executor=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/LiveConnectorWriteExecutor.java
+          action_entity=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/ConnectorActionEntity.java
           grep -q 'task.getState() != TaskState.RUNNING' "$authority"
           grep -q "task's active specialist" "$authority"
           grep -q 'allowedTools' "$authority"
@@ -188,4 +193,21 @@ jobs:
             echo 'Live connector specialist authority does not precede provider execution.' >&2
             exit 1
           fi
-          echo 'MCP, non-simulation host, physically enabled browser, GitHub publish and live connector effects consume exact task-specialist authority before external execution.'
+          grep -q 'connection.getExternalAccountRef()' "$continuity"
+          grep -q 'identities.resolve(action.getProvider(), accessToken)' "$continuity"
+          grep -q 'case GITHUB -> body.get("id")' "$identity"
+          grep -q 'case GMAIL, CALENDAR -> body.get("sub")' "$identity"
+          grep -q 'String accessToken' "$live_executor"
+          grep -q 'accountContinuity.assertCurrent(action, accessToken)' "$live_executor"
+          token_line=$(grep -n 'vault.require(credential.getAccessTokenReference())' "$live_executor" | head -1 | cut -d: -f1)
+          continuity_line=$(grep -n 'accountContinuity.assertCurrent(action, accessToken)' "$live_executor" | head -1 | cut -d: -f1)
+          effect_line=$(grep -n 'return switch (action.getActionKind())' "$live_executor" | head -1 | cut -d: -f1)
+          if [ "$token_line" -ge "$continuity_line" ] || [ "$continuity_line" -ge "$effect_line" ]; then
+            echo 'Provider account continuity does not bind the exact write token before provider mutation.' >&2
+            exit 1
+          fi
+          if grep -qi 'account_fingerprint\|accountFingerprint' "$action_entity"; then
+            echo 'Provider account continuity introduced redundant action fingerprint persistence.' >&2
+            exit 1
+          fi
+          echo 'MCP, non-simulation host, physically enabled browser, GitHub publish and live connector effects consume exact task-specialist authority; live provider writes also preserve stable provider-account continuity.'
