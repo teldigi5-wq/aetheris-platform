@@ -5,13 +5,26 @@ import io.aetheris.orchestrator.agent.AgentDefinition;
 import io.aetheris.orchestrator.agent.ModelClass;
 import io.aetheris.orchestrator.agent.RiskLevel;
 import io.aetheris.orchestrator.approval.ApprovalService;
+import io.aetheris.orchestrator.execution.InvocationAuditEntity;
+import io.aetheris.orchestrator.execution.InvocationAuditService;
 import io.aetheris.orchestrator.host.HostCommandEnvelope;
 import io.aetheris.orchestrator.host.HostCommandRequest;
 import io.aetheris.orchestrator.host.HostCommandService;
 import io.aetheris.orchestrator.host.HostNodeEntity;
 import io.aetheris.orchestrator.host.HostRegistryService;
+import io.aetheris.orchestrator.operator.BrowserOperatorService;
+import io.aetheris.orchestrator.operator.BrowserTypes.BrowserAction;
+import io.aetheris.orchestrator.operator.BrowserTypes.BrowserActionType;
+import io.aetheris.orchestrator.operator.BrowserTypes.BrowserEffect;
+import io.aetheris.orchestrator.operator.BrowserTypes.BrowserExecuteRequest;
+import io.aetheris.orchestrator.operator.BrowserTypes.BrowserExecutionStatus;
+import io.aetheris.orchestrator.operator.BrowserTypes.BrowserPlanRequest;
+import io.aetheris.orchestrator.operator.W3cWebDriverBrowserAdapter;
+import io.aetheris.orchestrator.policy.CompiledPolicyDecision;
 import io.aetheris.orchestrator.policy.OperationMode;
+import io.aetheris.orchestrator.policy.OwnerRuleCompilerService;
 import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
+import io.aetheris.orchestrator.task.TaskControlService;
 import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.task.TaskService;
 import io.aetheris.orchestrator.task.TaskState;
@@ -24,6 +37,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class Phase12DirectExecutionAuthorityTest {
@@ -113,6 +127,102 @@ class Phase12DirectExecutionAuthorityTest {
 
         assertThat(envelope.mode()).isEqualTo("SIMULATION");
         verifyNoInteractions(authority, approvals);
+    }
+
+    @Test
+    void browserAuthorityMustSucceedBeforeWebDriverReceivesAnyExecution() {
+        UUID taskId = UUID.randomUUID();
+        UUID auditId = UUID.randomUUID();
+        TaskEntity task = mock(TaskEntity.class);
+        AgentCatalogService agents = mock(AgentCatalogService.class);
+        OwnerRuleCompilerService policy = mock(OwnerRuleCompilerService.class);
+        ApprovalService approvals = mock(ApprovalService.class);
+        TaskControlService control = mock(TaskControlService.class);
+        TaskService tasks = mock(TaskService.class);
+        DirectExecutionAuthorityService authority = mock(DirectExecutionAuthorityService.class);
+        InvocationAuditService audit = mock(InvocationAuditService.class);
+        InvocationAuditEntity auditEntry = mock(InvocationAuditEntity.class);
+        W3cWebDriverBrowserAdapter adapter = mock(W3cWebDriverBrowserAdapter.class);
+
+        when(tasks.getRequired(taskId)).thenReturn(task);
+        when(agents.getRequired("frontend-engineer")).thenReturn(agent("frontend-engineer", List.of("browser")));
+        when(policy.evaluate(any())).thenReturn(new CompiledPolicyDecision(true, false, false, false, List.of(), List.of()));
+        when(authority.requireRunningSpecialist(taskId, "frontend-engineer", "browser", OperationMode.BALANCED)).thenReturn(task);
+        when(audit.start(eq(taskId), eq("frontend-engineer"), any(), eq(BrowserOperatorService.RUNTIME_ID), anyMap())).thenReturn(auditEntry);
+        when(auditEntry.getId()).thenReturn(auditId);
+        when(adapter.execute(anyString(), anyString(), anyList(), anyMap(), anyMap(), anySet()))
+                .thenReturn(new W3cWebDriverBrowserAdapter.AdapterExecution(true, "https://example.com/", List.of(), "mock browser success"));
+
+        BrowserOperatorService browser = browserService(
+                agents, policy, approvals, control, tasks, authority, audit, adapter, true, true);
+        var response = browser.execute(new BrowserExecuteRequest(
+                browserWorkflow(taskId, "frontend-engineer", OperationMode.BALANCED), Map.of(), Map.of()));
+
+        assertThat(response.status()).isEqualTo(BrowserExecutionStatus.SUCCEEDED);
+        var order = inOrder(authority, adapter);
+        order.verify(authority).requireRunningSpecialist(taskId, "frontend-engineer", "browser", OperationMode.BALANCED);
+        order.verify(adapter).execute(anyString(), anyString(), anyList(), anyMap(), anyMap(), anySet());
+    }
+
+    @Test
+    void browserAuthorityMismatchBlocksBeforeWebDriver() {
+        UUID taskId = UUID.randomUUID();
+        UUID auditId = UUID.randomUUID();
+        TaskEntity task = mock(TaskEntity.class);
+        AgentCatalogService agents = mock(AgentCatalogService.class);
+        OwnerRuleCompilerService policy = mock(OwnerRuleCompilerService.class);
+        ApprovalService approvals = mock(ApprovalService.class);
+        TaskControlService control = mock(TaskControlService.class);
+        TaskService tasks = mock(TaskService.class);
+        DirectExecutionAuthorityService authority = mock(DirectExecutionAuthorityService.class);
+        InvocationAuditService audit = mock(InvocationAuditService.class);
+        InvocationAuditEntity auditEntry = mock(InvocationAuditEntity.class);
+        W3cWebDriverBrowserAdapter adapter = mock(W3cWebDriverBrowserAdapter.class);
+
+        when(tasks.getRequired(taskId)).thenReturn(task);
+        when(agents.getRequired("frontend-engineer")).thenReturn(agent("frontend-engineer", List.of("browser")));
+        when(policy.evaluate(any())).thenReturn(new CompiledPolicyDecision(true, false, false, false, List.of(), List.of()));
+        when(authority.requireRunningSpecialist(taskId, "frontend-engineer", "browser", OperationMode.BALANCED))
+                .thenThrow(new IllegalStateException("Direct execution mode mismatch: task=PRIVATE, request=BALANCED"));
+        when(audit.start(eq(taskId), eq("frontend-engineer"), any(), eq(BrowserOperatorService.RUNTIME_ID), anyMap())).thenReturn(auditEntry);
+        when(auditEntry.getId()).thenReturn(auditId);
+
+        BrowserOperatorService browser = browserService(
+                agents, policy, approvals, control, tasks, authority, audit, adapter, true, true);
+        var response = browser.execute(new BrowserExecuteRequest(
+                browserWorkflow(taskId, "frontend-engineer", OperationMode.BALANCED), Map.of(), Map.of()));
+
+        assertThat(response.status()).isEqualTo(BrowserExecutionStatus.BLOCKED);
+        assertThat(response.detail()).contains("Direct browser execution authority denied").contains("mode mismatch");
+        verifyNoInteractions(adapter);
+    }
+
+    private BrowserOperatorService browserService(
+            AgentCatalogService agents,
+            OwnerRuleCompilerService policy,
+            ApprovalService approvals,
+            TaskControlService control,
+            TaskService tasks,
+            DirectExecutionAuthorityService authority,
+            InvocationAuditService audit,
+            W3cWebDriverBrowserAdapter adapter,
+            boolean runtimeEnabled,
+            boolean physicalValidated) {
+        return new BrowserOperatorService(
+                agents, policy, approvals, control, tasks, authority, audit, adapter,
+                runtimeEnabled, physicalValidated, "http://127.0.0.1:9515/", "chrome");
+    }
+
+    private BrowserPlanRequest browserWorkflow(UUID taskId, String agentId, OperationMode mode) {
+        return new BrowserPlanRequest(
+                taskId,
+                agentId,
+                mode,
+                false,
+                Set.of("example.com"),
+                List.of(new BrowserAction(
+                        "open", BrowserActionType.NAVIGATE, "https://example.com/", "", "", "",
+                        BrowserEffect.OBSERVE, "open", null)));
     }
 
     private AgentDefinition agent(String id, List<String> tools) {
