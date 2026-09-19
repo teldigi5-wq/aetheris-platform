@@ -12,6 +12,7 @@ on:
       - feature/governed-delegation-phase12
       - feature/scheduler-worker-identity-phase12
       - feature/direct-execution-authority-phase12
+      - feature/browser-execution-authority-phase12
   workflow_dispatch:
 
 permissions:
@@ -23,7 +24,7 @@ concurrency:
 
 jobs:
   specialist-divisions-proof:
-    name: Specialist isolation, governed-completion, delegation, worker-identity and direct-execution proof
+    name: Specialist isolation, completion, delegation, worker and direct-browser authority proof
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -143,6 +144,7 @@ jobs:
           mcp=orchestrator-service/src/main/java/io/aetheris/orchestrator/mcp/McpToolInvocationService.java
           host=orchestrator-service/src/main/java/io/aetheris/orchestrator/host/HostCommandService.java
           request=orchestrator-service/src/main/java/io/aetheris/orchestrator/host/HostCommandRequest.java
+          browser=orchestrator-service/src/main/java/io/aetheris/orchestrator/operator/BrowserOperatorService.java
           grep -q 'task.getState() != TaskState.RUNNING' "$authority"
           grep -q "task's active specialist" "$authority"
           grep -q 'allowedTools' "$authority"
@@ -153,4 +155,14 @@ jobs:
           grep -q 'approvals.hasApproved(request.taskId(), REMOTE_APPROVAL_ACTION)' "$host"
           grep -q 'UUID taskId' "$request"
           grep -q 'String agentId' "$request"
-          echo 'MCP and non-simulation host effects consume exact task-specialist authority before external execution.'
+          grep -q 'DIRECT_TOOL_FAMILY = "browser"' "$browser"
+          grep -q 'directAuthority.requireRunningSpecialist' "$browser"
+          grep -q 'workflow.mode()' "$browser"
+          authority_line=$(grep -n 'directAuthority.requireRunningSpecialist' "$browser" | head -1 | cut -d: -f1)
+          approval_line=$(grep -n 'approvals.hasApproved' "$browser" | head -1 | cut -d: -f1)
+          adapter_line=$(grep -n 'adapter.execute' "$browser" | head -1 | cut -d: -f1)
+          if [ "$authority_line" -ge "$approval_line" ] || [ "$approval_line" -ge "$adapter_line" ]; then
+            echo 'Browser authority/approval checks do not precede WebDriver execution in fail-closed order.' >&2
+            exit 1
+          fi
+          echo 'MCP, non-simulation host and physically enabled browser effects consume exact task-specialist authority before external execution.'
