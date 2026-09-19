@@ -93,18 +93,21 @@ jobs:
           delegation=orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskDelegationService.java
           task_service=orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskService.java
           planner=orchestrator-service/src/main/java/io/aetheris/orchestrator/planner/MissionPlannerService.java
+          workflow=orchestrator-service/src/main/java/io/aetheris/orchestrator/workflow/EngineeringWorkflowService.java
           grep -q 'DELEGATION_CAPABILITY = "delegation"' "$delegation"
           grep -q 'does not have delegation capability' "$delegation"
           grep -q 'authorityTransferred' "$delegation"
           grep -q 'verificationRequired' "$delegation"
           grep -q 'delegation.recordExecutionAssignment' "$task_service"
+          grep -q 'activateDelegatedExecution' "$task_service"
+          grep -q 'tasks.activateDelegatedExecution' "$workflow"
           grep -q 'delegations.assertPlannedAssignmentAllowed' "$planner"
           grep -q 'delegations.recordPlannedAssignment' "$planner"
           grep -q '"delegatorId"' "$planner"
           grep -q '"delegateId"' "$planner"
-          grep -q '"authorityTransferred":false' "$planner"
+          grep -q 'authorityTransferred.*false' "$planner"
           if grep -nE 'DELEGATION_CAPABILITY\s*=\s*"\*"|contains\("\*"\)' "$delegation"; then
             echo 'Delegation boundary contains wildcard authority expansion.' >&2
             exit 1
           fi
-          echo 'Governed delegation uses explicit coordinator capability, durable lineage and no authority transfer.'
+          echo 'Governed delegation uses explicit coordinator capability, durable lineage, post-approval activation and no authority transfer.'
