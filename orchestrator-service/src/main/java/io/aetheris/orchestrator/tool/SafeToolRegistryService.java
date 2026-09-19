@@ -1,7 +1,7 @@
 package io.aetheris.orchestrator.tool;
 
-import io.aetheris.orchestrator.agent.AgentCatalogService;
 import io.aetheris.orchestrator.agent.RiskLevel;
+import io.aetheris.orchestrator.policy.CompiledPolicyDecision;
 import io.aetheris.orchestrator.policy.OwnerRuleCompilerService;
 import io.aetheris.orchestrator.policy.PolicyEvaluationRequest;
 import org.springframework.stereotype.Service;
@@ -19,11 +19,13 @@ public class SafeToolRegistryService {
 
     private final List<ToolDescriptor> tools;
     private final Map<String, ToolDescriptor> byId;
-    private final AgentCatalogService agents;
+    private final SpecialistToolAuthorizationService specialistTools;
     private final OwnerRuleCompilerService policy;
 
-    public SafeToolRegistryService(AgentCatalogService agents, OwnerRuleCompilerService policy) {
-        this.agents = agents;
+    public SafeToolRegistryService(
+            SpecialistToolAuthorizationService specialistTools,
+            OwnerRuleCompilerService policy) {
+        this.specialistTools = specialistTools;
         this.policy = policy;
         this.tools = List.of(
                 new ToolDescriptor("github.read", "GitHub Read", ToolTransport.OFFICIAL_API, Set.of("repo:read"), RiskLevel.LOW, true, true),
@@ -48,12 +50,28 @@ public class SafeToolRegistryService {
     }
 
     public ToolAccessDecision evaluate(ToolAccessRequest request) {
-        agents.getRequired(request.agentId());
         ToolDescriptor tool = getRequired(request.toolId());
+        SpecialistToolAuthorizationService.Decision specialistDecision =
+                specialistTools.evaluate(request.agentId(), tool);
+
         Map<String, String> metadata = new LinkedHashMap<>(request.metadata());
         metadata.put("toolId", tool.id());
         metadata.put("transport", tool.transport().name());
         metadata.put("readOnly", Boolean.toString(tool.readOnly()));
+        metadata.put("specialistAllowed", Boolean.toString(specialistDecision.allowed()));
+        if (specialistDecision.toolFamily() != null) {
+            metadata.put("specialistToolFamily", specialistDecision.toolFamily());
+        }
+
+        if (!specialistDecision.allowed()) {
+            return new ToolAccessDecision(tool, new CompiledPolicyDecision(
+                    false,
+                    false,
+                    false,
+                    false,
+                    List.of(specialistDecision.reason()),
+                    List.of()));
+        }
 
         return new ToolAccessDecision(tool, policy.evaluate(new PolicyEvaluationRequest(
                 request.agentId(),

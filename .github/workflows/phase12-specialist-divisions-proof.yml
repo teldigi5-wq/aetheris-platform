@@ -1,0 +1,65 @@
+name: Phase 12 Specialist Divisions Proof
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+      - feature/specialist-divisions-phase12
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase12-specialist-divisions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  specialist-divisions-proof:
+    name: Specialist tool isolation and approval-boundary proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run specialist boundary proof
+        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest test
+
+      - name: Verify safe-tool gateway enforces specialist boundary first
+        shell: bash
+        run: |
+          file=orchestrator-service/src/main/java/io/aetheris/orchestrator/tool/SafeToolRegistryService.java
+          grep -q 'specialistTools.evaluate' "$file"
+          grep -q 'if (!specialistDecision.allowed())' "$file"
+          grep -q 'new CompiledPolicyDecision' "$file"
+          echo 'Safe-tool gateway contains the fail-closed specialist boundary.'
+
+      - name: Verify specialist mapping is explicit and contains no wildcard grant
+        shell: bash
+        run: |
+          file=orchestrator-service/src/main/java/io/aetheris/orchestrator/tool/SpecialistToolAuthorizationService.java
+          for mapping in \
+            '"github.read", "github"' \
+            '"github.propose-change", "github"' \
+            '"files.read-workspace", "filesystem"' \
+            '"files.write-workspace", "filesystem"' \
+            '"terminal.inspect", "terminal"' \
+            '"terminal.execute-workspace", "terminal"'; do
+            grep -q "$mapping" "$file"
+          done
+          if grep -nE 'contains\("\*"\)|startsWith\(.*allowed|wildcard' "$file"; then
+            echo 'Specialist tool boundary contains wildcard/prefix privilege expansion.' >&2
+            exit 1
+          fi
+          echo 'Specialist tool families are explicit and exact.'
