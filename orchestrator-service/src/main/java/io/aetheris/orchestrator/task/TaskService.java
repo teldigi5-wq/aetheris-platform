@@ -18,8 +18,13 @@ public class TaskService {
     private static final Map<TaskState, Set<TaskState>> ALLOWED_TRANSITIONS = allowedTransitions();
     private final TaskRepository repository;
     private final TaskEventStreamService eventStream;
+    private final TaskVerificationService verification;
 
-    public TaskService(TaskRepository repository, TaskEventStreamService eventStream) { this.repository = repository; this.eventStream = eventStream; }
+    public TaskService(TaskRepository repository, TaskEventStreamService eventStream, TaskVerificationService verification) {
+        this.repository = repository;
+        this.eventStream = eventStream;
+        this.verification = verification;
+    }
 
     @Transactional
     public TaskEntity create(CreateTaskRequest request) {
@@ -38,6 +43,9 @@ public class TaskService {
         if (current == next) throw new IllegalStateException("Task is already in state " + current);
         Set<TaskState> allowed = ALLOWED_TRANSITIONS.getOrDefault(current, Set.of());
         if (!allowed.contains(next)) throw new IllegalStateException("Invalid task transition: " + current + " -> " + next);
+        if (current == TaskState.VERIFYING && next == TaskState.COMPLETED) {
+            verification.assertCompletionAllowed(task.getId(), request.agentId());
+        }
         task.transitionTo(next, request.agentId());
         TaskEntity saved = repository.save(task);
         String message = request.message() == null || request.message().isBlank() ? "Task moved to " + next : request.message();

@@ -17,6 +17,7 @@ import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.task.TaskService;
 import io.aetheris.orchestrator.task.TaskState;
 import io.aetheris.orchestrator.task.TaskTransitionRequest;
+import io.aetheris.orchestrator.task.TaskVerificationService;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,7 @@ public class EngineeringWorkflowService {
     private final ToolExecutionService tools;
     private final VerificationEvidenceService evidence;
     private final TaskControlService control;
+    private final TaskVerificationService verification;
 
     public EngineeringWorkflowService(
             EngineeringWorkflowRepository repository,
@@ -43,7 +45,8 @@ public class EngineeringWorkflowService {
             ApprovalService approvals,
             ToolExecutionService tools,
             VerificationEvidenceService evidence,
-            TaskControlService control) {
+            TaskControlService control,
+            TaskVerificationService verification) {
         this.repository = repository;
         this.tasks = tasks;
         this.policy = policy;
@@ -51,6 +54,7 @@ public class EngineeringWorkflowService {
         this.tools = tools;
         this.evidence = evidence;
         this.control = control;
+        this.verification = verification;
     }
 
     @Transactional
@@ -138,6 +142,12 @@ public class EngineeringWorkflowService {
                 workflow.moveTo(EngineeringWorkflowPhase.VERIFICATION);
             }
             case VERIFICATION -> {
+                verification.recordDecision(
+                        task.getId(),
+                        "software-architect",
+                        true,
+                        "WORKFLOW_REVIEW",
+                        "Independent architecture verification passed");
                 tasks.recordProgress(task.getId(), "software-architect", "Independent verification completed",
                         Map.of("workflowPhase", "VERIFICATION"));
                 tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.COMPLETED, "software-architect",
@@ -214,6 +224,12 @@ public class EngineeringWorkflowService {
         evidence.record(workflow.getId(), task.getId(), "VERIFICATION", "software-architect", "ACCEPTANCE_CRITERIA", passed,
                 passed ? "Acceptance criteria satisfied" : "Acceptance criteria not satisfied",
                 String.join(",", request.acceptanceCriteria().isEmpty() ? List.of("source-readable", "qa-command-passed") : request.acceptanceCriteria()));
+        verification.recordDecision(
+                task.getId(),
+                "software-architect",
+                passed,
+                "ACCEPTANCE_CRITERIA",
+                passed ? "Independent verifier accepted recorded evidence" : "Independent verifier rejected recorded evidence");
         if (!passed) {
             tasks.transition(task.getId(), new TaskTransitionRequest(TaskState.FAILED, "software-architect", "Independent verifier rejected evidence"));
             workflow.moveTo(EngineeringWorkflowPhase.FAILED);

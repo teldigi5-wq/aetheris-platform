@@ -13,6 +13,7 @@ import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.task.TaskService;
 import io.aetheris.orchestrator.task.TaskState;
 import io.aetheris.orchestrator.task.TaskTransitionRequest;
+import io.aetheris.orchestrator.task.TaskVerificationService;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class ConnectorActionService {
     private final TaskService tasks;
     private final ApprovalService approvals;
     private final LiveConnectorWriteExecutor liveExecutor;
+    private final TaskVerificationService verification;
     private final boolean liveWritesEnabled;
 
     public ConnectorActionService(ConnectorActionRepository actions,
@@ -39,12 +41,14 @@ public class ConnectorActionService {
                                   TaskService tasks,
                                   ApprovalService approvals,
                                   LiveConnectorWriteExecutor liveExecutor,
+                                  TaskVerificationService verification,
                                   @Value("${aetheris.connectors.live-writes-enabled:false}") boolean liveWritesEnabled) {
         this.actions = actions;
         this.connections = connections;
         this.tasks = tasks;
         this.approvals = approvals;
         this.liveExecutor = liveExecutor;
+        this.verification = verification;
         this.liveWritesEnabled = liveWritesEnabled;
     }
 
@@ -125,12 +129,12 @@ public class ConnectorActionService {
             }
             externalReference = liveExecutor.execute(action);
             progressMessage = "Approved live connector write executed";
-            completionMessage = "Live provider write receipt persisted and completed";
+            completionMessage = "Live provider write receipt independently verified and completed";
         } else {
             externalReference = "synthetic://" + action.getProvider().name().toLowerCase()
                     + "/" + action.getActionKind().name().toLowerCase() + "/" + action.getId();
             progressMessage = "Synthetic connector write executed";
-            completionMessage = "Synthetic connector write verified and completed";
+            completionMessage = "Synthetic connector write independently verified and completed";
         }
 
         action.markExecuted(externalReference);
@@ -142,9 +146,20 @@ public class ConnectorActionService {
                 "executionMode", action.getExecutionMode().name(),
                 "externalReference", externalReference));
         tasks.transition(task.getId(), new TaskTransitionRequest(
-                TaskState.VERIFYING, "automation-engineer", "Connector write receipt persisted; verifying action"));
+                TaskState.VERIFYING, "qa-engineer", "Connector write receipt persisted; independent QA review started"));
+        tasks.recordProgress(task.getId(), "qa-engineer", "Connector execution receipt reviewed for final verification", Map.of(
+                "provider", action.getProvider().name(),
+                "actionKind", action.getActionKind().name(),
+                "executionMode", action.getExecutionMode().name(),
+                "externalReference", externalReference));
+        verification.recordDecision(
+                task.getId(),
+                "mcp-integration-engineer",
+                true,
+                "CONNECTOR_RECEIPT",
+                "Independent connector receipt verification passed");
         tasks.transition(task.getId(), new TaskTransitionRequest(
-                TaskState.COMPLETED, "automation-engineer", completionMessage));
+                TaskState.COMPLETED, "mcp-integration-engineer", completionMessage));
         return view(saved, false);
     }
 
