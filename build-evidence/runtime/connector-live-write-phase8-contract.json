@@ -32,13 +32,22 @@
   ],
   "required_repository_secrets": [
     "AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN",
-    "AETHERIS_LIVE_GMAIL_ACCESS_TOKEN",
-    "AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN",
     "AETHERIS_PHASE8_TEST_GMAIL_RECIPIENT",
     "AETHERIS_PHASE8_TEST_CALENDAR_ID",
     "AETHERIS_PHASE8_TEST_GITHUB_REPOSITORY",
     "AETHERIS_PHASE8_ARM_CONFIRMATION"
   ],
+  "google_credential_modes": {
+    "preferred_refresh_token": [
+      "AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_ID",
+      "AETHERIS_PHASE8_GOOGLE_REFRESH_CLIENT_SECRET",
+      "AETHERIS_PHASE8_GOOGLE_REFRESH_TOKEN"
+    ],
+    "legacy_access_tokens": [
+      "AETHERIS_LIVE_GMAIL_ACCESS_TOKEN",
+      "AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN"
+    ]
+  },
   "arm_confirmation": "I_UNDERSTAND_PHASE8_CREATES_LIVE_TEST_DATA",
   "forbidden_github_target": "teldigi5-wq/aetheris-platform",
   "physical_pc_validation": false,
