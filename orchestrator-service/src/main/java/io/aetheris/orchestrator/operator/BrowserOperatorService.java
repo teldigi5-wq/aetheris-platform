@@ -113,15 +113,6 @@ public class BrowserOperatorService {
                 continue;
             }
 
-            if (action.type() == BrowserActionType.DOWNLOAD) {
-                String reason = actionId + ":DOWNLOAD_EVIDENCE_ADAPTER_REQUIRED";
-                blocked.add(reason);
-                decisions.add(new BrowserActionDecision(actionId, action.type(), effect, risk, targetHost,
-                        false, false, List.of(), evidence,
-                        "Downloaded-file verification is intentionally disabled until checksum/path evidence is implemented."));
-                continue;
-            }
-
             if (effect == BrowserEffect.FINANCIAL_CHANGE) {
                 String reason = actionId + ":LIVE_MONEY_BROWSER_ACTION_BLOCKED";
                 blocked.add(reason);
@@ -251,7 +242,7 @@ public class BrowserOperatorService {
     public BrowserRuntimeStatus status() {
         String detail;
         if (!runtimeEnabled) {
-            detail = "Repository adapter is implemented. Runtime activation is disabled until the owner PC is prepared.";
+            detail = "Repository adapter and sandboxed download evidence are implemented. Runtime activation is disabled until the owner PC is prepared.";
         } else if (!physicalValidated) {
             detail = "Runtime is enabled, but physical validation is still required before browser actions may execute.";
         } else {
@@ -287,13 +278,20 @@ public class BrowserOperatorService {
                 requireSelector(action);
                 if (action.fileRef().isBlank()) throw new IllegalArgumentException("fileRef is required for UPLOAD");
             }
+            case DOWNLOAD -> {
+                requireSelector(action);
+                if (action.fileRef().isBlank()) throw new IllegalArgumentException("fileRef is required for DOWNLOAD so the expected artifact filename stays ephemeral");
+                if (action.timeoutSeconds() != null && (action.timeoutSeconds() < 1 || action.timeoutSeconds() > 30)) {
+                    throw new IllegalArgumentException("DOWNLOAD timeoutSeconds must be between 1 and 30");
+                }
+            }
             case WAIT -> {
                 if (action.timeoutSeconds() != null && (action.timeoutSeconds() < 0 || action.timeoutSeconds() > 30)) {
                     throw new IllegalArgumentException("WAIT timeoutSeconds must be between 0 and 30");
                 }
             }
-            case NAVIGATE, DOWNLOAD, SCREENSHOT -> {
-                // NAVIGATE is validated separately; DOWNLOAD is blocked until evidence support exists.
+            case NAVIGATE, SCREENSHOT -> {
+                // NAVIGATE is validated separately.
             }
         }
     }
@@ -323,8 +321,8 @@ public class BrowserOperatorService {
 
     private BrowserEffect effectiveEffect(BrowserAction action) {
         BrowserEffect minimum = switch (action.type()) {
-            case NAVIGATE, SCREENSHOT, EXTRACT_TEXT, WAIT, DOWNLOAD -> BrowserEffect.OBSERVE;
-            case TYPE -> BrowserEffect.LOCAL_DRAFT;
+            case NAVIGATE, SCREENSHOT, EXTRACT_TEXT, WAIT -> BrowserEffect.OBSERVE;
+            case TYPE, DOWNLOAD -> BrowserEffect.LOCAL_DRAFT;
             case CLICK, UPLOAD -> BrowserEffect.EXTERNAL_CHANGE;
         };
         BrowserEffect declared = action.effect() == null ? minimum : action.effect();
@@ -345,12 +343,18 @@ public class BrowserOperatorService {
         if (type == BrowserActionType.NAVIGATE) evidence.add("Record resulting URL/origin and reject unexpected off-allowlist redirects.");
         if (type == BrowserActionType.SCREENSHOT) evidence.add("Store or hash screenshot evidence without exposing secrets.");
         if (type == BrowserActionType.EXTRACT_TEXT) evidence.add("Record bounded extracted text or a content hash as verification evidence.");
+        if (type == BrowserActionType.DOWNLOAD) {
+            evidence.add("Accept only an explicit single-file expectation inside an isolated download directory.");
+            evidence.add("Verify a regular non-symlink artifact and record relative path, size and SHA-256 before claiming success.");
+        }
         if (effect.ordinal() >= BrowserEffect.EXTERNAL_CHANGE.ordinal()) {
             evidence.add("Capture before/after state evidence for the external change.");
             evidence.add("Verify the resulting page state before claiming success.");
         }
         if (type == BrowserActionType.TYPE) evidence.add("Audit the value reference only; never log the literal typed value.");
-        if (type == BrowserActionType.UPLOAD) evidence.add("Audit the file reference only; never copy credentials or secret file contents into logs.");
+        if (type == BrowserActionType.UPLOAD || type == BrowserActionType.DOWNLOAD) {
+            evidence.add("Audit the file reference only; never copy file contents into invocation metadata.");
+        }
         return List.copyOf(evidence);
     }
 
