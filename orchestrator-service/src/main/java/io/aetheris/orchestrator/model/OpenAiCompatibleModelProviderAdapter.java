@@ -1,7 +1,8 @@
 package io.aetheris.orchestrator.model;
 
 import io.aetheris.orchestrator.agent.ModelClass;
-import io.aetheris.orchestrator.vault.CredentialVault;
+import io.aetheris.orchestrator.vault.ScopedCredentialAccessService;
+import io.aetheris.orchestrator.vault.SecretAccessRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
@@ -16,11 +17,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static io.aetheris.orchestrator.vault.SecretAccessRequest.Caller.CLOUD_MODEL_PROVIDER;
+import static io.aetheris.orchestrator.vault.SecretAccessRequest.Purpose.MODEL_INFERENCE;
+
 @Service
 @ConditionalOnProperty(prefix = "aetheris.cloud-model", name = "enabled", havingValue = "true")
 public class OpenAiCompatibleModelProviderAdapter implements ModelProviderAdapter {
 
-    private final CredentialVault vault;
+    private final ScopedCredentialAccessService secretAccess;
     private final String providerId;
     private final String baseUrl;
     private final String configuredModel;
@@ -31,7 +35,7 @@ public class OpenAiCompatibleModelProviderAdapter implements ModelProviderAdapte
     private final BigDecimal dailyBudgetUsd;
 
     public OpenAiCompatibleModelProviderAdapter(
-            CredentialVault vault,
+            ScopedCredentialAccessService secretAccess,
             @Value("${aetheris.cloud-model.provider-id:openai-compatible}") String providerId,
             @Value("${aetheris.cloud-model.base-url:}") String baseUrl,
             @Value("${aetheris.cloud-model.model:}") String configuredModel,
@@ -40,7 +44,7 @@ public class OpenAiCompatibleModelProviderAdapter implements ModelProviderAdapte
             @Value("${aetheris.cloud-model.daily-quota-units:0}") long dailyQuotaUnits,
             @Value("${aetheris.cloud-model.cost-per-thousand-units-usd:0}") BigDecimal costPerThousandUnitsUsd,
             @Value("${aetheris.cloud-model.daily-budget-usd:0}") BigDecimal dailyBudgetUsd) {
-        this.vault = vault;
+        this.secretAccess = secretAccess;
         this.providerId = providerId.trim();
         this.baseUrl = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "");
         this.configuredModel = configuredModel == null ? "" : configuredModel.trim();
@@ -62,7 +66,7 @@ public class OpenAiCompatibleModelProviderAdapter implements ModelProviderAdapte
     @Override
     public ModelProviderSnapshot snapshot() {
         boolean secureEndpoint = baseUrl.startsWith("https://");
-        boolean credentialAvailable = vault.describe(credentialAlias).available();
+        boolean credentialAvailable = secretAccess.available(new SecretAccessRequest(CLOUD_MODEL_PROVIDER, MODEL_INFERENCE, credentialAlias));
         boolean available = secureEndpoint && !configuredModel.isBlank() && credentialAvailable;
         String detail = available
                 ? "Cloud provider is configured; runtime invocation health is checked on use"
@@ -74,8 +78,8 @@ public class OpenAiCompatibleModelProviderAdapter implements ModelProviderAdapte
     @SuppressWarnings("unchecked")
     public LocalGenerateResponse generate(LocalGenerateRequest request) {
         if (!snapshot().available()) throw new IllegalStateException("Cloud provider is not fully configured");
-        char[] secret = vault.resolve(credentialAlias)
-                .orElseThrow(() -> new IllegalStateException("Credential alias is unavailable: " + credentialAlias));
+        char[] secret = secretAccess.resolve(new SecretAccessRequest(CLOUD_MODEL_PROVIDER, MODEL_INFERENCE, credentialAlias))
+                .orElseThrow(() -> new IllegalStateException("Cloud-model credential is unavailable"));
         try {
             String model = request.model() == null || request.model().isBlank() ? configuredModel : request.model().trim();
             Map<String, Object> body = RestClient.create(baseUrl).post()
