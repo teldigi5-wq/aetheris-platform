@@ -9,6 +9,7 @@ import io.aetheris.orchestrator.connector.ConnectorConnectionRepository;
 import io.aetheris.orchestrator.connector.ConnectorStatus;
 import io.aetheris.orchestrator.policy.OperationMode;
 import io.aetheris.orchestrator.task.CreateTaskRequest;
+import io.aetheris.orchestrator.task.DirectExecutionAuthorityService;
 import io.aetheris.orchestrator.task.TaskEntity;
 import io.aetheris.orchestrator.task.TaskService;
 import io.aetheris.orchestrator.task.TaskState;
@@ -27,6 +28,8 @@ import java.util.UUID;
 public class ConnectorActionService {
     public static final String EVIDENCE_CLASS = "HOSTED_RUNTIME_SYNTHETIC_WRITE";
     public static final String TRUTH_BOUNDARY = "HOSTED_RUNTIME_SYNTHETIC_WRITE proves owner-approval orchestration, persisted idempotent action receipts and synthetic Gmail/Calendar/GitHub write adapters in hosted runtime. Live provider mutation remains fail-closed and is not proven; this is not production autonomy or physical-PC validation.";
+    private static final String LIVE_EXECUTION_AGENT = "automation-engineer";
+    private static final String LIVE_EXECUTION_TOOL = "automation";
 
     private final ConnectorActionRepository actions;
     private final ConnectorConnectionRepository connections;
@@ -34,6 +37,7 @@ public class ConnectorActionService {
     private final ApprovalService approvals;
     private final LiveConnectorWriteExecutor liveExecutor;
     private final TaskVerificationService verification;
+    private final DirectExecutionAuthorityService authority;
     private final boolean liveWritesEnabled;
 
     public ConnectorActionService(ConnectorActionRepository actions,
@@ -42,6 +46,7 @@ public class ConnectorActionService {
                                   ApprovalService approvals,
                                   LiveConnectorWriteExecutor liveExecutor,
                                   TaskVerificationService verification,
+                                  DirectExecutionAuthorityService authority,
                                   @Value("${aetheris.connectors.live-writes-enabled:false}") boolean liveWritesEnabled) {
         this.actions = actions;
         this.connections = connections;
@@ -49,6 +54,7 @@ public class ConnectorActionService {
         this.approvals = approvals;
         this.liveExecutor = liveExecutor;
         this.verification = verification;
+        this.authority = authority;
         this.liveWritesEnabled = liveWritesEnabled;
     }
 
@@ -87,7 +93,7 @@ public class ConnectorActionService {
         TaskEntity task = tasks.create(new CreateTaskRequest(
                 "Connector write: " + request.actionKind().name(), summary, OperationMode.PRIVATE));
         task = tasks.transition(task.getId(), new TaskTransitionRequest(
-                TaskState.PLANNING, "automation-engineer", "Connector write prepared for owner review"));
+                TaskState.PLANNING, LIVE_EXECUTION_AGENT, "Connector write prepared for owner review"));
         ApprovalEntity approval = approvals.request(new CreateApprovalRequest(
                 task.getId(), actionType, summary, RiskLevel.HIGH));
 
@@ -127,6 +133,12 @@ public class ConnectorActionService {
             if (!liveWritesEnabled) {
                 throw new ConnectorActionBlockedException("Live connector writes are disabled by default");
             }
+            try {
+                task = authority.requireRunningSpecialist(
+                        action.getTaskId(), LIVE_EXECUTION_AGENT, LIVE_EXECUTION_TOOL, OperationMode.PRIVATE);
+            } catch (RuntimeException denied) {
+                throw new ConnectorActionBlockedException("Live connector write authority denied: " + safeMessage(denied));
+            }
             externalReference = liveExecutor.execute(action);
             progressMessage = "Approved live connector write executed";
             completionMessage = "Live provider write receipt independently verified and completed";
@@ -140,7 +152,7 @@ public class ConnectorActionService {
         action.markExecuted(externalReference);
         ConnectorActionEntity saved = actions.save(action);
 
-        tasks.recordProgress(task.getId(), "automation-engineer", progressMessage, Map.of(
+        tasks.recordProgress(task.getId(), LIVE_EXECUTION_AGENT, progressMessage, Map.of(
                 "provider", action.getProvider().name(),
                 "actionKind", action.getActionKind().name(),
                 "executionMode", action.getExecutionMode().name(),
@@ -174,6 +186,12 @@ public class ConnectorActionService {
                 entity.getExecutionMode(), entity.getStatus(), entity.getIdempotencyKey(), entity.getTargetRef(),
                 entity.getSummary(), entity.getTaskId(), entity.getApprovalId(), entity.getActionType(),
                 entity.getExternalReference(), entity.getCreatedAt(), entity.getExecutedAt(), replay);
+    }
+
+    private static String safeMessage(RuntimeException exception) {
+        return exception.getMessage() == null || exception.getMessage().isBlank()
+                ? exception.getClass().getSimpleName()
+                : exception.getMessage();
     }
 
     private static String requiredText(String value, String field, int maxLength) {
