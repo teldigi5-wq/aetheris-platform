@@ -86,7 +86,7 @@ public class ProviderIdentityResolver {
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             throw blocked();
-        } catch (IOException | IllegalArgumentException | RuntimeException error) {
+        } catch (IOException | RuntimeException error) {
             throw blocked();
         }
     }
