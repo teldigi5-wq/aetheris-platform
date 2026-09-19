@@ -123,8 +123,14 @@ public class EngineeringWorkflowService {
             case AWAITING_APPROVAL -> {
                 if (task.getState() == TaskState.CANCELLED) workflow.moveTo(EngineeringWorkflowPhase.CANCELLED);
                 else if (task.getState() == TaskState.RUNNING) {
+                    if (!"backend-engineer".equals(task.getActiveAgentId())) {
+                        task = tasks.activateDelegatedExecution(
+                                task.getId(),
+                                "backend-engineer",
+                                "Owner approval received; governed engineering delegation activated");
+                    }
                     tasks.recordProgress(task.getId(), "backend-engineer", "Owner approval received; engineering phase activated",
-                            Map.of("workflowPhase", "ENGINEERING"));
+                            Map.of("workflowPhase", "ENGINEERING", "governedDelegation", true));
                     workflow.moveTo(EngineeringWorkflowPhase.ENGINEERING);
                 } else throw new IllegalStateException("Workflow is still waiting for owner approval");
             }
@@ -171,6 +177,7 @@ public class EngineeringWorkflowService {
             if (workflow.getPhase() != EngineeringWorkflowPhase.ENGINEERING) {
                 return result(workflow, "Workflow is still waiting for owner approval");
             }
+            task = tasks.getRequired(workflow.getTaskId());
         }
 
         switch (workflow.getPhase()) {
