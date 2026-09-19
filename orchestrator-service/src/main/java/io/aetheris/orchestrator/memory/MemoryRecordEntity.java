@@ -7,25 +7,25 @@ import java.util.stream.Collectors;
 
 @Entity
 @Table(name="aetheris_memory_records", indexes={
-        @Index(name="idx_memory_owner_updated", columnList="ownerId,updatedAt"),
-        @Index(name="idx_memory_owner_scope_project", columnList="ownerId,scope,projectId"),
-        @Index(name="idx_memory_expiry", columnList="expiresAt")
+        @Index(name="idx_memory_owner_updated", columnList="owner_id,updated_at"),
+        @Index(name="idx_memory_owner_scope_project", columnList="owner_id,scope,project_id"),
+        @Index(name="idx_memory_expiry", columnList="expires_at")
 })
 public class MemoryRecordEntity {
-    @Id private UUID id;
-    @Column(nullable=false,length=120) private String ownerId;
-    @Enumerated(EnumType.STRING) @Column(nullable=false,length=24) private MemoryScope scope;
-    @Column(length=160) private String projectId;
-    @Column(nullable=false,length=240) private String memoryKey;
-    @Column(nullable=false,length=24000) private String payload;
-    @Column(nullable=false) private boolean encrypted;
-    @Column(nullable=false) private boolean sensitive;
-    @Column(nullable=false,length=4000) private String tagsCsv;
-    @Column(nullable=false,length=80) private String provenanceType;
-    @Column(length=800) private String provenanceReference;
-    @Column(nullable=false) private Instant createdAt;
-    @Column(nullable=false) private Instant updatedAt;
-    private Instant expiresAt;
+    @Id @Column(name="id",nullable=false) private UUID id;
+    @Column(name="owner_id",nullable=false,length=120) private String ownerId;
+    @Enumerated(EnumType.STRING) @Column(name="scope",nullable=false,length=24) private MemoryScope scope;
+    @Column(name="project_id",length=160) private String projectId;
+    @Column(name="memory_key",nullable=false,length=240) private String memoryKey;
+    @Column(name="payload",nullable=false,length=24000) private String payload;
+    @Column(name="encrypted",nullable=false) private boolean encrypted;
+    @Column(name="sensitive",nullable=false) private boolean sensitive;
+    @Column(name="tags_csv",nullable=false,length=4000) private String tagsCsv;
+    @Column(name="provenance_type",nullable=false,length=80) private String provenanceType;
+    @Column(name="provenance_reference",length=800) private String provenanceReference;
+    @Column(name="created_at",nullable=false) private Instant createdAt;
+    @Column(name="updated_at",nullable=false) private Instant updatedAt;
+    @Column(name="expires_at") private Instant expiresAt;
 
     protected MemoryRecordEntity() {}
 
