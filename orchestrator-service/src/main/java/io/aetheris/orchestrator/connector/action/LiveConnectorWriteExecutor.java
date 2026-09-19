@@ -3,6 +3,7 @@ package io.aetheris.orchestrator.connector.action;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.aetheris.orchestrator.connector.oauth.InMemoryConnectorCredentialVault;
+import io.aetheris.orchestrator.connector.oauth.ProviderAccountContinuityService;
 import io.aetheris.orchestrator.connector.oauth.ProviderCredentialEntity;
 import io.aetheris.orchestrator.connector.oauth.ProviderCredentialRepository;
 import io.aetheris.orchestrator.connector.oauth.ProviderCredentialStatus;
@@ -50,6 +51,7 @@ public class LiveConnectorWriteExecutor {
     private final InMemoryConnectorCredentialVault vault;
     private final ProviderWriteEndpointRegistry endpoints;
     private final ObjectMapper mapper;
+    private final ProviderAccountContinuityService accountContinuity;
 
     private final HttpClient http = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8))
@@ -59,15 +61,19 @@ public class LiveConnectorWriteExecutor {
             ProviderCredentialRepository credentials,
             InMemoryConnectorCredentialVault vault,
             ProviderWriteEndpointRegistry endpoints,
-            ObjectMapper mapper
+            ObjectMapper mapper,
+            ProviderAccountContinuityService accountContinuity
     ) {
         this.credentials = credentials;
         this.vault = vault;
         this.endpoints = endpoints;
         this.mapper = mapper;
+        this.accountContinuity = accountContinuity;
     }
 
     public String execute(ConnectorActionEntity action) {
+
+        accountContinuity.assertCurrent(action);
 
         ProviderCredentialEntity credential =
                 credentials.findByConnectionId(action.getConnectionId())
@@ -329,8 +335,6 @@ public class LiveConnectorWriteExecutor {
                             .header("Authorization", "Bearer " + accessToken)
                             .header("User-Agent", USER_AGENT);
 
-            // setHeader intentionally replaces the default Accept header
-            // when GitHub requires application/vnd.github+json.
             extraHeaders.forEach(builder::setHeader);
 
             HttpResponse<String> response =
@@ -358,7 +362,6 @@ public class LiveConnectorWriteExecutor {
                             safeGithubPermissionHint(response);
                 }
 
-                // Provider body is deliberately not retained or surfaced.
                 throw new LiveProviderWriteException(
                         status,
                         acceptedPermissions
