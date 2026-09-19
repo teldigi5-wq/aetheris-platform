@@ -132,16 +132,37 @@ public final class BrowserTypes {
         }
     }
 
+    public record BrowserArtifactEvidence(
+            String relativePath,
+            long sizeBytes,
+            String sha256
+    ) {
+        public BrowserArtifactEvidence {
+            relativePath = relativePath == null ? "" : relativePath;
+            sha256 = sha256 == null ? "" : sha256;
+        }
+    }
+
     public record BrowserActionResult(
             String actionId,
             BrowserActionType type,
             boolean success,
             String detail,
-            String evidenceRef
+            String evidenceRef,
+            BrowserArtifactEvidence artifactEvidence
     ) {
         public BrowserActionResult {
             detail = detail == null ? "" : detail;
             evidenceRef = evidenceRef == null ? "" : evidenceRef;
+        }
+
+        public BrowserActionResult(
+                String actionId,
+                BrowserActionType type,
+                boolean success,
+                String detail,
+                String evidenceRef) {
+            this(actionId, type, success, detail, evidenceRef, null);
         }
     }
 
