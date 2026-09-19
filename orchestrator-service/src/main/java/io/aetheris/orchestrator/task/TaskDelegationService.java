@@ -46,8 +46,10 @@ public class TaskDelegationService {
     @Transactional
     public TaskEvent recordExecutionAssignment(TaskEntity task, String delegatorId, String delegateId) {
         if (task == null) throw new IllegalArgumentException("task is required");
-        if (task.getState() != TaskState.PLANNING && task.getState() != TaskState.AWAITING_APPROVAL) {
-            throw new IllegalStateException("Execution delegation can only activate from PLANNING or AWAITING_APPROVAL");
+        if (task.getState() != TaskState.PLANNING
+                && task.getState() != TaskState.AWAITING_APPROVAL
+                && task.getState() != TaskState.RUNNING) {
+            throw new IllegalStateException("Execution delegation can only activate from PLANNING, AWAITING_APPROVAL or an owner-approved RUNNING handoff");
         }
 
         String normalizedDelegatorId = required(delegatorId, "delegatorId");
