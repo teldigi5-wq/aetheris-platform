@@ -4,7 +4,7 @@ on:
   push:
     branches: [ feature/syntra-aetheris-foundation-v2 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, feature/syntra-aetheris-foundation-v2 ]
 
 permissions:
   contents: read
