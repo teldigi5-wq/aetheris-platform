@@ -1,6 +1,7 @@
 package io.aetheris.orchestrator.github;
 
-import io.aetheris.orchestrator.vault.CredentialVault;
+import io.aetheris.orchestrator.vault.ScopedCredentialAccessService;
+import io.aetheris.orchestrator.vault.SecretAccessRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,24 +18,28 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import static io.aetheris.orchestrator.vault.SecretAccessRequest.Caller.GITHUB_ADAPTER;
+import static io.aetheris.orchestrator.vault.SecretAccessRequest.Purpose.GITHUB_PUBLISH;
+import static io.aetheris.orchestrator.vault.SecretAccessRequest.Purpose.GITHUB_READ;
+
 @Service
 public class GitHubAdapterService {
 
     private final GitHubChangeProposalRepository proposals;
     private final RestClient client;
-    private final CredentialVault vault;
+    private final ScopedCredentialAccessService secretAccess;
     private final String credentialAlias;
     private final Set<String> allowedRepositories;
 
     public GitHubAdapterService(
             GitHubChangeProposalRepository proposals,
             RestClient.Builder builder,
-            CredentialVault vault,
+            ScopedCredentialAccessService secretAccess,
             @Value("${aetheris.execution.github.credential-alias:github-api-token}") String credentialAlias,
             @Value("${aetheris.execution.github.allowed-repositories:}") String allowedRepositories) {
         this.proposals = proposals;
         this.client = builder.baseUrl("https://api.github.com").build();
-        this.vault = vault;
+        this.secretAccess = secretAccess;
         this.credentialAlias = credentialAlias.trim();
         this.allowedRepositories = parseCsv(allowedRepositories);
     }
@@ -45,7 +50,7 @@ public class GitHubAdapterService {
         String[] parts = normalizedRepo.split("/", 2);
         if (path == null || path.isBlank()) throw new IllegalArgumentException("GitHub path is required");
         String effectiveRef = ref == null || ref.isBlank() ? "main" : ref.trim();
-        char[] secret = vault.resolve(credentialAlias).orElse(null);
+        char[] secret = secretAccess.resolve(new SecretAccessRequest(GITHUB_ADAPTER, GITHUB_READ, credentialAlias)).orElse(null);
         try {
             RestClient.RequestHeadersSpec<?> request = client.get()
                     .uri(uriBuilder -> uriBuilder.path("/repos/{owner}/{repo}/contents/{path}")
@@ -79,8 +84,8 @@ public class GitHubAdapterService {
         String normalizedRepo = requireAllowed(proposal.getRepository());
         GitHubFileReadResult current = readFile(normalizedRepo, proposal.getPath(), proposal.getBaseRef());
         if (current.sha() == null || current.sha().isBlank()) throw new IllegalStateException("Existing GitHub file SHA is required for guarded publish");
-        char[] secret = vault.resolve(credentialAlias)
-                .orElseThrow(() -> new IllegalStateException("GitHub credential alias is unavailable: " + credentialAlias));
+        char[] secret = secretAccess.resolve(new SecretAccessRequest(GITHUB_ADAPTER, GITHUB_PUBLISH, credentialAlias))
+                .orElseThrow(() -> new IllegalStateException("GitHub credential is unavailable"));
         try {
             String[] parts = normalizedRepo.split("/", 2);
             Map<String, Object> body = Map.of(
