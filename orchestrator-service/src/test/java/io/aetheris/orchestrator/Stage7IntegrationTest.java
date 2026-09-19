@@ -50,7 +50,7 @@ class Stage7IntegrationTest {
     void missionPlannerReleasesOnlyDependencyReadySteps(){
         MissionSessionView mission=missions.create(new CreateMissionRequest("Stage7 DAG","dependency-aware execution"));
         PlanMissionRequest request=new PlanMissionRequest(OperationMode.BALANCED,List.of(
-                new PlanStepRequest("research","Research","collect evidence","research-director",80,Set.of()),
+                new PlanStepRequest("research","Research","collect evidence","research-scientist",80,Set.of()),
                 new PlanStepRequest("build","Build","implement from evidence","backend-engineer",70,Set.of("research"))));
         planner.plan(mission.id(),request);List<MissionPlanNodeEntity> released=planner.releaseReady(mission.id());
         assertThat(released).filteredOn(n->n.getStepKey().equals("research")).singleElement().satisfies(n->assertThat(n.getState()).isEqualTo(MissionPlanNodeState.ENQUEUED));
