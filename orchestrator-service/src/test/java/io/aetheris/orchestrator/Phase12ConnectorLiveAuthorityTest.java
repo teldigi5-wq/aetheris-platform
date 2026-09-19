@@ -98,6 +98,7 @@ class Phase12ConnectorLiveAuthorityTest {
         when(actions.findById(actionId)).thenReturn(Optional.of(action));
         when(approvals.hasApproved(taskId, "CONNECTOR_WRITE_GITHUB_CREATE_ISSUE")).thenReturn(true);
         when(tasks.getRequired(taskId)).thenReturn(task);
+        when(task.getId()).thenReturn(taskId);
         when(task.getState()).thenReturn(TaskState.RUNNING);
 
         ConnectorActionService service = new ConnectorActionService(
