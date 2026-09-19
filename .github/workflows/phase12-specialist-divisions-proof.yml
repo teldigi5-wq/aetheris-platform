@@ -150,6 +150,7 @@ jobs:
           browser=orchestrator-service/src/main/java/io/aetheris/orchestrator/operator/BrowserOperatorService.java
           github_publish=orchestrator-service/src/main/java/io/aetheris/orchestrator/github/GitHubProposalPublishService.java
           connector=orchestrator-service/src/main/java/io/aetheris/orchestrator/connector/action/ConnectorActionService.java
+          safe_authority=orchestrator-service/src/main/java/io/aetheris/orchestrator/execution/ToolExecutionAuthorityService.java
           safe_tool=orchestrator-service/src/main/java/io/aetheris/orchestrator/execution/ToolExecutionService.java
           grep -q 'task.getState() != TaskState.RUNNING' "$authority"
           grep -q "task's active specialist" "$authority"
@@ -190,10 +191,12 @@ jobs:
             echo 'Live connector specialist authority does not precede provider execution.' >&2
             exit 1
           fi
-          grep -q 'specialistTools.toolFamilyFor(tool.id())' "$safe_tool"
-          grep -q 'directAuthority.requireRunningSpecialist' "$safe_tool"
+          grep -q 'READ_ONLY_STATES = Set.of(TaskState.RUNNING, TaskState.VERIFYING)' "$safe_authority"
+          grep -q 'MUTATING_STATES = Set.of(TaskState.RUNNING)' "$safe_authority"
+          grep -q 'specialistTools.evaluate(agentId, tool)' "$safe_authority"
+          grep -q 'executionAuthority.requireExecution(request, tool)' "$safe_tool"
           grep -q 'task.getMode()' "$safe_tool"
-          safe_authority_line=$(grep -n 'directAuthority.requireRunningSpecialist' "$safe_tool" | head -1 | cut -d: -f1)
+          safe_authority_line=$(grep -n 'executionAuthority.requireExecution' "$safe_tool" | head -1 | cut -d: -f1)
           safe_policy_line=$(grep -n 'registry.evaluate' "$safe_tool" | head -1 | cut -d: -f1)
           safe_approval_line=$(grep -n 'approvals.hasApproved' "$safe_tool" | head -1 | cut -d: -f1)
           safe_effect_line=$(grep -n 'Object output = switch' "$safe_tool" | head -1 | cut -d: -f1)
