@@ -9,6 +9,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -19,11 +20,16 @@ public class TaskService {
     private final TaskRepository repository;
     private final TaskEventStreamService eventStream;
     private final TaskVerificationService verification;
+    private final TaskDelegationService delegation;
 
-    public TaskService(TaskRepository repository, TaskEventStreamService eventStream, TaskVerificationService verification) {
+    public TaskService(TaskRepository repository,
+                       TaskEventStreamService eventStream,
+                       TaskVerificationService verification,
+                       TaskDelegationService delegation) {
         this.repository = repository;
         this.eventStream = eventStream;
         this.verification = verification;
+        this.delegation = delegation;
     }
 
     @Transactional
@@ -43,13 +49,44 @@ public class TaskService {
         if (current == next) throw new IllegalStateException("Task is already in state " + current);
         Set<TaskState> allowed = ALLOWED_TRANSITIONS.getOrDefault(current, Set.of());
         if (!allowed.contains(next)) throw new IllegalStateException("Invalid task transition: " + current + " -> " + next);
+
+        if ((current == TaskState.PLANNING || current == TaskState.AWAITING_APPROVAL)
+                && next == TaskState.RUNNING
+                && !sameAgent(task.getActiveAgentId(), request.agentId())) {
+            delegation.recordExecutionAssignment(task, task.getActiveAgentId(), request.agentId());
+        }
         if (current == TaskState.VERIFYING && next == TaskState.COMPLETED) {
             verification.assertCompletionAllowed(task.getId(), request.agentId());
         }
+
         task.transitionTo(next, request.agentId());
         TaskEntity saved = repository.save(task);
         String message = request.message() == null || request.message().isBlank() ? "Task moved to " + next : request.message();
         eventStream.publish(event(saved, request.agentId(), message, Map.of("previousState", current.name())));
+        return saved;
+    }
+
+    @Transactional
+    public TaskEntity activateDelegatedExecution(UUID id, String delegateId, String message) {
+        TaskEntity task = getRequired(id);
+        if (task.getState() != TaskState.RUNNING) {
+            throw new IllegalStateException("Post-approval delegation requires a RUNNING task");
+        }
+        if (sameAgent(task.getActiveAgentId(), delegateId)) {
+            throw new IllegalStateException("Task execution is already assigned to " + normalizeAgent(delegateId));
+        }
+
+        String delegatorId = task.getActiveAgentId();
+        delegation.recordExecutionAssignment(task, delegatorId, delegateId);
+        task.transitionTo(TaskState.RUNNING, delegateId);
+        TaskEntity saved = repository.save(task);
+        String normalizedMessage = message == null || message.isBlank()
+                ? "Owner-approved task execution delegated to " + normalizeAgent(delegateId)
+                : message;
+        eventStream.publish(event(saved, delegateId, normalizedMessage, Map.of(
+                "previousState", TaskState.RUNNING.name(),
+                "delegatedFrom", normalizeAgent(delegatorId),
+                "governedDelegation", true)));
         return saved;
     }
 
@@ -62,6 +99,14 @@ public class TaskService {
 
     public TaskEvent snapshotEvent(UUID id) { TaskEntity task = getRequired(id); return event(task, task.getActiveAgentId(), "Current task snapshot", Map.of("mode", task.getMode().name())); }
     private TaskEvent event(TaskEntity task, String agentId, String message, Map<String, Object> metadata) { return new TaskEvent(task.getId(), Instant.now(), task.getState(), agentId, message, metadata); }
+
+    private boolean sameAgent(String left, String right) {
+        return Objects.equals(normalizeAgent(left), normalizeAgent(right));
+    }
+
+    private String normalizeAgent(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
 
     private static Map<TaskState, Set<TaskState>> allowedTransitions() {
         EnumMap<TaskState, Set<TaskState>> map = new EnumMap<>(TaskState.class);
