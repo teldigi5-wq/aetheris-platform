@@ -48,6 +48,7 @@ public class LiveConnectorWriteExecutor {
 
     private final ProviderCredentialRepository credentials;
     private final InMemoryConnectorCredentialVault vault;
+    private final ProviderAccountContinuityService accountContinuity;
     private final ProviderWriteEndpointRegistry endpoints;
     private final ObjectMapper mapper;
 
@@ -58,11 +59,13 @@ public class LiveConnectorWriteExecutor {
     public LiveConnectorWriteExecutor(
             ProviderCredentialRepository credentials,
             InMemoryConnectorCredentialVault vault,
+            ProviderAccountContinuityService accountContinuity,
             ProviderWriteEndpointRegistry endpoints,
             ObjectMapper mapper
     ) {
         this.credentials = credentials;
         this.vault = vault;
+        this.accountContinuity = accountContinuity;
         this.endpoints = endpoints;
         this.mapper = mapper;
     }
@@ -101,6 +104,8 @@ public class LiveConnectorWriteExecutor {
 
         String accessToken =
                 vault.require(credential.getAccessTokenReference());
+
+        accountContinuity.assertCurrent(action, accessToken);
 
         return switch (action.getActionKind()) {
             case GMAIL_SEND_EMAIL ->
