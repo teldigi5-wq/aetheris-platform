@@ -24,7 +24,7 @@ public class MemoryInspectorController {
                 "sensitiveEncryptionConfigured",encryption.configured(),
                 "isolation","OWNER_AND_PROJECT",
                 "deletion","PHYSICAL",
-                "retention","ENFORCED",
+                "retention","ENFORCED_INTERNAL_SWEEP",
                 "retrieval","DETERMINISTIC_WITH_PROVENANCE");
     }
 
@@ -72,9 +72,6 @@ public class MemoryInspectorController {
                                      @RequestParam(defaultValue="10") int limit){
         return memory.search(ownerId,q,scope,projectId,limit);
     }
-
-    @PostMapping("/retention/purge")
-    public PurgeResult purge(){return memory.purgeExpired();}
 
     @ExceptionHandler(SecurityException.class)
     public ResponseEntity<Map<String,String>> denied(SecurityException ex){return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error",ex.getMessage()));}
