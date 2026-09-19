@@ -54,6 +54,9 @@ public class ConnectorActionEntity {
     @Column(nullable = false, length = 160)
     private String actionType;
 
+    @Column(name = "account_fingerprint", length = 32)
+    private String accountFingerprint;
+
     @Column(length = 600)
     private String externalReference;
 
@@ -70,6 +73,17 @@ public class ConnectorActionEntity {
                                  ConnectorActionExecutionMode executionMode,
                                  String idempotencyKey, String targetRef, String summary,
                                  UUID taskId, UUID approvalId, String actionType) {
+        this(id, connectionId, provider, actionKind, executionMode, idempotencyKey, targetRef, summary,
+                taskId, approvalId, actionType, null);
+    }
+
+    public ConnectorActionEntity(UUID id, UUID connectionId,
+                                 io.aetheris.orchestrator.connector.ConnectorProvider provider,
+                                 ConnectorActionKind actionKind,
+                                 ConnectorActionExecutionMode executionMode,
+                                 String idempotencyKey, String targetRef, String summary,
+                                 UUID taskId, UUID approvalId, String actionType,
+                                 String accountFingerprint) {
         this.id = id;
         this.connectionId = connectionId;
         this.provider = provider;
@@ -82,6 +96,7 @@ public class ConnectorActionEntity {
         this.taskId = taskId;
         this.approvalId = approvalId;
         this.actionType = actionType;
+        this.accountFingerprint = accountFingerprint;
         this.createdAt = Instant.now();
     }
 
@@ -103,6 +118,7 @@ public class ConnectorActionEntity {
     public UUID getTaskId() { return taskId; }
     public UUID getApprovalId() { return approvalId; }
     public String getActionType() { return actionType; }
+    public String getAccountFingerprint() { return accountFingerprint; }
     public String getExternalReference() { return externalReference; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getExecutedAt() { return executedAt; }
