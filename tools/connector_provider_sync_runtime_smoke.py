@@ -154,15 +154,15 @@ def main() -> int:
         wait_health()
         passed("service.orchestrator.health")
 
-        github = register("GITHUB", "phase4-github-proof", ["INGEST_CODE_UPDATES"])
+        github = register("GITHUB", "424242", ["INGEST_CODE_UPDATES"])
         authorize(github, "github")
         passed("sync.github.connection-ready")
 
-        gmail = register("GMAIL", "phase4-gmail-proof", ["INGEST_MESSAGES"])
+        gmail = register("GMAIL", "google-phase3-proof", ["INGEST_MESSAGES"])
         authorize(gmail, "gmail")
         passed("sync.gmail.connection-ready")
 
-        calendar = register("CALENDAR", "phase4-calendar-proof", ["READ_CALENDAR"])
+        calendar = register("CALENDAR", "google-phase3-proof", ["READ_CALENDAR"])
         authorize(calendar, "calendar")
         passed("sync.calendar.connection-ready")
 
