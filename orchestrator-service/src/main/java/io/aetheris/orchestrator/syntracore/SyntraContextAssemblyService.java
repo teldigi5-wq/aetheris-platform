@@ -1,5 +1,6 @@
 package io.aetheris.orchestrator.syntracore;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -16,6 +17,7 @@ public class SyntraContextAssemblyService {
     private final SyntraRetrievalService retrieval;
     private final Clock clock;
 
+    @Autowired
     public SyntraContextAssemblyService(SyntraRetrievalService retrieval) {
         this(retrieval, Clock.systemUTC());
     }
