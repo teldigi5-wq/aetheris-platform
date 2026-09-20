@@ -33,6 +33,7 @@ public class ConnectorOAuthService {
     private final ProviderCredentialRepository credentials;
     private final OAuthProviderRegistry providers;
     private final InMemoryConnectorCredentialVault vault;
+    private final OAuthLifecycleAccountContinuityService accountContinuity;
     private final ObjectMapper mapper;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build();
 
@@ -41,12 +42,14 @@ public class ConnectorOAuthService {
                                  ProviderCredentialRepository credentials,
                                  OAuthProviderRegistry providers,
                                  InMemoryConnectorCredentialVault vault,
+                                 OAuthLifecycleAccountContinuityService accountContinuity,
                                  ObjectMapper mapper) {
         this.connections = connections;
         this.sessions = sessions;
         this.credentials = credentials;
         this.providers = providers;
         this.vault = vault;
+        this.accountContinuity = accountContinuity;
         this.mapper = mapper;
     }
 
@@ -102,6 +105,12 @@ public class ConnectorOAuthService {
             sessions.save(session);
             throw error;
         }
+
+        ConnectorConnectionEntity connection = connection(session.getConnectionId());
+        accountContinuity.assertCurrent(connection, token.accessToken());
+        ProviderCredentialEntity credential = credentials.findByConnectionId(session.getConnectionId()).orElse(null);
+        requireCredentialProvider(connection, credential);
+
         String accessReference = vault.put("access-" + session.getConnectionId(), token.accessToken());
         String refreshReference = token.refreshToken() == null || token.refreshToken().isBlank()
                 ? null : vault.put("refresh-" + session.getConnectionId(), token.refreshToken());
@@ -109,7 +118,6 @@ public class ConnectorOAuthService {
                 ? Instant.now().plusSeconds(token.expiresInSeconds()) : null;
         String scopesCsv = token.scope().isBlank() ? session.getScopesCsv() : normalizeScopeCsv(token.scope());
 
-        ProviderCredentialEntity credential = credentials.findByConnectionId(session.getConnectionId()).orElse(null);
         if (credential == null) {
             credential = new ProviderCredentialEntity(UUID.randomUUID(), session.getConnectionId(), session.getProvider(),
                     accessReference, refreshReference, scopesCsv, expiresAt);
@@ -123,7 +131,6 @@ public class ConnectorOAuthService {
         sessions.save(session);
         vault.delete(session.getPkceReference());
 
-        ConnectorConnectionEntity connection = connection(session.getConnectionId());
         connection.updateStatus(ConnectorStatus.ENABLED);
         connections.save(connection);
         return view(credential);
@@ -137,6 +144,7 @@ public class ConnectorOAuthService {
     public ProviderHealthView health(UUID connectionId) {
         ConnectorConnectionEntity connection = connection(connectionId);
         ProviderCredentialEntity credential = credentialEntity(connectionId);
+        requireCredentialProvider(connection, credential);
         if (credential.getStatus() == ProviderCredentialStatus.REVOKED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Provider credential is revoked");
         }
@@ -146,16 +154,25 @@ public class ConnectorOAuthService {
         String accessToken = vault.require(credential.getAccessTokenReference());
         ProviderOAuthConfig config = providers.config(connection.getProvider());
         ProviderIdentity identity = readIdentity(config, accessToken);
-        credential.validated(identity.healthy());
+        boolean healthy = identity.healthy()
+                && accountContinuity.matchesResolvedIdentity(connection, identity.accountId());
+        credential.validated(healthy);
         credentials.save(credential);
-        return new ProviderHealthView(connectionId, connection.getProvider(), identity.healthy(),
-                identity.accountId(), identity.displayName(), identity.message(), credential.getLastValidatedAt());
+        if (!healthy && identity.healthy()) {
+            return new ProviderHealthView(connectionId, connection.getProvider(), false,
+                    "", "", "Provider account continuity validation failed", credential.getLastValidatedAt());
+        }
+        return new ProviderHealthView(connectionId, connection.getProvider(), healthy,
+                healthy ? identity.accountId() : "",
+                healthy ? identity.displayName() : "",
+                identity.message(), credential.getLastValidatedAt());
     }
 
     @Transactional
     public ProviderCredentialView refresh(UUID connectionId) {
         ConnectorConnectionEntity connection = connection(connectionId);
         ProviderCredentialEntity credential = credentialEntity(connectionId);
+        requireCredentialProvider(connection, credential);
         if (credential.getStatus() == ProviderCredentialStatus.REVOKED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Provider credential is revoked");
         }
@@ -168,6 +185,7 @@ public class ConnectorOAuthService {
         }
         String refreshToken = vault.require(credential.getRefreshTokenReference());
         TokenExchange token = exchangeRefreshToken(config, refreshToken);
+        accountContinuity.assertCurrent(connection, token.accessToken());
         String oldAccessRef = credential.getAccessTokenReference();
         String oldRefreshRef = credential.getRefreshTokenReference();
         String accessRef = vault.put("access-" + connectionId, token.accessToken());
@@ -295,6 +313,14 @@ public class ConnectorOAuthService {
     private ProviderCredentialEntity credentialEntity(UUID connectionId) {
         return credentials.findByConnectionId(connectionId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, "Provider credential was not found"));
+    }
+
+    private static void requireCredentialProvider(ConnectorConnectionEntity connection,
+                                                  ProviderCredentialEntity credential) {
+        if (credential != null && credential.getProvider() != connection.getProvider()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Provider credential does not match connector provider");
+        }
     }
 
     private ProviderCredentialView view(ProviderCredentialEntity entity) {
