@@ -1,0 +1,80 @@
+name: Phase 13 Context-Aware Local Inference Orchestration
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase13-context-aware-local-inference-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  context-aware-local-inference:
+    name: Context routing, streaming and citation proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Phase 13 context-aware inference proof
+        run: >-
+          ./mvnw -B -pl orchestrator-service
+          -Dtest=Phase13ContextAwareInferenceOrchestrationTest
+          test
+
+      - name: Verify orchestration truth and security surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/ContextAwareInferenceRequest.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/ContextAwareInferenceResult.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/ContextAwareInferenceEvidence.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/InferenceRoutingException.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraContextAwareInferenceOrchestrator.java
+            orchestrator-service/src/test/java/io/aetheris/orchestrator/syntracore/Phase13ContextAwareInferenceOrchestrationTest.java
+            docs/phase13-context-aware-inference-orchestration.md
+          )
+
+          for required_file in "${required_files[@]}"; do
+            test -f "$required_file" || {
+              echo "Missing Phase 13 inference orchestration surface: $required_file" >&2
+              exit 1
+            }
+          done
+
+          orchestrator=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraContextAwareInferenceOrchestrator.java
+          grep -q "contextAssembly.assemble" "$orchestrator"
+          grep -q "new ModelRouteRequest" "$orchestrator"
+          grep -q "context.toModelInvocation" "$orchestrator"
+          grep -q "ExecutionTarget.REMOTE" "$orchestrator"
+          grep -q "sequence discontinuity" "$orchestrator"
+          grep -q "cancellationRequested" "$orchestrator"
+          grep -q "evidenceAddresses" "$orchestrator"
+
+          if grep -E "HttpClient|WebClient|RestTemplate" "$orchestrator"; then
+            echo "Slice 5 orchestration must delegate to registered runtimes instead of adding a network client" >&2
+            exit 1
+          fi
+
+          echo "Phase 13 context-aware local inference orchestration surfaces verified."
