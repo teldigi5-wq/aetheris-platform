@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.aetheris.orchestrator.connector.ConnectorProvider;
 import io.aetheris.orchestrator.connector.action.ConnectorActionBlockedException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -23,6 +24,7 @@ public class ProviderIdentityResolver {
     private final ObjectMapper mapper;
     private final HttpClient http;
 
+    @Autowired
     public ProviderIdentityResolver(OAuthProviderRegistry providers, ObjectMapper mapper) {
         this(providers, mapper, HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8)).build());
     }
