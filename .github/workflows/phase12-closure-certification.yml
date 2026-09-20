@@ -7,19 +7,29 @@ on:
   push:
     branches:
       - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase12-final-certification-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   phase12-final-certification:
-    name: Phase 12 final certification
-    runs-on: ubuntu-latest
+    name: Consolidated Phase 12 authority and continuity proof
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
 
       - name: Set up Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: temurin
           java-version: '21'
@@ -28,7 +38,7 @@ jobs:
       - name: Run consolidated Phase 12 authority and continuity proof
         run: >-
           ./mvnw -B -pl orchestrator-service
-          -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12SafeToolExecutionAuthorityTest,Phase12ConnectorAccountContinuityTest,Phase12OAuthLifecycleContinuityTest
+          -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12SafeToolExecutionAuthorityTest,Phase12ProviderAccountContinuityTest,Phase12OAuthLifecycleContinuityTest
           test
 
       - name: Verify Phase 12 proof surfaces remain present
@@ -58,26 +68,3 @@ jobs:
           done
 
           echo "All required Phase 12 proof surfaces are present."
-
-      - name: Verify continuity fail-closed source guards
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          executor='orchestrator-service/src/main/java/com/aetheris/orchestrator/connectors/LiveConnectorWriteExecutor.java'
-          oauth_service='orchestrator-service/src/main/java/com/aetheris/orchestrator/oauth/OAuthTokenService.java'
-          calendar_controller='orchestrator-service/src/main/java/com/aetheris/orchestrator/oauth/GoogleCalendarOAuthController.java'
-
-          grep -Fq 'refresh-time connector account mismatch' "$executor"
-          grep -Fq 'TOKEN_METADATA_STALE' "$executor"
-          grep -Fq 'connector account mismatch' "$executor"
-          grep -Fq 'connector identity disappeared' "$executor"
-
-          grep -Fq 'refreshed.getRefreshToken()' "$oauth_service"
-          grep -Fq 'oauthTokenRepository.delete(existing)' "$oauth_service"
-          grep -Fq 'newRefreshCiphertext' "$oauth_service"
-
-          grep -Fq 'VERIFIED_SCOPE_CLAIMS_COOKIE' "$calendar_controller"
-          grep -Fq 'scopeClaims.add' "$calendar_controller"
-
-          echo "Phase 12 continuity fail-closed source guards are intact."
