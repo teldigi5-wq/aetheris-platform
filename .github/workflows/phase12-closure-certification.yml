@@ -1,0 +1,70 @@
+name: Phase 12 Final Security and Authority Certification
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase12-final-certification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase12-final-certification:
+    name: Consolidated Phase 12 authority and continuity proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run consolidated Phase 12 authority and continuity proof
+        run: >-
+          ./mvnw -B -pl orchestrator-service
+          -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12SafeToolExecutionAuthorityTest,Phase12ProviderAccountContinuityTest,Phase12OAuthLifecycleContinuityTest
+          test
+
+      - name: Verify Phase 12 proof surfaces remain present
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            docs/phase12-specialist-divisions.md
+            docs/phase12-direct-execution-authority.md
+            docs/phase12-github-publish-authority.md
+            docs/phase12-connector-live-authority.md
+            docs/phase12-safe-tool-execution-authority.md
+            docs/phase12-browser-execution-authority.md
+            docs/phase12-connector-account-continuity.md
+            docs/phase12-oauth-lifecycle-continuity.md
+            .github/workflows/phase12-specialist-divisions-proof.yml
+            .github/workflows/phase12-connector-account-continuity-proof.yml
+            .github/workflows/phase12-oauth-lifecycle-continuity-proof.yml
+          )
+
+          for required_file in "${required_files[@]}"; do
+            test -f "$required_file" || {
+              echo "Missing required Phase 12 proof surface: $required_file" >&2
+              exit 1
+            }
+          done
+
+          echo "All required Phase 12 proof surfaces are present."
