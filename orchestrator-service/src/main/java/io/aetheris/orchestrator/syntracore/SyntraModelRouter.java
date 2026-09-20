@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Objects;
 
 public final class SyntraModelRouter {
-    private static final double LOCAL_PREFERENCE_BONUS = 0.02;
+    private static final double LOCAL_PREFERENCE_BONUS = 0.03;
     private static final double CPU_FALLBACK_PENALTY = 0.01;
 
     private final ModelBenchmarkEngine benchmarkEngine;
