@@ -9,6 +9,7 @@ on:
       - 'orchestrator-service/**'
       - 'tools/oauth_provider_stub.py'
       - 'tools/connector_live_write_runtime_smoke.py'
+      - 'tools/connector_live_write_runtime_smoke_phase12.py'
       - 'build-evidence/runtime/connector-live-write-phase7-*'
       - '.github/workflows/connector-live-write-phase7-runtime-proof.yml'
   push:
@@ -19,6 +20,7 @@ on:
       - 'orchestrator-service/**'
       - 'tools/oauth_provider_stub.py'
       - 'tools/connector_live_write_runtime_smoke.py'
+      - 'tools/connector_live_write_runtime_smoke_phase12.py'
       - 'build-evidence/runtime/connector-live-write-phase7-*'
       - '.github/workflows/connector-live-write-phase7-runtime-proof.yml'
   workflow_dispatch:
@@ -56,6 +58,7 @@ jobs:
         run: |
           python -m py_compile tools/oauth_provider_stub.py
           python -m py_compile tools/connector_live_write_runtime_smoke.py
+          python -m py_compile tools/connector_live_write_runtime_smoke_phase12.py
 
       - name: Validate Phase 7 evidence contract
         run: python -m json.tool build-evidence/runtime/connector-live-write-phase7-contract.json >/dev/null
@@ -86,7 +89,7 @@ jobs:
 
       - name: Run Phase 7 live-write proof
         run: |
-          python tools/connector_live_write_runtime_smoke.py \
+          python tools/connector_live_write_runtime_smoke_phase12.py \
             --contract build-evidence/runtime/connector-live-write-phase7-contract.json \
             --output build-evidence/runtime/connector-live-write-phase7-report.json
 
