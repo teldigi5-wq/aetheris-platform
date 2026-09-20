@@ -122,7 +122,7 @@ def main() -> int:
         wait_health()
         passed("service.orchestrator.health")
 
-        github = register("GITHUB", "phase3-github-proof", ["INGEST_CODE_UPDATES"])
+        github = register("GITHUB", "424242", ["INGEST_CODE_UPDATES"])
         github_auth = start_oauth(github["id"], "http://localhost:7777/oauth/github")
         parsed = urllib.parse.urlparse(github_auth["authorizationUrl"])
         query = urllib.parse.parse_qs(parsed.query)
@@ -178,7 +178,7 @@ def main() -> int:
             raise AssertionError(f"refresh did not obtain a new runtime token: {before_metrics=!r} {after_metrics=!r}")
         passed("oauth.refresh-rotates-runtime-token")
 
-        gmail = register("GMAIL", "phase3-gmail-proof", ["INGEST_MESSAGES"])
+        gmail = register("GMAIL", "google-phase3-proof", ["INGEST_MESSAGES"])
         gmail_auth = start_oauth(gmail["id"], "http://localhost:7777/oauth/google")
         gmail_scopes = set(gmail_auth.get("scopes", []))
         if "https://www.googleapis.com/auth/gmail.readonly" not in gmail_scopes:
@@ -192,7 +192,7 @@ def main() -> int:
             raise AssertionError(f"Gmail identity check failed: {status=} {gmail_health=!r}")
         passed("oauth.gmail-identity-health-pass")
 
-        calendar = register("CALENDAR", "phase3-calendar-proof", ["INGEST_MESSAGES"])
+        calendar = register("CALENDAR", "google-phase3-proof", ["INGEST_MESSAGES"])
         calendar_auth = start_oauth(calendar["id"], "http://localhost:7777/oauth/google-calendar")
         calendar_scopes = set(calendar_auth.get("scopes", []))
         if "https://www.googleapis.com/auth/calendar.readonly" not in calendar_scopes:
