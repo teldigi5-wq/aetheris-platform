@@ -1,0 +1,94 @@
+name: Phase 13 Concrete Ollama Adapter Runtime
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase13-concrete-ollama-adapter-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  concrete-ollama-adapter-runtime:
+    name: Concrete Ollama adapter runtime proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Phase 13 concrete Ollama adapter continuity proofs
+        run: >-
+          ./mvnw -B -pl orchestrator-service
+          -Dtest=Phase13ConcreteOllamaAdapterRuntimeTest,Phase13LocalRuntimeAdapterTest,Phase13AdapterActivationGovernanceTest,Phase13AdapterAwareRuntimeRegistrationTest,Phase13LiveAdapterRegistrationReconciliationTest,Phase13PointOfInvocationAdapterRevalidationTest,Phase13AdapterInvocationLeaseTest,Phase13BoundAdapterInvocationHandleTest
+          test
+
+      - name: Verify Slice 15 local-only and authority boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/OllamaAdapterBinding.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/OllamaAdapterRuntimeBridge.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/OllamaLocalRuntime.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/LocalRuntimeEndpoint.java
+            orchestrator-service/src/test/java/io/aetheris/orchestrator/syntracore/Phase13ConcreteOllamaAdapterRuntimeTest.java
+            docs/phase13-concrete-ollama-adapter-runtime.md
+          )
+
+          for required_file in "${required_files[@]}"; do
+            test -f "$required_file" || {
+              echo "Missing Phase 13 Slice 15 surface: $required_file" >&2
+              exit 1
+            }
+          done
+
+          binding=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/OllamaAdapterBinding.java
+          bridge=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/OllamaAdapterRuntimeBridge.java
+          endpoint=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/LocalRuntimeEndpoint.java
+
+          grep -q 'implements LocalAdapterActivationPort, AdapterInvocationHandleRuntime' "$bridge"
+          grep -q 'reconcileLifecycle' "$bridge"
+          grep -q 'AdapterLifecycleStatus.ACTIVATED_VERIFIED' "$bridge"
+          grep -q 'acquireAdapterInvocationLease' "$bridge"
+          grep -q 'acquireAdapterInvocationHandle' "$bridge"
+          grep -q 'streamWithAdapterLease' "$bridge"
+          grep -q 'binding.providerModelId()' "$bridge"
+          grep -q 'AdapterRuntimeRegistration.modelIdFor' "$binding"
+          grep -q 'LOOPBACK_HOSTS' "$endpoint"
+
+          if grep -E 'ProcessBuilder|Runtime\.getRuntime|Files\.write|Files\.delete|Files\.move|FileOutputStream' "$binding" "$bridge"; then
+            echo "Slice 15 must not gain subprocess, installer, or filesystem mutation authority" >&2
+            exit 1
+          fi
+
+          if grep -E '^import io\.aetheris\.orchestrator\.(tool|connector|browser|computeruse|vault)' "$binding" "$bridge"; then
+            echo "Slice 15 must not gain tool, connector, browser, computer-use, or credential authority" >&2
+            exit 1
+          fi
+
+          if grep -E 'https://|http://(?!127\.0\.0\.1|localhost)' "$bridge" >/dev/null 2>&1; then
+            echo "Slice 15 bridge must not introduce a non-loopback endpoint" >&2
+            exit 1
+          fi
+
+          echo "Phase 13 Slice 15 concrete Ollama adapter runtime boundaries verified."
