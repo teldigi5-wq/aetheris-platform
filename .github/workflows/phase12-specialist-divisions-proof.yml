@@ -7,15 +7,6 @@ on:
   push:
     branches:
       - feature/syntra-aetheris-foundation-v2
-      - feature/specialist-divisions-phase12
-      - feature/specialist-verification-phase12
-      - feature/governed-delegation-phase12
-      - feature/scheduler-worker-identity-phase12
-      - feature/direct-execution-authority-phase12
-      - feature/browser-execution-authority-phase12
-      - feature/github-publish-authority-phase12
-      - feature/connector-live-authority-phase12
-      - feature/safe-tool-execution-authority-phase12-v2
   workflow_dispatch:
 
 permissions:

@@ -7,7 +7,6 @@ on:
   push:
     branches:
       - feature/syntra-aetheris-foundation-v2
-      - feature/connector-account-continuity-phase12-v3
   workflow_dispatch:
 
 permissions:
