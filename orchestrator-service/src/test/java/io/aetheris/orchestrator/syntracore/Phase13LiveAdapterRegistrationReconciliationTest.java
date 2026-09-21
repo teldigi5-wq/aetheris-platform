@@ -33,7 +33,7 @@ class Phase13LiveAdapterRegistrationReconciliationTest {
         assertEquals(AdapterRuntimeRegistration.modelIdFor(identity),
                 result.routeSelection().orElseThrow().modelId());
         assertEquals(context.citations(), result.evidenceAddresses());
-        assertEquals(1, runtime.observationCalls);
+        assertEquals(2, runtime.observationCalls);
         assertEquals(1, runtime.streamCalls);
     }
 
@@ -58,7 +58,7 @@ class Phase13LiveAdapterRegistrationReconciliationTest {
 
         assertEquals(InferenceStatus.UNAVAILABLE, second.status());
         assertTrue(second.routeSelection().isEmpty());
-        assertEquals(2, runtime.observationCalls);
+        assertEquals(3, runtime.observationCalls);
         assertEquals(1, runtime.streamCalls);
     }
 
