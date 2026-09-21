@@ -18,6 +18,10 @@ public final class SyntraLocalInferenceOrchestrator {
             "selected adapter invocation lease unavailable";
     private static final String ADAPTER_LEASE_MISMATCH_REJECTION =
             "selected adapter invocation lease does not match the selected registration";
+    private static final String ADAPTER_HANDLE_UNAVAILABLE_REJECTION =
+            "selected adapter bound invocation handle unavailable";
+    private static final String ADAPTER_HANDLE_MISMATCH_REJECTION =
+            "selected adapter bound invocation handle does not match the selected registration";
 
     private final SyntraModelRouter modelRouter;
     private final List<SyntraModelRuntime> runtimes;
@@ -100,7 +104,7 @@ public final class SyntraLocalInferenceOrchestrator {
 
         AdapterRuntimeRegistration selectedAdapterRegistration =
                 catalog.adapterRegistrationsByCandidateKey().get(selectedCandidateKey);
-        AdapterInvocationLeasingRuntime adapterInvocationRuntime = null;
+        AdapterRuntimeInvocationHandle adapterInvocationHandle = null;
         AdapterInvocationLease adapterInvocationLease = null;
         if (selectedAdapterRegistration != null) {
             if (!(runtime instanceof AdapterInvocationLeasingRuntime leasingRuntime)) {
@@ -122,31 +126,64 @@ public final class SyntraLocalInferenceOrchestrator {
                         ADAPTER_INVOCATION_REVALIDATION_REJECTION);
             }
 
-            Optional<AdapterInvocationLease> acquiredLease = Objects.requireNonNull(
-                    leasingRuntime.acquireAdapterInvocationLease(selectedAdapterRegistration),
-                    "adapter invocation lease");
-            if (acquiredLease.isEmpty()) {
-                return unavailableWithAdditionalRejection(
-                        request,
-                        invocation,
-                        decision,
-                        ADAPTER_LEASE_UNAVAILABLE_REJECTION);
+            if (runtime instanceof AdapterInvocationHandleRuntime handleRuntime) {
+                Optional<AdapterRuntimeInvocationHandle> acquiredHandle = Objects.requireNonNull(
+                        handleRuntime.acquireAdapterInvocationHandle(selectedAdapterRegistration),
+                        "adapter invocation handle");
+                if (acquiredHandle.isEmpty()) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_HANDLE_UNAVAILABLE_REJECTION);
+                }
+
+                AdapterRuntimeInvocationHandle handle = acquiredHandle.orElseThrow();
+                AdapterInvocationLease lease = handle.lease();
+                if (!lease.matches(selectedAdapterRegistration)
+                        || !lease.providerId().equals(selection.providerId())
+                        || !lease.modelId().equals(selection.modelId())
+                        || !lease.modelId().equals(invocation.modelId())
+                        || handle.started()) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_HANDLE_MISMATCH_REJECTION);
+                }
+                adapterInvocationHandle = handle;
+            } else {
+                Optional<AdapterInvocationLease> acquiredLease = Objects.requireNonNull(
+                        leasingRuntime.acquireAdapterInvocationLease(selectedAdapterRegistration),
+                        "adapter invocation lease");
+                if (acquiredLease.isEmpty()) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_LEASE_UNAVAILABLE_REJECTION);
+                }
+
+                AdapterInvocationLease lease = acquiredLease.orElseThrow();
+                if (!lease.matches(selectedAdapterRegistration)
+                        || !lease.providerId().equals(selection.providerId())
+                        || !lease.modelId().equals(selection.modelId())
+                        || !lease.modelId().equals(invocation.modelId())) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_LEASE_MISMATCH_REJECTION);
+                }
+
+                adapterInvocationLease = lease;
             }
 
-            AdapterInvocationLease lease = acquiredLease.orElseThrow();
-            if (!lease.matches(selectedAdapterRegistration)
-                    || !lease.providerId().equals(selection.providerId())
-                    || !lease.modelId().equals(selection.modelId())
-                    || !lease.modelId().equals(invocation.modelId())) {
-                return unavailableWithAdditionalRejection(
-                        request,
-                        invocation,
-                        decision,
-                        ADAPTER_LEASE_MISMATCH_REJECTION);
+            if (adapterInvocationLease != null) {
+                adapterInvocationHandle = new AdapterRuntimeInvocationHandle(
+                        adapterInvocationLease,
+                        leasingRuntime::streamWithAdapterLease);
             }
-
-            adapterInvocationRuntime = leasingRuntime;
-            adapterInvocationLease = lease;
         }
 
         StringBuilder output = new StringBuilder();
@@ -177,9 +214,8 @@ public final class SyntraLocalInferenceOrchestrator {
             }
         };
 
-        if (adapterInvocationLease != null) {
-            adapterInvocationRuntime.streamWithAdapterLease(
-                    adapterInvocationLease,
+        if (adapterInvocationHandle != null) {
+            adapterInvocationHandle.stream(
                     invocation,
                     guardedSink,
                     cancellationRequested);
