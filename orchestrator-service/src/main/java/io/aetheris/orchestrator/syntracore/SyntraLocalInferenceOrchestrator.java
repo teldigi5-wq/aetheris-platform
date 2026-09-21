@@ -12,6 +12,12 @@ import java.util.function.Consumer;
 public final class SyntraLocalInferenceOrchestrator {
     private static final String ADAPTER_INVOCATION_REVALIDATION_REJECTION =
             "selected adapter lost verified-active state immediately before invocation";
+    private static final String ADAPTER_LEASE_UNSUPPORTED_REJECTION =
+            "selected adapter runtime does not support invocation leases";
+    private static final String ADAPTER_LEASE_UNAVAILABLE_REJECTION =
+            "selected adapter invocation lease unavailable";
+    private static final String ADAPTER_LEASE_MISMATCH_REJECTION =
+            "selected adapter invocation lease does not match the selected registration";
 
     private final SyntraModelRouter modelRouter;
     private final List<SyntraModelRuntime> runtimes;
@@ -94,22 +100,53 @@ public final class SyntraLocalInferenceOrchestrator {
 
         AdapterRuntimeRegistration selectedAdapterRegistration =
                 catalog.adapterRegistrationsByCandidateKey().get(selectedCandidateKey);
+        AdapterInvocationLeasingRuntime adapterInvocationRuntime = null;
+        AdapterInvocationLease adapterInvocationLease = null;
         if (selectedAdapterRegistration != null) {
-            if (!(runtime instanceof AdapterAwareSyntraModelRuntime adapterRuntime)) {
-                throw new IllegalStateException(
-                        "adapter routing selection requires an adapter-aware runtime at invocation");
+            if (!(runtime instanceof AdapterInvocationLeasingRuntime leasingRuntime)) {
+                return unavailableWithAdditionalRejection(
+                        request,
+                        invocation,
+                        decision,
+                        ADAPTER_LEASE_UNSUPPORTED_REJECTION);
             }
+
             Optional<AdapterArtifactObservation> invocationObservation = Objects.requireNonNull(
-                    adapterRuntime.observeAdapter(selectedAdapterRegistration.identity()),
+                    leasingRuntime.observeAdapter(selectedAdapterRegistration.identity()),
                     "adapter invocation observation");
             if (!isVerifiedCurrentObservation(selectedAdapterRegistration, invocationObservation)) {
-                List<String> rejections = new ArrayList<>(decision.rejectionReasons());
-                rejections.add(ADAPTER_INVOCATION_REVALIDATION_REJECTION);
-                return evaluate(LocalInferenceResult.unavailable(
-                        request.task(),
-                        invocation.evidenceAddresses(),
-                        rejections));
+                return unavailableWithAdditionalRejection(
+                        request,
+                        invocation,
+                        decision,
+                        ADAPTER_INVOCATION_REVALIDATION_REJECTION);
             }
+
+            Optional<AdapterInvocationLease> acquiredLease = Objects.requireNonNull(
+                    leasingRuntime.acquireAdapterInvocationLease(selectedAdapterRegistration),
+                    "adapter invocation lease");
+            if (acquiredLease.isEmpty()) {
+                return unavailableWithAdditionalRejection(
+                        request,
+                        invocation,
+                        decision,
+                        ADAPTER_LEASE_UNAVAILABLE_REJECTION);
+            }
+
+            AdapterInvocationLease lease = acquiredLease.orElseThrow();
+            if (!lease.matches(selectedAdapterRegistration)
+                    || !lease.providerId().equals(selection.providerId())
+                    || !lease.modelId().equals(selection.modelId())
+                    || !lease.modelId().equals(invocation.modelId())) {
+                return unavailableWithAdditionalRejection(
+                        request,
+                        invocation,
+                        decision,
+                        ADAPTER_LEASE_MISMATCH_REJECTION);
+            }
+
+            adapterInvocationRuntime = leasingRuntime;
+            adapterInvocationLease = lease;
         }
 
         StringBuilder output = new StringBuilder();
@@ -140,7 +177,15 @@ public final class SyntraLocalInferenceOrchestrator {
             }
         };
 
-        runtime.stream(invocation, guardedSink, cancellationRequested);
+        if (adapterInvocationLease != null) {
+            adapterInvocationRuntime.streamWithAdapterLease(
+                    adapterInvocationLease,
+                    invocation,
+                    guardedSink,
+                    cancellationRequested);
+        } else {
+            runtime.stream(invocation, guardedSink, cancellationRequested);
+        }
 
         if (terminalObserved[0]) {
             return evaluate(LocalInferenceResult.completed(
@@ -161,6 +206,19 @@ public final class SyntraLocalInferenceOrchestrator {
                     emittedChunks[0]));
         }
         throw new IllegalStateException("runtime stream ended without cancellation or a terminal frame");
+    }
+
+    private LocalInferenceResult unavailableWithAdditionalRejection(
+            ContextAwareInferenceRequest request,
+            ModelInvocation invocation,
+            ModelRouteDecision decision,
+            String rejection) {
+        List<String> rejections = new ArrayList<>(decision.rejectionReasons());
+        rejections.add(rejection);
+        return evaluate(LocalInferenceResult.unavailable(
+                request.task(),
+                invocation.evidenceAddresses(),
+                rejections));
     }
 
     private RuntimeCatalog buildCatalog() {
