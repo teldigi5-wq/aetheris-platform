@@ -60,20 +60,20 @@ jobs:
             }
           done
 
-          grep -q 'default Optional<AdapterArtifactObservation> observeAdapter' \
-            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
-          grep -q 'return Optional.empty();' \
-            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
-          grep -q 'adapterRuntime.observeAdapter' \
-            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
-          grep -q '!observation.exists()' \
-            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
-          grep -q '!observation.active()' \
-            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+          runtime_contract=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
+          orchestrator=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+
+          grep -q 'default Optional<AdapterArtifactObservation> observeAdapter' "$runtime_contract"
+          grep -q 'return Optional.empty();' "$runtime_contract"
+          grep -q 'adapterRuntime.observeAdapter' "$orchestrator"
+          grep -q 'isVerifiedCurrentObservation' "$orchestrator"
+          grep -q 'registration.identity().equals(observed.identity())' "$orchestrator"
+          grep -q 'observed.exists()' "$orchestrator"
+          grep -q 'observed.active()' "$orchestrator"
 
           slice_sources=(
-            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
-            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+            "$runtime_contract"
+            "$orchestrator"
           )
 
           if grep -E 'ProcessBuilder|Runtime\.getRuntime|HttpClient|WebClient|RestTemplate|FileOutputStream|Files\.write|Files\.delete|Files\.move' "${slice_sources[@]}"; then
