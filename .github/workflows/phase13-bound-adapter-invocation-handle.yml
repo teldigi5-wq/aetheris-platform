@@ -70,12 +70,15 @@ jobs:
           grep -q 'AtomicBoolean' "$handle"
           grep -q 'single-use' "$handle"
           grep -q 'acquireAdapterInvocationHandle' "$handle_runtime"
-          grep -q 'ADAPTER_HANDLE_UNSUPPORTED_REJECTION' "$orchestrator"
+          grep -q 'ADAPTER_LEASE_UNAVAILABLE_REJECTION' "$orchestrator"
+          grep -q 'ADAPTER_LEASE_MISMATCH_REJECTION' "$orchestrator"
           grep -q 'ADAPTER_HANDLE_UNAVAILABLE_REJECTION' "$orchestrator"
           grep -q 'ADAPTER_HANDLE_MISMATCH_REJECTION' "$orchestrator"
+          grep -q 'new AdapterRuntimeInvocationHandle' "$orchestrator"
+          grep -q 'leasingRuntime::streamWithAdapterLease' "$orchestrator"
           grep -q 'adapterInvocationHandle.stream' "$orchestrator"
 
-          if grep -q 'adapterInvocationRuntime.streamWithAdapterLease' "$orchestrator"; then
+          if grep -q 'leasingRuntime\.streamWithAdapterLease(' "$orchestrator"; then
             echo "Slice 14 adapter execution must start through the bound handle, not a direct lease-aware runtime call" >&2
             exit 1
           fi
