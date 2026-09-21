@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class Phase13BoundAdapterInvocationHandleTest {
 
     @Test
-    void exactBoundHandleOwnsAdapterStreamStart() {
+    void exactNativeBoundHandleOwnsAdapterStreamStart() {
         AdapterArtifactIdentity identity = identity("exp-slice14-exact", "8");
         HandleRuntime runtime = runtime(identity, HandleBehavior.EXACT);
         ContextPack context = contextPack();
@@ -40,12 +40,14 @@ class Phase13BoundAdapterInvocationHandleTest {
     }
 
     @Test
-    void leaseOnlyRuntimeFailsClosedBeforeLeaseOrStream() {
+    void leaseOnlyRuntimeIsCompatibilityBoundIntoSingleUseHandle() {
         AdapterArtifactIdentity identity = identity("exp-slice14-lease-only", "9");
         AdapterRuntimeRegistration registration = registration(identity, "slice14-lease-only-runtime");
         ModelRuntimeCandidate base = baseCandidate("slice14-lease-only-runtime", identity.baseModelId());
+        int[] observationCalls = {0};
         int[] leaseCalls = {0};
-        int[] streamCalls = {0};
+        int[] leaseStreamCalls = {0};
+        int[] normalStreamCalls = {0};
 
         AdapterInvocationLeasingRuntime runtime = new AdapterInvocationLeasingRuntime() {
             @Override
@@ -65,7 +67,10 @@ class Phase13BoundAdapterInvocationHandleTest {
 
             @Override
             public Optional<AdapterArtifactObservation> observeAdapter(AdapterArtifactIdentity requestedIdentity) {
-                return Optional.of(active(requestedIdentity, "catalog"));
+                observationCalls[0]++;
+                return Optional.of(active(
+                        requestedIdentity,
+                        observationCalls[0] == 1 ? "catalog" : "invocation"));
             }
 
             @Override
@@ -81,7 +86,8 @@ class Phase13BoundAdapterInvocationHandleTest {
                     ModelInvocation invocation,
                     Consumer<ModelStreamChunk> sink,
                     BooleanSupplier cancellationRequested) {
-                streamCalls[0]++;
+                leaseStreamCalls[0]++;
+                sink.accept(new ModelStreamChunk(0, "compat", true));
             }
 
             @Override
@@ -89,22 +95,24 @@ class Phase13BoundAdapterInvocationHandleTest {
                     ModelInvocation invocation,
                     Consumer<ModelStreamChunk> sink,
                     BooleanSupplier cancellationRequested) {
-                streamCalls[0]++;
+                normalStreamCalls[0]++;
+                throw new AssertionError("lease-only adapter compatibility must not use ordinary runtime.stream");
             }
         };
 
         LocalInferenceResult result = orchestrator(runtime).infer(
                 request(InferenceTask.CODING, contextPack()), hardware(), () -> false);
 
-        assertEquals(InferenceStatus.UNAVAILABLE, result.status());
-        assertTrue(result.routeRejections().stream()
-                .anyMatch(reason -> reason.contains("does not support bound invocation handles")));
-        assertEquals(0, leaseCalls[0]);
-        assertEquals(0, streamCalls[0]);
+        assertEquals(InferenceStatus.COMPLETED, result.status());
+        assertEquals("compat", result.output());
+        assertEquals(2, observationCalls[0]);
+        assertEquals(1, leaseCalls[0]);
+        assertEquals(1, leaseStreamCalls[0]);
+        assertEquals(0, normalStreamCalls[0]);
     }
 
     @Test
-    void missingBoundHandleFailsClosedWithoutStreaming() {
+    void missingNativeBoundHandleFailsClosedWithoutStreaming() {
         AdapterArtifactIdentity identity = identity("exp-slice14-empty", "b");
         HandleRuntime runtime = runtime(identity, HandleBehavior.EMPTY);
 
@@ -121,7 +129,7 @@ class Phase13BoundAdapterInvocationHandleTest {
     }
 
     @Test
-    void providerMismatchedHandleFailsClosedWithoutStreaming() {
+    void providerMismatchedNativeHandleFailsClosedWithoutStreaming() {
         AdapterArtifactIdentity identity = identity("exp-slice14-mismatch", "c");
         HandleRuntime runtime = runtime(identity, HandleBehavior.WRONG_PROVIDER);
 
@@ -232,7 +240,10 @@ class Phase13BoundAdapterInvocationHandleTest {
 
     private static HandleRuntime runtime(AdapterArtifactIdentity identity, HandleBehavior behavior) {
         String provider = "slice14-local-runtime";
-        return new HandleRuntime(baseCandidate(provider, identity.baseModelId()), registration(identity, provider), behavior);
+        return new HandleRuntime(
+                baseCandidate(provider, identity.baseModelId()),
+                registration(identity, provider),
+                behavior);
     }
 
     private static AdapterRuntimeRegistration registration(AdapterArtifactIdentity identity, String provider) {
@@ -336,7 +347,7 @@ class Phase13BoundAdapterInvocationHandleTest {
                 nodeId,
                 scope,
                 "adapter#bound-invocation-handle",
-                "Adapter streaming starts only through a runtime-issued single-use handle bound to the exact lease.",
+                "Adapter streaming starts only through a single-use handle bound to the exact verified lease.",
                 0.99,
                 "phase13-slice14-test",
                 Instant.parse("2026-09-21T14:00:00Z"));
