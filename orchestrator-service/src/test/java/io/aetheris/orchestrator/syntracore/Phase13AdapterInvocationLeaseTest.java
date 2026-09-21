@@ -339,7 +339,7 @@ class Phase13AdapterInvocationLeaseTest {
         WRONG_PROVIDER
     }
 
-    private static final class LeaseRuntime implements AdapterInvocationLeasingRuntime {
+    private static final class LeaseRuntime implements AdapterInvocationHandleRuntime {
         private final ModelRuntimeCandidate base;
         private final AdapterRuntimeRegistration registration;
         private final LeaseBehavior behavior;
@@ -393,6 +393,15 @@ class Phase13AdapterInvocationLeaseTest {
                         "aetheris-adapter-lease://slice13/wrong-provider/"
                                 + requestedRegistration.identity().artifactSha256()));
             };
+        }
+
+        @Override
+        public Optional<AdapterRuntimeInvocationHandle> acquireAdapterInvocationHandle(
+                AdapterRuntimeRegistration requestedRegistration) {
+            return acquireAdapterInvocationLease(requestedRegistration)
+                    .map(lease -> new AdapterRuntimeInvocationHandle(
+                            lease,
+                            this::streamWithAdapterLease));
         }
 
         @Override
