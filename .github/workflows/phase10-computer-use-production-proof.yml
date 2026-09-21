@@ -7,7 +7,6 @@ on:
   push:
     branches:
       - feature/syntra-aetheris-foundation-v2
-      - feature/computer-use-production-phase10
   workflow_dispatch:
 
 permissions:
