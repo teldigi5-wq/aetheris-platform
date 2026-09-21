@@ -32,10 +32,13 @@ public record AdapterLifecycleResult(
                     throw new IllegalArgumentException("blocked lifecycle outcomes must not claim execution or authority");
                 }
             }
-            case ACTIVATED_VERIFIED -> requireVerifiedEffect(effectAttempted, executionVerified, authorityGranted, active, true);
-            case ACTIVATION_FAILED_VERIFIED -> requireVerifiedEffect(effectAttempted, executionVerified, authorityGranted, active, false);
-            case ROLLED_BACK_VERIFIED -> requireVerifiedEffect(effectAttempted, executionVerified, authorityGranted, !active, true);
-            case ROLLBACK_FAILED_VERIFIED -> requireVerifiedEffect(effectAttempted, executionVerified, authorityGranted, active, true);
+            case ACTIVATED_VERIFIED -> requireVerifiedEffect(effectAttempted, executionVerified, authorityGranted, active);
+            case ROLLED_BACK_VERIFIED -> requireVerifiedEffect(effectAttempted, executionVerified, authorityGranted, !active);
+            case ACTIVATION_FAILED_VERIFIED, ROLLBACK_FAILED_VERIFIED -> {
+                if (!effectAttempted || !executionVerified || !authorityGranted) {
+                    throw new IllegalArgumentException("verified failed lifecycle outcomes require an authorized, verified attempted effect");
+                }
+            }
             case ACTIVATION_UNVERIFIED, ROLLBACK_UNVERIFIED -> {
                 if (!effectAttempted || executionVerified || !authorityGranted) {
                     throw new IllegalArgumentException("unverified lifecycle outcomes require an authorized attempted effect without verified success");
@@ -48,9 +51,8 @@ public record AdapterLifecycleResult(
             boolean effectAttempted,
             boolean executionVerified,
             boolean authorityGranted,
-            boolean stateMatches,
-            boolean expectedStateMatches) {
-        if (!effectAttempted || !executionVerified || !authorityGranted || stateMatches != expectedStateMatches) {
+            boolean expectedStateObserved) {
+        if (!effectAttempted || !executionVerified || !authorityGranted || !expectedStateObserved) {
             throw new IllegalArgumentException("verified lifecycle outcome is inconsistent with execution truth");
         }
     }
