@@ -7,7 +7,6 @@ on:
   push:
     branches:
       - feature/syntra-aetheris-foundation-v2
-      - feature/oauth-lifecycle-continuity-phase12
   workflow_dispatch:
 
 permissions:
