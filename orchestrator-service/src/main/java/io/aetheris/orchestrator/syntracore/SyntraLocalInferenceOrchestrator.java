@@ -14,8 +14,10 @@ public final class SyntraLocalInferenceOrchestrator {
             "selected adapter lost verified-active state immediately before invocation";
     private static final String ADAPTER_LEASE_UNSUPPORTED_REJECTION =
             "selected adapter runtime does not support invocation leases";
-    private static final String ADAPTER_HANDLE_UNSUPPORTED_REJECTION =
-            "selected adapter runtime does not support bound invocation handles";
+    private static final String ADAPTER_LEASE_UNAVAILABLE_REJECTION =
+            "selected adapter invocation lease unavailable";
+    private static final String ADAPTER_LEASE_MISMATCH_REJECTION =
+            "selected adapter invocation lease does not match the selected registration";
     private static final String ADAPTER_HANDLE_UNAVAILABLE_REJECTION =
             "selected adapter bound invocation handle unavailable";
     private static final String ADAPTER_HANDLE_MISMATCH_REJECTION =
@@ -111,13 +113,6 @@ public final class SyntraLocalInferenceOrchestrator {
                         decision,
                         ADAPTER_LEASE_UNSUPPORTED_REJECTION);
             }
-            if (!(runtime instanceof AdapterInvocationHandleRuntime handleRuntime)) {
-                return unavailableWithAdditionalRejection(
-                        request,
-                        invocation,
-                        decision,
-                        ADAPTER_HANDLE_UNSUPPORTED_REJECTION);
-            }
 
             Optional<AdapterArtifactObservation> invocationObservation = Objects.requireNonNull(
                     leasingRuntime.observeAdapter(selectedAdapterRegistration.identity()),
@@ -130,32 +125,60 @@ public final class SyntraLocalInferenceOrchestrator {
                         ADAPTER_INVOCATION_REVALIDATION_REJECTION);
             }
 
-            Optional<AdapterRuntimeInvocationHandle> acquiredHandle = Objects.requireNonNull(
-                    handleRuntime.acquireAdapterInvocationHandle(selectedAdapterRegistration),
-                    "adapter invocation handle");
-            if (acquiredHandle.isEmpty()) {
-                return unavailableWithAdditionalRejection(
-                        request,
-                        invocation,
-                        decision,
-                        ADAPTER_HANDLE_UNAVAILABLE_REJECTION);
-            }
+            if (runtime instanceof AdapterInvocationHandleRuntime handleRuntime) {
+                Optional<AdapterRuntimeInvocationHandle> acquiredHandle = Objects.requireNonNull(
+                        handleRuntime.acquireAdapterInvocationHandle(selectedAdapterRegistration),
+                        "adapter invocation handle");
+                if (acquiredHandle.isEmpty()) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_HANDLE_UNAVAILABLE_REJECTION);
+                }
 
-            AdapterRuntimeInvocationHandle handle = acquiredHandle.orElseThrow();
-            AdapterInvocationLease lease = handle.lease();
-            if (!lease.matches(selectedAdapterRegistration)
-                    || !lease.providerId().equals(selection.providerId())
-                    || !lease.modelId().equals(selection.modelId())
-                    || !lease.modelId().equals(invocation.modelId())
-                    || handle.started()) {
-                return unavailableWithAdditionalRejection(
-                        request,
-                        invocation,
-                        decision,
-                        ADAPTER_HANDLE_MISMATCH_REJECTION);
-            }
+                AdapterRuntimeInvocationHandle handle = acquiredHandle.orElseThrow();
+                AdapterInvocationLease lease = handle.lease();
+                if (!lease.matches(selectedAdapterRegistration)
+                        || !lease.providerId().equals(selection.providerId())
+                        || !lease.modelId().equals(selection.modelId())
+                        || !lease.modelId().equals(invocation.modelId())
+                        || handle.started()) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_HANDLE_MISMATCH_REJECTION);
+                }
+                adapterInvocationHandle = handle;
+            } else {
+                Optional<AdapterInvocationLease> acquiredLease = Objects.requireNonNull(
+                        leasingRuntime.acquireAdapterInvocationLease(selectedAdapterRegistration),
+                        "adapter invocation lease");
+                if (acquiredLease.isEmpty()) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_LEASE_UNAVAILABLE_REJECTION);
+                }
 
-            adapterInvocationHandle = handle;
+                AdapterInvocationLease lease = acquiredLease.orElseThrow();
+                if (!lease.matches(selectedAdapterRegistration)
+                        || !lease.providerId().equals(selection.providerId())
+                        || !lease.modelId().equals(selection.modelId())
+                        || !lease.modelId().equals(invocation.modelId())) {
+                    return unavailableWithAdditionalRejection(
+                            request,
+                            invocation,
+                            decision,
+                            ADAPTER_LEASE_MISMATCH_REJECTION);
+                }
+
+                adapterInvocationHandle = new AdapterRuntimeInvocationHandle(
+                        lease,
+                        leasingRuntime::streamWithAdapterLease);
+            }
         }
 
         StringBuilder output = new StringBuilder();
