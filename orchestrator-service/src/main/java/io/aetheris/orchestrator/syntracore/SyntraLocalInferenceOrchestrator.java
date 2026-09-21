@@ -188,6 +188,20 @@ public final class SyntraLocalInferenceOrchestrator {
                         throw new IllegalStateException(
                                 "adapter registration base model is not present on the same local runtime");
                     }
+
+                    var currentObservation = Objects.requireNonNull(
+                            adapterRuntime.observeAdapter(registration.identity()),
+                            "adapter observation");
+                    if (currentObservation.isEmpty()) {
+                        continue;
+                    }
+                    AdapterArtifactObservation observation = currentObservation.orElseThrow();
+                    if (!registration.identity().equals(observation.identity())
+                            || !observation.exists()
+                            || !observation.active()) {
+                        continue;
+                    }
+
                     addCandidate(candidate, candidatesByKey, candidates);
                 }
             }

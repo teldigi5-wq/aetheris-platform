@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
@@ -331,6 +332,19 @@ class Phase13AdapterAwareRuntimeRegistrationTest {
         @Override
         public List<AdapterRuntimeRegistration> adapterRegistrations() {
             return registrations;
+        }
+
+        @Override
+        public Optional<AdapterArtifactObservation> observeAdapter(AdapterArtifactIdentity identity) {
+            return registrations.stream()
+                    .filter(registration -> registration.identity().equals(identity))
+                    .findFirst()
+                    .map(registration -> new AdapterArtifactObservation(
+                            identity,
+                            true,
+                            true,
+                            "phase13-slice10-test-runtime",
+                            "aetheris-adapter-observation://slice10/" + identity.artifactSha256()));
         }
 
         @Override

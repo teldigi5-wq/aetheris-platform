@@ -1,0 +1,94 @@
+name: Phase 13 Live Adapter Registration Reconciliation
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase13-live-adapter-registration-reconciliation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-adapter-registration-reconciliation:
+    name: Fresh adapter observation and stale-registration proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Phase 13 live adapter reconciliation proofs
+        run: >-
+          ./mvnw -B -pl orchestrator-service
+          -Dtest=Phase13AdapterAwareRuntimeRegistrationTest,Phase13LiveAdapterRegistrationReconciliationTest
+          test
+
+      - name: Verify Slice 11 freshness and authority boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+            orchestrator-service/src/test/java/io/aetheris/orchestrator/syntracore/Phase13LiveAdapterRegistrationReconciliationTest.java
+            docs/phase13-live-adapter-registration-reconciliation.md
+          )
+
+          for required_file in "${required_files[@]}"; do
+            test -f "$required_file" || {
+              echo "Missing Phase 13 Slice 11 surface: $required_file" >&2
+              exit 1
+            }
+          done
+
+          grep -q 'default Optional<AdapterArtifactObservation> observeAdapter' \
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
+          grep -q 'return Optional.empty();' \
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
+          grep -q 'adapterRuntime.observeAdapter' \
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+          grep -q '!observation.exists()' \
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+          grep -q '!observation.active()' \
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+
+          slice_sources=(
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterAwareSyntraModelRuntime.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+          )
+
+          if grep -E 'ProcessBuilder|Runtime\.getRuntime|HttpClient|WebClient|RestTemplate|FileOutputStream|Files\.write|Files\.delete|Files\.move' "${slice_sources[@]}"; then
+            echo "Slice 11 reconciliation must remain read-only and local" >&2
+            exit 1
+          fi
+
+          if grep -E '\.activate\(|\.detach\(' "${slice_sources[@]}"; then
+            echo "Slice 11 reconciliation must not invoke adapter lifecycle effects" >&2
+            exit 1
+          fi
+
+          if grep -R 'io.aetheris.orchestrator.\(tool\|connector\|browser\|computeruse\)' "${slice_sources[@]}"; then
+            echo "Slice 11 reconciliation must not gain tool, connector, browser, or computer-use authority" >&2
+            exit 1
+          fi
+
+          echo "Phase 13 Slice 11 live adapter registration reconciliation boundaries verified."
