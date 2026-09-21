@@ -306,7 +306,7 @@ class Phase13AdapterAwareRuntimeRegistrationTest {
                 Instant.parse("2026-09-21T10:01:00Z"));
     }
 
-    private static final class FakeAdapterRuntime implements AdapterAwareSyntraModelRuntime {
+    private static final class FakeAdapterRuntime implements AdapterInvocationLeasingRuntime {
         private final ModelRuntimeCandidate base;
         private final List<AdapterRuntimeRegistration> registrations;
         private ModelInvocation lastInvocation;
@@ -345,6 +345,28 @@ class Phase13AdapterAwareRuntimeRegistrationTest {
                             true,
                             "phase13-slice10-test-runtime",
                             "aetheris-adapter-observation://slice10/" + identity.artifactSha256()));
+        }
+
+        @Override
+        public Optional<AdapterInvocationLease> acquireAdapterInvocationLease(
+                AdapterRuntimeRegistration registration) {
+            if (!registrations.contains(registration)) {
+                return Optional.empty();
+            }
+            return Optional.of(new AdapterInvocationLease(
+                    registration.identity(),
+                    providerId(),
+                    registration.candidate().modelId(),
+                    "aetheris-adapter-lease://slice10/" + registration.identity().artifactSha256()));
+        }
+
+        @Override
+        public void streamWithAdapterLease(
+                AdapterInvocationLease lease,
+                ModelInvocation invocation,
+                Consumer<ModelStreamChunk> sink,
+                BooleanSupplier cancellationRequested) {
+            stream(invocation, sink, cancellationRequested);
         }
 
         @Override
