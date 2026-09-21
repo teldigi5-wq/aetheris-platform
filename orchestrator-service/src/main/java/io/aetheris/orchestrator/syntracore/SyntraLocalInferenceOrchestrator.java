@@ -5,10 +5,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public final class SyntraLocalInferenceOrchestrator {
+    private static final String ADAPTER_INVOCATION_REVALIDATION_REJECTION =
+            "selected adapter lost verified-active state immediately before invocation";
+
     private final SyntraModelRouter modelRouter;
     private final List<SyntraModelRuntime> runtimes;
     private final List<LocalInferenceEvaluationHook> evaluationHooks;
@@ -56,8 +60,8 @@ public final class SyntraLocalInferenceOrchestrator {
         }
 
         ModelRouteSelection selection = decision.selection().orElseThrow();
-        ModelRuntimeCandidate selectedCandidate = catalog.candidatesByKey().get(
-                selection.providerId() + "/" + selection.modelId());
+        String selectedCandidateKey = selection.providerId() + "/" + selection.modelId();
+        ModelRuntimeCandidate selectedCandidate = catalog.candidatesByKey().get(selectedCandidateKey);
         if (selectedCandidate == null) {
             throw new IllegalStateException("router selected a model outside the runtime catalog");
         }
@@ -86,6 +90,26 @@ public final class SyntraLocalInferenceOrchestrator {
                     invocation.evidenceAddresses(),
                     decision.rejectionReasons(),
                     0));
+        }
+
+        AdapterRuntimeRegistration selectedAdapterRegistration =
+                catalog.adapterRegistrationsByCandidateKey().get(selectedCandidateKey);
+        if (selectedAdapterRegistration != null) {
+            if (!(runtime instanceof AdapterAwareSyntraModelRuntime adapterRuntime)) {
+                throw new IllegalStateException(
+                        "adapter routing selection requires an adapter-aware runtime at invocation");
+            }
+            Optional<AdapterArtifactObservation> invocationObservation = Objects.requireNonNull(
+                    adapterRuntime.observeAdapter(selectedAdapterRegistration.identity()),
+                    "adapter invocation observation");
+            if (!isVerifiedCurrentObservation(selectedAdapterRegistration, invocationObservation)) {
+                List<String> rejections = new ArrayList<>(decision.rejectionReasons());
+                rejections.add(ADAPTER_INVOCATION_REVALIDATION_REJECTION);
+                return evaluate(LocalInferenceResult.unavailable(
+                        request.task(),
+                        invocation.evidenceAddresses(),
+                        rejections));
+            }
         }
 
         StringBuilder output = new StringBuilder();
@@ -142,6 +166,7 @@ public final class SyntraLocalInferenceOrchestrator {
     private RuntimeCatalog buildCatalog() {
         Map<String, SyntraModelRuntime> runtimesByProvider = new LinkedHashMap<>();
         Map<String, ModelRuntimeCandidate> candidatesByKey = new LinkedHashMap<>();
+        Map<String, AdapterRuntimeRegistration> adapterRegistrationsByCandidateKey = new LinkedHashMap<>();
         List<ModelRuntimeCandidate> candidates = new ArrayList<>();
 
         for (SyntraModelRuntime runtime : runtimes) {
@@ -189,20 +214,15 @@ public final class SyntraLocalInferenceOrchestrator {
                                 "adapter registration base model is not present on the same local runtime");
                     }
 
-                    var currentObservation = Objects.requireNonNull(
+                    Optional<AdapterArtifactObservation> currentObservation = Objects.requireNonNull(
                             adapterRuntime.observeAdapter(registration.identity()),
                             "adapter observation");
-                    if (currentObservation.isEmpty()) {
-                        continue;
-                    }
-                    AdapterArtifactObservation observation = currentObservation.orElseThrow();
-                    if (!registration.identity().equals(observation.identity())
-                            || !observation.exists()
-                            || !observation.active()) {
+                    if (!isVerifiedCurrentObservation(registration, currentObservation)) {
                         continue;
                     }
 
                     addCandidate(candidate, candidatesByKey, candidates);
+                    adapterRegistrationsByCandidateKey.put(candidate.key(), registration);
                 }
             }
         }
@@ -210,7 +230,20 @@ public final class SyntraLocalInferenceOrchestrator {
         return new RuntimeCatalog(
                 Map.copyOf(runtimesByProvider),
                 Map.copyOf(candidatesByKey),
+                Map.copyOf(adapterRegistrationsByCandidateKey),
                 List.copyOf(candidates));
+    }
+
+    private static boolean isVerifiedCurrentObservation(
+            AdapterRuntimeRegistration registration,
+            Optional<AdapterArtifactObservation> observation) {
+        if (observation.isEmpty()) {
+            return false;
+        }
+        AdapterArtifactObservation observed = observation.orElseThrow();
+        return registration.identity().equals(observed.identity())
+                && observed.exists()
+                && observed.active();
     }
 
     private static void addCandidate(
@@ -233,6 +266,7 @@ public final class SyntraLocalInferenceOrchestrator {
     private record RuntimeCatalog(
             Map<String, SyntraModelRuntime> runtimesByProvider,
             Map<String, ModelRuntimeCandidate> candidatesByKey,
+            Map<String, AdapterRuntimeRegistration> adapterRegistrationsByCandidateKey,
             List<ModelRuntimeCandidate> candidates) {
     }
 }
