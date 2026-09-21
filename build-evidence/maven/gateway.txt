@@ -64,8 +64,6 @@ io.aetheris:gateway:jar:0.1.0-SNAPSHOT
 |  |  |  |  \- org.apache.logging.log4j:log4j-api:jar:2.23.1:compile
 |  |  |  \- org.slf4j:jul-to-slf4j:jar:2.0.16:compile
 |  |  +- jakarta.annotation:jakarta.annotation-api:jar:2.1.1:compile
-|  |  +- org.springframework:spring-core:jar:6.1.12:compile
-|  |  |  \- org.springframework:spring-jcl:jar:6.1.12:compile
 |  |  \- org.yaml:snakeyaml:jar:2.2:compile
 |  +- io.lettuce:lettuce-core:jar:6.3.2.RELEASE:compile
 |  |  +- io.netty:netty-common:jar:4.1.112.Final:compile
@@ -82,8 +80,6 @@ io.aetheris:gateway:jar:0.1.0-SNAPSHOT
 |     |  \- org.springframework.data:spring-data-commons:jar:3.3.3:compile
 |     +- org.springframework:spring-tx:jar:6.1.12:compile
 |     +- org.springframework:spring-oxm:jar:6.1.12:compile
-|     |  \- jakarta.xml.bind:jakarta.xml.bind-api:jar:4.0.2:runtime
-|     |     \- jakarta.activation:jakarta.activation-api:jar:2.1.3:runtime
 |     +- org.springframework:spring-aop:jar:6.1.12:compile
 |     \- org.springframework:spring-context-support:jar:6.1.12:compile
 +- org.springframework.boot:spring-boot-starter-actuator:jar:3.3.3:compile
