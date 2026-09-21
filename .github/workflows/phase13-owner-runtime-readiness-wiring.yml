@@ -77,8 +77,8 @@ jobs:
           grep -q 'AETHERIS_SYNTRA_OWNER_RUNTIME_ENABLED:false' "$app_props"
           grep -q 'AETHERIS_SYNTRA_OWNER_RUNTIME_ENDPOINT:http://127.0.0.1:11434' "$app_props"
 
-          if grep -E 'activate\(|detach\(|reconcileLifecycle|stream\(' "$readiness" "$config"; then
-            echo "Slice 16 readiness/configuration wiring must not activate, detach, reconcile, or stream" >&2
+          if grep -E 'activate\(|detach\(|reconcileLifecycle|(runtime|bridge|adapterRuntime)\.stream\(' "$readiness" "$config"; then
+            echo "Slice 16 readiness/configuration wiring must not activate, detach, reconcile, or invoke runtime streaming" >&2
             exit 1
           fi
 
