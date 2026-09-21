@@ -161,10 +161,35 @@ public final class SyntraLocalInferenceOrchestrator {
                 if (!providerId.equals(candidate.providerId())) {
                     throw new IllegalStateException("runtime candidate providerId does not match its provider");
                 }
-                if (candidatesByKey.putIfAbsent(candidate.key(), candidate) != null) {
-                    throw new IllegalStateException("duplicate runtime candidate key: " + candidate.key());
+                if (AdapterRuntimeRegistration.isAdapterModelId(candidate.modelId())) {
+                    throw new IllegalStateException(
+                            "adapter model IDs must enter the catalog through verified adapter registrations");
                 }
-                candidates.add(candidate);
+                addCandidate(candidate, candidatesByKey, candidates);
+            }
+
+            if (runtime instanceof AdapterAwareSyntraModelRuntime adapterRuntime) {
+                List<AdapterRuntimeRegistration> registrations = Objects.requireNonNull(
+                        adapterRuntime.adapterRegistrations(),
+                        "adapter registrations");
+                for (AdapterRuntimeRegistration registration : registrations) {
+                    Objects.requireNonNull(registration, "adapter registration");
+                    ModelRuntimeCandidate candidate = registration.candidate();
+                    if (!providerId.equals(candidate.providerId())) {
+                        throw new IllegalStateException(
+                                "adapter registration providerId does not match its runtime provider");
+                    }
+                    boolean baseModelPresent = runtimeModels.stream()
+                            .filter(Objects::nonNull)
+                            .anyMatch(model -> providerId.equals(model.providerId())
+                                    && registration.identity().baseModelId().equals(model.modelId())
+                                    && model.local());
+                    if (!baseModelPresent) {
+                        throw new IllegalStateException(
+                                "adapter registration base model is not present on the same local runtime");
+                    }
+                    addCandidate(candidate, candidatesByKey, candidates);
+                }
             }
         }
 
@@ -172,6 +197,16 @@ public final class SyntraLocalInferenceOrchestrator {
                 Map.copyOf(runtimesByProvider),
                 Map.copyOf(candidatesByKey),
                 List.copyOf(candidates));
+    }
+
+    private static void addCandidate(
+            ModelRuntimeCandidate candidate,
+            Map<String, ModelRuntimeCandidate> candidatesByKey,
+            List<ModelRuntimeCandidate> candidates) {
+        if (candidatesByKey.putIfAbsent(candidate.key(), candidate) != null) {
+            throw new IllegalStateException("duplicate runtime candidate key: " + candidate.key());
+        }
+        candidates.add(candidate);
     }
 
     private LocalInferenceResult evaluate(LocalInferenceResult result) {
