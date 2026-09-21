@@ -151,8 +151,7 @@ class Phase13BoundAdapterInvocationHandleTest {
 
         ModelInvocation invocation = new ModelInvocation(
                 lease.modelId(),
-                "system",
-                "user",
+                "system\nuser",
                 64,
                 List.of("aetheris-memory://project/slice14/evidence"));
 
@@ -165,8 +164,7 @@ class Phase13BoundAdapterInvocationHandleTest {
 
         ModelInvocation wrongModel = new ModelInvocation(
                 identity.baseModelId(),
-                "system",
-                "user",
+                "system\nuser",
                 64,
                 invocation.evidenceAddresses());
         AdapterRuntimeInvocationHandle fresh = new AdapterRuntimeInvocationHandle(
