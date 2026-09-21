@@ -262,7 +262,7 @@ class Phase13PointOfInvocationAdapterRevalidationTest {
                 Instant.parse("2026-09-21T12:31:00Z"));
     }
 
-    private static final class SequenceObservedRuntime implements AdapterAwareSyntraModelRuntime {
+    private static final class SequenceObservedRuntime implements AdapterInvocationLeasingRuntime {
         private final ModelRuntimeCandidate base;
         private final AdapterRuntimeRegistration registration;
         private final Deque<AdapterArtifactObservation> observations;
@@ -297,6 +297,28 @@ class Phase13PointOfInvocationAdapterRevalidationTest {
         public Optional<AdapterArtifactObservation> observeAdapter(AdapterArtifactIdentity identity) {
             observationCalls++;
             return Optional.ofNullable(observations.pollFirst());
+        }
+
+        @Override
+        public Optional<AdapterInvocationLease> acquireAdapterInvocationLease(
+                AdapterRuntimeRegistration requestedRegistration) {
+            if (!registration.equals(requestedRegistration)) {
+                return Optional.empty();
+            }
+            return Optional.of(new AdapterInvocationLease(
+                    registration.identity(),
+                    providerId(),
+                    registration.candidate().modelId(),
+                    "aetheris-adapter-lease://slice12/" + registration.identity().artifactSha256()));
+        }
+
+        @Override
+        public void streamWithAdapterLease(
+                AdapterInvocationLease lease,
+                ModelInvocation invocation,
+                Consumer<ModelStreamChunk> sink,
+                BooleanSupplier cancellationRequested) {
+            stream(invocation, sink, cancellationRequested);
         }
 
         @Override
