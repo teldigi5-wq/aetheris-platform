@@ -1,0 +1,87 @@
+name: Phase 13 Adapter Invocation Lease
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase13-adapter-invocation-lease-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  adapter-invocation-lease:
+    name: Typed adapter invocation lease proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Phase 13 adapter invocation continuity proofs
+        run: >-
+          ./mvnw -B -pl orchestrator-service
+          -Dtest=Phase13AdapterInvocationLeaseTest,Phase13PointOfInvocationAdapterRevalidationTest,Phase13LiveAdapterRegistrationReconciliationTest,Phase13AdapterAwareRuntimeRegistrationTest
+          test
+
+      - name: Verify Slice 13 fail-closed and authority boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required_files=(
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterInvocationLease.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterInvocationLeasingRuntime.java
+            orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+            orchestrator-service/src/test/java/io/aetheris/orchestrator/syntracore/Phase13AdapterInvocationLeaseTest.java
+            docs/phase13-adapter-invocation-lease.md
+          )
+
+          for required_file in "${required_files[@]}"; do
+            test -f "$required_file" || {
+              echo "Missing Phase 13 Slice 13 surface: $required_file" >&2
+              exit 1
+            }
+          done
+
+          lease=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterInvocationLease.java
+          lease_runtime=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/AdapterInvocationLeasingRuntime.java
+          orchestrator=orchestrator-service/src/main/java/io/aetheris/orchestrator/syntracore/SyntraLocalInferenceOrchestrator.java
+
+          grep -q 'aetheris-adapter-lease://' "$lease"
+          grep -q 'acquireAdapterInvocationLease' "$lease_runtime"
+          grep -q 'streamWithAdapterLease' "$lease_runtime"
+          grep -q 'ADAPTER_LEASE_UNSUPPORTED_REJECTION' "$orchestrator"
+          grep -q 'ADAPTER_LEASE_UNAVAILABLE_REJECTION' "$orchestrator"
+          grep -q 'ADAPTER_LEASE_MISMATCH_REJECTION' "$orchestrator"
+          grep -q 'streamWithAdapterLease' "$orchestrator"
+          grep -q 'adapterInvocationLease != null' "$orchestrator"
+
+          if grep -E 'ProcessBuilder|Runtime\.getRuntime|HttpClient|WebClient|RestTemplate|FileOutputStream|Files\.write|Files\.delete|Files\.move' "$lease" "$lease_runtime" "$orchestrator"; then
+            echo "Slice 13 must remain a local typed invocation contract without subprocess, network, installer, or filesystem effects" >&2
+            exit 1
+          fi
+
+          if grep -E '^import io\.aetheris\.orchestrator\.(tool|connector|browser|computeruse)' "$lease" "$lease_runtime" "$orchestrator"; then
+            echo "Slice 13 must not gain tool, connector, browser, or computer-use authority" >&2
+            exit 1
+          fi
+
+          echo "Phase 13 Slice 13 typed adapter invocation lease boundaries verified."
