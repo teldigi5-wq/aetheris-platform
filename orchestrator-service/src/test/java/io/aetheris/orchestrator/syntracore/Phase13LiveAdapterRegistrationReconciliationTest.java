@@ -280,7 +280,7 @@ class Phase13LiveAdapterRegistrationReconciliationTest {
                 Instant.parse("2026-09-21T10:46:00Z"));
     }
 
-    private static final class MutableObservedRuntime implements AdapterAwareSyntraModelRuntime {
+    private static final class MutableObservedRuntime implements AdapterInvocationLeasingRuntime {
         private final ModelRuntimeCandidate base;
         private final AdapterRuntimeRegistration registration;
         private final AtomicReference<AdapterArtifactObservation> observation;
@@ -315,6 +315,28 @@ class Phase13LiveAdapterRegistrationReconciliationTest {
         public Optional<AdapterArtifactObservation> observeAdapter(AdapterArtifactIdentity identity) {
             observationCalls++;
             return Optional.ofNullable(observation.get());
+        }
+
+        @Override
+        public Optional<AdapterInvocationLease> acquireAdapterInvocationLease(
+                AdapterRuntimeRegistration requestedRegistration) {
+            if (!registration.equals(requestedRegistration)) {
+                return Optional.empty();
+            }
+            return Optional.of(new AdapterInvocationLease(
+                    registration.identity(),
+                    providerId(),
+                    registration.candidate().modelId(),
+                    "aetheris-adapter-lease://slice11/" + registration.identity().artifactSha256()));
+        }
+
+        @Override
+        public void streamWithAdapterLease(
+                AdapterInvocationLease lease,
+                ModelInvocation invocation,
+                Consumer<ModelStreamChunk> sink,
+                BooleanSupplier cancellationRequested) {
+            stream(invocation, sink, cancellationRequested);
         }
 
         @Override
