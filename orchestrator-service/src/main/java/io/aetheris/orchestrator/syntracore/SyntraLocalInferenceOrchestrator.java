@@ -105,6 +105,7 @@ public final class SyntraLocalInferenceOrchestrator {
         AdapterRuntimeRegistration selectedAdapterRegistration =
                 catalog.adapterRegistrationsByCandidateKey().get(selectedCandidateKey);
         AdapterRuntimeInvocationHandle adapterInvocationHandle = null;
+        AdapterInvocationLease adapterInvocationLease = null;
         if (selectedAdapterRegistration != null) {
             if (!(runtime instanceof AdapterInvocationLeasingRuntime leasingRuntime)) {
                 return unavailableWithAdditionalRejection(
@@ -175,8 +176,12 @@ public final class SyntraLocalInferenceOrchestrator {
                             ADAPTER_LEASE_MISMATCH_REJECTION);
                 }
 
+                adapterInvocationLease = lease;
+            }
+
+            if (adapterInvocationLease != null) {
                 adapterInvocationHandle = new AdapterRuntimeInvocationHandle(
-                        lease,
+                        adapterInvocationLease,
                         leasingRuntime::streamWithAdapterLease);
             }
         }
