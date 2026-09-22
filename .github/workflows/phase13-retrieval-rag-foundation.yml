@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Phase 13 retrieval foundation proof
         run: >-
-          ./mvnw -B -pl orchestrator-service
+          ./mvnw -B -f orchestrator-service/pom.xml
           -Dtest=Phase13RetrievalFoundationTest
           test
 
