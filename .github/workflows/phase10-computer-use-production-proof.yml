@@ -33,7 +33,7 @@ jobs:
           cache: maven
 
       - name: Run governed computer-use proof
-        run: ./mvnw -B -pl orchestrator-service -Dtest=AetherisBrowserOperatorTest,BrowserDownloadEvidenceServiceTest test
+        run: ./mvnw -B -f orchestrator-service/pom.xml -Dtest=AetherisBrowserOperatorTest,BrowserDownloadEvidenceServiceTest test
 
       - name: Verify obsolete unverified-download success path is absent
         shell: bash
