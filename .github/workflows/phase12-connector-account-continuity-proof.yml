@@ -35,7 +35,7 @@ jobs:
           cache: maven
 
       - name: Run provider account continuity proof
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12ProviderAccountContinuityTest test
+        run: ./mvnw -B -f orchestrator-service/pom.xml -Dtest=Phase12ProviderAccountContinuityTest test
 
       - name: Verify stable provider identities and write-time ordering
         shell: bash
