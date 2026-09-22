@@ -1,0 +1,233 @@
+name: aetheris-integration-external
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aetheris
+      POSTGRES_USER: aetheris
+      POSTGRES_PASSWORD: aetheris
+    ports:
+      - "5432:5432"
+    volumes:
+      - aetheris_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aetheris -d aetheris"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - aetheris_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: aetheris
+      RABBITMQ_DEFAULT_PASS: aetheris
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - aetheris_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  user-service:
+    build: ./user-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: aetheris
+      SPRING_RABBITMQ_PASSWORD: aetheris
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+
+  identity-service:
+    build: ./identity-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+
+  audit-service:
+    build: ./audit-service
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: aetheris
+      SPRING_RABBITMQ_PASSWORD: aetheris
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+
+  orchestrator-service:
+    image: ${AETHERIS_AI_RUNTIME_IMAGE:?AETHERIS_AI_RUNTIME_IMAGE must be an exact-revision image}
+    environment:
+      ORCHESTRATOR_PORT: 8090
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      AETHERIS_LOCAL_MODEL_BASE_URL: ${AETHERIS_LOCAL_MODEL_BASE_URL:-http://host.docker.internal:11434}
+      AETHERIS_LOCAL_MODEL: ${AETHERIS_LOCAL_MODEL:-qwen2.5:3b}
+      AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC:-}
+      AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8090:8090"
+
+  gateway:
+    build: ./gateway
+    environment:
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      identity-service:
+        condition: service_started
+      audit-service:
+        condition: service_started
+      orchestrator-service:
+        condition: service_started
+    ports:
+      - "8080:8080"
+
+  dashboard:
+    build: ./dashboard
+    depends_on:
+      - gateway
+    ports:
+      - "3000:80"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=24h
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - aetheris_prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - gateway
+      - user-service
+      - identity-service
+      - audit-service
+      - orchestrator-service
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo.yml:ro
+      - aetheris_tempo:/var/tempo
+    ports:
+      - "3200:3200"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.112.0
+    profiles: ["observability"]
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol-contrib/config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - tempo
+
+  loki:
+    image: grafana/loki:3.2.1
+    profiles: ["observability"]
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - ./observability/loki.yml:/etc/loki/local-config.yaml:ro
+      - aetheris_loki:/loki
+    ports:
+      - "3100:3100"
+
+  alloy:
+    image: grafana/alloy:v1.4.3
+    profiles: ["observability"]
+    command: ["run", "/etc/alloy/config.alloy", "--server.http.listen-addr=0.0.0.0:12345"]
+    volumes:
+      - ./observability/alloy.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "12345:12345"
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: aetheris
+      GF_SECURITY_ADMIN_PASSWORD: aetheris
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - aetheris_grafana:/var/lib/grafana
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+volumes:
+  aetheris_pg:
+  aetheris_redis:
+  aetheris_rabbitmq:
+  aetheris_prometheus:
+  aetheris_tempo:
+  aetheris_loki:
+  aetheris_grafana:
