@@ -16,6 +16,9 @@
   "allowed_main_pr_heads": [
     "feature/syntra-aetheris-foundation-v2"
   ],
+  "allowed_main_pr_head_prefixes": [
+    "release/"
+  ],
   "required_readme_markers": [
     "main",
     "feature/syntra-aetheris-foundation-v2",
