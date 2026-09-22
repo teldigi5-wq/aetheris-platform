@@ -1,0 +1,151 @@
+name: Architecture Step D AI Runtime Export Bundle Proof
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AETHERIS_EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  deterministic-export-bundle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Verify exact revision binding
+        run: |
+          test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
+          echo "ai-runtime export revision=$AETHERIS_EXPECTED_REVISION"
+
+      - name: Compile Step D export tooling
+        run: |
+          python -m py_compile tools/verify_ai_runtime_extraction_manifest.py
+          python -m py_compile tools/build_ai_runtime_export_bundle.py
+
+      - name: Revalidate certified extraction manifest
+        run: python tools/verify_ai_runtime_extraction_manifest.py --mode pre-extraction
+
+      - name: Build deterministic export pass 1
+        run: |
+          python tools/build_ai_runtime_export_bundle.py \
+            --expected-revision "$AETHERIS_EXPECTED_REVISION" \
+            --output-dir build-evidence/architecture/export-pass1
+
+      - name: Build deterministic export pass 2
+        run: |
+          python tools/build_ai_runtime_export_bundle.py \
+            --expected-revision "$AETHERIS_EXPECTED_REVISION" \
+            --output-dir build-evidence/architecture/export-pass2
+
+      - name: Require byte-identical two-pass export
+        run: |
+          cmp \
+            build-evidence/architecture/export-pass1/aetheris-ai-runtime-export.tar \
+            build-evidence/architecture/export-pass2/aetheris-ai-runtime-export.tar
+          cmp \
+            build-evidence/architecture/export-pass1/EXPORT-MANIFEST.json \
+            build-evidence/architecture/export-pass2/EXPORT-MANIFEST.json
+          cmp \
+            build-evidence/architecture/export-pass1/ai-runtime-export-bundle-report.json \
+            build-evidence/architecture/export-pass2/ai-runtime-export-bundle-report.json
+          cmp \
+            build-evidence/architecture/export-pass1/aetheris-ai-runtime-export.sha256 \
+            build-evidence/architecture/export-pass2/aetheris-ai-runtime-export.sha256
+
+      - name: Verify bundle membership and machine-readable evidence
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import tarfile
+          from pathlib import Path
+
+          expected_revision = '${{ github.event.pull_request.head.sha || github.sha }}'
+          root = Path('.')
+          source_manifest = json.loads(
+              Path('architecture/ai-runtime-extraction-manifest.json').read_text(encoding='utf-8')
+          )
+          out = Path('build-evidence/architecture/export-pass1')
+          report = json.loads(
+              (out / 'ai-runtime-export-bundle-report.json').read_text(encoding='utf-8')
+          )
+          internal = json.loads((out / 'EXPORT-MANIFEST.json').read_text(encoding='utf-8'))
+          archive_path = out / 'aetheris-ai-runtime-export.tar'
+          archive_sha = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+
+          assert report['status'] == 'PASS', report
+          assert report['export_revision'] == expected_revision, report
+          assert report['destination_repository'] == 'teldigi5-wq/aetheris-ai-runtime', report
+          assert report['migration_status'] == 'BLOCKED_PENDING_DESTINATION_REPOSITORY', report
+          assert report['history_included'] is False, report
+          assert report['archive_format'] == 'ustar', report
+          assert report['archive_sha256'] == archive_sha, report
+          assert report['payload_file_count'] == len(report['exported_paths']), report
+          assert report['payload_file_count'] > 0, report
+          assert internal['export_revision'] == expected_revision, internal
+          assert internal['history_included'] is False, internal
+          assert internal['payload_tree_sha256'] == report['payload_tree_sha256'], (internal, report)
+          assert len(internal['exported_files']) == report['payload_file_count'], internal
+          assert [row['path'] for row in internal['exported_files']] == report['exported_paths'], internal
+
+          with tarfile.open(archive_path, mode='r:') as archive:
+              members = archive.getnames()
+              assert len(members) == len(set(members)), members
+              assert members == sorted(members), members
+              expected_members = set(report['exported_paths']) | {
+                  'EXPORT-MANIFEST.json', 'README-EXTRACTION.md'
+              }
+              assert set(members) == expected_members, (members, expected_members)
+              for member in archive.getmembers():
+                  assert member.isfile(), member
+                  assert member.mtime == 0, member
+                  assert member.uid == 0 and member.gid == 0, member
+                  assert member.uname == '' and member.gname == '', member
+
+          retained = set(source_manifest['platform_retained_contract_assets'])
+          exported = set(report['exported_paths'])
+          assert not (retained & exported), sorted(retained & exported)
+          assert all(not path.startswith('build-evidence/') for path in exported), sorted(exported)
+          assert all(not path.startswith('.git/') for path in exported), sorted(exported)
+          assert 'pom.xml' not in exported, sorted(exported)
+
+          truth = report['truth_boundaries']
+          assert truth['physical_pc_validation'] is False, truth
+          assert truth['production_deployment_claim'] is False, truth
+          assert truth['registry_publication_claim'] is False, truth
+          print(
+              'deterministic AI-runtime export verified:',
+              report['payload_file_count'],
+              'files, archive sha256=', archive_sha,
+          )
+          PY
+
+      - name: Publish deterministic export evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: step-d-ai-runtime-deterministic-export-bundle
+          path: |
+            build-evidence/architecture/ai-runtime-extraction-manifest-report.json
+            build-evidence/architecture/ai-runtime-extraction-sha256.txt
+            build-evidence/architecture/export-pass1/
+          if-no-files-found: error
+          retention-days: 14
