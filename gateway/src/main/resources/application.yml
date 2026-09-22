@@ -104,7 +104,7 @@ spring:
                 name: auditCircuit
                 fallbackUri: forward:/fallback/events
         - id: orchestrator-service
-          uri: http://orchestrator-service:8090
+          uri: ${AETHERIS_ORCHESTRATOR_URI:http://orchestrator-service:8090}
           predicates:
             - Path=/api/orchestrator/**
           filters:

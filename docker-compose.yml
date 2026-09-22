@@ -108,6 +108,7 @@ services:
     build: ./gateway
     environment:
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces

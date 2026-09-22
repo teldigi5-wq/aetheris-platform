@@ -85,6 +85,8 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: ${{ env.POLICY_PYTHON_VERSION }}
+      - name: Core / AI runtime architecture boundary
+        run: python -m unittest tests.test_core_ai_runtime_boundary -v
       - name: Secret and sensitive-file gate
         run: python scripts/stage22/release_gate.py
       - name: Persistence schema guard

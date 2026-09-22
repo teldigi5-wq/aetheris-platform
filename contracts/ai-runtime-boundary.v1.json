@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "contractId": "aetheris-platform-ai-runtime",
+  "ownership": {
+    "corePlatform": [
+      "gateway",
+      "identity-service",
+      "user-service",
+      "audit-service"
+    ],
+    "aiRuntime": [
+      "orchestrator-service",
+      "aetheris-quant",
+      "aetheris-reasoning",
+      "workstation-agent"
+    ]
+  },
+  "gateway": {
+    "routeId": "orchestrator-service",
+    "pathPattern": "/api/orchestrator/**",
+    "upstreamEnvironment": "AETHERIS_ORCHESTRATOR_URI",
+    "defaultUpstream": "http://orchestrator-service:8090",
+    "fallbackPath": "/fallback/orchestrator"
+  },
+  "sourceBoundary": {
+    "coreMayImportOrchestratorJava": false,
+    "orchestratorMayImportCoreServiceJava": false
+  },
+  "migration": {
+    "localComposeDefaultPreserved": true,
+    "externalRuntimeEndpointSupported": true,
+    "sourceExtractionAllowedOnlyAfterArtifactContractCertification": true
+  }
+}
