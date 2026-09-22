@@ -113,17 +113,24 @@
     },
     {
       "id": "ci.core-verification",
-      "title": "Core backend, dashboard, compatibility, release-hardening, and workstation checks run in CI",
+      "title": "Core backend, dashboard, compatibility and release-hardening checks run independently while workstation verification remains owned by the AI-runtime CI lane",
       "maturity": "REPOSITORY_TESTED",
       "evidence": [
         {
           "path": ".github/workflows/build.yml",
           "contains": [
-            "backend:",
+            "core-backend:",
             "dashboard:",
-            "workstation-agent:",
+            "core-source-independence:",
             "contract-freeze:",
             "release-hardening:"
+          ]
+        },
+        {
+          "path": ".github/workflows/ai-runtime-build.yml",
+          "contains": [
+            "workstation-agent:",
+            "Verify generated package remains non-production without signature"
           ]
         }
       ]
