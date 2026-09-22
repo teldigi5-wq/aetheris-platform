@@ -4,8 +4,9 @@
 The proof is intentionally executed after CI has built a revision-tagged real
 orchestrator image and removed the orchestrator source directory from the
 workspace. It then boots the core-only Compose topology, proves core health
-without any AI runtime container, attaches the separately managed image, and
-exercises the versioned HTTP boundary through the authenticated gateway.
+without any AI runtime container, attaches the separately managed image with
+its runtime prerequisites, and exercises the versioned HTTP boundary through
+the authenticated gateway.
 
 This is hosted CI evidence only. It does not claim physical-PC validation or a
 production deployment.
@@ -28,6 +29,18 @@ REPORT_FILE = ROOT / "build-evidence/runtime/core-deployment-boundary-report.jso
 NETWORK_NAME = os.environ.get("AETHERIS_CORE_NETWORK", "aetheris-core-boundary")
 RUNTIME_CONTAINER = os.environ.get("AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER", "orchestrator-runtime")
 RUNTIME_IMAGE = os.environ.get("AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE", "")
+RUNTIME_DATASOURCE_URL = os.environ.get(
+    "AETHERIS_EXTERNAL_ORCHESTRATOR_DATASOURCE_URL",
+    "jdbc:postgresql://postgres:5432/aetheris",
+)
+RUNTIME_DATASOURCE_USERNAME = os.environ.get(
+    "AETHERIS_EXTERNAL_ORCHESTRATOR_DATASOURCE_USERNAME",
+    "aetheris",
+)
+RUNTIME_DATASOURCE_PASSWORD = os.environ.get(
+    "AETHERIS_EXTERNAL_ORCHESTRATOR_DATASOURCE_PASSWORD",
+    "aetheris",
+)
 TRUTH_BOUNDARY = (
     "HOSTED_RUNTIME evidence proves the core-only Docker Compose path can be configured, "
     "built, and started while orchestrator-service source is absent, and that the gateway "
@@ -143,6 +156,8 @@ def write_report(
             "image_id": external_image_id,
             "container_name": RUNTIME_CONTAINER,
             "network": NETWORK_NAME,
+            "datasource_url": RUNTIME_DATASOURCE_URL,
+            "datasource_username": RUNTIME_DATASOURCE_USERNAME,
         },
         "checks": dict(sorted(checks.items())),
     }
@@ -207,6 +222,8 @@ def main() -> int:
             raise AssertionError(f"unexpected external image identity: {external_image_id!r}")
         passed("external.versioned-image-resolved")
 
+        if not RUNTIME_DATASOURCE_URL or not RUNTIME_DATASOURCE_USERNAME or not RUNTIME_DATASOURCE_PASSWORD:
+            raise AssertionError("external orchestrator datasource configuration is incomplete")
         run(
             [
                 "docker",
@@ -218,6 +235,12 @@ def main() -> int:
                 NETWORK_NAME,
                 "-p",
                 "18090:8090",
+                "-e",
+                f"SPRING_DATASOURCE_URL={RUNTIME_DATASOURCE_URL}",
+                "-e",
+                f"SPRING_DATASOURCE_USERNAME={RUNTIME_DATASOURCE_USERNAME}",
+                "-e",
+                f"SPRING_DATASOURCE_PASSWORD={RUNTIME_DATASOURCE_PASSWORD}",
                 RUNTIME_IMAGE,
             ]
         )
