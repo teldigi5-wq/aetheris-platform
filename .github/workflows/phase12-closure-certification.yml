@@ -37,7 +37,7 @@ jobs:
 
       - name: Run consolidated Phase 12 authority and continuity proof
         run: >-
-          ./mvnw -B -pl orchestrator-service
+          ./mvnw -B -f orchestrator-service/pom.xml
           -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12SafeToolExecutionAuthorityTest,Phase12ProviderAccountContinuityTest,Phase12OAuthLifecycleContinuityTest
           test
 
