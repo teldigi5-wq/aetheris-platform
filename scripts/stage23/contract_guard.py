@@ -61,7 +61,13 @@ def main() -> int:
         if any(fragment in path for fragment in forbidden_api_fragments):
             fail(f"Forbidden financial authority route detected: {item.get('method')} {item.get('path')}", errors)
 
-    required_jobs = {"backend", "dashboard", "workstation-agent", "release-hardening", "contract-freeze"}
+    required_jobs = {
+        "core-backend",
+        "dashboard",
+        "core-source-independence",
+        "release-hardening",
+        "contract-freeze",
+    }
     missing_jobs = sorted(required_jobs - jobs)
     if missing_jobs:
         fail(f"Required CI jobs missing: {missing_jobs}", errors)
