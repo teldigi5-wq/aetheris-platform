@@ -1,0 +1,131 @@
+name: Architecture Step D Extraction Manifest Proof
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AETHERIS_EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+  AETHERIS_AI_RUNTIME_IMAGE: aetheris/orchestrator-runtime:manifest-proof-placeholder
+
+jobs:
+  extraction-manifest-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+
+      - name: Verify exact revision binding
+        run: |
+          test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
+          echo "extraction-manifest revision=$AETHERIS_EXPECTED_REVISION"
+
+      - name: Compile extraction manifest verifier
+        run: python -m py_compile tools/verify_ai_runtime_extraction_manifest.py
+
+      - name: Freeze pre-extraction transfer inventory
+        run: python tools/verify_ai_runtime_extraction_manifest.py --mode pre-extraction
+
+      - name: Verify pre-extraction machine-readable evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path('build-evidence/architecture/ai-runtime-extraction-manifest-report.json').read_text()
+          )
+          assert report['status'] == 'PASS', report
+          assert report['revision'] == '${{ github.event.pull_request.head.sha || github.sha }}', report
+          assert report['destination_repository'] == 'teldigi5-wq/aetheris-ai-runtime', report
+          assert report['migration_status'] == 'BLOCKED_PENDING_DESTINATION_REPOSITORY', report
+          assert set(report['move_roots']) == {
+              'orchestrator-service', 'aetheris-quant', 'aetheris-reasoning', 'workstation-agent'
+          }, report
+          assert set(report['root_maven_modules']) == {
+              'gateway', 'user-service', 'identity-service', 'audit-service'
+          }, report
+          assert set(report['inventory']) == set(report['move_roots']), report
+          assert all(item['tracked_file_count'] > 0 for item in report['inventory'].values()), report
+          assert report['truth_boundaries']['physical_pc_validation'] is False, report
+          assert report['truth_boundaries']['production_deployment_claim'] is False, report
+          assert report['truth_boundaries']['registry_publication_claim'] is False, report
+          print('pre-extraction inventory evidence verified')
+          PY
+
+      - name: Remove AI-runtime-owned source from workspace
+        run: |
+          for source_dir in \
+            orchestrator-service \
+            aetheris-quant \
+            aetheris-reasoning \
+            workstation-agent
+          do
+            mv "$source_dir" "$RUNNER_TEMP/$source_dir-extraction-manifest-proof"
+            test ! -e "$source_dir"
+          done
+
+      - name: Verify platform metadata after simulated extraction
+        run: python tools/verify_ai_runtime_extraction_manifest.py --mode platform-source-absent
+
+      - name: Build and test core reactor with AI source absent
+        run: ./mvnw --batch-mode --no-transfer-progress test
+
+      - name: Validate source-absent deployment definitions
+        run: |
+          docker compose -f docker-compose.core.yml config >/dev/null
+          docker compose \
+            -f docker-compose.integration-external.yml \
+            --profile observability \
+            config >/dev/null
+
+      - name: Verify source-absent evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path('build-evidence/architecture/ai-runtime-extraction-source-absent-report.json').read_text()
+          )
+          assert report['status'] == 'PASS', report
+          assert report['mode'] == 'platform-source-absent', report
+          assert report['revision'] == '${{ github.event.pull_request.head.sha || github.sha }}', report
+          assert report['inventory'] == {}, report
+          assert set(report['root_maven_modules']) == {
+              'gateway', 'user-service', 'identity-service', 'audit-service'
+          }, report
+          print('source-absent platform extraction boundary verified')
+          PY
+
+      - name: Publish extraction-manifest evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: step-d-ai-runtime-extraction-manifest-proof
+          path: build-evidence/architecture/
+          if-no-files-found: error
+          retention-days: 14

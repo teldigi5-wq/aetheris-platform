@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "status": "BLOCKED_PENDING_DESTINATION_REPOSITORY",
+  "source_repository": "teldigi5-wq/aetheris-platform",
+  "source_branch": "feature/syntra-aetheris-foundation-v2",
+  "source_certified_sha": "7e08d8c5dca2215a406fade883b53ec299f4fb4e",
+  "destination_repository": "teldigi5-wq/aetheris-ai-runtime",
+  "history_policy": "Preserve source history where practical; never rewrite certified platform history.",
+  "move_roots": [
+    "orchestrator-service",
+    "aetheris-quant",
+    "aetheris-reasoning",
+    "workstation-agent"
+  ],
+  "core_roots": [
+    "gateway",
+    "user-service",
+    "identity-service",
+    "audit-service",
+    "dashboard",
+    "observability"
+  ],
+  "transfer_workflows": [
+    ".github/workflows/ai-runtime-build.yml",
+    ".github/workflows/ai-runtime-codeql.yml",
+    ".github/workflows/ai-runtime-foundation-bootstrap.yml",
+    ".github/workflows/ai-runtime-foundation-hardening.yml"
+  ],
+  "copy_bootstrap": [
+    "mvnw",
+    "mvnw.cmd",
+    ".mvn/wrapper/maven-wrapper.properties",
+    ".java-version",
+    "scripts/check_dependency_lockdown.py"
+  ],
+  "generated_evidence_to_recreate_in_destination": [
+    "build-evidence/maven/orchestrator-service.txt",
+    "build-evidence/maven/workstation-agent.txt",
+    "build-evidence/ai-runtime-dependency-lock-sha256.txt"
+  ],
+  "platform_retained_contract_assets": [
+    "pom.xml",
+    "docker-compose.core.yml",
+    "docker-compose.integration-external.yml",
+    "tools/core_deployment_boundary_smoke.py",
+    "tools/external_integration_runtime_proof.py",
+    ".github/workflows/deployment-release-runtime-proof.yml",
+    ".github/workflows/step-d-external-integration-cutover.yml"
+  ],
+  "ownership_review_before_final_removal": [
+    ".github/workflows/phase9-*.yml",
+    ".github/workflows/phase10-*.yml",
+    ".github/workflows/phase11-*.yml",
+    ".github/workflows/phase12-*.yml",
+    ".github/workflows/phase13-*.yml",
+    ".github/workflows/stage28-pc-care.yml",
+    ".github/workflows/stage29-trading-intelligence.yml",
+    ".github/workflows/stage30-reasoning.yml",
+    ".github/workflows/stage31-digital-twins.yml",
+    ".github/workflows/stage32-automation-control.yml"
+  ],
+  "deletion_allowed_only_when": [
+    "destination repository exists and is accessible",
+    "all move_roots are present in a certified destination commit",
+    "destination AI-runtime build, CodeQL, dependency-lockdown and reproducibility lanes are green",
+    "destination image provenance is pinned to the certified destination commit",
+    "platform external-integration contract proof is green against that destination-produced image",
+    "platform core build/test remains green with all move_roots absent",
+    "source-to-destination provenance mapping is recorded on issue 140"
+  ],
+  "truth_boundaries": {
+    "physical_pc_validation": false,
+    "production_deployment_claim": false,
+    "registry_publication_claim": false
+  }
+}
