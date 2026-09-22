@@ -10,22 +10,26 @@ The repository model is intentionally simple:
 
 - `main` is the stable/release history.
 - `feature/syntra-aetheris-foundation-v2` is the single canonical active development line.
-- temporary Stage 24/25/26 and integration branches are retired and must not receive new development.
+- short-lived `release/*` branches may carry a narrowly scoped, reviewed promotion into `main`.
+- temporary stage, integration, proof, and release branches must not become parallel development lines.
 
 Stage 27 is PC-independent. It does not start services, invoke models, execute financial actions, or claim validation on the owner's future physical PC.
 
-## What Stage 27 fixed
+## What Stage 27 governs
 
-Before Stage 27, the repository still displayed multiple temporary development branches even after Stage 24/25 had been consolidated. A later Stage 26 evidence-integrity branch also diverged from the canonical branch.
+Stage 27 establishes roles rather than pretending that repository history contains only two Git refs.
 
-The Stage 26 evidence-integrity files were reconciled onto the canonical development line. The retired Stage 24, Stage 25, Stage 26 and integration refs were then removed with a one-time cleanup workflow. That temporary write-capable cleanup workflow was removed immediately after the cleanup completed.
+The canonical development line remains:
 
-The repository now retains only the two intended branches:
+`feature/syntra-aetheris-foundation-v2`
 
-- `main`
-- `feature/syntra-aetheris-foundation-v2`
+Stable shipped history remains:
 
-Stage 27 adds a permanent CI rule that rejects workflow trigger references to retired branch names and rejects release promotion to `main` from any branch other than the canonical development branch.
+`main`
+
+When a stable promotion should intentionally ship only a bounded subset of certified work, a short-lived `release/<name>` branch may be created from an appropriate stable baseline, reviewed through a pull request to `main`, and removed after merge. A release branch is a promotion carrier, not an active development branch.
+
+Historical refs may exist temporarily while repository-hygiene review is in progress. Their presence does not grant them development or release authority.
 
 ## Policy
 
@@ -39,8 +43,9 @@ It records:
 - canonical development branch: `feature/syntra-aetheris-foundation-v2`;
 - release-to-main review requirement;
 - prohibition on direct stage-branch development;
-- the retired branch names;
-- the only allowed pull-request source for `main`;
+- retired branch names used as negative-test inputs;
+- the exact canonical head allowed to target `main`;
+- the reviewed `release/` head prefix allowed to target `main`;
 - the pre-PC truth boundary.
 
 The retired branch names remain in this policy intentionally. They are negative-test inputs used to prevent those branch names from being reintroduced into active CI/development workflows.
@@ -56,10 +61,11 @@ It verifies:
 3. workflow files do not still trigger from retired Stage 24/25/26 or integration branches;
 4. the README exposes the canonical development-line policy and physical-PC truth boundary;
 5. a push validation run is occurring on the canonical development branch;
-6. a pull request to `main` originates from the canonical development branch;
-7. a retired branch cannot be used for active release promotion.
+6. a pull request to `main` originates from either the canonical branch or a non-empty reviewed `release/*` branch;
+7. unrelated feature/stage/integration branches cannot be used for release promotion;
+8. a retired branch cannot be used for active development or release promotion.
 
-The verifier does not call the GitHub API and does not pretend that CI policy is the same thing as GitHub branch protection.
+The verifier does not call the GitHub API and does not pretend that CI policy is the same thing as GitHub branch protection or live-ref inventory.
 
 ## CI gate
 
@@ -75,13 +81,17 @@ The workflow compiles the verifier, runs fail-closed tests, evaluates the curren
 For a pull request targeting `main`:
 
 ```text
-head must equal feature/syntra-aetheris-foundation-v2
 base must equal main
+head must equal feature/syntra-aetheris-foundation-v2
+  OR
+head must match release/<non-empty-name>
 ```
 
-Any retired stage/integration branch is rejected by the Stage 27 CI gate.
+A `release/*` branch does not create a second development line. It exists only to make a narrow stable promotion reviewable when merging the entire canonical delta would include unrelated work.
 
-This is a repository/CI safeguard. GitHub repository-level branch protection or rulesets are a separate administrative control and should be enabled when available; Stage 27 does not falsely claim that administrative protection exists.
+Legacy stage/integration refs and arbitrary feature branches remain rejected by the Stage 27 CI gate.
+
+This is a repository/CI safeguard. GitHub repository-level branch protection, rulesets, and automatic source-branch deletion are separate administrative controls and must not be claimed unless they are actually enabled.
 
 ## Physical-PC truth boundary
 
@@ -93,8 +103,8 @@ It makes no claim that WSL2, Docker Desktop, GPU acceleration, local models, sus
 
 ## Result
 
-After Stage 27, new PC-independent work continues on one branch only:
+New PC-independent development continues on one canonical development branch:
 
 `feature/syntra-aetheris-foundation-v2`
 
-`main` remains the stable promotion target, and the repository no longer contains temporary Stage 24/25/26 or integration branches.
+`main` remains the stable promotion target. Short-lived `release/*` branches are reviewable promotion carriers only and should be retired after merge. Live branch-count hygiene remains a separate repository-maintenance responsibility and must be measured from GitHub rather than inferred from this offline verifier.
