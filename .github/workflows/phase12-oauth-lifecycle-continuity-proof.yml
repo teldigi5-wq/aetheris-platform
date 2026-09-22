@@ -35,7 +35,7 @@ jobs:
           cache: maven
 
       - name: Run OAuth lifecycle continuity proof
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12OAuthLifecycleContinuityTest test
+        run: ./mvnw -B -f orchestrator-service/pom.xml -Dtest=Phase12OAuthLifecycleContinuityTest test
 
       - name: Verify lifecycle checks happen before credential persistence
         shell: bash
