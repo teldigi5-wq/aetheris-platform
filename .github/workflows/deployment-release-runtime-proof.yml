@@ -122,3 +122,112 @@ jobs:
       - name: Tear down release candidate
         if: always()
         run: docker compose down -v --remove-orphans
+
+  core-external-runtime-boundary-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      AETHERIS_CORE_NETWORK: aetheris-core-boundary
+      AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER: orchestrator-runtime
+      AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE: aetheris/orchestrator-runtime:${{ github.event.pull_request.head.sha || github.sha }}
+      AETHERIS_ORCHESTRATOR_URI: http://orchestrator-runtime:8090
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile deployment boundary proof harness
+        run: python -m py_compile tools/core_deployment_boundary_smoke.py
+
+      - name: Verify exact revision binding
+        run: |
+          test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
+          echo "core deployment boundary revision=$AETHERIS_EXPECTED_REVISION"
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Build separately managed exact-revision AI runtime image
+        run: |
+          docker build \
+            -t "$AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE" \
+            ./orchestrator-service
+          docker image inspect "$AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE" \
+            --format 'external runtime image={{.Id}}'
+
+      - name: Remove AI runtime source from core deployment workspace
+        run: |
+          mv orchestrator-service "$RUNNER_TEMP/orchestrator-service-source-hidden"
+          test ! -e orchestrator-service
+          echo "orchestrator source removed before core compose config/build/start"
+
+      - name: Run core-only deployment boundary proof
+        run: python tools/core_deployment_boundary_smoke.py
+
+      - name: Verify machine-readable boundary evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('build-evidence/runtime/core-deployment-boundary-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['production_deployment_claim'] is False, report
+          assert report['orchestrator_source_present_during_core_boot'] is False, report
+          assert report['revision'] == '${{ github.event.pull_request.head.sha || github.sha }}', report
+          assert 'orchestrator-service' not in report['core_services'], report
+          assert len(report['checks']) == 15, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          assert report['external_orchestrator']['image_ref'].endswith(report['revision']), report
+          assert report['external_orchestrator']['image_id'].startswith('sha256:'), report
+          print('verified 15 hosted core/external-runtime deployment-boundary checks')
+          PY
+
+      - name: Capture core boundary runtime snapshot
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose -f docker-compose.core.yml ps --all \
+            > build-evidence/runtime/core-deployment-boundary-compose-ps.txt || true
+          docker compose -f docker-compose.core.yml images \
+            > build-evidence/runtime/core-deployment-boundary-compose-images.txt || true
+          docker inspect "$AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER" \
+            > build-evidence/runtime/core-deployment-boundary-orchestrator-inspect.json 2>/dev/null || true
+          docker stats --no-stream \
+            --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' \
+            > build-evidence/runtime/core-deployment-boundary-docker-stats.txt || true
+
+      - name: Capture boundary failure logs
+        if: failure()
+        run: |
+          docker compose -f docker-compose.core.yml logs --no-color --tail=300 \
+            gateway identity-service user-service audit-service dashboard \
+            postgres redis rabbitmq \
+            > build-evidence/runtime/core-deployment-boundary-failure.log 2>&1 || true
+          docker logs "$AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER" \
+            > build-evidence/runtime/core-deployment-boundary-orchestrator-failure.log 2>&1 || true
+
+      - name: Publish hosted boundary evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: core-external-runtime-boundary-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down boundary proof
+        if: always()
+        run: |
+          docker rm -f "$AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER" 2>/dev/null || true
+          docker compose -f docker-compose.core.yml down -v --remove-orphans || true
