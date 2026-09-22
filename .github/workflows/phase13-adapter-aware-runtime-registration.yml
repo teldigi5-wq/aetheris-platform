@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Phase 13 adapter-aware runtime registration proof
         run: >-
-          ./mvnw -B -pl orchestrator-service
+          ./mvnw -B -f orchestrator-service/pom.xml
           -Dtest=Phase13AdapterAwareRuntimeRegistrationTest
           test
 
