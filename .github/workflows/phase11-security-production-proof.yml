@@ -33,7 +33,7 @@ jobs:
           cache: maven
 
       - name: Run scoped secret-access proof
-        run: ./mvnw -B -pl orchestrator-service -Dtest=ScopedCredentialAccessServiceTest test
+        run: ./mvnw -B -f orchestrator-service/pom.xml -Dtest=ScopedCredentialAccessServiceTest test
 
       - name: Verify migrated secret consumers cannot bypass scope
         shell: bash

@@ -131,7 +131,7 @@
       "id": "workstation-agent-keeps-financial-boundaries",
       "category": "host-safety",
       "description": "The unsigned workstation package must keep live money, withdrawals and transfers disabled.",
-      "file": ".github/workflows/build.yml",
+      "file": ".github/workflows/ai-runtime-build.yml",
       "must_contain": [
         "productionActivationAllowed -ne $false",
         "liveMoneyEnabled -ne $false",

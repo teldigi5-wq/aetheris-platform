@@ -33,7 +33,7 @@ jobs:
           cache: maven
 
       - name: Run Phase 12 specialist boundary proofs
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12SafeToolExecutionAuthorityTest test
+        run: ./mvnw -B -f orchestrator-service/pom.xml -Dtest=Phase12SpecialistDivisionsIntegrationTest,Phase12SpecialistVerificationIntegrationTest,Phase12GovernedDelegationIntegrationTest,Phase12WorkerIdentityBindingIntegrationTest,Phase12DirectExecutionAuthorityTest,Phase12GitHubPublishAuthorityTest,Phase12ConnectorLiveAuthorityTest,Phase12SafeToolExecutionAuthorityTest test
 
       - name: Verify safe-tool gateway enforces specialist boundary first
         shell: bash

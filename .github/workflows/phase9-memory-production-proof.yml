@@ -33,7 +33,7 @@ jobs:
           cache: maven
 
       - name: Run Phase 9 memory proof
-        run: ./mvnw -B -pl orchestrator-service -Dtest=Phase9MemoryProductionIntegrationTest test
+        run: ./mvnw -B -f orchestrator-service/pom.xml -Dtest=Phase9MemoryProductionIntegrationTest test
 
       - name: Verify no plaintext Phase 9 test secret was persisted in source
         shell: bash

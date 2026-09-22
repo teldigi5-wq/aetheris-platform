@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Phase 13 context-aware local inference proof
         run: >-
-          ./mvnw -B -pl orchestrator-service
+          ./mvnw -B -f orchestrator-service/pom.xml
           -Dtest=Phase13ContextAwareLocalInferenceTest
           test
 

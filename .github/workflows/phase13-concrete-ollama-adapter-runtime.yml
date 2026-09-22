@@ -37,7 +37,7 @@ jobs:
 
       - name: Run Phase 13 concrete Ollama adapter continuity proofs
         run: >-
-          ./mvnw -B -pl orchestrator-service
+          ./mvnw -B -f orchestrator-service/pom.xml
           -Dtest=Phase13ConcreteOllamaAdapterRuntimeTest,Phase13LocalRuntimeAdapterTest,Phase13AdapterActivationGovernanceTest,Phase13AdapterAwareRuntimeRegistrationTest,Phase13LiveAdapterRegistrationReconciliationTest,Phase13PointOfInvocationAdapterRevalidationTest,Phase13AdapterInvocationLeaseTest,Phase13BoundAdapterInvocationHandleTest
           test
 

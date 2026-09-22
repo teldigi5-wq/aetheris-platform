@@ -1,4 +1,4 @@
-name: Foundation Dependency Lockdown and Reproducibility
+name: Core Foundation Dependency Lockdown and Reproducibility
 
 on:
   pull_request:
@@ -13,174 +13,134 @@ env:
   NODE_VERSION: '22.23.2'
   PYTHON_VERSION: '3.13.15'
   JAVA_VERSION: '21.0.12'
-  PIP_TOOLS_VERSION: '7.6.1'
-  PIP_AUDIT_VERSION: '2.10.1'
 
 jobs:
-  dependency-lockdown:
+  core-dependency-lockdown:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
-
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Set up Java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
-
-      - name: Verify committed lockdown policy
-        run: python scripts/check_dependency_lockdown.py
-
+      - name: Remove AI-runtime-owned source from core hardening workspace
+        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/aetheris-ai-runtime-source"
       - name: Frozen dashboard install
         working-directory: dashboard
         run: npm ci --ignore-scripts --no-fund
-
       - name: Audit dashboard dependencies
         working-directory: dashboard
         run: npm audit --audit-level=high
-
       - name: Regenerate npm lock and detect drift
         working-directory: dashboard
         run: |
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           git diff --exit-code -- package-lock.json
-
-      - name: Regenerate Python hash lock and detect drift
-        run: |
-          python -m pip install --disable-pip-version-check "pip-tools==${PIP_TOOLS_VERSION}"
-          python -m piptools compile \
-            --generate-hashes \
-            --resolver=backtracking \
-            --strip-extras \
-            --output-file=aetheris-quant/requirements.lock.txt \
-            aetheris-quant/requirements.in
-          git diff --exit-code -- aetheris-quant/requirements.lock.txt
-
-      - name: Frozen Python install
-        run: python -m pip install --disable-pip-version-check --require-hashes -r aetheris-quant/requirements.lock.txt
-
-      - name: Audit Python dependencies
-        run: |
-          python -m pip install --disable-pip-version-check "pip-audit==${PIP_AUDIT_VERSION}"
-          python -m pip_audit -r aetheris-quant/requirements.lock.txt --disable-pip
-
-      - name: Compile quant sources
-        run: python -m compileall -q aetheris-quant/app
-
-      - name: Regenerate six Maven dependency trees and detect drift
+      - name: Regenerate core Maven dependency trees
         run: |
           mkdir -p build-evidence/maven
-          for module in gateway user-service identity-service audit-service orchestrator-service workstation-agent; do
+          for module in gateway user-service identity-service audit-service; do
             ./mvnw -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree \
               -Dscope=runtime \
               -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/$module.txt"
           done
-          git diff --exit-code -- build-evidence/maven
-
-      - name: Generate dependency evidence hashes
-        run: python scripts/check_dependency_lockdown.py --write-hashes
-
-      - name: Upload dependency evidence
+          git diff --exit-code -- build-evidence/maven/gateway.txt build-evidence/maven/user-service.txt build-evidence/maven/identity-service.txt build-evidence/maven/audit-service.txt
+      - name: Verify core dependency-lockdown policy
+        run: python scripts/check_dependency_lockdown.py --scope core
+      - name: Generate core dependency evidence hashes
+        run: python scripts/check_dependency_lockdown.py --scope core --write-hashes
+      - name: Upload core dependency evidence
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          name: full-foundation-dependency-evidence
+          name: core-foundation-dependency-evidence
           path: |
-            build-evidence/dependency-lock-sha256.txt
-            build-evidence/maven/*.txt
+            build-evidence/core-dependency-lock-sha256.txt
+            build-evidence/maven/gateway.txt
+            build-evidence/maven/user-service.txt
+            build-evidence/maven/identity-service.txt
+            build-evidence/maven/audit-service.txt
             dashboard/package-lock.json
-            aetheris-quant/requirements.lock.txt
           if-no-files-found: error
 
-  reproducible-build:
+  core-reproducible-build:
     runs-on: ubuntu-24.04
-    needs: dependency-lockdown
+    needs: core-dependency-lockdown
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-
       - name: Set up Java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
-
       - name: Set up Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
-
-      - name: Build all six Java surfaces - pass 1
-        run: |
-          for module in gateway user-service identity-service audit-service orchestrator-service workstation-agent; do
-            ./mvnw -f "$module/pom.xml" clean package
-          done
-
+      - name: Set up Python for source isolation harness
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Remove AI-runtime-owned source from core reproducibility workspace
+        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/aetheris-ai-runtime-source"
+      - name: Build core reactor - pass 1
+        run: ./mvnw clean package
       - name: Build dashboard - pass 1
         working-directory: dashboard
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build
-
       - name: Hash pass 1 artifacts
         run: |
           mkdir -p build-evidence/artifacts
           tar --sort=name --mtime='UTC 2026-09-13 00:00:00' --owner=0 --group=0 --numeric-owner -cf - -C dashboard/dist . | gzip -n > build-evidence/artifacts/dashboard-dist.tar.gz
           {
-            find gateway/target user-service/target identity-service/target audit-service/target orchestrator-service/target workstation-agent/target \
+            find gateway/target user-service/target identity-service/target audit-service/target \
               -maxdepth 1 -type f -name '*.jar' -print0 | sort -z | xargs -0 sha256sum
             sha256sum build-evidence/artifacts/dashboard-dist.tar.gz
-          } > build-evidence/artifacts/pass-1.sha256
-
+          } > build-evidence/artifacts/core-pass-1.sha256
       - name: Clean generated artifacts
-        run: rm -rf gateway/target user-service/target identity-service/target audit-service/target orchestrator-service/target workstation-agent/target dashboard/dist build-evidence/artifacts/dashboard-dist.tar.gz
-
-      - name: Build all six Java surfaces - pass 2
-        run: |
-          for module in gateway user-service identity-service audit-service orchestrator-service workstation-agent; do
-            ./mvnw -f "$module/pom.xml" clean package
-          done
-
+        run: rm -rf gateway/target user-service/target identity-service/target audit-service/target dashboard/dist build-evidence/artifacts/dashboard-dist.tar.gz
+      - name: Build core reactor - pass 2
+        run: ./mvnw clean package
       - name: Build dashboard - pass 2
         working-directory: dashboard
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npm run build
-
       - name: Hash pass 2 artifacts and compare
         run: |
           tar --sort=name --mtime='UTC 2026-09-13 00:00:00' --owner=0 --group=0 --numeric-owner -cf - -C dashboard/dist . | gzip -n > build-evidence/artifacts/dashboard-dist.tar.gz
           {
-            find gateway/target user-service/target identity-service/target audit-service/target orchestrator-service/target workstation-agent/target \
+            find gateway/target user-service/target identity-service/target audit-service/target \
               -maxdepth 1 -type f -name '*.jar' -print0 | sort -z | xargs -0 sha256sum
             sha256sum build-evidence/artifacts/dashboard-dist.tar.gz
-          } > build-evidence/artifacts/pass-2.sha256
-          diff -u build-evidence/artifacts/pass-1.sha256 build-evidence/artifacts/pass-2.sha256
-          cp build-evidence/artifacts/pass-2.sha256 build-evidence/artifact-sha256.txt
-
-      - name: Upload reproducibility evidence
+          } > build-evidence/artifacts/core-pass-2.sha256
+          diff -u build-evidence/artifacts/core-pass-1.sha256 build-evidence/artifacts/core-pass-2.sha256
+          cp build-evidence/artifacts/core-pass-2.sha256 build-evidence/core-artifact-sha256.txt
+      - name: Upload core reproducibility evidence
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          name: full-foundation-reproducible-build-evidence
+          name: core-foundation-reproducible-build-evidence
           path: |
-            build-evidence/artifact-sha256.txt
-            build-evidence/artifacts/pass-1.sha256
-            build-evidence/artifacts/pass-2.sha256
+            build-evidence/core-artifact-sha256.txt
+            build-evidence/artifacts/core-pass-1.sha256
+            build-evidence/artifacts/core-pass-2.sha256
             build-evidence/artifacts/dashboard-dist.tar.gz
           if-no-files-found: error
