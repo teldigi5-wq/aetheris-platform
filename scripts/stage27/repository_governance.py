@@ -61,7 +61,11 @@ def load_config(path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
 
     allowed_heads = config.get("allowed_main_pr_heads")
     if allowed_heads != [canonical]:
-        raise GovernanceError("only the canonical development branch may target main")
+        raise GovernanceError("canonical development branch must remain an allowed main PR head")
+
+    allowed_prefixes = config.get("allowed_main_pr_head_prefixes")
+    if allowed_prefixes != ["release/"]:
+        raise GovernanceError("main release branch prefix policy changed unexpectedly")
 
     return config
 
@@ -101,6 +105,15 @@ def readme_errors(config: dict[str, Any], root: Path = ROOT) -> list[str]:
     ]
 
 
+def is_allowed_main_pr_head(config: dict[str, Any], head_ref: str) -> bool:
+    if head_ref in config["allowed_main_pr_heads"]:
+        return True
+    return any(
+        head_ref.startswith(prefix) and len(head_ref) > len(prefix)
+        for prefix in config["allowed_main_pr_head_prefixes"]
+    )
+
+
 def evaluate_event_context(
     config: dict[str, Any],
     *,
@@ -119,9 +132,10 @@ def evaluate_event_context(
                 f"Stage 27 push validation is intended for canonical branch {canonical}; got {ref_name or '<empty>'}"
             )
     elif event_name == "pull_request":
-        if base_ref == stable and head_ref not in config["allowed_main_pr_heads"]:
+        if base_ref == stable and not is_allowed_main_pr_head(config, head_ref):
             errors.append(
-                f"pull requests to {stable} must originate from {canonical}; got {head_ref or '<empty>'}"
+                f"pull requests to {stable} must originate from {canonical} or a reviewed release/* branch; "
+                f"got {head_ref or '<empty>'}"
             )
         if head_ref in config["legacy_branches"]:
             errors.append(f"legacy branch {head_ref} cannot be used for active development or release promotion")
