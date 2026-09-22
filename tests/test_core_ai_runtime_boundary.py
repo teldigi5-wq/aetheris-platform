@@ -18,11 +18,12 @@ CONTRACT_PATH = ROOT / "contracts" / "ai-runtime-boundary.v1.json"
 GATEWAY_CONFIG = ROOT / "gateway" / "src" / "main" / "resources" / "application.yml"
 COMPOSE_CONFIG = ROOT / "docker-compose.yml"
 ROOT_POM = ROOT / "pom.xml"
+WORKFLOWS_ROOT = ROOT / ".github/workflows"
 CORE_WORKFLOWS = (
-    ROOT / ".github/workflows/build.yml",
-    ROOT / ".github/workflows/codeql.yml",
-    ROOT / ".github/workflows/stage24-foundation-hardening.yml",
-    ROOT / ".github/workflows/stage24-foundation-bootstrap.yml",
+    WORKFLOWS_ROOT / "build.yml",
+    WORKFLOWS_ROOT / "codeql.yml",
+    WORKFLOWS_ROOT / "stage24-foundation-hardening.yml",
+    WORKFLOWS_ROOT / "stage24-foundation-bootstrap.yml",
 )
 AI_RUNTIME_SOURCE_NAMES = (
     "orchestrator-service",
@@ -74,11 +75,22 @@ class CoreAiRuntimeBoundaryTest(unittest.TestCase):
                     violations.append(f"{workflow.relative_to(ROOT)} -> {source_name}")
         self.assertEqual([], violations)
 
+    def test_workflows_do_not_select_orchestrator_from_core_reactor(self) -> None:
+        violations: list[str] = []
+        for workflow in sorted(WORKFLOWS_ROOT.glob("*.yml")):
+            if "-pl orchestrator-service" in read(workflow):
+                violations.append(str(workflow.relative_to(ROOT)))
+        self.assertEqual(
+            [],
+            violations,
+            "AI-runtime workflows must build orchestrator through -f orchestrator-service/pom.xml, not the core reactor",
+        )
+
     def test_ai_runtime_transitional_workflows_preserve_owned_checks(self) -> None:
-        build = read(ROOT / ".github/workflows/ai-runtime-build.yml")
-        security = read(ROOT / ".github/workflows/ai-runtime-codeql.yml")
-        foundation = read(ROOT / ".github/workflows/ai-runtime-foundation-hardening.yml")
-        bootstrap = read(ROOT / ".github/workflows/ai-runtime-foundation-bootstrap.yml")
+        build = read(WORKFLOWS_ROOT / "ai-runtime-build.yml")
+        security = read(WORKFLOWS_ROOT / "ai-runtime-codeql.yml")
+        foundation = read(WORKFLOWS_ROOT / "ai-runtime-foundation-hardening.yml")
+        bootstrap = read(WORKFLOWS_ROOT / "ai-runtime-foundation-bootstrap.yml")
         combined = "\n".join((build, security, foundation, bootstrap))
         for source_name in AI_RUNTIME_SOURCE_NAMES:
             self.assertIn(source_name, combined)
