@@ -18,7 +18,6 @@ public record ModelInvocation(
         if (modelId == null || modelId.isBlank()) {
             throw new IllegalArgumentException("modelId must not be blank");
         }
-        modelId = modelId.trim();
         if (input == null || input.isBlank()) {
             throw new IllegalArgumentException("input must not be blank");
         }

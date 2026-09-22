@@ -82,7 +82,8 @@ class Phase13ContextAssemblyTest {
         assertTrue(invocation.input().contains(second.evidenceAddress()));
         assertTrue(invocation.input().contains("USER_INPUT"));
 
-        ModelInvocation legacy = new ModelInvocation("small-local", "hello", 32);
+        ModelInvocation legacy = new ModelInvocation("small-local ", "hello", 32);
+        assertEquals("small-local ", legacy.modelId());
         assertTrue(legacy.evidenceAddresses().isEmpty());
     }
 
