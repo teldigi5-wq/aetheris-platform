@@ -1,20 +1,19 @@
 # Aetheris Demo Guide
 
-This is the shortest reviewer-friendly path through Aetheris. It is deliberately **platform-first**: demonstrate the cloud-native backend, identity, messaging, observability, resilience and deployment story before discussing the later Syntra/Aetheris control-plane extensions.
+This is the shortest reviewer-friendly path through Aetheris. It is deliberately **platform-first**: demonstrate the cloud-native backend, identity, messaging, observability, resilience and deployment story before discussing the separate Syntra/Aetheris AI-runtime track.
 
 ## 1. What this demo is meant to prove
 
 A successful core demo can show:
 
-- the distributed service topology starts locally;
+- the platform-owned service topology starts locally;
 - gateway, identity, user and audit surfaces are reachable;
 - PostgreSQL, Redis and RabbitMQ responsibilities are explicit;
 - authentication/token lifecycle is implemented;
 - the dashboard is served;
-- the observability stack can be enabled;
 - repository resilience/deployment choices can be explained and inspected.
 
-The optional AI/operator track is a separate extension. It is not required to demonstrate the core portfolio value.
+The optional AI/operator track is owned by `teldigi5-wq/aetheris-ai-runtime`. It is not required to demonstrate the core portfolio value, and its hosted certification must not be confused with physical owner-PC validation.
 
 ## 2. Prerequisites
 
@@ -40,31 +39,34 @@ Open these first:
 
 The first message to a reviewer should be simple:
 
-> Aetheris is primarily a distributed-systems/platform-engineering project. A later AI/operator track exists, but it is deliberately maturity-labeled separately.
+> Aetheris is primarily a distributed-systems/platform-engineering project. Its AI/orchestration runtime is separately owned and maturity-labeled rather than being presented as equally mature platform-local source.
 
-## 4. Start the core stack
+## 4. Start the platform-owned core
+
+Use the source-absent core Compose file when the goal is to demonstrate only platform-owned components:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.core.yml up --build -d
 ```
 
 In another terminal:
 
 ```bash
-docker compose ps
+docker compose -f docker-compose.core.yml ps
 ```
 
-Expected local surfaces include:
+Expected platform-owned local surfaces include:
 
-| Surface | Address |
-|---|---|
-| Dashboard | `http://localhost:3000` |
-| Gateway | `http://localhost:8080` |
-| User Service | `http://localhost:8081` |
-| Identity Service | `http://localhost:8082` |
-| Audit Service | `http://localhost:8083` |
-| Orchestrator | `http://localhost:8090` |
-| RabbitMQ management | `http://localhost:15672` |
+| Surface | Address | Source owner |
+|---|---|---|
+| Dashboard | `http://localhost:3000` | `aetheris-platform` |
+| Gateway | `http://localhost:8080` | `aetheris-platform` |
+| User Service | `http://localhost:8081` | `aetheris-platform` |
+| Identity Service | `http://localhost:8082` | `aetheris-platform` |
+| Audit Service | `http://localhost:8083` | `aetheris-platform` |
+| RabbitMQ management | `http://localhost:15672` | infrastructure |
+
+The gateway keeps an orchestrator URI contract even in core-only mode, but the orchestrator implementation is not sourced from this repository.
 
 Compose credentials and fallback secrets are development defaults only.
 
@@ -91,17 +93,19 @@ Do not paste real credentials or tokens into screenshots or public issues.
 
 ## 6. Demonstrate the distributed request path
 
-Explain the service flow:
+Explain the platform-owned service flow:
 
 ```text
 Client / Dashboard
   → API Gateway
-  → downstream service
+  → platform downstream service
   → PostgreSQL / Redis as needed
   → RabbitMQ event when asynchronous work is appropriate
   → Audit consumer
   → metrics / logs / traces
 ```
+
+When AI orchestration is required, the gateway crosses the versioned external-runtime boundary instead of calling a platform-local orchestrator source tree.
 
 The important part is responsibility ownership. A strong demo explains why each dependency exists and what should happen if it fails.
 
@@ -126,22 +130,13 @@ Use the producer/consumer path to discuss:
 
 ## 9. Enable observability
 
-Start the observability profile:
+For the integrated demo, use the external-runtime composition after the certified runtime artifact/reference is available:
 
 ```bash
-docker compose --profile observability up --build
+docker compose -f docker-compose.integration-external.yml --profile observability up -d
 ```
 
-Additional surfaces:
-
-| Tool | Address |
-|---|---|
-| Grafana | `http://localhost:3001` |
-| Prometheus | `http://localhost:9090` |
-| Tempo | `http://localhost:3200` |
-| Loki | `http://localhost:3100` |
-
-Explain the roles:
+Additional surfaces include Grafana, Prometheus, Tempo and Loki. Explain the roles:
 
 - **Prometheus** — metrics;
 - **Grafana** — visualization/exploration;
@@ -179,16 +174,16 @@ The value is the operational reasoning, not simply the existence of YAML files.
 
 ## 12. Repository-quality controls
 
-Show protected `main` and GitHub Actions. Useful checks include:
+Show protected `main` and GitHub Actions. Useful platform checks include:
 
 - backend/service tests;
 - dashboard build;
 - CodeQL;
 - compatibility-contract freeze;
-- dependency lockdown;
-- two-pass reproducibility comparison.
+- platform/runtime source-independence checks;
+- release/portfolio evidence checks.
 
-The repository has additional later-roadmap checks, but do not lead with their stage numbers during a recruiter demo.
+For the optional AI runtime, show the independently owned runtime certification workflows in `teldigi5-wq/aetheris-ai-runtime` rather than implying those tests execute against platform-local runtime source.
 
 ## 13. Strong 10-minute interview sequence
 
@@ -214,22 +209,28 @@ Docker Compose + Kubernetes + Helm + readiness/replicas.
 
 ### Minute 9–10 — Engineering quality
 
-Protected `main`, CI, CodeQL and reproducibility.
+Protected `main`, CI, CodeQL and source-ownership boundaries.
 
 Stop there unless the reviewer specifically wants the AI/operator work.
 
-## 14. Optional extension demo — Syntra / Aetheris control plane
+## 14. Optional extension demo — Syntra / Aetheris AI runtime
 
-If the interviewer is interested in AI systems or automation, continue with the secondary track.
+If the interviewer is interested in AI systems or automation, continue with the secondary track and explicitly switch repository context to:
+
+`https://github.com/teldigi5-wq/aetheris-ai-runtime`
+
+The platform currently records certified runtime checkpoint:
+
+`68af39a1115a7330020c18b6e2cb601e66b8f22f`
 
 Explain the maturity split first:
 
-- orchestration/policy code is repository-tested;
-- generic-browser/site-skill code exists;
+- orchestration/policy code is runtime-repository tested;
+- generic-browser/site-skill code exists in the runtime track;
 - exact browser runtime, authenticated LinkedIn/Vercel sessions and target-PC behavior are **not physically validated yet**;
 - live-money trading is disabled by policy.
 
-Then show the relevant orchestrator/operator code and tests rather than presenting the historical stage count as the feature.
+Then show the runtime-owned orchestrator/workstation/reasoning/quant code and tests. Do not treat a newer docs-only runtime `main` revision as silently replacing the certified runtime checkpoint.
 
 ## 15. Physical validation boundary
 
@@ -239,12 +240,14 @@ Repository CI does not prove GPU acceleration, voice hardware, sustained thermal
 
 The later master roadmap still records **Stage 34 / 34** for historical/contract reasons, but that is not the primary portfolio claim.
 
+There is no production-activation, registry-publication or live-money execution claim from hosted repository evidence alone.
+
 ## 16. Failure-demo ideas
 
-Useful controlled demos include:
+Useful controlled platform demos include:
 
 ```bash
-docker compose stop user-service
+docker compose -f docker-compose.core.yml stop user-service
 ```
 
 Then use metrics/logs/traces and gateway behavior to explain how the failure is observed and contained.
@@ -254,7 +257,8 @@ Other useful exercises:
 - stop RabbitMQ and inspect event-path behavior;
 - stop Redis and discuss which behavior should degrade versus fail closed;
 - remove a Kubernetes pod and inspect desired-state recovery;
-- exercise an endpoint protected by resilience policy and explain why the retry behavior is safe or unsafe.
+- exercise an endpoint protected by resilience policy and explain why the retry behavior is safe or unsafe;
+- with the external runtime intentionally unavailable, explain how the platform/runtime boundary fails without restoring a local duplicate runtime implementation.
 
 ## 17. Demo rule
 
