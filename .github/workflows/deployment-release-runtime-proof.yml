@@ -47,10 +47,13 @@ jobs:
           docker version
           docker compose version
 
-      - name: Build exact-revision release images
+      - name: Load certified destination runtime release image
+        run: tools/load_certified_ai_runtime.sh
+
+      - name: Build exact-revision platform release images
         run: |
           docker compose build \
-            user-service identity-service audit-service orchestrator-service gateway
+            user-service identity-service audit-service gateway
           docker compose images
 
       - name: Start exact-revision release candidate
@@ -89,7 +92,12 @@ jobs:
           assert set(manifest['service_image_ids']) == {
               'gateway', 'identity-service', 'user-service', 'audit-service', 'orchestrator-service'
           }, manifest
-          print('verified 17 hosted deployment/release checks with same-image rollback and state preservation')
+          runtime = manifest['external_runtime']
+          assert runtime['repository'] == 'teldigi5-wq/aetheris-ai-runtime', runtime
+          assert runtime['revision'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', runtime
+          assert runtime['image_ref'] == 'aetheris-ai-runtime:68af39a1115a7330020c18b6e2cb601e66b8f22f', runtime
+          assert runtime['image_archive_sha256'] == 'c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0', runtime
+          print('verified 17 hosted deployment/release checks with certified external runtime and same-image rollback')
           PY
 
       - name: Capture release runtime snapshot
@@ -129,7 +137,6 @@ jobs:
     env:
       AETHERIS_CORE_NETWORK: aetheris-core-boundary
       AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER: orchestrator-runtime
-      AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE: aetheris/orchestrator-runtime:${{ github.event.pull_request.head.sha || github.sha }}
       AETHERIS_ORCHESTRATOR_URI: http://orchestrator-runtime:8090
     steps:
       - name: Checkout exact revision
@@ -155,19 +162,22 @@ jobs:
           docker version
           docker compose version
 
-      - name: Build separately managed exact-revision AI runtime image
-        run: |
-          docker build \
-            -t "$AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE" \
-            ./orchestrator-service
-          docker image inspect "$AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE" \
-            --format 'external runtime image={{.Id}}'
+      - name: Load certified destination runtime release image
+        run: tools/load_certified_ai_runtime.sh
 
-      - name: Remove AI runtime source from core deployment workspace
+      - name: Bind certified runtime image to core boundary proof
         run: |
-          mv orchestrator-service "$RUNNER_TEMP/orchestrator-service-source-hidden"
-          test ! -e orchestrator-service
-          echo "orchestrator source removed before core compose config/build/start"
+          set -euo pipefail
+          test "$AETHERIS_AI_RUNTIME_REVISION" = "68af39a1115a7330020c18b6e2cb601e66b8f22f"
+          echo "AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE=$AETHERIS_AI_RUNTIME_IMAGE" >> "$GITHUB_ENV"
+          docker image inspect "$AETHERIS_AI_RUNTIME_IMAGE" --format 'certified external runtime image={{.Id}}'
+
+      - name: Require AI runtime source to be absent
+        run: |
+          set -euo pipefail
+          for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
+            test ! -e "$source_dir" || { echo "runtime source leaked into platform workspace: $source_dir" >&2; exit 1; }
+          done
 
       - name: Run core-only deployment boundary proof
         run: python tools/core_deployment_boundary_smoke.py
@@ -188,9 +198,9 @@ jobs:
           assert 'orchestrator-service' not in report['core_services'], report
           assert len(report['checks']) == 15, report
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          assert report['external_orchestrator']['image_ref'].endswith(report['revision']), report
+          assert report['external_orchestrator']['image_ref'] == 'aetheris-ai-runtime:68af39a1115a7330020c18b6e2cb601e66b8f22f', report
           assert report['external_orchestrator']['image_id'].startswith('sha256:'), report
-          print('verified 15 hosted core/external-runtime deployment-boundary checks')
+          print('verified 15 hosted core/external-runtime checks against certified destination runtime')
           PY
 
       - name: Capture core boundary runtime snapshot

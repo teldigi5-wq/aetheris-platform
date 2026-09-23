@@ -113,7 +113,7 @@
     },
     {
       "id": "ci.core-verification",
-      "title": "Core backend, dashboard, compatibility and release-hardening checks run independently while workstation verification remains owned by the AI-runtime CI lane",
+      "title": "Core backend, dashboard, compatibility and release-hardening checks run independently while AI-runtime verification is pinned to the certified external runtime repository",
       "maturity": "REPOSITORY_TESTED",
       "evidence": [
         {
@@ -127,10 +127,12 @@
           ]
         },
         {
-          "path": ".github/workflows/ai-runtime-build.yml",
+          "path": "architecture/ai-runtime-certification-reference.json",
           "contains": [
-            "workstation-agent:",
-            "Verify generated package remains non-production without signature"
+            "teldigi5-wq/aetheris-ai-runtime",
+            "68af39a1115a7330020c18b6e2cb601e66b8f22f",
+            "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
+            "runtime-stage26-safety.yml"
           ]
         }
       ]

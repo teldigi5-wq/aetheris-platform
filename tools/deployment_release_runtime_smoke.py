@@ -4,8 +4,11 @@
 This proves an exact-revision Docker Compose candidate can be identified,
 started, exercised through authenticated traffic, subjected to a controlled
 gateway outage, and recovered onto the same verified image without losing
-application state. It intentionally does not claim production-cloud rollout,
-provider-specific rollback, SLA/RTO, or physical-PC validation.
+application state. The AI runtime is consumed from the separately certified
+runtime repository artifact rather than from platform-owned source.
+
+It intentionally does not claim production-cloud rollout, provider-specific
+rollback, SLA/RTO, or physical-PC validation.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_REFERENCE_PATH = ROOT / "architecture" / "ai-runtime-certification-reference.json"
 TRUTH_BOUNDARY = (
     "HOSTED_RUNTIME evidence validates exact-revision release identity, Docker Compose "
     "startup, controlled gateway outage detection, same-image recovery, and state "
@@ -192,13 +196,79 @@ def main() -> int:
         image_ids = {service: compose_image_id(service) for service in services}
         if len(set(image_ids.values())) != len(image_ids):
             raise AssertionError(f"service image identities unexpectedly collide: {image_ids!r}")
+
+        runtime_reference = json.loads(RUNTIME_REFERENCE_PATH.read_text(encoding="utf-8"))
+        if runtime_reference.get("status") != "DESTINATION_RUNTIME_CERTIFIED":
+            raise AssertionError(f"runtime certification is not authoritative: {runtime_reference!r}")
+        if runtime_reference.get("source_root_deletion_status") != "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION":
+            raise AssertionError("runtime source extraction is not certified complete")
+        destination_runtime = runtime_reference["destination_runtime"]
+        runtime_image_ref = os.environ.get(
+            "AETHERIS_AI_RUNTIME_IMAGE", destination_runtime["image_ref"]
+        )
+        if runtime_image_ref != destination_runtime["image_ref"]:
+            raise AssertionError(
+                f"runtime image ref drift: expected={destination_runtime['image_ref']} actual={runtime_image_ref}"
+            )
+        runtime_image_id = run(
+            ["docker", "image", "inspect", runtime_image_ref, "--format", "{{.Id}}"]
+        )
+        runtime_revision = run(
+            [
+                "docker",
+                "image",
+                "inspect",
+                runtime_image_ref,
+                "--format",
+                '{{index .Config.Labels "org.opencontainers.image.revision"}}',
+            ]
+        )
+        runtime_source = run(
+            [
+                "docker",
+                "image",
+                "inspect",
+                runtime_image_ref,
+                "--format",
+                '{{index .Config.Labels "org.opencontainers.image.source"}}',
+            ]
+        )
+        runtime_evidence_class = run(
+            [
+                "docker",
+                "image",
+                "inspect",
+                runtime_image_ref,
+                "--format",
+                '{{index .Config.Labels "io.aetheris.evidence-class"}}',
+            ]
+        )
+        if runtime_revision != destination_runtime["certified_sha"]:
+            raise AssertionError(
+                f"runtime revision label drift: expected={destination_runtime['certified_sha']} actual={runtime_revision}"
+            )
+        expected_source = f"https://github.com/{destination_runtime['repository']}"
+        if runtime_source != expected_source:
+            raise AssertionError(
+                f"runtime source label drift: expected={expected_source} actual={runtime_source}"
+            )
+        if runtime_evidence_class != "HOSTED_RUNTIME_ARTIFACT":
+            raise AssertionError(f"unexpected runtime evidence class: {runtime_evidence_class!r}")
+        if image_ids.get("orchestrator-service") != runtime_image_id:
+            raise AssertionError(
+                "Compose orchestrator image does not match certified destination artifact: "
+                f"compose={image_ids.get('orchestrator-service')} certified={runtime_image_id}"
+            )
         passed("release.service-image-identities-recorded")
 
         source_hashes = {
             "docker-compose.yml": compose_sha,
             str(contract_path.relative_to(ROOT)): sha256_file(contract_path),
+            str(RUNTIME_REFERENCE_PATH.relative_to(ROOT)): sha256_file(RUNTIME_REFERENCE_PATH),
         }
         for service in services:
+            if service == "orchestrator-service":
+                continue
             dockerfile = ROOT / service / "Dockerfile"
             source_hashes[str(dockerfile.relative_to(ROOT))] = sha256_file(dockerfile)
 
@@ -208,6 +278,13 @@ def main() -> int:
             "evidence_class": "HOSTED_RUNTIME",
             "service_image_ids": image_ids,
             "source_sha256": dict(sorted(source_hashes.items())),
+            "external_runtime": {
+                "repository": destination_runtime["repository"],
+                "revision": destination_runtime["certified_sha"],
+                "image_ref": runtime_image_ref,
+                "image_id": runtime_image_id,
+                "image_archive_sha256": destination_runtime["image_archive_sha256"],
+            },
         }
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(
@@ -231,9 +308,6 @@ def main() -> int:
             wait_health(service, port)
             passed(check_id)
 
-        # Identity accounts and user profiles are intentionally separate Aetheris domains.
-        # Register an API consumer for the protected gateway read, then create an explicit
-        # user-service profile to prove persisted application state survives the rollback.
         identity_email = "deployment-release-proof@aetheris.local"
         profile_email = "deployment-release-profile@aetheris.local"
         password = "DeploymentReleaseProof123!"
@@ -350,6 +424,7 @@ def main() -> int:
                     "revision": revision,
                     "manifest_sha256": manifest_sha256,
                     "gateway_image_id": final_state["gateway_image_id"],
+                    "runtime_revision": destination_runtime["certified_sha"],
                     "state_preserved": True,
                 },
                 sort_keys=True,
