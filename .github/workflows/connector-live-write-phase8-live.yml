@@ -31,6 +31,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Load certified external AI runtime
+        shell: bash
+        run: ./tools/load_certified_ai_runtime.sh
+
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
@@ -265,9 +269,9 @@ jobs:
       - name: Start Aetheris with real provider write endpoints
         shell: bash
         run: |
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml \
             up -d --build orchestrator-service
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml ps
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml ps
 
       - name: Run credential-gated real test-account write validation
         env:
@@ -317,7 +321,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml \
             down -v --remove-orphans || true
           if [ -f /tmp/aetheris-phase8-broker.pid ]; then
             kill "$(cat /tmp/aetheris-phase8-broker.pid)" 2>/dev/null || true
