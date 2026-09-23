@@ -98,7 +98,7 @@ services:
       - "8083:8083"
 
   orchestrator-service:
-    image: ${AETHERIS_AI_RUNTIME_IMAGE:?AETHERIS_AI_RUNTIME_IMAGE must identify the certified exact-revision external runtime}
+    image: ${AETHERIS_AI_RUNTIME_IMAGE:-aetheris-ai-runtime:f6f64ef391f63ca81e802302d6c8d3ad4c052ff2}
     environment:
       ORCHESTRATOR_PORT: 8090
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
