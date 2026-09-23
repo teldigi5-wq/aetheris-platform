@@ -6,7 +6,9 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'tools/connector_provider_sync_runtime_smoke.py'
       - 'tools/oauth_provider_stub.py'
       - 'build-evidence/runtime/connector-provider-sync-phase4-*'
@@ -16,7 +18,9 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'tools/connector_provider_sync_runtime_smoke.py'
       - 'tools/oauth_provider_stub.py'
       - 'build-evidence/runtime/connector-provider-sync-phase4-*'
@@ -37,6 +41,10 @@ jobs:
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Load certified external AI runtime
+        shell: bash
+        run: ./tools/load_certified_ai_runtime.sh
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -77,9 +85,9 @@ jobs:
       - name: Start real orchestrator with CI-only provider read endpoints
         shell: bash
         run: |
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
             up -d --build orchestrator-service
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml ps
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml ps
 
       - name: Run provider synchronization proof
         run: |
@@ -106,10 +114,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p build-evidence/runtime
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
             ps --all > build-evidence/runtime/connector-provider-sync-compose-ps.txt || true
           if [ "${{ job.status }}" != "success" ]; then
-            docker compose -f docker-compose.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
+            docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
               logs --no-color --tail=240 orchestrator-service \
               > build-evidence/runtime/connector-provider-sync-failure.log 2>&1 || true
           fi
@@ -127,7 +135,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-provider-sync-phase4-compose.override.yml \
             down -v --remove-orphans || true
           if [ -f /tmp/aetheris-provider-stub.pid ]; then
             kill "$(cat /tmp/aetheris-provider-stub.pid)" 2>/dev/null || true
