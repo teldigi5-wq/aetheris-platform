@@ -22,7 +22,13 @@ jobs:
           python-version: '3.13.15'
 
       - name: Compile Stage 25 verifier
-        run: python -m py_compile scripts/first_boot_preflight.py tools/load_external_ai_runtime.py
+        run: |
+          python -m py_compile scripts/first_boot_preflight.py
+          python -m py_compile tools/load_external_ai_runtime.py
+          python -m py_compile tools/hide_ai_runtime_sources.py
+
+      - name: Isolate AI-runtime source for pre-removal readiness validation
+        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/stage25-source-hidden"
 
       - name: Run Stage 25 unit tests
         run: python -m unittest discover -s tests -p 'test_first_boot_preflight.py' -v
