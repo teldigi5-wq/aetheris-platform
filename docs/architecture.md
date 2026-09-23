@@ -1,78 +1,113 @@
 # Aetheris Architecture
 
-This document describes the current repository architecture after completion of the 34-stage repository roadmap. It replaces the early-stage topology notes that no longer represented the system.
+This document describes the current architecture after the AI runtime extraction. It preserves the historical 34-stage repository roadmap while making current source ownership explicit.
 
 ## 1. System intent
 
-Aetheris is a modular platform/control plane supporting distributed APIs, identity, observability, automation, reasoning, digital twins, owner policy and evidence-driven execution. Syntra is the owner-facing assistant experience that sits above Aetheris; models are replaceable reasoning workers rather than policy authority.
+Aetheris is a modular platform plus AI runtime supporting distributed APIs, identity, observability, automation, reasoning, owner policy and evidence-driven execution. Syntra is the owner-facing assistant experience above those layers; models are replaceable reasoning workers rather than policy authority.
 
-The architecture is deliberately split into three planes:
+The current implementation is split across two repositories:
+
+- **`teldigi5-wq/aetheris-platform`** — gateway, identity, user, audit, dashboard, observability, deployment, cross-repository contracts and integration evidence;
+- **`teldigi5-wq/aetheris-ai-runtime`** — orchestrator, workstation-agent, reasoning and quantitative runtime source plus runtime-owned certification.
+
+The platform currently records runtime checkpoint `68af39a1115a7330020c18b6e2cb601e66b8f22f` as its certified external-runtime reference. A future runtime revision must be recertified before the platform reference advances.
+
+Conceptually the system remains split into three planes:
 
 1. **Experience plane** — dashboard and Syntra-facing interaction surfaces.
-2. **Platform plane** — gateway, identity, user, audit, orchestration, persistence, messaging and observability.
-3. **Governance plane** — deterministic owner rules, risk assessment, scoped approvals, emergency precedence, execution verification and evidence.
+2. **Platform plane** — gateway, identity, user, audit, persistence, messaging, observability and the external-runtime integration boundary.
+3. **Governance/runtime plane** — orchestration, deterministic owner rules, risk assessment, scoped approvals, execution verification, workstation integration, reasoning and evidence.
 
 ## 2. Current topology
 
 ```mermaid
 flowchart LR
     OWNER[Owner / Operator] --> SYN[Syntra Experience]
-    SYN --> DASH[React Dashboard]
-    DASH --> GW[Spring Cloud Gateway]
+    SYN --> DASH
 
-    GW --> ID[Identity Service]
-    GW --> USR[User Service]
-    GW --> AUD[Audit Service]
-    GW --> ORCH[Orchestrator Service]
+    subgraph PLATFORM[aetheris-platform]
+        DASH[React Dashboard] --> GW[Spring Cloud Gateway]
+        GW --> ID[Identity Service]
+        GW --> USR[User Service]
+        GW --> AUD[Audit Service]
 
-    ID --> PG[(PostgreSQL)]
-    USR --> PG
-    GW --> REDIS[(Redis)]
-    USR --> REDIS
-    USR --> MQ[(RabbitMQ)]
-    MQ --> AUD
+        ID --> PG[(PostgreSQL)]
+        USR --> PG
+        GW --> REDIS[(Redis)]
+        USR --> REDIS
+        USR --> MQ[(RabbitMQ)]
+        MQ --> AUD
 
-    ORCH --> GOV[Governance Lifecycle]
-    RSN[Aetheris Reasoning] --> GOV
-    TWIN[Digital Twins] --> GOV
-    AUTO[Automation Control] --> GOV
-    PC[PC Care] --> GOV
-    TRD[Trading Intelligence] --> GOV
+        GW --> OTEL[OpenTelemetry]
+        ID --> OTEL
+        USR --> OTEL
+        AUD --> OTEL
+        OTEL --> OBS[Prometheus + Grafana + Loki + Tempo]
+    end
 
-    GOV --> RULES[Owner Rules]
-    RULES --> RISK[Risk Assessment]
-    RISK --> APPROVAL[Scoped Approval when required]
-    APPROVAL --> EXEC[Eligible Execution]
-    EXEC --> VERIFY[Verification + Evidence]
+    subgraph RUNTIME[aetheris-ai-runtime — external certified runtime]
+        ORCH[Orchestrator Service]
+        RSN[Aetheris Reasoning]
+        WORK[Workstation Agent]
+        QUANT[Aetheris Quant]
+        GOV[Governance Lifecycle]
+        TWIN[Digital Twins / Recovery Foundations]
+        AUTO[Automation Control]
 
-    GW --> OTEL[OpenTelemetry]
-    ID --> OTEL
-    USR --> OTEL
-    AUD --> OTEL
-    OTEL --> OBS[Prometheus + Grafana + Loki + Tempo]
+        ORCH --> GOV
+        RSN --> GOV
+        WORK --> GOV
+        QUANT --> GOV
+        TWIN --> GOV
+        AUTO --> GOV
 
+        GOV --> RULES[Owner Rules]
+        RULES --> RISK[Risk Assessment]
+        RISK --> APPROVAL[Scoped Approval when required]
+        APPROVAL --> EXEC[Eligible Execution]
+        EXEC --> VERIFY[Verification + Evidence]
+    end
+
+    GW -->|ai-runtime-boundary.v1| ORCH
     EMG[STOP > TAKE_CONTROL > PAUSE > NORMAL] --> GOV
 ```
 
-## 3. Component responsibilities
+The diagram shows a logical system boundary, not duplicate source ownership. Runtime-owned source roots live only in `aetheris-ai-runtime`.
 
-| Component | Primary responsibility | Important boundary |
-|---|---|---|
-| Dashboard | Operator/developer UI | Presents platform state; it is not the policy authority |
-| API Gateway | Stable ingress and cross-cutting enforcement | Routes requests and applies trusted boundary controls |
-| Identity Service | Registration, login, refresh and logout/token lifecycle | Credentials and refresh tokens are security-sensitive state |
-| User Service | User-domain logic and persistence | API DTOs remain separated from persistence entities |
-| Audit Service | Consumes/records audit-relevant events | Audit evidence should not be confused with execution authority |
-| Orchestrator Service | Coordinates missions, tools, automation and governance foundations | Tool eligibility does not imply successful execution |
-| Workstation Agent | Bounded workstation integration foundation | Unrestricted privileged host authority is not a validated default |
-| Aetheris Reasoning | Reasoning/verification utilities | Models and reasoning workers cannot override deterministic policy |
-| Aetheris Quant | Quant/trading proposal foundation | Live-money authority is disabled by default |
-| PostgreSQL | Durable relational state | Development credentials are not production credentials |
-| Redis | Distributed cache/rate/policy-support state | Availability/failure must not silently weaken authorization |
-| RabbitMQ | Asynchronous event transport | Consumers must treat messages as untrusted until validated |
-| Observability stack | Metrics, traces, logs and dashboards | Telemetry is evidence, not proof of business success by itself |
+## 3. Component responsibilities and source ownership
 
-## 4. Request and identity flow
+| Component | Source owner | Primary responsibility | Important boundary |
+|---|---|---|---|
+| Dashboard | Platform | Operator/developer UI | Presents platform state; it is not the policy authority |
+| API Gateway | Platform | Stable ingress and cross-cutting enforcement | Routes requests and applies trusted boundary controls |
+| Identity Service | Platform | Registration, login, refresh and logout/token lifecycle | Credentials and refresh tokens are security-sensitive state |
+| User Service | Platform | User-domain logic and persistence | API DTOs remain separated from persistence entities |
+| Audit Service | Platform | Consumes/records audit-relevant events | Audit evidence should not be confused with execution authority |
+| Orchestrator Service | AI runtime | Coordinates missions, tools, automation and governance foundations | Tool eligibility does not imply successful execution |
+| Workstation Agent | AI runtime | Bounded workstation integration foundation | Physical owner-PC validation is still pending |
+| Aetheris Reasoning | AI runtime | Reasoning/verification utilities | Models and reasoning workers cannot override deterministic policy |
+| Aetheris Quant | AI runtime | Quant/trading proposal foundation | Live-money authority is disabled by policy |
+| PostgreSQL | Platform | Durable relational state | Development credentials are not production credentials |
+| Redis | Platform | Distributed cache/rate/policy-support state | Availability/failure must not silently weaken authorization |
+| RabbitMQ | Platform | Asynchronous event transport | Consumers must treat messages as untrusted until validated |
+| Observability stack | Platform | Metrics, traces, logs and dashboards | Telemetry is evidence, not proof of business success by itself |
+
+## 4. Cross-repository integration boundary
+
+The platform consumes the runtime through explicit integration assets instead of carrying a second copy of runtime source:
+
+- `contracts/ai-runtime-boundary.v1.json` — versioned platform/runtime contract;
+- `architecture/ai-runtime-certification-reference.json` — currently certified runtime SHA, certification status and truth boundaries;
+- `architecture/ai-runtime-extraction-manifest.json` — extraction/source-ownership record;
+- `docker-compose.integration-external.yml` — external-runtime integration topology;
+- `tools/load_certified_ai_runtime.sh` — helper for loading the certified runtime reference.
+
+The platform certification reference records `68af39a1115a7330020c18b6e2cb601e66b8f22f` with canonical runtime CI status `6_OF_6_SUCCESS`. It also explicitly records that platform runtime source is absent and that physical-PC, production-deployment, registry-publication and live-money claims remain false.
+
+A runtime update is therefore a controlled dependency/integration change, not a source-copy operation.
+
+## 5. Request and identity flow
 
 The normal service-facing path is:
 
@@ -80,7 +115,7 @@ The normal service-facing path is:
 Client / Dashboard
   → API Gateway
   → authentication / authorization boundary
-  → downstream service
+  → platform service, or external AI-runtime boundary when required
   → persistence / cache / messaging as needed
   → response
   → audit / metrics / traces
@@ -90,7 +125,7 @@ Identity endpoints are exposed by the identity service under `/api/auth`, includ
 
 The gateway is a centralized ingress point, but downstream components should still preserve their own authorization assumptions rather than blindly trusting arbitrary client input.
 
-## 5. Governance and action flow
+## 6. Governance and action flow
 
 Aetheris treats AI-generated intent as input to a deterministic action lifecycle:
 
@@ -116,9 +151,9 @@ Key semantics:
 - Emergency precedence is deterministic: `STOP > TAKE_CONTROL > PAUSE > NORMAL`.
 - Models do not outrank owner rules, Zero-Cost/Private boundaries or emergency control.
 
-## 6. Safety boundaries
+## 7. Safety boundaries
 
-The repository encodes these architecture-level constraints:
+The architecture encodes these constraints across the platform/runtime boundary:
 
 - deterministic owner policy is authoritative over model recommendations;
 - configured Zero-Cost mode blocks billable/non-zero-cost fallback paths;
@@ -126,27 +161,26 @@ The repository encodes these architecture-level constraints:
 - destructive, privileged, public, financial and difficult-to-undo actions receive stricter handling;
 - live-money execution, withdrawals and transfers stay outside the default trusted AI path;
 - secrets must not be committed, logged or exposed through prompts/evidence;
-- hosted CI cannot prove physical-PC, GPU, microphone, browser, phone or thermal behavior.
+- hosted CI cannot prove physical-PC, GPU, microphone, browser, phone or thermal behavior;
+- extracted runtime source must not be duplicated back into the platform repository.
 
-## 7. Observability model
+## 8. Observability model
 
-The Java services emit operational telemetry that can be collected through OpenTelemetry and inspected through the optional observability profile.
+The platform Java services emit operational telemetry that can be collected through OpenTelemetry and inspected through the optional observability profile.
 
 ```text
-Services
+Platform services
   → metrics / traces / logs
   → OpenTelemetry / collectors
   → Prometheus + Tempo + Loki
   → Grafana
 ```
 
-Observability exists to support diagnosis and evidence. A green dashboard does not replace business-level verification of an action.
+External-runtime behavior has its own runtime-owned proofs and is connected to platform evidence through the versioned boundary and certification reference. A green telemetry dashboard does not replace business-level verification of an action.
 
-## 8. Deployment model
+## 9. Deployment and integration model
 
-### Local integration
-
-Docker Compose is the lowest-friction integration path:
+### Core platform local integration
 
 ```bash
 docker compose up --build
@@ -158,11 +192,17 @@ The optional observability stack is enabled with:
 docker compose --profile observability up --build
 ```
 
+### External AI runtime integration
+
+The runtime is not sourced from local platform directories. When an integration run requires orchestration/runtime components, use `docker-compose.integration-external.yml` together with the certified runtime-loading/reference assets.
+
+The currently certified runtime image/evidence reference is recorded in `architecture/ai-runtime-certification-reference.json`. That hosted artifact evidence does **not** imply registry publication.
+
 ### Kubernetes
 
 Kubernetes and Helm assets under `deploy/` provide the cloud-native orchestration path. Compose remains useful for local integration while Helm/Kubernetes demonstrate deployment, health and scaling concepts.
 
-## 9. Failure philosophy
+## 10. Failure philosophy
 
 Aetheris is designed to prefer explicit failure over silent safety degradation.
 
@@ -170,15 +210,16 @@ Examples:
 
 - invalid input should fail at a trusted boundary;
 - dependency failure should be observable and bounded by resilience policy;
+- an unavailable or uncertified runtime revision should not silently replace the certified integration reference;
 - missing approval should prevent a controlled action from executing;
 - missing execution evidence should prevent a success claim;
 - unavailable physical hardware should produce `BLOCKED_PENDING_HARDWARE`, not simulated proof of success.
 
-## 10. Repository vs physical-machine truth
+## 11. Repository vs physical-machine truth
 
-The repository roadmap is **34 / 34 complete** and the stable branch is protected by the repository ruleset `Protect stable main`.
+The historical repository roadmap is **34 / 34 complete**, and current platform/runtime repository evidence is separately certified.
 
-That status proves repository-side engineering work and CI evidence only. It does not yet prove the complete system on the owner's target PC. The physical execution phase must separately validate:
+That status proves repository-side engineering work and hosted CI evidence only. It does not prove the complete system on the owner's target PC. The physical execution phase must separately validate:
 
 - firmware virtualization and WSL2;
 - Docker Desktop / container runtime;
@@ -190,14 +231,17 @@ That status proves repository-side engineering work and CI evidence only. It doe
 
 Until that evidence exists, physical-machine status remains `BLOCKED_PENDING_HARDWARE`.
 
-## 11. Architectural principles
+There is also no production-activation, registry-publication or live-money execution claim from the current hosted certification state.
+
+## 12. Architectural principles
 
 - owner control before model autonomy;
 - evidence before claims;
-- explicit service and trust boundaries;
+- explicit service, repository and trust boundaries;
 - fail closed for safety-critical decisions;
 - reproducible local development;
 - observable components and failure behavior;
+- no duplicate ownership of extracted runtime source;
 - no mandatory recurring AI/platform subscription by design;
 - changes should remain explainable in an interview and reviewable in code.
 
