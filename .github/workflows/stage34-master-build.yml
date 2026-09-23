@@ -3,7 +3,6 @@ name: Stage 34 Master Build Specification
 on:
   push:
     branches:
-      - stage-34-master-build-spec
       - feature/syntra-aetheris-foundation-v2
   pull_request:
     branches:
