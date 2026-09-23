@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Aetheris Stage 25 first-boot readiness verifier.
+"""Aetheris Stage 25 platform + external AI-runtime readiness verifier.
 
-CI mode validates repository-side contracts only.
-Host mode is reserved for the owner's real machine and records evidence without
-pretending that GitHub-hosted runners are physical-PC validation.
+CI mode validates repository-side contracts only. Host mode is reserved for the
+owner's real machine and records evidence without pretending GitHub-hosted
+runners are physical-PC validation.
 
 The script intentionally uses only the Python standard library.
 """
@@ -34,6 +34,8 @@ def load_contract(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("schema_version") != 1:
         raise ValueError("unsupported first-boot contract schema")
+    if data.get("stage") != 25:
+        raise ValueError("first-boot contract must declare stage 25")
     return data
 
 
@@ -58,7 +60,7 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
     pins = {
         ".java-version": contract["toolchain"]["java"],
         ".nvmrc": contract["toolchain"]["node"],
-        "aetheris-quant/.python-version": contract["toolchain"]["python"],
+        ".python-version": contract["toolchain"]["python"],
     }
     for relative, expected in pins.items():
         path = ROOT / relative
@@ -84,15 +86,16 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
         )
     )
 
-    compose = ROOT / "docker-compose.yml"
+    compose_relative = contract["platform_compose_file"]
+    compose = ROOT / compose_relative
     compose_text = compose.read_text(encoding="utf-8") if compose.is_file() else ""
     discovered_ports = sorted({int(p) for p in re.findall(r'[- ]+["\']?(\d+):\d+', compose_text)})
-    expected_ports = sorted(contract["expected_local_ports"])
+    expected_ports = sorted(contract["expected_platform_ports"])
     missing_ports = sorted(set(expected_ports) - set(discovered_ports))
     unexpected_ports = sorted(set(discovered_ports) - set(expected_ports))
     checks.append(
         result(
-            "compose-port-contract",
+            "platform-compose-port-contract",
             "PASS" if not missing_ports and not unexpected_ports else "FAIL",
             f"expected={expected_ports}; discovered={discovered_ports}; missing={missing_ports}; unexpected={unexpected_ports}",
             category="compose",
@@ -100,24 +103,62 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
     )
 
     compose_services = set(re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", compose_text, flags=re.MULTILINE))
-    required_services = {
-        "postgres",
-        "redis",
-        "rabbitmq",
-        "gateway",
-        "identity-service",
-        "user-service",
-        "audit-service",
-        "orchestrator-service",
-        "dashboard",
-    }
+    required_services = set(contract["required_platform_services"])
     missing_services = sorted(required_services - compose_services)
     checks.append(
         result(
-            "compose-core-services",
+            "platform-compose-services",
             "PASS" if not missing_services else "FAIL",
             f"missing={missing_services or 'none'}",
             category="compose",
+        )
+    )
+
+    external_relative = contract["external_integration_compose_file"]
+    external = ROOT / external_relative
+    external_text = external.read_text(encoding="utf-8") if external.is_file() else ""
+    runtime = contract["external_ai_runtime"]
+    required_image_expression = runtime["required_image_expression"]
+    external_markers = [
+        "orchestrator-service:",
+        f"image: {required_image_expression}",
+        "AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}",
+        '"8090:8090"',
+    ]
+    missing_external_markers = [marker for marker in external_markers if marker not in external_text]
+    forbidden_external_markers = [
+        "build: ./orchestrator-service",
+        "build: ./workstation-agent",
+        "build: ./aetheris-quant",
+        "build: ./aetheris-reasoning",
+    ]
+    forbidden_present = [marker for marker in forbidden_external_markers if marker in external_text]
+    checks.append(
+        result(
+            "external-runtime-compose-contract",
+            "PASS" if not missing_external_markers and not forbidden_present else "FAIL",
+            f"missing={missing_external_markers or 'none'}; forbidden={forbidden_present or 'none'}",
+            category="external-runtime",
+        )
+    )
+
+    reference_path = ROOT / runtime["certification_reference"]
+    reference = json.loads(reference_path.read_text(encoding="utf-8")) if reference_path.is_file() else {}
+    destination = reference.get("destination_runtime", {}) if isinstance(reference, dict) else {}
+    expected_sha = runtime["certified_sha"]
+    reference_ok = (
+        reference.get("status") == "DESTINATION_RUNTIME_CERTIFIED"
+        and destination.get("repository") == runtime["repository"]
+        and destination.get("certified_sha") == expected_sha
+        and destination.get("canonical_ci_status") == "6_OF_6_SUCCESS"
+        and reference.get("source_root_deletion_status") == "BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF"
+    )
+    checks.append(
+        result(
+            "external-runtime-certification-reference",
+            "PASS" if reference_ok else "FAIL",
+            f"repository={destination.get('repository')}; sha={destination.get('certified_sha')}; ci={destination.get('canonical_ci_status')}",
+            category="external-runtime",
         )
     )
 
@@ -301,7 +342,7 @@ def host_checks(contract: dict[str, Any]) -> tuple[list[dict[str, str]], dict[st
     return checks, evidence
 
 
-def summary(checks: list[dict[str, str]], mode: str) -> dict[str, Any]:
+def summary(checks: list[dict[str, str]], mode: str, contract: dict[str, Any]) -> dict[str, Any]:
     failures = [item for item in checks if item["status"] == "FAIL"]
     passes = [item for item in checks if item["status"] == "PASS"]
     return {
@@ -311,7 +352,9 @@ def summary(checks: list[dict[str, str]], mode: str) -> dict[str, Any]:
         "pass_count": len(passes),
         "fail_count": len(failures),
         "physical_pc_status": "NOT_TESTED" if mode == "ci" else "TESTED_BY_THIS_RUN",
-        "foundation_scope": "syntra-aetheris-foundation-v2",
+        "foundation_scope": contract["foundation_scope"],
+        "external_ai_runtime_repository": contract["external_ai_runtime"]["repository"],
+        "external_ai_runtime_certified_sha": contract["external_ai_runtime"]["certified_sha"],
         "checks": checks,
     }
 
@@ -324,7 +367,7 @@ def write_evidence(directory: Path, report: dict[str, Any], extra: dict[str, str
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Aetheris Stage 25 first-boot readiness verifier")
+    parser = argparse.ArgumentParser(description="Aetheris Stage 25 platform + external AI-runtime readiness verifier")
     parser.add_argument("--mode", choices=("ci", "host"), default="ci")
     parser.add_argument("--contract", type=Path, default=DEFAULT_CONTRACT)
     parser.add_argument("--output", type=Path, help="write the JSON report to this path")
@@ -339,7 +382,7 @@ def main() -> int:
         host_result, extra_evidence = host_checks(contract)
         checks.extend(host_result)
 
-    report = summary(checks, args.mode)
+    report = summary(checks, args.mode, contract)
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

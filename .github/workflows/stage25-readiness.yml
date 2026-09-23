@@ -1,10 +1,10 @@
-name: Stage 25 First-Boot Readiness
+name: Stage 25 Platform + External AI Runtime Readiness
 
 on:
   push:
     branches: [ feature/syntra-aetheris-foundation-v2 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, feature/syntra-aetheris-foundation-v2 ]
 
 permissions:
   contents: read
@@ -27,27 +27,39 @@ jobs:
       - name: Run Stage 25 unit tests
         run: python -m unittest discover -s tests -p 'test_first_boot_preflight.py' -v
 
-      - name: Run full-foundation repository preflight
+      - name: Run platform plus external-runtime repository preflight
         run: |
           python scripts/first_boot_preflight.py \
             --mode ci \
             --evidence-dir build-evidence/readiness
 
-      - name: Assert CI did not claim physical-PC validation
+      - name: Assert CI ownership and physical-PC boundaries
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+
           report = json.loads(Path('build-evidence/readiness/preflight-report.json').read_text())
+          reference = json.loads(Path('architecture/ai-runtime-certification-reference.json').read_text())
+
           assert report['status'] == 'PASS', report
           assert report['physical_pc_status'] == 'NOT_TESTED', report
-          assert report['foundation_scope'] == 'syntra-aetheris-foundation-v2', report
-          print('Stage 25 full-foundation truth boundary: PASS')
+          assert report['foundation_scope'] == 'aetheris-platform-external-ai-runtime-v1', report
+          assert report['external_ai_runtime_repository'] == 'teldigi5-wq/aetheris-ai-runtime', report
+          assert report['external_ai_runtime_certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', report
+
+          assert reference['status'] == 'DESTINATION_RUNTIME_CERTIFIED', reference
+          assert reference['destination_runtime']['certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', reference
+          assert reference['destination_runtime']['canonical_ci_status'] == '6_OF_6_SUCCESS', reference
+          assert reference['source_root_deletion_status'] == 'BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF', reference
+          assert reference['truth_boundaries']['physical_pc_status'] == 'BLOCKED_PENDING_HARDWARE', reference
+
+          print('Stage 25 platform/external-runtime ownership boundary: PASS')
           PY
 
       - name: Upload Stage 25 readiness evidence
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          name: stage25-full-foundation-readiness
+          name: stage25-platform-external-runtime-readiness
           path: build-evidence/readiness/
           if-no-files-found: error

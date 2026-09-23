@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
   "stage": 25,
-  "name": "Aetheris First-Boot Readiness Contract — Full Syntra/Aetheris Foundation",
+  "name": "Aetheris First-Boot Readiness Contract — Platform + External AI Runtime",
+  "foundation_scope": "aetheris-platform-external-ai-runtime-v1",
   "truth_boundary": "This file defines expected requirements only. It is not evidence that the owner's physical PC exists or has passed validation.",
   "host": {
     "supported_os": ["Windows 11 x64"],
@@ -29,16 +30,19 @@
   "required_repository_files": [
     ".java-version",
     ".nvmrc",
+    ".python-version",
     ".mvn/maven.config",
     ".mvn/wrapper/maven-wrapper.properties",
     "mvnw",
     "mvnw.cmd",
-    "docker-compose.yml",
+    "docker-compose.core.yml",
+    "docker-compose.integration-external.yml",
+    "architecture/ai-runtime-certification-reference.json",
+    "gateway/pom.xml",
+    "user-service/pom.xml",
+    "identity-service/pom.xml",
+    "audit-service/pom.xml",
     "dashboard/package-lock.json",
-    "aetheris-quant/.python-version",
-    "aetheris-quant/requirements.lock.txt",
-    "orchestrator-service/pom.xml",
-    "workstation-agent/pom.xml",
     "docs/dependency-policy.md",
     "scripts/check_dependency_lockdown.py",
     "scripts/stage22/release_gate.py",
@@ -50,13 +54,20 @@
     "scripts/stage23/contract_guard.py",
     "scripts/stage23/expected-contract.sha256"
   ],
-  "expected_local_ports": [
+  "platform_compose_file": "docker-compose.core.yml",
+  "external_integration_compose_file": "docker-compose.integration-external.yml",
+  "required_platform_services": [
+    "postgres",
+    "redis",
+    "rabbitmq",
+    "gateway",
+    "identity-service",
+    "user-service",
+    "audit-service",
+    "dashboard"
+  ],
+  "expected_platform_ports": [
     3000,
-    3001,
-    3100,
-    3200,
-    4317,
-    4318,
     5432,
     5672,
     6379,
@@ -64,11 +75,17 @@
     8081,
     8082,
     8083,
-    8090,
-    9090,
-    12345,
     15672
   ],
+  "external_ai_runtime": {
+    "repository": "teldigi5-wq/aetheris-ai-runtime",
+    "certified_sha": "68af39a1115a7330020c18b6e2cb601e66b8f22f",
+    "certification_reference": "architecture/ai-runtime-certification-reference.json",
+    "service": "orchestrator-service",
+    "port": 8090,
+    "image_env": "AETHERIS_AI_RUNTIME_IMAGE",
+    "required_image_expression": "${AETHERIS_AI_RUNTIME_IMAGE:?AETHERIS_AI_RUNTIME_IMAGE must be an exact-revision image}"
+  },
   "physical_pc_evidence_required": [
     "host-inventory.json",
     "virtualization-status.txt",
