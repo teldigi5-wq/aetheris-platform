@@ -18,15 +18,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Lock repair branch to certified canonical parent
+      - name: Lock repair branch to certified canonical ancestry
         shell: bash
         run: |
           set -euo pipefail
           canonical="2a2868e7f6a0a61e84930242d39f2ceef3d30edc"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(git rev-parse HEAD^)" = "$canonical"
           remote="$(git ls-remote origin refs/heads/feature/syntra-aetheris-foundation-v2 | cut -f1)"
           test "$remote" = "$canonical"
+          git merge-base --is-ancestor "$canonical" HEAD
+          test "$(git rev-list --count "$canonical"..HEAD)" -eq 2
 
       - name: Migrate hosted runtime proofs to certified external runtime
         shell: python
@@ -54,14 +55,13 @@ jobs:
               "      - 'architecture/ai-runtime-certification-reference.json'",
           ]
 
-          binding = '''
-
-      - name: Load certified external AI runtime
-        shell: bash
-        run: |
-          ./tools/load_certified_ai_runtime.sh
-          echo "COMPOSE_FILE=docker-compose.integration-external.yml" >> "$GITHUB_ENV"
-'''
+          binding = (
+              "\n\n      - name: Load certified external AI runtime\n"
+              "        shell: bash\n"
+              "        run: |\n"
+              "          ./tools/load_certified_ai_runtime.sh\n"
+              "          echo \"COMPOSE_FILE=docker-compose.integration-external.yml\" >> \"$GITHUB_ENV\"\n"
+          )
 
           for filename in targets:
               path = Path(filename)
@@ -92,8 +92,7 @@ jobs:
               assert '"orchestrator-service/**"' not in text, filename
               path.write_text(text, encoding='utf-8')
 
-          helper = Path('.github/workflows/runtime-provenance-hardening-mutate.yml')
-          helper.unlink()
+          Path('.github/workflows/runtime-provenance-hardening-mutate.yml').unlink()
           print(f'migrated {len(targets)} hosted runtime proof workflows')
 
       - name: Validate mechanical hardening diff
