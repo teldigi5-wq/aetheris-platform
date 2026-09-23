@@ -22,13 +22,27 @@ class FirstBootPreflightTests(unittest.TestCase):
         self.assertEqual(self.contract["stage"], 25)
         self.assertIn("physical PC", self.contract["truth_boundary"])
 
-    def test_full_foundation_is_in_contract(self):
+    def test_external_runtime_foundation_is_in_contract(self):
         required = set(self.contract["required_repository_files"])
-        self.assertIn("orchestrator-service/pom.xml", required)
-        self.assertIn("workstation-agent/pom.xml", required)
+        self.assertNotIn("orchestrator-service/pom.xml", required)
+        self.assertNotIn("workstation-agent/pom.xml", required)
+        self.assertIn("architecture/ai-runtime-consumption.json", required)
+        self.assertIn("docker-compose.integration-external.yml", required)
+        self.assertIn("tools/load_external_ai_runtime.py", required)
         self.assertIn("scripts/stage22/release_gate.py", required)
         self.assertIn("scripts/stage23/contract_guard.py", required)
         self.assertIn(8090, self.contract["expected_local_ports"])
+        self.assertEqual(
+            set(self.contract["forbidden_platform_source_roots"]),
+            {"orchestrator-service", "workstation-agent", "aetheris-quant", "aetheris-reasoning"},
+        )
+
+    def test_runtime_pin_is_exact_and_not_latest(self):
+        runtime = self.contract["external_runtime_contract"]
+        self.assertEqual(len(runtime["revision"]), 40)
+        self.assertIn(runtime["revision"], runtime["image_tag"])
+        self.assertFalse(runtime["image_tag"].endswith(":latest"))
+        self.assertTrue(runtime["image_id"].startswith("sha256:"))
 
     def test_static_repository_contract_passes(self):
         checks = preflight.static_checks(self.contract)
@@ -36,9 +50,13 @@ class FirstBootPreflightTests(unittest.TestCase):
         self.assertEqual(failures, [], failures)
 
     def test_ci_report_never_claims_physical_validation(self):
-        report = preflight.summary(preflight.static_checks(self.contract), "ci")
+        report = preflight.summary(
+            preflight.static_checks(self.contract),
+            "ci",
+            self.contract["foundation_scope"],
+        )
         self.assertEqual(report["physical_pc_status"], "NOT_TESTED")
-        self.assertEqual(report["foundation_scope"], "syntra-aetheris-foundation-v2")
+        self.assertEqual(report["foundation_scope"], "aetheris-platform-with-external-ai-runtime")
         self.assertEqual(report["status"], "PASS")
 
     def test_forbidden_claims_are_explicit(self):
