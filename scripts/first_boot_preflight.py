@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Aetheris Stage 25 first-boot readiness verifier.
 
-CI mode validates repository-side contracts only.
-Host mode is reserved for the owner's real machine and records evidence without
-pretending that GitHub-hosted runners are physical-PC validation.
-
-The script intentionally uses only the Python standard library.
+CI mode validates the source-absent platform repository plus its pinned external
+AI-runtime contract. Host mode is reserved for the owner's real machine and
+records host evidence without pretending that GitHub-hosted runners are
+physical-PC validation.
 """
 
 from __future__ import annotations
@@ -24,6 +23,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONTRACT = ROOT / "configs" / "first-boot-contract.json"
+RUNTIME_CONSUMPTION = ROOT / "architecture" / "ai-runtime-consumption.json"
 
 
 def utc_now() -> str:
@@ -58,7 +58,6 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
     pins = {
         ".java-version": contract["toolchain"]["java"],
         ".nvmrc": contract["toolchain"]["node"],
-        "aetheris-quant/.python-version": contract["toolchain"]["python"],
     }
     for relative, expected in pins.items():
         path = ROOT / relative
@@ -81,6 +80,57 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
             "PASS" if f"/apache-maven/{maven_expected}/" in wrapper_text else "FAIL",
             f"expected Maven {maven_expected}",
             category="toolchain",
+        )
+    )
+
+    forbidden_roots = contract.get("forbidden_platform_source_roots", [])
+    present_roots = [relative for relative in forbidden_roots if (ROOT / relative).exists()]
+    checks.append(
+        result(
+            "ai-runtime-source-ownership",
+            "PASS" if not present_roots else "FAIL",
+            f"platform-owned AI runtime roots present={present_roots or 'none'}",
+            category="architecture",
+        )
+    )
+
+    consumption: dict[str, Any] = {}
+    if RUNTIME_CONSUMPTION.is_file():
+        try:
+            consumption = json.loads(RUNTIME_CONSUMPTION.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            consumption = {}
+    expected_runtime = contract.get("external_runtime_contract", {})
+    runtime_fields = {
+        "runtime_repository": expected_runtime.get("repository"),
+        "runtime_revision": expected_runtime.get("revision"),
+        "image_tag": expected_runtime.get("image_tag"),
+        "image_id": expected_runtime.get("image_id"),
+    }
+    mismatches = {
+        key: {"expected": expected, "actual": consumption.get(key)}
+        for key, expected in runtime_fields.items()
+        if consumption.get(key) != expected
+    }
+    boundaries = consumption.get("truth_boundaries", {}) if isinstance(consumption, dict) else {}
+    boundary_ok = (
+        boundaries.get("physical_pc_validation") is False
+        and boundaries.get("physical_pc_status") == "BLOCKED_PENDING_HARDWARE"
+        and boundaries.get("production_deployment_claim") is False
+        and boundaries.get("registry_publication_claim") is False
+    )
+    runtime_contract_ok = (
+        consumption.get("schema_version") == 1
+        and consumption.get("status") == "CERTIFIED_DESTINATION_RUNTIME_PINNED"
+        and not mismatches
+        and boundary_ok
+    )
+    checks.append(
+        result(
+            "external-ai-runtime-pin",
+            "PASS" if runtime_contract_ok else "FAIL",
+            f"mismatches={mismatches or 'none'}; truth_boundaries={'PASS' if boundary_ok else 'FAIL'}",
+            category="architecture",
         )
     )
 
@@ -118,6 +168,22 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
             "PASS" if not missing_services else "FAIL",
             f"missing={missing_services or 'none'}",
             category="compose",
+        )
+    )
+
+    external_compose_ok = (
+        "AETHERIS_AI_RUNTIME_IMAGE" in compose_text
+        and "build: ./orchestrator-service" not in compose_text
+        and "./orchestrator-service" not in compose_text
+    )
+    checks.append(
+        result(
+            "compose-external-ai-runtime-boundary",
+            "PASS" if external_compose_ok else "FAIL",
+            "orchestrator uses exact external image contract and no local source build"
+            if external_compose_ok
+            else "default Compose still lacks the certified external-runtime boundary",
+            category="architecture",
         )
     )
 
@@ -301,7 +367,7 @@ def host_checks(contract: dict[str, Any]) -> tuple[list[dict[str, str]], dict[st
     return checks, evidence
 
 
-def summary(checks: list[dict[str, str]], mode: str) -> dict[str, Any]:
+def summary(checks: list[dict[str, str]], mode: str, foundation_scope: str = "aetheris-platform-with-external-ai-runtime") -> dict[str, Any]:
     failures = [item for item in checks if item["status"] == "FAIL"]
     passes = [item for item in checks if item["status"] == "PASS"]
     return {
@@ -311,7 +377,7 @@ def summary(checks: list[dict[str, str]], mode: str) -> dict[str, Any]:
         "pass_count": len(passes),
         "fail_count": len(failures),
         "physical_pc_status": "NOT_TESTED" if mode == "ci" else "TESTED_BY_THIS_RUN",
-        "foundation_scope": "syntra-aetheris-foundation-v2",
+        "foundation_scope": foundation_scope,
         "checks": checks,
     }
 
@@ -339,7 +405,7 @@ def main() -> int:
         host_result, extra_evidence = host_checks(contract)
         checks.extend(host_result)
 
-    report = summary(checks, args.mode)
+    report = summary(checks, args.mode, contract.get("foundation_scope", "aetheris-platform-with-external-ai-runtime"))
 
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
