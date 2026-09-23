@@ -1,0 +1,139 @@
+name: Runtime Proof Certified Provenance Mutation
+
+on:
+  push:
+    branches:
+      - fix/runtime-proof-certified-external-provenance
+
+permissions:
+  contents: write
+
+jobs:
+  mutate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repair head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+
+      - name: Lock repair branch to certified canonical parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical="2a2868e7f6a0a61e84930242d39f2ceef3d30edc"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$canonical"
+          remote="$(git ls-remote origin refs/heads/feature/syntra-aetheris-foundation-v2 | cut -f1)"
+          test "$remote" = "$canonical"
+
+      - name: Migrate hosted runtime proofs to certified external runtime
+        shell: python
+        run: |
+          from pathlib import Path
+
+          targets = [
+              '.github/workflows/connector-adapter-runtime-proof.yml',
+              '.github/workflows/connector-approved-actions-runtime-proof.yml',
+              '.github/workflows/connector-integration-runtime-proof.yml',
+              '.github/workflows/connector-live-provider-runtime-proof.yml',
+              '.github/workflows/connector-live-write-phase7-runtime-proof.yml',
+              '.github/workflows/connector-live-write-phase8-live.yml',
+              '.github/workflows/connector-provider-sync-phase4-runtime-proof.yml',
+              '.github/workflows/data-recovery-runtime-proof.yml',
+              '.github/workflows/observability-runtime-proof.yml',
+              '.github/workflows/performance-load-runtime-proof.yml',
+              '.github/workflows/proactive-executive-agent-runtime-proof.yml',
+              '.github/workflows/security-runtime-proof.yml',
+          ]
+
+          deps = [
+              "      - 'docker-compose.integration-external.yml'",
+              "      - 'tools/load_certified_ai_runtime.sh'",
+              "      - 'architecture/ai-runtime-certification-reference.json'",
+          ]
+
+          binding = '''
+
+      - name: Load certified external AI runtime
+        shell: bash
+        run: |
+          ./tools/load_certified_ai_runtime.sh
+          echo "COMPOSE_FILE=docker-compose.integration-external.yml" >> "$GITHUB_ENV"
+'''
+
+          for filename in targets:
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              assert 'orchestrator-service' in text, filename
+              assert 'docker compose' in text, filename
+              assert 'load_certified_ai_runtime.sh' not in text, filename
+
+              lines = []
+              for line in text.splitlines():
+                  stripped = line.strip()
+                  if stripped in {"- 'orchestrator-service/**'", '- "orchestrator-service/**"'}:
+                      continue
+                  lines.append(line)
+                  if stripped in {"- 'docker-compose.yml'", '- "docker-compose.yml"'}:
+                      lines.extend(deps)
+              text = '\n'.join(lines) + '\n'
+
+              checkout_pos = text.index('uses: actions/checkout@')
+              next_step = text.find('\n      - name:', checkout_pos)
+              assert next_step != -1, filename
+              text = text[:next_step] + binding + text[next_step:]
+
+              assert text.count('Load certified external AI runtime') == 1, filename
+              assert 'load_certified_ai_runtime.sh' in text, filename
+              assert 'docker-compose.integration-external.yml' in text, filename
+              assert "'orchestrator-service/**'" not in text, filename
+              assert '"orchestrator-service/**"' not in text, filename
+              path.write_text(text, encoding='utf-8')
+
+          helper = Path('.github/workflows/runtime-provenance-hardening-mutate.yml')
+          helper.unlink()
+          print(f'migrated {len(targets)} hosted runtime proof workflows')
+
+      - name: Validate mechanical hardening diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          test "$(git status --short | wc -l)" -eq 13
+          test ! -e .github/workflows/runtime-provenance-hardening-mutate.yml
+          for workflow in \
+            connector-adapter-runtime-proof.yml \
+            connector-approved-actions-runtime-proof.yml \
+            connector-integration-runtime-proof.yml \
+            connector-live-provider-runtime-proof.yml \
+            connector-live-write-phase7-runtime-proof.yml \
+            connector-live-write-phase8-live.yml \
+            connector-provider-sync-phase4-runtime-proof.yml \
+            data-recovery-runtime-proof.yml \
+            observability-runtime-proof.yml \
+            performance-load-runtime-proof.yml \
+            proactive-executive-agent-runtime-proof.yml \
+            security-runtime-proof.yml
+          do
+            file=".github/workflows/$workflow"
+            grep -q 'Load certified external AI runtime' "$file"
+            grep -q 'load_certified_ai_runtime.sh' "$file"
+            grep -q 'docker-compose.integration-external.yml' "$file"
+            if grep -q 'orchestrator-service/\*\*' "$file"; then
+              echo "stale source trigger remains in $file" >&2
+              exit 1
+            fi
+          done
+          git diff --stat
+
+      - name: Commit provenance hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Poojana Kaveesh Sellahewa"
+          git config user.email "teldigi5@gmail.com"
+          git add .github/workflows
+          git commit -m "ci: bind hosted runtime proofs to certified external artifact"
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
