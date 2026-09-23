@@ -114,6 +114,24 @@ This document records the reasoning behind important Aetheris design choices. Th
 
 **Trade-off:** staged delivery can feel slower than adding many features quickly, but it produces better understanding and lower integration risk.
 
+## ADR-011 — Extract the AI runtime into an independently owned repository
+
+**Context:** the later Syntra/Aetheris work added orchestration, workstation integration, reasoning and quantitative-intelligence code with a different lifecycle and evidence surface from the cloud-native platform core. Keeping both copies after extraction would create ambiguous ownership and allow the repositories to drift.
+
+**Decision:** `teldigi5-wq/aetheris-ai-runtime` is the source owner for `orchestrator-service`, `workstation-agent`, `aetheris-reasoning` and `aetheris-quant`. `aetheris-platform` owns gateway/identity/user/audit/dashboard/platform deployment plus the cross-repository contract, integration composition and certification reference.
+
+**Why:**
+- One source owner per extracted runtime root prevents parallel implementations.
+- Runtime certification can evolve without pretending every runtime revision is automatically certified by the platform.
+- The platform/runtime API and deployment boundary becomes explicit and independently testable.
+- Platform builds can prove that core source remains functional with runtime-owned source absent.
+
+**Integration rule:** the platform records a certified runtime checkpoint in `architecture/ai-runtime-certification-reference.json` and consumes the runtime through versioned integration assets such as `contracts/ai-runtime-boundary.v1.json` and `docker-compose.integration-external.yml`.
+
+**Trade-off:** the split adds cross-repository versioning, artifact/provenance and compatibility-management work. A runtime `main` revision and a platform-certified runtime checkpoint can legitimately differ, so documentation and release notes must name the exact certified reference rather than assuming “latest” means certified.
+
+**Truth boundary:** repository extraction/certification does not prove the future owner PC, production activation, registry publication or live-money execution. Physical-machine status remains `BLOCKED_PENDING_HARDWARE` until real hardware evidence exists.
+
 ---
 
 ## How to use this file
