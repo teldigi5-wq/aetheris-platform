@@ -4,7 +4,7 @@ on:
   push:
     branches: [ feature/syntra-aetheris-foundation-v2 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, feature/syntra-aetheris-foundation-v2 ]
 
 permissions:
   contents: read
@@ -22,12 +22,12 @@ jobs:
           python-version: '3.13.15'
 
       - name: Compile Stage 25 verifier
-        run: python -m py_compile scripts/first_boot_preflight.py
+        run: python -m py_compile scripts/first_boot_preflight.py tools/load_external_ai_runtime.py
 
       - name: Run Stage 25 unit tests
         run: python -m unittest discover -s tests -p 'test_first_boot_preflight.py' -v
 
-      - name: Run full-foundation repository preflight
+      - name: Run source-absent platform repository preflight
         run: |
           python scripts/first_boot_preflight.py \
             --mode ci \
@@ -41,13 +41,17 @@ jobs:
           report = json.loads(Path('build-evidence/readiness/preflight-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['physical_pc_status'] == 'NOT_TESTED', report
-          assert report['foundation_scope'] == 'syntra-aetheris-foundation-v2', report
-          print('Stage 25 full-foundation truth boundary: PASS')
+          assert report['foundation_scope'] == 'aetheris-platform-with-external-ai-runtime', report
+          checks = {item['check']: item for item in report['checks']}
+          assert checks['ai-runtime-source-ownership']['status'] == 'PASS', checks
+          assert checks['external-ai-runtime-pin']['status'] == 'PASS', checks
+          assert checks['compose-external-ai-runtime-boundary']['status'] == 'PASS', checks
+          print('Stage 25 source-absent platform + external-runtime truth boundary: PASS')
           PY
 
       - name: Upload Stage 25 readiness evidence
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          name: stage25-full-foundation-readiness
+          name: stage25-platform-external-runtime-readiness
           path: build-evidence/readiness/
           if-no-files-found: error
