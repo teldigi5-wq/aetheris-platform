@@ -6,7 +6,9 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'tools/oauth_provider_stub.py'
       - 'tools/connector_live_write_runtime_smoke.py'
       - 'tools/connector_live_write_runtime_smoke_phase12.py'
@@ -17,7 +19,9 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'tools/oauth_provider_stub.py'
       - 'tools/connector_live_write_runtime_smoke.py'
       - 'tools/connector_live_write_runtime_smoke_phase12.py'
@@ -39,6 +43,10 @@ jobs:
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Load certified external AI runtime
+        shell: bash
+        run: ./tools/load_certified_ai_runtime.sh
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
@@ -83,9 +91,9 @@ jobs:
       - name: Start real orchestrator with Phase 7 guarded live-write runtime
         shell: bash
         run: |
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
             up -d --build orchestrator-service
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml ps
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml ps
 
       - name: Run Phase 7 live-write proof
         run: |
@@ -117,10 +125,10 @@ jobs:
           mkdir -p build-evidence/runtime
           curl --silent http://127.0.0.1:19090/metrics \
             > build-evidence/runtime/connector-live-write-stub-metrics.json || true
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
             ps --all > build-evidence/runtime/connector-live-write-compose-ps.txt || true
           if [ "${{ job.status }}" != "success" ]; then
-            docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
+            docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
               logs --no-color --tail=260 orchestrator-service \
               > build-evidence/runtime/connector-live-write-failure.log 2>&1 || true
           fi
@@ -138,7 +146,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
+          docker compose -f docker-compose.integration-external.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
             down -v --remove-orphans || true
           if [ -f /tmp/aetheris-provider-write-stub.pid ]; then
             kill "$(cat /tmp/aetheris-provider-write-stub.pid)" 2>/dev/null || true

@@ -6,8 +6,10 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
       - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'tools/connector_adapter_runtime_smoke.py'
       - 'build-evidence/runtime/connector-integration-phase2-contract.json'
       - '.github/workflows/connector-adapter-runtime-proof.yml'
@@ -16,8 +18,10 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
       - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'tools/connector_adapter_runtime_smoke.py'
       - 'build-evidence/runtime/connector-integration-phase2-contract.json'
       - '.github/workflows/connector-adapter-runtime-proof.yml'
@@ -38,6 +42,12 @@ jobs:
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Load certified external AI runtime
+        shell: bash
+        run: |
+          ./tools/load_certified_ai_runtime.sh
+          echo "COMPOSE_FILE=docker-compose.integration-external.yml" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
