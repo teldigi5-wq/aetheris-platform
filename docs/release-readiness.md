@@ -1,76 +1,94 @@
 # Release Readiness
 
-This document defines the minimum repository-side evidence required before publishing a GitHub release for Aetheris.
+This document defines the minimum repository-side evidence required before publishing a GitHub release for Aetheris after the AI-runtime extraction.
 
-A GitHub release is a source/distribution milestone. It must not silently become a claim that the entire platform has been validated on the owner's target physical PC.
+A GitHub release is a source/distribution milestone. It must not silently become a claim that the entire project has been validated on the owner's target physical PC.
 
 ## Current state
 
-- Repository roadmap: **Stage 34 / 34 complete**
-- Stable branch: protected `main`
-- Canonical development branch: `feature/syntra-aetheris-foundation-v2`
+- Historical repository roadmap: **Stage 34 / 34 complete**
+- Platform stable branch: protected `main`
+- Stage 27 canonical development-line marker: `feature/syntra-aetheris-foundation-v2`
+- AI runtime source owner: `teldigi5-wq/aetheris-ai-runtime`
+- Platform-recorded certified runtime checkpoint: `68af39a1115a7330020c18b6e2cb601e66b8f22f`
 - Physical-machine status: `BLOCKED_PENDING_HARDWARE`
 - Physical-PC validation remains pending
 
+The certified runtime checkpoint and the current runtime repository `main` are different concepts. A later runtime commit does not become platform-certified merely because it is newer or because documentation-only CI passed.
+
 ## Release classes
 
-### Repository pre-PC release
+### Platform repository pre-PC release
 
-A repository pre-PC release may be published when source, documentation, deterministic validation, and protected-main promotion are complete. Its notes must explicitly state that physical-machine validation remains pending.
+A platform pre-PC release may be published when platform source, documentation, deterministic validation, external-runtime boundary evidence and protected-main promotion are complete. Its notes must explicitly state the runtime checkpoint it targets and that physical-machine validation remains pending.
+
+### AI-runtime repository release/checkpoint
+
+Runtime source is released/certified from `teldigi5-wq/aetheris-ai-runtime`. Runtime-owned safety/regression evidence must be evaluated there. Platform release notes may reference an exact certified runtime SHA, but must not relabel an arbitrary runtime revision as certified.
 
 ### Physical-PC validated release
 
-This classification may be used only after the first-boot and physical-machine verification plan has produced real evidence on the target hardware. Hosted CI cannot satisfy this class by itself.
+This classification may be used only after the first-boot and physical-machine verification plan has produced real evidence on the target hardware. Hosted CI in either repository cannot satisfy this class by itself.
 
-## Required checks before a repository pre-PC release
+## Required checks before a platform repository pre-PC release
 
-- [ ] Candidate commit is on protected `main`.
-- [ ] Build workflow passes.
-- [ ] CodeQL passes for Java and JavaScript/TypeScript.
-- [ ] Foundation dependency-lockdown checks pass.
-- [ ] Two-pass reproducible-build comparison passes.
-- [ ] Stage 25 First-Boot Readiness passes.
-- [ ] Stage 26 Safety & Evidence Certification passes.
-- [ ] Stage 27 Repository Governance passes.
-- [ ] Stage 28 PC Care Certification passes.
-- [ ] Stage 34 master-build specification truth boundary remains intact.
-- [ ] `README.md` still reports `Stage 34 / 34` and `BLOCKED_PENDING_HARDWARE`.
-- [ ] Release notes identify known limitations and do not imply physical validation.
-- [ ] No secrets, credentials, tokens, private keys, or sensitive evidence are included.
-- [ ] Changelog is updated for the candidate.
+- [ ] Candidate platform commit is on protected `main`.
+- [ ] Platform Build workflow passes on the exact candidate commit.
+- [ ] Platform CodeQL passes for Java and JavaScript/TypeScript on the exact candidate commit.
+- [ ] Platform portfolio/release evidence checks pass when triggered for the candidate.
+- [ ] Platform core-source-independence checks prove runtime-owned source roots are absent.
+- [ ] Stage 25 platform + external-runtime readiness evidence remains green when applicable.
+- [ ] Stage 26 platform evidence certification remains green when applicable.
+- [ ] The Stage 27 promotion gate passed on the reviewed path into `main`; do not bypass it with an unapproved branch class.
+- [ ] `architecture/ai-runtime-certification-reference.json` names the intended certified runtime checkpoint.
+- [ ] The referenced runtime checkpoint has its required runtime-owned certification evidence in `aetheris-ai-runtime`.
+- [ ] Platform/runtime boundary assets remain consistent: contract, certification reference and external integration composition.
+- [ ] Stage 34 historical truth-boundary language remains intact where validators depend on it.
+- [ ] `README.md` still contains `Stage 34 / 34`, `Physical-PC validation remains pending` and `BLOCKED_PENDING_HARDWARE` truth markers required by repository governance.
+- [ ] Release notes identify known limitations and do not imply physical validation, production activation or registry publication.
+- [ ] No secrets, credentials, tokens, private keys or sensitive evidence are included.
+- [ ] Changelog/release notes identify both the platform commit and the certified runtime checkpoint when the release includes AI-runtime integration.
 
-## Optional checks when affected
+## Runtime-owned checks when the runtime changes
 
-Run the corresponding regression suites whenever a release changes these surfaces:
+The following areas are owned by `aetheris-ai-runtime`, not by a duplicate platform source tree:
 
-- Stage 29 — trading intelligence and execution safety;
-- Stage 30 — reasoning and verification;
-- Stage 31 — digital twins and bounded self-healing;
-- Stage 32 — automation, observability, and emergency control;
-- Stage 33 — governance and scoped approvals.
+- complete migrated runtime regression;
+- Stage 26 runtime safety certification;
+- Stage 28 PC-care certification;
+- Stage 29 trading-intelligence certification;
+- reasoning/verification, digital-twin/recovery and governance regressions when affected;
+- runtime image/provenance evidence when a runtime artifact is being certified.
+
+If the runtime revision changes, recertify the runtime first, then advance the platform certification reference through reviewed integration evidence. Do not change the pinned SHA just to follow runtime `main`.
 
 ## Release-note template
 
 ```text
 Aetheris <version> — Repository Pre-PC Release
 
-Commit: <full SHA>
+Platform commit: <full platform SHA>
+Certified AI runtime: <full certified runtime SHA>
 Release class: REPOSITORY_PRE_PC
 Physical-machine status: BLOCKED_PENDING_HARDWARE
 
 Highlights
 - ...
 
-Validation
+Platform validation
 - Build: PASS
 - CodeQL: PASS
-- Dependency lockdown: PASS
-- Reproducibility: PASS
-- Stage 25–28 stable gates: PASS
+- Core source independence: PASS
+- Platform evidence / external-runtime readiness: PASS
+
+Runtime validation
+- Certified runtime checkpoint: <SHA>
+- Applicable runtime-owned certification: PASS
 
 Truth boundary
 Hosted CI is repository evidence, not physical-PC validation.
 Physical-PC validation remains pending.
+No production-activation, registry-publication or live-money execution claim is implied.
 
 Known limitations
 - ...
@@ -84,4 +102,4 @@ Aetheris currently has no repository-recognized software license. A license must
 
 A release must not use labels such as `PHYSICAL_PC_VALIDATED`, `production-ready on target PC`, or equivalent language until the physical validation runbook has been executed on real hardware and supporting evidence has been reviewed.
 
-The authoritative product/safety contract remains [master-build-spec.md](master-build-spec.md).
+The authoritative product/safety contract remains [master-build-spec.md](master-build-spec.md), the split-repository topology is described in [architecture.md](architecture.md), and physical acceptance steps remain in [first-boot-runbook.md](first-boot-runbook.md).
