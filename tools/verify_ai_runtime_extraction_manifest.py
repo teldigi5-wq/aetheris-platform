@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Verify the Step D AI-runtime extraction boundary and emit reproducible evidence."""
+"""Verify the final Step D source-extracted platform boundary."""
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import subprocess
@@ -13,25 +12,21 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "architecture" / "ai-runtime-extraction-manifest.json"
+REFERENCE_PATH = ROOT / "architecture" / "ai-runtime-certification-reference.json"
+CONTRACT_PATH = ROOT / "contracts" / "ai-runtime-boundary.v1.json"
 EVIDENCE_DIR = ROOT / "build-evidence" / "architecture"
-EXPECTED_DESTINATION = "teldigi5-wq/aetheris-ai-runtime"
 EXPECTED_CORE_MODULES = {"gateway", "user-service", "identity-service", "audit-service"}
+EXPECTED_DESTINATION = "teldigi5-wq/aetheris-ai-runtime"
+EXPECTED_DESTINATION_SHA = "68af39a1115a7330020c18b6e2cb601e66b8f22f"
+EXPECTED_ARCHIVE_SHA256 = "c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0"
 
 
 def git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
 
-def sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def tracked_files(root: str) -> list[Path]:
-    raw = subprocess.check_output(
-        ["git", "ls-files", "-z", "--", root], cwd=ROOT
-    )
-    rows = [item.decode("utf-8") for item in raw.split(b"\0") if item]
-    return [ROOT / row for row in rows]
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def validate_root_pom(errors: list[str]) -> list[str]:
@@ -50,174 +45,160 @@ def validate_root_pom(errors: list[str]) -> list[str]:
         for node in tree.findall("m:modules/m:module", namespace)
         if node.text and node.text.strip()
     ]
-    if set(modules) != EXPECTED_CORE_MODULES:
+    if set(modules) != EXPECTED_CORE_MODULES or len(modules) != len(EXPECTED_CORE_MODULES):
         errors.append(
             f"root Maven reactor must contain only core modules {sorted(EXPECTED_CORE_MODULES)}, got {modules}"
         )
     return modules
 
 
-def require_paths(paths: list[str], label: str, errors: list[str]) -> None:
-    for relative in paths:
-        path = ROOT / relative
-        if not path.exists():
-            errors.append(f"missing {label}: {relative}")
-
-
-def validate_review_patterns(patterns: list[str], errors: list[str]) -> dict[str, list[str]]:
-    resolved: dict[str, list[str]] = {}
-    for pattern in patterns:
-        matches = sorted(
-            str(path.relative_to(ROOT)).replace("\\", "/")
-            for path in ROOT.glob(pattern)
-        )
-        resolved[pattern] = matches
-        if not matches:
-            errors.append(f"ownership review pattern matched nothing: {pattern}")
-    return resolved
-
-
-def build_inventory(move_roots: list[str], errors: list[str]) -> tuple[dict[str, dict[str, object]], list[str]]:
-    inventory: dict[str, dict[str, object]] = {}
-    digest_rows: list[str] = []
-    for root in move_roots:
-        path = ROOT / root
-        if not path.is_dir():
-            errors.append(f"missing AI-runtime source root: {root}")
-            continue
-        if path.is_symlink():
-            errors.append(f"AI-runtime source root must not be a symlink: {root}")
-            continue
-        files = tracked_files(root)
-        if not files:
-            errors.append(f"AI-runtime source root has no tracked files: {root}")
-            continue
-        total_bytes = 0
-        root_hasher = hashlib.sha256()
-        for file_path in files:
-            relative = str(file_path.relative_to(ROOT)).replace("\\", "/")
-            if not file_path.is_file():
-                errors.append(f"tracked extraction file is missing from checkout: {relative}")
-                continue
-            data = file_path.read_bytes()
-            digest = sha256_bytes(data)
-            total_bytes += len(data)
-            digest_rows.append(f"{digest}  {relative}")
-            root_hasher.update(relative.encode("utf-8"))
-            root_hasher.update(b"\0")
-            root_hasher.update(digest.encode("ascii"))
-            root_hasher.update(b"\n")
-        inventory[root] = {
-            "tracked_file_count": len(files),
-            "tracked_bytes": total_bytes,
-            "inventory_sha256": root_hasher.hexdigest(),
-        }
-    return inventory, digest_rows
+def require_file(relative: str, errors: list[str]) -> None:
+    if not (ROOT / relative).is_file():
+        errors.append(f"missing platform-retained asset: {relative}")
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--mode",
-        choices=("pre-extraction", "platform-source-absent"),
-        default="pre-extraction",
-    )
-    args = parser.parse_args()
-
     errors: list[str] = []
-    if not MANIFEST_PATH.is_file():
-        print(f"missing manifest: {MANIFEST_PATH}", file=sys.stderr)
-        return 1
-
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    move_roots = list(manifest.get("move_roots", []))
-    core_roots = list(manifest.get("core_roots", []))
+    reference = json.loads(REFERENCE_PATH.read_text(encoding="utf-8"))
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 
-    if manifest.get("schema_version") != 1:
-        errors.append("manifest schema_version must be 1")
+    if manifest.get("schema_version") != 2:
+        errors.append("manifest schema_version must be 2 after final extraction")
+    if manifest.get("status") != "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION":
+        errors.append("manifest must declare SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION")
     if manifest.get("destination_repository") != EXPECTED_DESTINATION:
-        errors.append(
-            f"destination_repository must remain {EXPECTED_DESTINATION!r} until Issue #140 changes it explicitly"
-        )
-    if manifest.get("status") != "BLOCKED_PENDING_DESTINATION_REPOSITORY":
-        errors.append("manifest must remain blocked until the destination repository exists")
-    if len(move_roots) != 4 or len(set(move_roots)) != 4:
-        errors.append(f"move_roots must contain exactly four unique roots, got {move_roots}")
-    overlap = sorted(set(move_roots) & set(core_roots))
-    if overlap:
-        errors.append(f"core and AI-runtime ownership roots overlap: {overlap}")
+        errors.append("destination repository drifted")
+    if manifest.get("destination_certified_sha") != EXPECTED_DESTINATION_SHA:
+        errors.append("destination certified SHA drifted")
+    if manifest.get("destination_ci_status") != "6_OF_6_SUCCESS":
+        errors.append("destination canonical CI certification drifted")
 
-    require_paths(manifest.get("transfer_workflows", []), "transfer workflow", errors)
-    require_paths(manifest.get("copy_bootstrap", []), "bootstrap dependency", errors)
-    require_paths(
-        manifest.get("platform_retained_contract_assets", []),
-        "platform-retained contract asset",
-        errors,
-    )
-    review_matches = validate_review_patterns(
-        manifest.get("ownership_review_before_final_removal", []), errors
-    )
-    root_modules = validate_root_pom(errors)
+    move_roots = list(manifest.get("move_roots", []))
+    expected_roots = [
+        "orchestrator-service",
+        "aetheris-quant",
+        "aetheris-reasoning",
+        "workstation-agent",
+    ]
+    if move_roots != expected_roots:
+        errors.append(f"move_roots drifted: {move_roots}")
+    present_roots = [root for root in expected_roots if (ROOT / root).exists()]
+    if present_roots:
+        errors.append(f"runtime-owned source roots still present in platform: {present_roots}")
 
-    inventory: dict[str, dict[str, object]] = {}
-    digest_rows: list[str] = []
-    if args.mode == "pre-extraction":
-        inventory, digest_rows = build_inventory(move_roots, errors)
-    else:
-        present = [root for root in move_roots if (ROOT / root).exists()]
-        if present:
-            errors.append(f"AI-runtime source roots still present after simulated extraction: {present}")
+    removed_workflows = list(manifest.get("runtime_owned_workflows_removed_from_platform", []))
+    if len(removed_workflows) != 33 or len(set(removed_workflows)) != 33:
+        errors.append(f"expected exactly 33 unique runtime-owned workflows, got {len(removed_workflows)}")
+    leaked_workflows = [path for path in removed_workflows if (ROOT / path).exists()]
+    if leaked_workflows:
+        errors.append(f"runtime-owned workflows still present in platform: {leaked_workflows}")
+
+    for relative in manifest.get("platform_retained_contract_assets", []):
+        require_file(relative, errors)
+    for relative in manifest.get("platform_retained_certifications", []):
+        require_file(relative, errors)
+
+    modules = validate_root_pom(errors)
+
+    runtime = reference.get("destination_runtime", {})
+    if reference.get("status") != "DESTINATION_RUNTIME_CERTIFIED":
+        errors.append("runtime certification reference is not certified")
+    if reference.get("source_root_deletion_status") != "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION":
+        errors.append("runtime certification reference does not permit final source absence")
+    if reference.get("platform_runtime_source_present") is not False:
+        errors.append("runtime certification reference claims platform runtime source is present")
+    if runtime.get("repository") != EXPECTED_DESTINATION:
+        errors.append("runtime reference repository drifted")
+    if runtime.get("certified_sha") != EXPECTED_DESTINATION_SHA:
+        errors.append("runtime reference SHA drifted")
+    if runtime.get("canonical_ci_status") != "6_OF_6_SUCCESS":
+        errors.append("runtime reference canonical CI status drifted")
+    if runtime.get("image_archive_sha256") != EXPECTED_ARCHIVE_SHA256:
+        errors.append("runtime release archive digest drifted")
+
+    release = manifest.get("destination_runtime_release", {})
+    if release.get("archive_sha256") != EXPECTED_ARCHIVE_SHA256:
+        errors.append("manifest release archive digest drifted")
+    if release.get("image_ref") != runtime.get("image_ref"):
+        errors.append("manifest/reference image refs diverged")
+    if release.get("tag") != runtime.get("release_tag"):
+        errors.append("manifest/reference release tags diverged")
+
+    source_boundary = contract.get("sourceBoundary", {})
+    migration = contract.get("migration", {})
+    certified_runtime = contract.get("certifiedRuntime", {})
+    if source_boundary.get("platformContainsAiRuntimeSource") is not False:
+        errors.append("v1 boundary contract does not declare platform source absence")
+    if migration.get("sourceExtractionComplete") is not True:
+        errors.append("v1 boundary contract does not declare extraction complete")
+    if migration.get("localComposeDefaultPreserved") is not False:
+        errors.append("v1 boundary contract still claims local runtime source default")
+    if certified_runtime.get("repository") != EXPECTED_DESTINATION:
+        errors.append("v1 boundary contract runtime repository drifted")
+    if certified_runtime.get("revision") != EXPECTED_DESTINATION_SHA:
+        errors.append("v1 boundary contract runtime revision drifted")
+
+    default_compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    external_compose = (ROOT / "docker-compose.integration-external.yml").read_text(encoding="utf-8")
+    forbidden_local_builds = (
+        "build: ./orchestrator-service",
+        "build: ./workstation-agent",
+        "build: ./aetheris-quant",
+        "build: ./aetheris-reasoning",
+    )
+    for token in forbidden_local_builds:
+        if token in default_compose or token in external_compose:
+            errors.append(f"local runtime source build reference remains: {token}")
+    expected_remote_context = (
+        "https://github.com/teldigi5-wq/aetheris-ai-runtime.git#"
+        f"{EXPECTED_DESTINATION_SHA}:orchestrator-service"
+    )
+    if expected_remote_context not in default_compose:
+        errors.append("default Compose does not pin the exact destination runtime build context")
+    if "build:" in external_compose.split("  orchestrator-service:", 1)[1].split("\n  gateway:", 1)[0]:
+        errors.append("external integration orchestrator must remain image-only")
+
+    prerequisites = manifest.get("deletion_prerequisites_satisfied", {})
+    false_prerequisites = sorted(key for key, value in prerequisites.items() if value is not True)
+    if false_prerequisites:
+        errors.append(f"deletion prerequisite(s) are not satisfied: {false_prerequisites}")
 
     revision = git("rev-parse", "HEAD")
-    baseline = manifest.get("source_certified_sha", "")
-    if len(baseline) != 40 or any(ch not in "0123456789abcdef" for ch in baseline):
-        errors.append(f"source_certified_sha is not a lowercase 40-character SHA: {baseline!r}")
-
-    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
-    report_name = (
-        "ai-runtime-extraction-manifest-report.json"
-        if args.mode == "pre-extraction"
-        else "ai-runtime-extraction-source-absent-report.json"
-    )
     report = {
+        "schema_version": 2,
         "status": "PASS" if not errors else "FAIL",
-        "mode": args.mode,
-        "revision": revision,
-        "source_certified_sha": baseline,
-        "destination_repository": manifest.get("destination_repository"),
-        "migration_status": manifest.get("status"),
+        "mode": "platform-source-extracted",
+        "platform_revision": revision,
+        "destination_repository": EXPECTED_DESTINATION,
+        "destination_certified_sha": EXPECTED_DESTINATION_SHA,
+        "runtime_release_archive_sha256": EXPECTED_ARCHIVE_SHA256,
         "move_roots": move_roots,
-        "core_roots": core_roots,
-        "root_maven_modules": root_modules,
-        "inventory": inventory,
-        "ownership_review_matches": review_matches,
-        "manifest_sha256": sha256_bytes(MANIFEST_PATH.read_bytes()),
+        "runtime_owned_workflows_removed": removed_workflows,
+        "root_maven_modules": modules,
+        "platform_runtime_source_present": bool(present_roots),
+        "manifest_sha256": sha256_file(MANIFEST_PATH),
+        "certification_reference_sha256": sha256_file(REFERENCE_PATH),
+        "contract_sha256": sha256_file(CONTRACT_PATH),
         "truth_boundaries": manifest.get("truth_boundaries", {}),
         "errors": errors,
     }
-    (EVIDENCE_DIR / report_name).write_text(
+    EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+    (EVIDENCE_DIR / "ai-runtime-extraction-final-report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
 
-    if args.mode == "pre-extraction":
-        (EVIDENCE_DIR / "ai-runtime-extraction-sha256.txt").write_text(
-            "\n".join(sorted(digest_rows)) + "\n", encoding="utf-8"
-        )
-
     if errors:
-        print("AI-runtime extraction manifest verification FAILED:", file=sys.stderr)
+        print("Final AI-runtime extraction verification FAILED:", file=sys.stderr)
         for error in errors:
             print(f" - {error}", file=sys.stderr)
         return 1
 
-    if args.mode == "pre-extraction":
-        total_files = sum(int(row["tracked_file_count"]) for row in inventory.values())
-        total_bytes = sum(int(row["tracked_bytes"]) for row in inventory.values())
-        print(
-            f"AI-runtime extraction manifest: PASS ({total_files} tracked files, {total_bytes} bytes)"
-        )
-    else:
-        print("AI-runtime extraction source-absent platform check: PASS")
+    print(
+        "Final AI-runtime extraction verification: PASS "
+        f"(4 source roots absent, {len(removed_workflows)} runtime workflows removed, "
+        f"destination={EXPECTED_DESTINATION}@{EXPECTED_DESTINATION_SHA})"
+    )
     return 0
 
 

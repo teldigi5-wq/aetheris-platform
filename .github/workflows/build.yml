@@ -61,8 +61,13 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: ${{ env.POLICY_PYTHON_VERSION }}
-      - name: Remove AI-runtime-owned source from workspace
-        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/aetheris-ai-runtime-source"
+      - name: Require AI-runtime-owned source to be absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
+            test ! -e "$source_dir" || { echo "runtime-owned source leaked into platform: $source_dir" >&2; exit 1; }
+          done
       - name: Test core reactor with AI source absent
         run: ./mvnw test
       - name: Build dashboard with AI source absent

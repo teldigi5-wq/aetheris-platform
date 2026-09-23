@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "stage": 26,
-  "name": "Evidence Integrity & Pre-PC Change Control — Split Runtime Ownership",
+  "name": "Evidence Integrity & Pre-PC Change Control — Extracted Runtime Ownership",
   "repository_status": "PRE_PC_HARDENED_EXTERNAL_RUNTIME_CERTIFIED",
   "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
   "hard_boundaries": {
@@ -14,7 +14,7 @@
     "unrestrictedShellAllowed": false,
     "adminBypassAllowed": false
   },
-  "stage23_expected_contract_sha256": "5e2801824ffae344faebf65f1e98dc028381dc6e70a36e300fc5d4ad0504afb4",
+  "stage23_expected_contract_sha256": "6140194063cf20656f26359d68397379c63be513d792eeb77e31ea71db39e76b",
   "required_claims": [
     {
       "path": "docs/ai/stage-21-physical-target-pilot.md",
@@ -48,7 +48,7 @@
       "contains": [
         "DESTINATION_RUNTIME_CERTIFIED",
         "6_OF_6_SUCCESS",
-        "BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF",
+        "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
         "BLOCKED_PENDING_HARDWARE"
       ]
     }

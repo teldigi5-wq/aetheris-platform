@@ -13,24 +13,21 @@ CORE_JAVA_ROOTS = (
     ROOT / "user-service",
     ROOT / "audit-service",
 )
-ORCHESTRATOR_ROOT = ROOT / "orchestrator-service"
 CONTRACT_PATH = ROOT / "contracts" / "ai-runtime-boundary.v1.json"
+CERTIFICATION_PATH = ROOT / "architecture" / "ai-runtime-certification-reference.json"
+EXTRACTION_PATH = ROOT / "architecture" / "ai-runtime-extraction-manifest.json"
 GATEWAY_CONFIG = ROOT / "gateway" / "src" / "main" / "resources" / "application.yml"
-COMPOSE_CONFIG = ROOT / "docker-compose.yml"
+DEFAULT_COMPOSE = ROOT / "docker-compose.yml"
+EXTERNAL_COMPOSE = ROOT / "docker-compose.integration-external.yml"
 ROOT_POM = ROOT / "pom.xml"
-WORKFLOWS_ROOT = ROOT / ".github/workflows"
-CORE_WORKFLOWS = (
-    WORKFLOWS_ROOT / "build.yml",
-    WORKFLOWS_ROOT / "codeql.yml",
-    WORKFLOWS_ROOT / "stage24-foundation-hardening.yml",
-    WORKFLOWS_ROOT / "stage24-foundation-bootstrap.yml",
-)
+WORKFLOWS_ROOT = ROOT / ".github" / "workflows"
 AI_RUNTIME_SOURCE_NAMES = (
     "orchestrator-service",
     "workstation-agent",
     "aetheris-quant",
     "aetheris-reasoning",
 )
+EXPECTED_RUNTIME_SHA = "68af39a1115a7330020c18b6e2cb601e66b8f22f"
 
 
 def java_sources(root: Path):
@@ -42,21 +39,18 @@ def read(path: Path) -> str:
 
 
 class CoreAiRuntimeBoundaryTest(unittest.TestCase):
-    def test_core_does_not_import_orchestrator_java(self) -> None:
+    def test_core_does_not_import_runtime_java(self) -> None:
+        forbidden = re.compile(r"\bio\.aetheris\.(?:orchestrator|workstation)\b")
         violations: list[str] = []
         for root in CORE_JAVA_ROOTS:
             for path in java_sources(root):
-                if "io.aetheris.orchestrator" in read(path):
+                if forbidden.search(read(path)):
                     violations.append(str(path.relative_to(ROOT)))
         self.assertEqual([], violations)
 
-    def test_orchestrator_does_not_import_core_service_java(self) -> None:
-        forbidden = re.compile(r"\bio\.aetheris\.(?:gateway|identity|users|audit)\b")
-        violations: list[str] = []
-        for path in java_sources(ORCHESTRATOR_ROOT):
-            if forbidden.search(read(path)):
-                violations.append(str(path.relative_to(ROOT)))
-        self.assertEqual([], violations)
+    def test_runtime_owned_source_is_physically_absent(self) -> None:
+        present = [name for name in AI_RUNTIME_SOURCE_NAMES if (ROOT / name).exists()]
+        self.assertEqual([], present)
 
     def test_root_maven_reactor_is_core_owned(self) -> None:
         pom = read(ROOT_POM)
@@ -66,38 +60,26 @@ class CoreAiRuntimeBoundaryTest(unittest.TestCase):
             modules,
         )
 
-    def test_core_ci_workflows_do_not_own_ai_runtime_source(self) -> None:
-        violations: list[str] = []
-        for workflow in CORE_WORKFLOWS:
-            text = read(workflow)
-            for source_name in AI_RUNTIME_SOURCE_NAMES:
-                if source_name in text:
-                    violations.append(f"{workflow.relative_to(ROOT)} -> {source_name}")
-        self.assertEqual([], violations)
+    def test_runtime_owned_workflows_are_absent(self) -> None:
+        manifest = json.loads(read(EXTRACTION_PATH))
+        removed = manifest["runtime_owned_workflows_removed_from_platform"]
+        self.assertEqual(33, len(removed))
+        self.assertEqual(33, len(set(removed)))
+        leaked = [relative for relative in removed if (ROOT / relative).exists()]
+        self.assertEqual([], leaked)
 
-    def test_workflows_do_not_select_orchestrator_from_core_reactor(self) -> None:
+    def test_workflows_do_not_select_or_build_local_runtime_source(self) -> None:
         violations: list[str] = []
         for workflow in sorted(WORKFLOWS_ROOT.glob("*.yml")):
-            if "-pl orchestrator-service" in read(workflow):
-                violations.append(str(workflow.relative_to(ROOT)))
-        self.assertEqual(
-            [],
-            violations,
-            "AI-runtime workflows must build orchestrator through -f orchestrator-service/pom.xml, not the core reactor",
-        )
-
-    def test_ai_runtime_transitional_workflows_preserve_owned_checks(self) -> None:
-        build = read(WORKFLOWS_ROOT / "ai-runtime-build.yml")
-        security = read(WORKFLOWS_ROOT / "ai-runtime-codeql.yml")
-        foundation = read(WORKFLOWS_ROOT / "ai-runtime-foundation-hardening.yml")
-        bootstrap = read(WORKFLOWS_ROOT / "ai-runtime-foundation-bootstrap.yml")
-        combined = "\n".join((build, security, foundation, bootstrap))
-        for source_name in AI_RUNTIME_SOURCE_NAMES:
-            self.assertIn(source_name, combined)
-        self.assertIn("github/codeql-action/analyze", security)
-        self.assertIn("pip_audit", foundation)
-        self.assertIn("workstation-agent/packaging/build-package.ps1", build)
-        self.assertIn("clean package", foundation)
+            text = read(workflow)
+            for token in (
+                "-pl orchestrator-service",
+                "build: ./orchestrator-service",
+                "-f orchestrator-service/pom.xml",
+            ):
+                if token in text:
+                    violations.append(f"{workflow.relative_to(ROOT)} -> {token}")
+        self.assertEqual([], violations)
 
     def test_versioned_gateway_contract_matches_configuration(self) -> None:
         contract = json.loads(read(CONTRACT_PATH))
@@ -115,26 +97,51 @@ class CoreAiRuntimeBoundaryTest(unittest.TestCase):
             gateway_config,
         )
         self.assertIn("fallbackUri: forward:/fallback/orchestrator", gateway_config)
-        compose = read(COMPOSE_CONFIG)
-        self.assertIn(
-            "AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}",
-            compose,
-        )
 
-    def test_contract_declares_ownership_without_claiming_source_is_split(self) -> None:
+    def test_contract_declares_completed_external_ownership(self) -> None:
         contract = json.loads(read(CONTRACT_PATH))
         self.assertEqual(
             ["gateway", "identity-service", "user-service", "audit-service"],
             contract["ownership"]["corePlatform"],
         )
-        self.assertEqual(
-            ["orchestrator-service", "aetheris-quant", "aetheris-reasoning", "workstation-agent"],
-            contract["ownership"]["aiRuntime"],
-        )
-        self.assertTrue(contract["migration"]["localComposeDefaultPreserved"])
+        self.assertEqual(list(AI_RUNTIME_SOURCE_NAMES[:1]) + ["aetheris-quant", "aetheris-reasoning", "workstation-agent"], contract["ownership"]["aiRuntime"])
+        self.assertFalse(contract["sourceBoundary"]["platformContainsAiRuntimeSource"])
+        self.assertFalse(contract["migration"]["localComposeDefaultPreserved"])
         self.assertTrue(contract["migration"]["externalRuntimeEndpointSupported"])
-        self.assertTrue(
-            contract["migration"]["sourceExtractionAllowedOnlyAfterArtifactContractCertification"]
+        self.assertTrue(contract["migration"]["sourceExtractionComplete"])
+        self.assertEqual("teldigi5-wq/aetheris-ai-runtime", contract["certifiedRuntime"]["repository"])
+        self.assertEqual(EXPECTED_RUNTIME_SHA, contract["certifiedRuntime"]["revision"])
+
+    def test_default_compose_uses_exact_destination_runtime_not_local_source(self) -> None:
+        compose = read(DEFAULT_COMPOSE)
+        self.assertNotIn("build: ./orchestrator-service", compose)
+        self.assertIn(
+            f"https://github.com/teldigi5-wq/aetheris-ai-runtime.git#{EXPECTED_RUNTIME_SHA}:orchestrator-service",
+            compose,
+        )
+        self.assertIn(
+            "AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}",
+            compose,
+        )
+
+    def test_external_integration_compose_is_image_only(self) -> None:
+        text = read(EXTERNAL_COMPOSE)
+        section = text.split("  orchestrator-service:", 1)[1].split("\n  gateway:", 1)[0]
+        self.assertIn("image: ${AETHERIS_AI_RUNTIME_IMAGE:?AETHERIS_AI_RUNTIME_IMAGE must be an exact-revision image}", section)
+        self.assertNotIn("build:", section)
+
+    def test_destination_runtime_certification_is_exact(self) -> None:
+        reference = json.loads(read(CERTIFICATION_PATH))
+        destination = reference["destination_runtime"]
+        self.assertEqual("DESTINATION_RUNTIME_CERTIFIED", reference["status"])
+        self.assertEqual("SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION", reference["source_root_deletion_status"])
+        self.assertFalse(reference["platform_runtime_source_present"])
+        self.assertEqual("teldigi5-wq/aetheris-ai-runtime", destination["repository"])
+        self.assertEqual(EXPECTED_RUNTIME_SHA, destination["certified_sha"])
+        self.assertEqual("6_OF_6_SUCCESS", destination["canonical_ci_status"])
+        self.assertEqual(
+            "c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0",
+            destination["image_archive_sha256"],
         )
 
 

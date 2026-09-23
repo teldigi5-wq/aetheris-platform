@@ -13,12 +13,8 @@ SPEC.loader.exec_module(preflight)
 
 class FirstBootPreflightTests(unittest.TestCase):
     def setUp(self):
-        self.contract = json.loads(
-            (ROOT / "configs" / "first-boot-contract.json").read_text(encoding="utf-8")
-        )
-        self.reference = json.loads(
-            (ROOT / "architecture" / "ai-runtime-certification-reference.json").read_text(encoding="utf-8")
-        )
+        self.contract = json.loads((ROOT / "configs" / "first-boot-contract.json").read_text(encoding="utf-8"))
+        self.reference = json.loads((ROOT / "architecture" / "ai-runtime-certification-reference.json").read_text(encoding="utf-8"))
 
     def test_contract_schema_is_stage_25(self):
         self.assertEqual(self.contract["schema_version"], 1)
@@ -37,6 +33,10 @@ class FirstBootPreflightTests(unittest.TestCase):
         self.assertIn("scripts/stage22/release_gate.py", required)
         self.assertIn("scripts/stage23/contract_guard.py", required)
 
+    def test_runtime_source_roots_are_actually_absent(self):
+        for root in ("orchestrator-service", "aetheris-quant", "aetheris-reasoning", "workstation-agent"):
+            self.assertFalse((ROOT / root).exists(), root)
+
     def test_static_repository_contract_passes(self):
         checks = preflight.static_checks(self.contract)
         failures = [item for item in checks if item["status"] != "PASS"]
@@ -50,27 +50,20 @@ class FirstBootPreflightTests(unittest.TestCase):
         self.assertEqual(report["external_ai_runtime_certified_sha"], "68af39a1115a7330020c18b6e2cb601e66b8f22f")
         self.assertEqual(report["status"], "PASS")
 
-    def test_external_runtime_reference_is_exact_and_certified(self):
+    def test_external_runtime_reference_is_exact_certified_and_extracted(self):
         destination = self.reference["destination_runtime"]
         self.assertEqual(self.reference["status"], "DESTINATION_RUNTIME_CERTIFIED")
         self.assertEqual(destination["repository"], "teldigi5-wq/aetheris-ai-runtime")
         self.assertEqual(destination["certified_sha"], "68af39a1115a7330020c18b6e2cb601e66b8f22f")
         self.assertEqual(destination["canonical_ci_status"], "6_OF_6_SUCCESS")
-        self.assertEqual(
-            self.reference["source_root_deletion_status"],
-            "BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF",
-        )
+        self.assertEqual(self.reference["source_root_deletion_status"], "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION")
+        self.assertFalse(self.reference["platform_runtime_source_present"])
+        self.assertEqual(destination["image_archive_sha256"], "c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0")
 
     def test_external_compose_uses_runtime_image_not_local_build(self):
         text = (ROOT / "docker-compose.integration-external.yml").read_text(encoding="utf-8")
-        self.assertIn(
-            "image: ${AETHERIS_AI_RUNTIME_IMAGE:?AETHERIS_AI_RUNTIME_IMAGE must be an exact-revision image}",
-            text,
-        )
-        self.assertIn(
-            "AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}",
-            text,
-        )
+        self.assertIn("image: ${AETHERIS_AI_RUNTIME_IMAGE:?AETHERIS_AI_RUNTIME_IMAGE must be an exact-revision image}", text)
+        self.assertIn("AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}", text)
         self.assertNotIn("build: ./orchestrator-service", text)
         self.assertNotIn("build: ./workstation-agent", text)
         self.assertNotIn("build: ./aetheris-quant", text)

@@ -1,1 +1,0 @@
-package io.aetheris.orchestrator.trading;import java.time.Instant;import java.util.List;public record MarketDataSnapshot(String symbol,String source,Instant observedAt,List<MarketBar> bars){public MarketDataSnapshot{bars=bars==null?List.of():List.copyOf(bars);}}

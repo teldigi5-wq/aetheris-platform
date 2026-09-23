@@ -3,13 +3,20 @@
   "status": "DESTINATION_RUNTIME_CERTIFIED",
   "source_platform": {
     "repository": "teldigi5-wq/aetheris-platform",
-    "certified_pre_adaptation_sha": "16e1bbc2b357e36c2a484e0ff66bb81a329c1c99"
+    "certified_pre_adaptation_sha": "16e1bbc2b357e36c2a484e0ff66bb81a329c1c99",
+    "certified_platform_adaptation_sha": "38d9834e622a10442412767d4cd2e7f3be671e06"
   },
   "destination_runtime": {
     "repository": "teldigi5-wq/aetheris-ai-runtime",
     "branch": "main",
     "certified_sha": "68af39a1115a7330020c18b6e2cb601e66b8f22f",
-    "canonical_ci_status": "6_OF_6_SUCCESS"
+    "canonical_ci_status": "6_OF_6_SUCCESS",
+    "release_tag": "runtime-68af39a1115a7330020c18b6e2cb601e66b8f22f",
+    "image_ref": "aetheris-ai-runtime:68af39a1115a7330020c18b6e2cb601e66b8f22f",
+    "image_archive": "aetheris-ai-runtime-68af39a1115a7330020c18b6e2cb601e66b8f22f.tar.gz",
+    "image_archive_sha256": "c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0",
+    "artifact_evidence_class": "HOSTED_RUNTIME_ARTIFACT",
+    "registry_publication_claim": false
   },
   "runtime_owned_roots": [
     "orchestrator-service",
@@ -18,15 +25,18 @@
     "workstation-agent"
   ],
   "runtime_certifications": {
+    "complete_runtime_regression": ".github/workflows/runtime-migrated-certification.yml",
     "stage26_runtime_safety": ".github/workflows/runtime-stage26-safety.yml",
-    "stage28_pc_care": ".github/workflows/stage28-pc-care.yml",
-    "stage29_trading_intelligence": ".github/workflows/stage29-trading-intelligence.yml"
+    "image_provenance": ".github/workflows/ai-runtime-image-provenance.yml"
   },
   "platform_retained_certifications": {
     "stage25_readiness": ".github/workflows/stage25-readiness.yml",
-    "stage26_evidence_integrity": ".github/workflows/stage26-safety-certification.yml"
+    "stage26_evidence_integrity": ".github/workflows/stage26-safety-certification.yml",
+    "external_integration": ".github/workflows/step-d-external-integration-cutover.yml"
   },
-  "source_root_deletion_status": "BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF",
+  "source_root_deletion_status": "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
+  "platform_runtime_source_present": false,
+  "external_integration_contract": "docker-compose.integration-external.yml",
   "truth_boundaries": {
     "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
     "physical_pc_validation_complete": false,
