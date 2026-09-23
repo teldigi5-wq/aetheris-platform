@@ -113,17 +113,26 @@
     },
     {
       "id": "ci.core-verification",
-      "title": "Core backend, dashboard, compatibility, release-hardening, and workstation checks run in CI",
+      "title": "Core backend, dashboard, compatibility and release-hardening checks run independently while AI-runtime verification is pinned to the certified external runtime repository",
       "maturity": "REPOSITORY_TESTED",
       "evidence": [
         {
           "path": ".github/workflows/build.yml",
           "contains": [
-            "backend:",
+            "core-backend:",
             "dashboard:",
-            "workstation-agent:",
+            "core-source-independence:",
             "contract-freeze:",
             "release-hardening:"
+          ]
+        },
+        {
+          "path": "architecture/ai-runtime-certification-reference.json",
+          "contains": [
+            "teldigi5-wq/aetheris-ai-runtime",
+            "68af39a1115a7330020c18b6e2cb601e66b8f22f",
+            "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
+            "runtime-stage26-safety.yml"
           ]
         }
       ]

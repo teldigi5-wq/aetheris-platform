@@ -1,16 +1,16 @@
-name: Stage 26 Safety & Evidence Certification
+name: Stage 26 Platform Evidence Certification
 
 on:
   push:
     branches: [ feature/syntra-aetheris-foundation-v2 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, feature/syntra-aetheris-foundation-v2 ]
 
 permissions:
   contents: read
 
 jobs:
-  stage26-certification:
+  stage26-platform-certification:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact revision
@@ -21,56 +21,35 @@ jobs:
         with:
           python-version: '3.13.15'
 
-      - name: Compile Stage 26 verifiers
+      - name: Compile platform-owned Stage 26 verifiers
         run: |
-          python -m py_compile scripts/stage26/safety_certification.py
           python -m py_compile scripts/stage26/evidence_claim_guard.py
           python -m py_compile scripts/stage26/evidence_catalog.py
 
-      - name: Run all Stage 26 tests
-        run: python -m unittest discover -s tests -p 'test_stage26*.py' -v
+      - name: Run platform-owned Stage 26 tests
+        run: python -m unittest discover -s tests -p 'test_stage26_evidence_integrity.py' -v
 
       - name: Verify pre-PC public truth boundary
         run: python scripts/stage26/evidence_claim_guard.py --output build/stage26/evidence-integrity.json
 
-      - name: Generate evidence catalog - pass 1
+      - name: Generate platform evidence catalog - pass 1
         run: python scripts/stage26/evidence_catalog.py --output build/stage26/catalog-1.json
 
-      - name: Generate evidence catalog - pass 2
+      - name: Generate platform evidence catalog - pass 2
         run: python scripts/stage26/evidence_catalog.py --output build/stage26/catalog-2.json
 
-      - name: Compare evidence catalog bytes
+      - name: Compare platform evidence catalog bytes
         run: cmp build/stage26/catalog-1.json build/stage26/catalog-2.json
 
-      - name: Generate safety evidence - pass 1
-        run: python scripts/stage26/safety_certification.py --output-dir build/stage26/pass-1
-
-      - name: Generate safety evidence - pass 2
-        run: python scripts/stage26/safety_certification.py --output-dir build/stage26/pass-2
-
-      - name: Compare safety evidence bytes
-        run: |
-          cmp build/stage26/pass-1/safety-report.json build/stage26/pass-2/safety-report.json
-          cmp build/stage26/pass-1/manifest.sha256 build/stage26/pass-2/manifest.sha256
-
-      - name: Assert Stage 26 truth boundary
+      - name: Assert Stage 26 extracted runtime ownership and truth boundary
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
 
-          report = json.loads(Path('build/stage26/pass-1/safety-report.json').read_text())
           integrity = json.loads(Path('build/stage26/evidence-integrity.json').read_text())
           catalog = json.loads(Path('build/stage26/catalog-1.json').read_text())
-
-          assert report['certification'] == 'PASS', report
-          assert report['simulation_only'] is True, report
-          assert report['live_side_effects'] is False, report
-          assert report['external_action_attempted'] is False, report
-          assert report['physical_pc_status'] == 'NOT_TESTED', report
-          assert report['network_required'] is False, report
-          assert report['shell_execution_required'] is False, report
-          assert report['fail_count'] == 0, report
+          runtime = json.loads(Path('architecture/ai-runtime-certification-reference.json').read_text())
 
           assert integrity['status'] == 'PASS', integrity
           assert integrity['physicalPcStatus'] == 'BLOCKED_PENDING_HARDWARE', integrity
@@ -80,20 +59,27 @@ jobs:
           assert catalog['physicalEvidenceIncluded'] is False, catalog
           assert not catalog['missingSources'], catalog
 
-          print(
-              f"Stage 26 certified {report['pass_count']} safety scenarios, "
-              "pre-PC truth integrity, and deterministic repository evidence"
-          )
+          assert runtime['status'] == 'DESTINATION_RUNTIME_CERTIFIED', runtime
+          assert runtime['destination_runtime']['repository'] == 'teldigi5-wq/aetheris-ai-runtime', runtime
+          assert runtime['destination_runtime']['certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', runtime
+          assert runtime['destination_runtime']['canonical_ci_status'] == '6_OF_6_SUCCESS', runtime
+          assert runtime['runtime_certifications']['stage26_runtime_safety'] == '.github/workflows/runtime-stage26-safety.yml', runtime
+          assert runtime['source_root_deletion_status'] == 'SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION', runtime
+          assert runtime['platform_runtime_source_present'] is False, runtime
+          assert runtime['truth_boundaries']['physical_pc_status'] == 'BLOCKED_PENDING_HARDWARE', runtime
+
+          for source_dir in ('orchestrator-service', 'aetheris-quant', 'aetheris-reasoning', 'workstation-agent'):
+              assert not Path(source_dir).exists(), source_dir
+
+          print('Stage 26 platform evidence certification + extracted runtime ownership: PASS')
           PY
 
-      - name: Publish Stage 26 certification evidence
+      - name: Publish Stage 26 platform certification evidence
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          name: stage26-safety-and-evidence-certification
+          name: stage26-platform-evidence-certification
           path: |
             build/stage26/evidence-integrity.json
             build/stage26/catalog-1.json
-            build/stage26/pass-1/safety-report.json
-            build/stage26/pass-1/manifest.sha256
           if-no-files-found: error
           retention-days: 30

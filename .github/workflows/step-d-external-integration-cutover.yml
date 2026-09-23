@@ -1,0 +1,143 @@
+name: Architecture Step D Certified External Runtime Cutover Proof
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AETHERIS_JWT_SECRET: step-d-external-integration-local-ci-secret-change-me-42chars
+  AETHERIS_EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  certified-external-integration-source-absent:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact platform revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Verify exact platform revision binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
+          echo "Step D platform revision=$AETHERIS_EXPECTED_REVISION"
+
+      - name: Require runtime-owned source to be absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
+            test ! -e "$source_dir" || { echo "runtime-owned source leaked into platform: $source_dir" >&2; exit 1; }
+          done
+
+      - name: Compile external integration proof harness
+        run: python -m py_compile tools/external_integration_runtime_proof.py
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Load certified destination runtime release image
+        run: tools/load_certified_ai_runtime.sh
+
+      - name: Run full certified external-integration proof
+        run: python tools/external_integration_runtime_proof.py
+
+      - name: Verify machine-readable cutover evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(
+              Path('build-evidence/runtime/external-integration-runtime-report.json').read_text()
+          )
+          expected_platform = '${{ github.event.pull_request.head.sha || github.sha }}'
+          expected_runtime = '68af39a1115a7330020c18b6e2cb601e66b8f22f'
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['production_deployment_claim'] is False, report
+          assert report['registry_publication_claim'] is False, report
+          assert report['platform_revision'] == expected_platform, report
+          assert report['runtime_revision'] == expected_runtime, report
+          assert report['runtime_repository'] == 'teldigi5-wq/aetheris-ai-runtime', report
+          assert report['ai_source_directories_present'] == [], report
+          assert report['runtime_image']['ref'] == f'aetheris-ai-runtime:{expected_runtime}', report
+          assert report['runtime_image']['image_id'].startswith('sha256:'), report
+          assert report['runtime_image']['container_image_id'] == report['runtime_image']['image_id'], report
+          assert report['checks']['runtime.release-artifact-provenance-verified'] == 'PASS', report
+          assert report['checks']['compose.external-runtime-has-no-source-build'] == 'PASS', report
+          assert report['checks']['contract.authenticated-gateway-route'] == 'PASS', report
+          assert report['checks']['contract.gateway-response-matches-runtime'] == 'PASS', report
+          assert report['checks']['observability.ai-runtime-target-up'] == 'PASS', report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(
+              f"verified {len(report['checks'])} source-absent platform checks "
+              f"against certified runtime {expected_runtime}"
+          )
+          PY
+
+      - name: Capture external-integration snapshot
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose \
+            -f docker-compose.integration-external.yml \
+            --profile observability \
+            ps --all \
+            > build-evidence/runtime/external-integration-compose-ps.txt || true
+          docker compose \
+            -f docker-compose.integration-external.yml \
+            --profile observability \
+            images \
+            > build-evidence/runtime/external-integration-compose-images.txt || true
+          docker stats --no-stream \
+            --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' \
+            > build-evidence/runtime/external-integration-docker-stats.txt || true
+
+      - name: Capture failure logs
+        if: failure()
+        run: |
+          docker compose \
+            -f docker-compose.integration-external.yml \
+            --profile observability \
+            logs --no-color --tail=300 \
+            gateway identity-service user-service audit-service orchestrator-service \
+            prometheus otel-collector tempo loki alloy grafana \
+            postgres redis rabbitmq \
+            > build-evidence/runtime/external-integration-failure.log 2>&1 || true
+
+      - name: Publish hosted cutover evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: step-d-certified-external-runtime-cutover-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down external integration
+        if: always()
+        run: |
+          docker compose \
+            -f docker-compose.integration-external.yml \
+            --profile observability \
+            down -v --remove-orphans || true

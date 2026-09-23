@@ -1,0 +1,121 @@
+name: Connector Integration Layer Phase 2 Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
+      - 'tools/connector_adapter_runtime_smoke.py'
+      - 'build-evidence/runtime/connector-integration-phase2-contract.json'
+      - '.github/workflows/connector-adapter-runtime-proof.yml'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
+      - 'tools/connector_adapter_runtime_smoke.py'
+      - 'build-evidence/runtime/connector-integration-phase2-contract.json'
+      - '.github/workflows/connector-adapter-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-adapter-phase2-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connector-adapter-runtime-proof:
+    name: connector-adapter-runtime-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Load certified external AI runtime
+        shell: bash
+        run: |
+          ./tools/load_certified_ai_runtime.sh
+          echo "COMPOSE_FILE=docker-compose.integration-external.yml" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Create ephemeral hosted proof keys
+        shell: bash
+        run: |
+          echo "AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Compile adapter proof harness
+        run: python -m py_compile tools/connector_adapter_runtime_smoke.py
+
+      - name: Validate adapter proof contract
+        run: python -m json.tool build-evidence/runtime/connector-integration-phase2-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Start real orchestrator service with ephemeral secret injection
+        run: |
+          docker compose up -d --build orchestrator-service
+          docker compose ps
+
+      - name: Run verified adapter proof
+        run: |
+          python tools/connector_adapter_runtime_smoke.py \
+            --contract build-evidence/runtime/connector-integration-phase2-contract.json \
+            --output build-evidence/runtime/connector-integration-phase2-report.json
+
+      - name: Verify adapter proof report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/connector-integration-phase2-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['capability'] == 'connector-integration-layer-phase2', report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(f"verified {len(report['checks'])} signed connector-adapter runtime checks")
+          PY
+
+      - name: Capture sanitized adapter state
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/connector-adapter-compose-ps.txt || true
+          if [ "${{ job.status }}" != "success" ]; then
+            docker compose logs --no-color --tail=220 orchestrator-service \
+              > build-evidence/runtime/connector-adapter-failure.log 2>&1 || true
+          fi
+
+      - name: Publish hosted adapter evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: connector-integration-layer-phase2-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans

@@ -1,0 +1,134 @@
+name: aetheris-core-only
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aetheris
+      POSTGRES_USER: aetheris
+      POSTGRES_PASSWORD: aetheris
+    ports:
+      - "5432:5432"
+    volumes:
+      - aetheris_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aetheris -d aetheris"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - aetheris_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: aetheris
+      RABBITMQ_DEFAULT_PASS: aetheris
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - aetheris_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  user-service:
+    build: ./user-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: aetheris
+      SPRING_RABBITMQ_PASSWORD: aetheris
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+
+  identity-service:
+    build: ./identity-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+
+  audit-service:
+    build: ./audit-service
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: aetheris
+      SPRING_RABBITMQ_PASSWORD: aetheris
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+
+  gateway:
+    build: ./gateway
+    environment:
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-runtime:8090}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+      identity-service:
+        condition: service_started
+      audit-service:
+        condition: service_started
+    ports:
+      - "8080:8080"
+
+  dashboard:
+    build: ./dashboard
+    depends_on:
+      - gateway
+    ports:
+      - "3000:80"
+
+networks:
+  default:
+    name: aetheris-core-boundary
+
+volumes:
+  aetheris_pg:
+  aetheris_redis:
+  aetheris_rabbitmq:

@@ -8,6 +8,6 @@
     <module>gateway</module>
     <module>user-service</module>
     <module>identity-service</module>
-    <module>orchestrator-service</module>
+    <module>audit-service</module>
   </modules>
 </project>

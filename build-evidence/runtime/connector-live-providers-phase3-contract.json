@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "capability": "connector-live-providers-phase3",
+  "evidence_class": "HOSTED_RUNTIME",
+  "checks": [
+    {"id":"service.orchestrator.health"},
+    {"id":"oauth.github-authorization-created"},
+    {"id":"oauth.google-gmail-authorization-created"},
+    {"id":"oauth.google-calendar-readonly-scope"},
+    {"id":"oauth.pkce-s256-present"},
+    {"id":"oauth.readonly-scopes-only"},
+    {"id":"oauth.invalid-state-rejected"},
+    {"id":"oauth.authorization-code-exchange-completes"},
+    {"id":"oauth.state-single-use"},
+    {"id":"oauth.token-material-not-exposed"},
+    {"id":"oauth.credential-reference-lifecycle"},
+    {"id":"oauth.readonly-provider-health-pass"},
+    {"id":"oauth.refresh-rotates-runtime-token"},
+    {"id":"oauth.gmail-identity-health-pass"},
+    {"id":"oauth.disconnect-revokes-local-credential"},
+    {"id":"oauth.revoked-health-blocked"},
+    {"id":"oauth.no-outbound-provider-mutation"},
+    {"id":"oauth.truth-boundary"}
+  ]
+}

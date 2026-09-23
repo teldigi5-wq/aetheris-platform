@@ -1,0 +1,124 @@
+name: Connector Live Account Phase 5 Safety Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'tools/connector_live_account_validation.py'
+      - 'tools/connector_live_account_validation_stub.py'
+      - 'build-evidence/runtime/connector-live-account-validation-phase5-contract.json'
+      - '.github/workflows/connector-live-account-phase5-proof.yml'
+      - '.github/workflows/connector-live-account-phase5-manual.yml'
+      - 'docs/connector-live-account-validation-phase5.md'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'tools/connector_live_account_validation.py'
+      - 'tools/connector_live_account_validation_stub.py'
+      - 'build-evidence/runtime/connector-live-account-validation-phase5-contract.json'
+      - '.github/workflows/connector-live-account-phase5-proof.yml'
+      - '.github/workflows/connector-live-account-phase5-manual.yml'
+      - 'docs/connector-live-account-validation-phase5.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: connector-live-account-phase5-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  connector-live-account-phase5-safety-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile Phase 5 harnesses
+        run: |
+          python -m py_compile tools/connector_live_account_validation.py
+          python -m py_compile tools/connector_live_account_validation_stub.py
+
+      - name: Validate Phase 5 evidence contract
+        run: python -m json.tool build-evidence/runtime/connector-live-account-validation-phase5-contract.json >/dev/null
+
+      - name: Start synthetic GET-only provider
+        shell: bash
+        run: |
+          python tools/connector_live_account_validation_stub.py > /tmp/aetheris-phase5-stub.log 2>&1 &
+          echo $! > /tmp/aetheris-phase5-stub.pid
+          for i in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:19110/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/aetheris-phase5-stub.log
+          exit 1
+
+      - name: Run sanitized read-only validation proof
+        env:
+          AETHERIS_LIVE_GITHUB_ACCESS_TOKEN: phase5-ci-github-token-do-not-persist
+          AETHERIS_LIVE_GMAIL_ACCESS_TOKEN: phase5-ci-gmail-token-do-not-persist
+          AETHERIS_LIVE_CALENDAR_ACCESS_TOKEN: phase5-ci-calendar-token-do-not-persist
+        run: |
+          python tools/connector_live_account_validation.py \
+            --mode synthetic \
+            --github-base-url http://127.0.0.1:19110 \
+            --gmail-base-url http://127.0.0.1:19110 \
+            --calendar-base-url http://127.0.0.1:19110 \
+            --contract build-evidence/runtime/connector-live-account-validation-phase5-contract.json \
+            --output build-evidence/runtime/connector-live-account-validation-phase5-report.json
+
+      - name: Verify sanitized report and zero mutations
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/connector-live-account-validation-phase5-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['mode'] == 'synthetic', report
+          assert report['stores_provider_response_bodies'] is False, report
+          assert report['stores_account_identifiers'] is False, report
+          assert report['stores_token_material'] is False, report
+          assert report['provider_mutations_enabled'] is False, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          text = json.dumps(report)
+          for marker in ('phase5-ci-github-token-do-not-persist', 'phase5-ci-gmail-token-do-not-persist', 'phase5-ci-calendar-token-do-not-persist'):
+              assert marker not in text
+          print(f"verified {len(report['checks'])} Phase 5 safety checks")
+          PY
+          mutations=$(curl --fail --silent http://127.0.0.1:19110/metrics | python -c 'import json,sys; print(json.load(sys.stdin)["mutation_count"])')
+          test "$mutations" = "0"
+
+      - name: Publish sanitized Phase 5 evidence
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: connector-live-account-phase5-safety-proof
+          path: build-evidence/runtime/connector-live-account-validation-phase5-report.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Stop synthetic provider
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/aetheris-phase5-stub.pid ]; then
+            kill "$(cat /tmp/aetheris-phase5-stub.pid)" 2>/dev/null || true
+          fi

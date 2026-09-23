@@ -1,0 +1,47 @@
+{
+  "capability": "connector-live-account-validation-phase5",
+  "evidence_class": "HOSTED_RUNTIME",
+  "truth_boundary": {
+    "ci_provider": "local synthetic GET-only provider over real HTTP",
+    "manual_live_lane": "GitHub, Gmail, and Google Calendar production APIs using repository-scoped Actions secrets",
+    "proves_in_ci": [
+      "Phase 5 validator can execute GitHub/Gmail/Calendar read-only API shapes",
+      "provider hosts are allowlisted",
+      "the validator uses GET-only requests",
+      "provider response bodies and account identifiers are not persisted in evidence",
+      "credential material is not persisted in evidence",
+      "provider mutation paths are disabled"
+    ],
+    "manual_live_lane_can_prove_when_credentials_are_supplied": [
+      "real GitHub account identity and public repository read access",
+      "real Gmail message-list read access",
+      "real Google Calendar event-list read access",
+      "sanitized live-provider read-only evidence"
+    ],
+    "does_not_prove_in_ci": [
+      "real production GitHub account data",
+      "real Gmail mailbox data",
+      "real Google Calendar data",
+      "provider write permissions",
+      "outbound email sends",
+      "calendar writes",
+      "GitHub mutations",
+      "production provider SLA behavior",
+      "physical-PC validation"
+    ]
+  },
+  "expected_checks": [
+    "live.github.identity-read",
+    "live.github.repository-read",
+    "live.gmail.message-list-read",
+    "live.calendar.event-list-read",
+    "live.get-only-policy",
+    "live.response-body-not-persisted",
+    "live.token-material-not-persisted",
+    "live.provider-host-allowlist",
+    "live.no-provider-mutations",
+    "live.truth-boundary"
+  ],
+  "physical_pc_validation": false,
+  "physical_pc_status": "BLOCKED_PENDING_HARDWARE"
+}

@@ -1,1 +1,0 @@
-package io.aetheris.orchestrator.voice;import java.util.UUID;public record VoiceTurnMetricRequest(UUID sessionId,long vadStartMs,long speechEndMs,long firstPartialMs,long finalTranscriptMs,long ttsStartMs,long bargeInMs,long ttsStoppedMs){}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "name": "observability-runtime-proof",
+  "evidence_class": "HOSTED_OBSERVABILITY",
+  "environment": "github-hosted-ubuntu-docker-compose-observability-profile",
+  "physical_pc_validation": false,
+  "truth_boundary": "This contract verifies selected observability wiring in a GitHub-hosted Docker Compose environment. It is not production readiness, external-user validation, or physical-PC validation.",
+  "checks": [
+    {"id": "prometheus.ready", "claim": "Prometheus reports ready."},
+    {"id": "loki.ready", "claim": "Loki reports ready."},
+    {"id": "tempo.ready", "claim": "Tempo reports ready."},
+    {"id": "grafana.ready", "claim": "Grafana health endpoint responds."},
+    {"id": "otel-collector.running", "claim": "OpenTelemetry Collector is running in the observability Compose profile."},
+    {"id": "alloy.running", "claim": "Grafana Alloy is running and available to collect Docker logs."},
+    {"id": "prometheus.core-targets-up", "claim": "Prometheus reports all five configured Aetheris core scrape jobs healthy."},
+    {"id": "traffic.generated", "claim": "Representative authenticated and health-check traffic is generated for telemetry verification."},
+    {"id": "prometheus.http-metrics-query", "claim": "Prometheus returns a positive HTTP server request counter from the running services."},
+    {"id": "tempo.received-spans", "claim": "Tempo reports receiving spans through the configured OTLP path."},
+    {"id": "loki.received-container-logs", "claim": "Loki exposes service-labeled container logs collected by Alloy."},
+    {"id": "grafana.datasources-provisioned", "claim": "Grafana exposes provisioned Prometheus, Loki, and Tempo datasources."},
+    {"id": "grafana.dashboard-provisioned", "claim": "Grafana exposes at least one provisioned dashboard."}
+  ]
+}

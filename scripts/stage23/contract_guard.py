@@ -8,10 +8,12 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+EXPECTED_RUNTIME_SHA = "68af39a1115a7330020c18b6e2cb601e66b8f22f"
+EXPECTED_RUNTIME_ARCHIVE_SHA256 = "c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0"
 
 
-def fail(msg: str, errors: list[str]) -> None:
-    errors.append(msg)
+def fail(message: str, errors: list[str]) -> None:
+    errors.append(message)
 
 
 def main() -> int:
@@ -23,37 +25,33 @@ def main() -> int:
 
     baseline = json.loads((ROOT / args.baseline).read_text(encoding="utf-8"))
     errors: list[str] = []
-    warnings: list[str] = []
+
+    if baseline.get("schemaVersion") != 2:
+        fail("Stage 23 baseline schema must be 2 after runtime extraction", errors)
+    if baseline.get("ownershipModel") != "CORE_PLATFORM_PLUS_CERTIFIED_EXTERNAL_AI_RUNTIME":
+        fail("Stage 23 ownership model drifted", errors)
 
     endpoints = baseline.get("httpEndpoints", [])
     tables = baseline.get("jpaTables", [])
-    agents = baseline.get("agentIds", [])
     jobs = set(baseline.get("workflowJobs", []))
     pages = set(baseline.get("stagePages", []))
     boundaries = baseline.get("hardBoundaries", {})
+    external = baseline.get("externalRuntimeBoundary", {})
 
-    if len(endpoints) < 20:
-        fail("HTTP endpoint inventory unexpectedly small", errors)
-    if len(tables) < 10:
-        fail("JPA table inventory unexpectedly small", errors)
-    if len(agents) < 20:
-        fail("Agent catalog unexpectedly small", errors)
+    if len(endpoints) < 8:
+        fail("core HTTP endpoint inventory unexpectedly small", errors)
+    if len(tables) < 3:
+        fail("core JPA table inventory unexpectedly small", errors)
 
-    route_pairs = [(x.get("method"), x.get("path")) for x in endpoints]
-    duplicates = sorted(k for k, n in Counter(route_pairs).items() if n > 1)
+    route_pairs = [(item.get("method"), item.get("path")) for item in endpoints]
+    duplicates = sorted(key for key, count in Counter(route_pairs).items() if count > 1)
     if duplicates:
-        fail(f"Duplicate HTTP method/path mappings detected: {duplicates[:10]}", errors)
+        fail(f"Duplicate core HTTP method/path mappings detected: {duplicates[:10]}", errors)
 
-    table_names = [x.get("name") for x in tables]
-    duplicate_tables = sorted(k for k, n in Counter(table_names).items() if n > 1)
+    table_names = [item.get("name") for item in tables]
+    duplicate_tables = sorted(key for key, count in Counter(table_names).items() if count > 1)
     if duplicate_tables:
-        fail(f"Duplicate explicit JPA table names detected: {duplicate_tables[:10]}", errors)
-
-    required_stage_prefixes = [f"/api/orchestrator/stage{n}" for n in range(18, 22)]
-    paths = [x.get("path", "") for x in endpoints]
-    for prefix in required_stage_prefixes:
-        if not any(p.startswith(prefix) for p in paths):
-            fail(f"Required API contract missing: {prefix}", errors)
+        fail(f"Duplicate explicit core JPA table names detected: {duplicate_tables[:10]}", errors)
 
     forbidden_api_fragments = ("/withdraw", "/transfer", "/live-order", "/live/orders")
     for item in endpoints:
@@ -61,10 +59,10 @@ def main() -> int:
         if any(fragment in path for fragment in forbidden_api_fragments):
             fail(f"Forbidden financial authority route detected: {item.get('method')} {item.get('path')}", errors)
 
-    required_jobs = {"backend", "dashboard", "workstation-agent", "release-hardening", "contract-freeze"}
+    required_jobs = {"core-backend", "dashboard", "core-source-independence", "release-hardening", "contract-freeze"}
     missing_jobs = sorted(required_jobs - jobs)
     if missing_jobs:
-        fail(f"Required CI jobs missing: {missing_jobs}", errors)
+        fail(f"Required platform CI jobs missing: {missing_jobs}", errors)
 
     for page in ("stage21.html", "stage22.html", "stage23.html"):
         if page not in pages:
@@ -82,39 +80,60 @@ def main() -> int:
     if boundaries != expected_boundaries:
         fail("Stage 23 hard-boundary payload drifted", errors)
 
-    env_example = (ROOT / "aetheris-quant" / ".env.example").read_text(encoding="utf-8")
-    if not re.search(r"(?m)^ENABLE_TESTNET_EXECUTION=false\s*$", env_example):
-        fail("aetheris-quant testnet execution default is no longer false", errors)
+    expected_external = {
+        "status": "DESTINATION_RUNTIME_CERTIFIED",
+        "repository": "teldigi5-wq/aetheris-ai-runtime",
+        "revision": EXPECTED_RUNTIME_SHA,
+        "canonicalCiStatus": "6_OF_6_SUCCESS",
+        "releaseTag": f"runtime-{EXPECTED_RUNTIME_SHA}",
+        "imageRef": f"aetheris-ai-runtime:{EXPECTED_RUNTIME_SHA}",
+        "imageArchiveSha256": EXPECTED_RUNTIME_ARCHIVE_SHA256,
+        "sourceRootDeletionStatus": "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
+        "platformRuntimeSourcePresent": False,
+    }
+    for key, expected_value in expected_external.items():
+        if external.get(key) != expected_value:
+            fail(f"Certified external-runtime boundary drifted for {key}: {external.get(key)!r}", errors)
 
-    stage22 = (ROOT / "scripts" / "stage22" / "merge_readiness.py").read_text(encoding="utf-8")
-    if '"mergeAllowed": False' not in stage22 or '"autoMergeAllowed": False' not in stage22:
-        fail("Stage 22 merge authority boundary changed", errors)
+    gateway = external.get("gateway", {})
+    if gateway.get("pathPattern") != "/api/orchestrator/**":
+        fail("external runtime gateway path contract drifted", errors)
+    if gateway.get("upstreamEnvironment") != "AETHERIS_ORCHESTRATOR_URI":
+        fail("external runtime upstream environment contract drifted", errors)
+    if gateway.get("defaultUpstream") != "http://orchestrator-service:8090":
+        fail("external runtime default network identity drifted", errors)
+    if gateway.get("fallbackPath") != "/fallback/orchestrator":
+        fail("external runtime fallback contract drifted", errors)
 
-    stage21_dir = ROOT / "orchestrator-service" / "src" / "main" / "java" / "io" / "aetheris" / "orchestrator" / "stage21"
-    stage21_text = "\n".join(p.read_text(encoding="utf-8") for p in sorted(stage21_dir.glob("*.java")))
-    for token in ("physicalPilotComplete", "ownerPilotActivationAllowed", "productionActivationAllowed"):
-        if token not in stage21_text:
-            fail(f"Stage 21 hardware boundary token missing: {token}", errors)
+    migration = external.get("migration", {})
+    if migration.get("sourceExtractionComplete") is not True:
+        fail("runtime source extraction completion boundary regressed", errors)
+    if migration.get("externalRuntimeEndpointSupported") is not True:
+        fail("external runtime endpoint support regressed", errors)
+    if migration.get("externalRuntimeArtifactRequiredForSourceAbsentIntegration") is not True:
+        fail("certified runtime artifact requirement regressed", errors)
+    if migration.get("localComposeDefaultPreserved") is not False:
+        fail("contract incorrectly claims local runtime source remains the default", errors)
+
+    for root in ("orchestrator-service", "aetheris-quant", "aetheris-reasoning", "workstation-agent"):
+        if (ROOT / root).exists():
+            fail(f"runtime-owned source unexpectedly present in platform: {root}", errors)
 
     expected_path = ROOT / args.expected
     expected = expected_path.read_text(encoding="utf-8").strip() if expected_path.exists() else ""
-    pinned = bool(re.fullmatch(r"[0-9a-f]{64}", expected))
-    if pinned:
-        if baseline.get("contractSha256") != expected:
-            fail(
-                f"Contract hash drift: expected {expected}, observed {baseline.get('contractSha256')}",
-                errors,
-            )
-    else:
-        warnings.append("Contract hash is not pinned yet; Stage 23 is in bootstrap mode")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected):
+        fail("Stage 23 contract hash must be a pinned lowercase SHA-256", errors)
+    elif baseline.get("contractSha256") != expected:
+        fail(f"Contract hash drift: expected {expected}, observed {baseline.get('contractSha256')}", errors)
 
     result = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "status": "PASS" if not errors else "FAIL",
         "contractSha256": baseline.get("contractSha256"),
-        "baselinePinned": pinned,
+        "baselinePinned": bool(re.fullmatch(r"[0-9a-f]{64}", expected)),
+        "externalRuntimeRevision": external.get("revision"),
+        "runtimeSourcePresent": any((ROOT / root).exists() for root in ("orchestrator-service", "aetheris-quant", "aetheris-reasoning", "workstation-agent")),
         "errors": errors,
-        "warnings": warnings,
         "productionActivationAllowed": False,
         "liveMoneyOrdersAllowed": False,
         "physicalStage21BlockedPendingHardware": True,

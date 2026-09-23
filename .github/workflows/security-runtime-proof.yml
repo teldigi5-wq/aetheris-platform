@@ -1,0 +1,145 @@
+name: Security Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
+      - 'tools/security_runtime_smoke.py'
+      - 'build-evidence/runtime/security-runtime-contract.json'
+      - '.github/workflows/security-runtime-proof.yml'
+  push:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
+      - 'tools/security_runtime_smoke.py'
+      - 'build-evidence/runtime/security-runtime-contract.json'
+      - '.github/workflows/security-runtime-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-runtime-proof-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-runtime-proof:
+    name: security-runtime-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      AETHERIS_JWT_SECRET: security-proof-local-ci-secret-change-me-42chars
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Load certified external AI runtime
+        shell: bash
+        run: |
+          ./tools/load_certified_ai_runtime.sh
+          echo "COMPOSE_FILE=docker-compose.integration-external.yml" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+
+      - name: Compile security proof harness
+        run: python -m py_compile tools/security_runtime_smoke.py
+
+      - name: Validate security proof contract JSON
+        run: python -m json.tool build-evidence/runtime/security-runtime-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Start security proof stack
+        run: |
+          docker compose up -d --build \
+            postgres redis rabbitmq \
+            user-service identity-service audit-service orchestrator-service gateway
+          docker compose ps
+
+      - name: Wait for user-service readiness
+        run: |
+          for attempt in {1..90}; do
+            if curl --fail --silent http://127.0.0.1:8081/actuator/health | grep -q '"status":"UP"'; then
+              echo "user-service is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "user-service did not become ready"
+          docker compose logs --no-color --tail=120 user-service
+          exit 1
+
+      - name: Run security runtime proof
+        run: |
+          python tools/security_runtime_smoke.py \
+            --contract build-evidence/runtime/security-runtime-contract.json \
+            --output build-evidence/runtime/security-runtime-report.json
+
+      - name: Verify security report passed
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path('build-evidence/runtime/security-runtime-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['capability'] == 'security', report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          print(f"verified {len(report['checks'])} hosted security runtime checks")
+          PY
+
+      - name: Capture sanitized security state
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/security-compose-ps.txt || true
+          docker compose exec -T postgres psql -U aetheris -d aetheris -tA -c \
+            "select email || '|' || role || '|bcrypt=' || (password_hash like '\$2%') from identity_accounts where email like 'security-proof-%@aetheris.local' order by id;" \
+            > build-evidence/runtime/security-account-state.txt 2>/dev/null || true
+          docker compose exec -T postgres psql -U aetheris -d aetheris -tA -c \
+            "select 'refresh_rows=' || count(*) || '|sha256_shape=' || bool_and(token_hash ~ '^[0-9a-f]{64}$') || '|revoked_rows=' || count(*) filter (where revoked) from identity_refresh_tokens;" \
+            > build-evidence/runtime/security-token-state.txt 2>/dev/null || true
+          if [ "${{ job.status }}" != "success" ]; then
+            docker compose logs --no-color --tail=160 \
+              postgres user-service identity-service gateway \
+              > build-evidence/runtime/security-failure.log 2>&1 || true
+          fi
+
+      - name: Publish hosted security evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: security-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v --remove-orphans

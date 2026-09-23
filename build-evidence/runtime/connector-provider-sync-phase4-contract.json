@@ -1,0 +1,51 @@
+{
+  "capability": "connector-provider-sync-phase4",
+  "evidence_class": "HOSTED_RUNTIME",
+  "truth_boundary": {
+    "provider": "local synthetic OAuth/read provider over real HTTP",
+    "runtime": "real Dockerized orchestrator-service and PostgreSQL",
+    "proves": [
+      "read-only GitHub repository activity retrieval using Phase 3 credential references",
+      "read-only Gmail message metadata retrieval using Phase 3 credential references",
+      "read-only Google Calendar event retrieval using Phase 3 credential references",
+      "normalization into Aetheris connector signals",
+      "existing connector receipt deduplication across repeated syncs",
+      "Proactive Executive Agent ingestion and dispositions",
+      "no provider-side mutations during synchronization"
+    ],
+    "does_not_prove": [
+      "live production GitHub OAuth App data",
+      "live Gmail mailbox data",
+      "live Google Calendar data",
+      "provider push/webhook delivery",
+      "outbound email sends",
+      "calendar writes",
+      "GitHub mutations",
+      "production secret-manager durability",
+      "provider SLA behavior",
+      "physical-PC validation"
+    ]
+  },
+  "expected_checks": [
+    "service.orchestrator.health",
+    "sync.github.connection-ready",
+    "sync.gmail.connection-ready",
+    "sync.calendar.connection-ready",
+    "sync.github.reads-provider-data",
+    "sync.gmail.reads-provider-data",
+    "sync.calendar.reads-provider-data",
+    "sync.github.normalized-to-code-update",
+    "sync.gmail.normalized-to-email",
+    "sync.calendar.normalized-to-calendar-event",
+    "sync.executive-agent-receives-provider-signals",
+    "sync.first-pass-ingests-all-items",
+    "sync.second-pass-deduplicates-all-items",
+    "sync.receipts-persisted",
+    "sync.no-provider-mutations",
+    "sync.no-token-material-exposed",
+    "sync.unsupported-provider-fails-closed",
+    "sync.truth-boundary"
+  ],
+  "physical_pc_validation": false,
+  "physical_pc_status": "BLOCKED_PENDING_HARDWARE"
+}

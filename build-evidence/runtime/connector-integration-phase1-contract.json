@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "capability": "connector-integration-layer-phase1",
+  "evidence_class": "HOSTED_RUNTIME",
+  "checks": [
+    {"id": "service.orchestrator.health", "claim": "The real orchestrator service becomes healthy before connector proof begins."},
+    {"id": "connector.connection-registers", "claim": "A provider-neutral connector connection can be registered without credential material."},
+    {"id": "connector.connection-enables", "claim": "A registered connector can be explicitly enabled for internal event ingestion."},
+    {"id": "connector.verified-low-risk-auto-handled", "claim": "A verified trusted low-risk message is normalized and routed to the executive agent as trusted."},
+    {"id": "connector.source-normalized", "claim": "Inbound source identity is derived from the registered provider/account rather than caller-supplied free text."},
+    {"id": "connector.unverified-delivery-trust-downgraded", "claim": "An unverified provider delivery cannot retain trusted-low-risk execution state."},
+    {"id": "connector.duplicate-idempotent", "claim": "Replaying the same provider event returns the original receipt and executive run rather than executing twice."},
+    {"id": "connector.billing-approval-gated", "claim": "A connector-originated billing signal remains paused behind explicit owner approval."},
+    {"id": "connector.approval-visible", "claim": "The billing approval created from connector ingestion is visible on the normal pending-approval surface."},
+    {"id": "connector.duplicate-no-second-receipt", "claim": "Duplicate provider delivery does not create a second persisted receipt."},
+    {"id": "connector.receipts-persisted", "claim": "Unique connector ingestion receipts are persisted for traceability."},
+    {"id": "connector.no-secret-material", "claim": "The Phase 1 registry surface contains no passwords, OAuth tokens, API secrets or credential payloads."},
+    {"id": "connector.no-outbound-send", "claim": "Phase 1 preserves the no-external-send boundary and exposes no SEND_MESSAGES capability."},
+    {"id": "connector.executive-routing-persisted", "claim": "Unique connector events route into persisted executive-agent runs."},
+    {"id": "connector.truth-boundary", "claim": "Evidence remains scoped to hosted synthetic provider deliveries and does not claim live provider authentication or external execution."}
+  ],
+  "truth_boundary": {
+    "live_oauth_provider_authentication": false,
+    "cryptographic_webhook_verification": false,
+    "external_message_sending": false,
+    "calendar_mutation": false,
+    "telephony": false,
+    "production_provider_connectivity": false,
+    "physical_pc_validation": false
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "evidence_class": "HOSTED_RUNTIME",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "production_deployment_claim": false,
+  "checks": [
+    {"id": "release.revision-bound"},
+    {"id": "release.compose-checksum-recorded"},
+    {"id": "release.service-image-identities-recorded"},
+    {"id": "release.manifest-created"},
+    {"id": "release.manifest-checksum-verifies"},
+    {"id": "deployment.gateway-health"},
+    {"id": "deployment.identity-health"},
+    {"id": "deployment.user-health"},
+    {"id": "deployment.authenticated-read"},
+    {"id": "failure.controlled-gateway-outage-detected"},
+    {"id": "failure.protected-read-unavailable"},
+    {"id": "rollback.gateway-restored"},
+    {"id": "rollback.verified-image-restored"},
+    {"id": "rollback.protected-read-recovers"},
+    {"id": "rollback.state-preserved"},
+    {"id": "evidence.machine-readable"},
+    {"id": "truth-boundary.hosted-runtime"}
+  ],
+  "services": [
+    "gateway",
+    "identity-service",
+    "user-service",
+    "audit-service",
+    "orchestrator-service"
+  ],
+  "truth_boundary": "This proof validates release identity, Docker Compose startup, a controlled gateway outage, same-image recovery, and state preservation on a GitHub-hosted runner. It is not a production cloud deployment, blue/green or canary certification, provider-specific rollback proof, SLA/RTO claim, target-PC benchmark, or physical-PC validation."
+}

@@ -1,0 +1,243 @@
+name: Deployment & Release Runtime Proof
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AETHERIS_JWT_SECRET: deployment-release-proof-local-ci-secret-change-me-42chars
+  AETHERIS_EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  deployment-release-runtime-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile release proof harness
+        run: python -m py_compile tools/deployment_release_runtime_smoke.py
+
+      - name: Validate release proof contract
+        run: python -m json.tool build-evidence/runtime/deployment-release-runtime-contract.json >/dev/null
+
+      - name: Verify exact revision binding
+        run: |
+          test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
+          echo "release proof revision=$AETHERIS_EXPECTED_REVISION"
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Load certified destination runtime release image
+        run: tools/load_certified_ai_runtime.sh
+
+      - name: Build exact-revision platform release images
+        run: |
+          docker compose build \
+            user-service identity-service audit-service gateway
+          docker compose images
+
+      - name: Start exact-revision release candidate
+        run: |
+          docker compose up -d \
+            postgres redis rabbitmq \
+            user-service identity-service audit-service orchestrator-service gateway
+          docker compose ps
+
+      - name: Run deployment and rollback proof
+        run: |
+          python tools/deployment_release_runtime_smoke.py \
+            --contract build-evidence/runtime/deployment-release-runtime-contract.json \
+            --manifest build-evidence/runtime/deployment-release-manifest.json \
+            --output build-evidence/runtime/deployment-release-runtime-report.json
+
+      - name: Verify machine-readable release evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('build-evidence/runtime/deployment-release-runtime-report.json').read_text())
+          manifest = json.loads(Path('build-evidence/runtime/deployment-release-manifest.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['production_deployment_claim'] is False, report
+          assert report['revision'] == manifest['revision'], (report, manifest)
+          assert len(report['checks']) == 17, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          assert report['baseline']['gateway_image_id'] == report['final_state']['gateway_image_id'], report
+          assert report['baseline']['user_count'] == report['final_state']['user_count'], report
+          assert report['final_state']['proof_profile_present'] is True, report
+          assert len(report['release_manifest_sha256']) == 64, report
+          assert set(manifest['service_image_ids']) == {
+              'gateway', 'identity-service', 'user-service', 'audit-service', 'orchestrator-service'
+          }, manifest
+          runtime = manifest['external_runtime']
+          assert runtime['repository'] == 'teldigi5-wq/aetheris-ai-runtime', runtime
+          assert runtime['revision'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', runtime
+          assert runtime['image_ref'] == 'aetheris-ai-runtime:68af39a1115a7330020c18b6e2cb601e66b8f22f', runtime
+          assert runtime['image_archive_sha256'] == 'c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0', runtime
+          print('verified 17 hosted deployment/release checks with certified external runtime and same-image rollback')
+          PY
+
+      - name: Capture release runtime snapshot
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose ps --all > build-evidence/runtime/deployment-release-compose-ps.txt || true
+          docker compose images > build-evidence/runtime/deployment-release-compose-images.txt || true
+          docker stats --no-stream \
+            --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' \
+            > build-evidence/runtime/deployment-release-docker-stats.txt || true
+
+      - name: Capture failure logs
+        if: failure()
+        run: |
+          docker compose logs --no-color --tail=300 \
+            gateway identity-service user-service audit-service orchestrator-service \
+            postgres redis rabbitmq \
+            > build-evidence/runtime/deployment-release-failure.log 2>&1 || true
+
+      - name: Publish hosted release evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: deployment-release-runtime-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down release candidate
+        if: always()
+        run: docker compose down -v --remove-orphans
+
+  core-external-runtime-boundary-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      AETHERIS_CORE_NETWORK: aetheris-core-boundary
+      AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER: orchestrator-runtime
+      AETHERIS_ORCHESTRATOR_URI: http://orchestrator-runtime:8090
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile deployment boundary proof harness
+        run: python -m py_compile tools/core_deployment_boundary_smoke.py
+
+      - name: Verify exact revision binding
+        run: |
+          test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
+          echo "core deployment boundary revision=$AETHERIS_EXPECTED_REVISION"
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Load certified destination runtime release image
+        run: tools/load_certified_ai_runtime.sh
+
+      - name: Bind certified runtime image to core boundary proof
+        run: |
+          set -euo pipefail
+          test "$AETHERIS_AI_RUNTIME_REVISION" = "68af39a1115a7330020c18b6e2cb601e66b8f22f"
+          echo "AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE=$AETHERIS_AI_RUNTIME_IMAGE" >> "$GITHUB_ENV"
+          docker image inspect "$AETHERIS_AI_RUNTIME_IMAGE" --format 'certified external runtime image={{.Id}}'
+
+      - name: Require AI runtime source to be absent
+        run: |
+          set -euo pipefail
+          for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
+            test ! -e "$source_dir" || { echo "runtime source leaked into platform workspace: $source_dir" >&2; exit 1; }
+          done
+
+      - name: Run core-only deployment boundary proof
+        run: python tools/core_deployment_boundary_smoke.py
+
+      - name: Verify machine-readable boundary evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('build-evidence/runtime/core-deployment-boundary-report.json').read_text())
+          assert report['status'] == 'PASS', report
+          assert report['evidence_class'] == 'HOSTED_RUNTIME', report
+          assert report['physical_pc_validation'] is False, report
+          assert report['production_deployment_claim'] is False, report
+          assert report['orchestrator_source_present_during_core_boot'] is False, report
+          assert report['revision'] == '${{ github.event.pull_request.head.sha || github.sha }}', report
+          assert 'orchestrator-service' not in report['core_services'], report
+          assert len(report['checks']) == 15, report
+          assert all(value == 'PASS' for value in report['checks'].values()), report
+          assert report['external_orchestrator']['image_ref'] == 'aetheris-ai-runtime:68af39a1115a7330020c18b6e2cb601e66b8f22f', report
+          assert report['external_orchestrator']['image_id'].startswith('sha256:'), report
+          print('verified 15 hosted core/external-runtime checks against certified destination runtime')
+          PY
+
+      - name: Capture core boundary runtime snapshot
+        if: always()
+        run: |
+          mkdir -p build-evidence/runtime
+          docker compose -f docker-compose.core.yml ps --all \
+            > build-evidence/runtime/core-deployment-boundary-compose-ps.txt || true
+          docker compose -f docker-compose.core.yml images \
+            > build-evidence/runtime/core-deployment-boundary-compose-images.txt || true
+          docker inspect "$AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER" \
+            > build-evidence/runtime/core-deployment-boundary-orchestrator-inspect.json 2>/dev/null || true
+          docker stats --no-stream \
+            --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' \
+            > build-evidence/runtime/core-deployment-boundary-docker-stats.txt || true
+
+      - name: Capture boundary failure logs
+        if: failure()
+        run: |
+          docker compose -f docker-compose.core.yml logs --no-color --tail=300 \
+            gateway identity-service user-service audit-service dashboard \
+            postgres redis rabbitmq \
+            > build-evidence/runtime/core-deployment-boundary-failure.log 2>&1 || true
+          docker logs "$AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER" \
+            > build-evidence/runtime/core-deployment-boundary-orchestrator-failure.log 2>&1 || true
+
+      - name: Publish hosted boundary evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: core-external-runtime-boundary-proof
+          path: build-evidence/runtime/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Tear down boundary proof
+        if: always()
+        run: |
+          docker rm -f "$AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER" 2>/dev/null || true
+          docker compose -f docker-compose.core.yml down -v --remove-orphans || true

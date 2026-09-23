@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "capability": "data-recovery",
+  "evidence_class": "HOSTED_RUNTIME",
+  "environment": "github-hosted-ubuntu-docker-compose",
+  "physical_pc_validation": false,
+  "production_disaster_recovery_certification": false,
+  "checks": [
+    {"id": "service.gateway.health", "claim": "Gateway is healthy before recovery operations."},
+    {"id": "service.identity.health", "claim": "Identity service is healthy before recovery operations."},
+    {"id": "service.user.health", "claim": "User service is healthy before recovery operations."},
+    {"id": "data.identity-baseline-persisted", "claim": "A synthetic identity account is persisted in PostgreSQL."},
+    {"id": "data.user-baseline-persisted", "claim": "A synthetic user record is persisted in PostgreSQL."},
+    {"id": "data.refresh-baseline-persisted", "claim": "The synthetic account refresh-token hash metadata is persisted in PostgreSQL."},
+    {"id": "durability.postgres-restart-survives", "claim": "Authoritative synthetic records survive a PostgreSQL container restart."},
+    {"id": "durability.service-restart-survives", "claim": "Protected reads remain correct after core application service restarts."},
+    {"id": "cache.users-list-populated", "claim": "The user-list Redis cache is populated from a protected read."},
+    {"id": "cache.redis-cleared", "claim": "The disposable Redis cache can be cleared independently of PostgreSQL."},
+    {"id": "cache.authoritative-read-recovers", "claim": "A protected read still succeeds after Redis is cleared."},
+    {"id": "cache.users-list-repopulated", "claim": "The user-list cache is reconstructed after an authoritative read."},
+    {"id": "backup.postgres-created", "claim": "A non-empty PostgreSQL custom-format backup is created."},
+    {"id": "backup.checksum-recorded", "claim": "A SHA-256 checksum and byte size are recorded for the backup without publishing the backup itself."},
+    {"id": "recovery.fresh-database-created", "claim": "A fresh isolated PostgreSQL recovery database is created without replacing the primary database."},
+    {"id": "recovery.restore-completes", "claim": "The PostgreSQL backup restores successfully into the fresh recovery database."},
+    {"id": "recovery.identity-restored", "claim": "The identity record in the recovered database exactly matches its baseline snapshot."},
+    {"id": "recovery.user-restored", "claim": "The user record in the recovered database exactly matches its baseline snapshot."},
+    {"id": "recovery.refresh-metadata-restored", "claim": "Refresh-token metadata in the recovered database exactly matches its baseline snapshot."},
+    {"id": "recovery.restored-identity-authenticates", "claim": "An isolated identity-service instance backed by the recovered database authenticates the restored identity."},
+    {"id": "recovery.restored-user-readable", "claim": "An isolated user-service instance backed by the recovered database reads the restored user."},
+    {"id": "recovery.restored-refresh-token-operational", "claim": "The pre-backup refresh credential is accepted by the identity service backed by the recovered database."},
+    {"id": "recovery.primary-remains-operational", "claim": "The primary gateway path remains operational after isolated recovery validation."}
+  ]
+}
