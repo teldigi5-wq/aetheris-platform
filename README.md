@@ -2,9 +2,9 @@
 
 # Aetheris Platform
 
-### Cloud-native distributed systems engineering with an experimental AI control plane
+### Cloud-native distributed systems engineering with an external AI runtime integration
 
-**A portfolio project centered on secure backend services, distributed systems, observability, resilience and Kubernetes — with later Syntra/Aetheris automation research kept as a clearly separated extension track.**
+**A portfolio project centered on secure backend services, distributed systems, observability, resilience and Kubernetes — with Syntra/Aetheris automation research separated into an independently certified runtime repository.**
 
 ![Main](https://img.shields.io/badge/main-protected-2563eb?style=for-the-badge&logo=github)
 ![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
@@ -34,9 +34,36 @@ The core system demonstrates a coherent progression through:
 
 Those areas are the **primary recruiter/interview story** because they are concrete, independently understandable and directly visible in code and deployment assets.
 
-After the cloud-native platform foundation, the repository also grew a separate **experimental control-plane track** for Syntra/Aetheris AI orchestration, browser/operator research, deterministic approvals and evidence-driven automation. Those extensions are real repository work, but they have different maturity levels and must not be confused with the proven core platform.
+The later Syntra/Aetheris orchestration, reasoning, workstation and quantitative runtime source has been extracted to the separate [`teldigi5-wq/aetheris-ai-runtime`](https://github.com/teldigi5-wq/aetheris-ai-runtime) repository. This repository retains the platform-side contracts, integration path, certification references and evidence needed to consume that runtime without duplicating its source.
 
 See **[Portfolio scope & maturity](docs/portfolio-scope.md)** for the exact separation.
+
+---
+
+## Platform / AI runtime boundary
+
+Aetheris now has an explicit two-repository ownership model.
+
+| Repository | Owns |
+|---|---|
+| `aetheris-platform` | Gateway, identity, user and audit services; dashboard; observability; deployment assets; platform contracts; cross-repository integration and evidence |
+| `aetheris-ai-runtime` | `orchestrator-service`, `workstation-agent`, `aetheris-reasoning`, `aetheris-quant` and their runtime-owned certification assets |
+
+The currently certified runtime checkpoint recorded by the platform is:
+
+`teldigi5-wq/aetheris-ai-runtime@68af39a1115a7330020c18b6e2cb601e66b8f22f`
+
+That SHA is a **certification reference**, not a claim that the runtime repository can never advance. Platform integration should move to a newer runtime only through the same evidence-driven certification process.
+
+Boundary assets include:
+
+- `contracts/ai-runtime-boundary.v1.json` — cross-repository contract;
+- `architecture/ai-runtime-certification-reference.json` — certified runtime reference and truth boundaries;
+- `architecture/ai-runtime-extraction-manifest.json` — extraction ownership record;
+- `docker-compose.integration-external.yml` — external-runtime integration path;
+- `tools/load_certified_ai_runtime.sh` — certified-runtime loading helper.
+
+The extracted runtime-owned source roots must not be reintroduced into this repository as duplicate implementations.
 
 ---
 
@@ -56,7 +83,7 @@ See **[Portfolio scope & maturity](docs/portfolio-scope.md)** for the exact sepa
 
 ### 1. Gateway and service boundaries
 
-A Spring Cloud Gateway provides one ingress surface in front of independently bounded services. The repository separates identity, user-domain, audit/event and orchestration responsibilities instead of collapsing them into one application.
+A Spring Cloud Gateway provides one ingress surface in front of independently bounded services. The platform repository separates identity, user-domain and audit/event responsibilities. Requests for AI orchestration cross a defined repository boundary into the external Aetheris AI runtime.
 
 ### 2. Identity and token lifecycle
 
@@ -88,47 +115,67 @@ Docker Compose provides the fast local integration path. Kubernetes and Helm ass
 
 ```mermaid
 flowchart LR
-    CLIENT[Dashboard / Client] --> GW[API Gateway]
+    CLIENT[Dashboard / Client] --> GW
 
-    GW --> ID[Identity Service]
-    GW --> USER[User Service]
-    GW --> AUDIT[Audit Service]
-    GW --> ORCH[Orchestrator]
+    subgraph PLATFORM[aetheris-platform]
+        GW[API Gateway]
+        ID[Identity Service]
+        USER[User Service]
+        AUDIT[Audit Service]
+        PG[(PostgreSQL)]
+        REDIS[(Redis)]
+        MQ[(RabbitMQ)]
+        OTEL[OpenTelemetry]
+        OBS[Prometheus / Grafana / Loki / Tempo]
 
-    ID --> PG[(PostgreSQL)]
-    USER --> PG
-    GW --> REDIS[(Redis)]
-    USER --> MQ[(RabbitMQ)]
-    MQ --> AUDIT
+        GW --> ID
+        GW --> USER
+        GW --> AUDIT
+        ID --> PG
+        USER --> PG
+        GW --> REDIS
+        USER --> MQ
+        MQ --> AUDIT
+        GW --> OTEL
+        ID --> OTEL
+        USER --> OTEL
+        AUDIT --> OTEL
+        OTEL --> OBS
+    end
 
-    GW --> OTEL[OpenTelemetry]
-    ID --> OTEL
-    USER --> OTEL
-    AUDIT --> OTEL
-    ORCH --> OTEL
-    OTEL --> OBS[Prometheus / Grafana / Loki / Tempo]
+    subgraph RUNTIME[aetheris-ai-runtime — external certified runtime]
+        ORCH[Orchestrator Service]
+        REASON[Aetheris Reasoning]
+        WORK[Workstation Agent]
+        QUANT[Aetheris Quant]
+    end
+
+    GW -->|boundary contract| ORCH
+    ORCH --> REASON
+    ORCH --> WORK
+    ORCH --> QUANT
 ```
 
-The core story remains useful even if the optional AI/operator track is ignored entirely.
+The core platform story remains useful even if the optional AI/operator track is ignored entirely.
 
 ---
 
-## Experimental control-plane extensions
+## External AI/control-plane extensions
 
-The repository later expanded beyond the original cloud-native foundation. These extensions are intentionally presented as a **secondary engineering/research track**, not as evidence that every planned AI capability already works on a production workstation.
+The later AI/control-plane work is intentionally presented as a **secondary engineering/research track**. Runtime implementation lives in `aetheris-ai-runtime`; this platform repository owns the integration boundary and evidence that connects it to the core system.
 
-| Extension | Current maturity |
-|---|---|
-| Agent/orchestration service | Repository implemented and tested |
-| Deterministic owner policy / scoped approvals | Repository implemented and regression-tested |
-| Reasoning / verification components | Repository implemented; not a claim of human-level autonomy |
-| Digital-twin / recovery foundations | Repository-side models and bounded recovery logic |
-| Generic browser operator | Repository adapter implemented; physical runtime not yet validated |
-| LinkedIn/Vercel site skills | Repository templates only; exact site flows not physically validated |
-| PC-care / workstation integration | Pre-PC repository foundation; physical validation pending |
-| Trading intelligence | Fail-closed research/risk foundation; live-money authority disabled |
+| Extension | Source owner | Current maturity |
+|---|---|---|
+| Agent/orchestration service | AI runtime | Runtime implemented and repository-tested |
+| Deterministic owner policy / scoped approvals | AI runtime + platform boundary evidence | Repository implemented and regression-tested |
+| Reasoning / verification components | AI runtime | Repository implemented; not a claim of human-level autonomy |
+| Digital-twin / recovery foundations | AI runtime / retained platform contracts | Bounded research foundations |
+| Generic browser operator | AI runtime | Repository adapter exists; physical runtime not yet validated |
+| LinkedIn/Vercel site skills | AI runtime research assets | Templates only; exact site flows not physically validated |
+| PC-care / workstation integration | AI runtime | `BLOCKED_PENDING_HARDWARE` |
+| Trading intelligence | AI runtime | Fail-closed research/risk foundation; live-money authority disabled |
 
-The architectural rule is simple: **models may propose actions, but they are not the final policy authority**. Repository-side automation remains subject to deterministic policy, approval and verification rules.
+The architectural rule is simple: **models may propose actions, but they are not the final policy authority**. Automation remains subject to deterministic policy, approval and verification rules.
 
 ---
 
@@ -141,7 +188,7 @@ The architectural rule is simple: **models may propose actions, but they are not
 
 Java 21, Node and Python are needed only when running individual modules or repository validators directly.
 
-### Start the core stack
+### Start the core platform stack
 
 ```bash
 git clone https://github.com/teldigi5-wq/aetheris-platform.git
@@ -158,8 +205,9 @@ Core local surfaces:
 | User Service | `http://localhost:8081` |
 | Identity Service | `http://localhost:8082` |
 | Audit Service | `http://localhost:8083` |
-| Orchestrator | `http://localhost:8090` |
 | RabbitMQ management | `http://localhost:15672` |
+
+The Orchestrator surface on `http://localhost:8090` belongs to the **external `aetheris-ai-runtime` integration**, not to a runtime source tree in this repository. Use the certified external-runtime integration assets when that surface is required.
 
 Compose credentials and fallback secrets are **development-only defaults**.
 
@@ -191,14 +239,7 @@ For the detailed security model, see **[Token flow and threat model](docs/securi
 
 ## Kubernetes / Helm and operational story
 
-The deployment track is intended to demonstrate more than “I wrote a Dockerfile.” Reviewers can inspect:
-
-- Kubernetes deployments/services;
-- health/readiness behavior;
-- replica configuration and scaling concepts;
-- Helm packaging and configuration;
-- observability integration;
-- recovery behavior when services become unavailable.
+The deployment track is intended to demonstrate more than “I wrote a Dockerfile.” Reviewers can inspect Kubernetes/Helm deployment assets, health/readiness behavior, replica configuration and scaling concepts, observability integration, and recovery behavior when services become unavailable.
 
 See **[Architecture](docs/architecture.md)** and **[Demo guide](docs/demo-guide.md)**.
 
@@ -206,21 +247,23 @@ See **[Architecture](docs/architecture.md)** and **[Demo guide](docs/demo-guide.
 
 ## AI/operator track: explicit truth boundary
 
-The later Syntra/Aetheris work has repository evidence, but some runtime claims depend on hardware and authenticated external services that have not yet been physically tested on the target PC.
+The Syntra/Aetheris runtime has repository evidence, but some claims depend on hardware and authenticated external services that have not yet been physically tested on the target PC.
 
 **Physical-machine status:** `BLOCKED_PENDING_HARDWARE`  
 **Physical-PC validation remains pending.** Hosted CI and repository evidence are not substitutes for validation on the owner's target machine.
 
-That means the repository does **not** currently claim that WSL2, Docker Desktop, GPU acceleration, local-model latency, thermals, voice hardware, Chrome/Edge WebDriver sessions, LinkedIn automation or Vercel browser automation are validated on the future owner PC.
+The project therefore does **not** claim that WSL2, Docker Desktop, GPU acceleration, local-model latency, thermals, voice hardware, Chrome/Edge WebDriver sessions, LinkedIn automation or Vercel browser automation are validated on the future owner PC.
+
+It also makes **no production-activation, registry-publication or live-money execution claim** from repository/hosted-CI evidence alone.
 
 ---
 
 ## Roadmap history and why Stage 34 / 34 still appears
 
-The repository contains two different historical tracks:
+The repository contains two historical tracks:
 
 1. the original cloud-native platform progression, which is the primary portfolio narrative;
-2. the later Syntra × Aetheris master roadmap, which expanded the repository into AI orchestration, governance and pre-PC automation research.
+2. the later Syntra × Aetheris master roadmap, which expanded the project into AI orchestration, governance and pre-PC automation research before runtime ownership was extracted into its own repository.
 
 The later repository roadmap reached **Stage 34 / 34**. That statement is retained for historical/validation-contract consistency; it is **not** the headline claim for the portfolio and it does not mean every aspirational subsystem is production-ready.
 
@@ -234,11 +277,9 @@ For the full historical record see **[docs/master-roadmap.md](docs/master-roadma
 
 Stable `main` is protected by the repository ruleset **`Protect stable main`**.
 
-Canonical development line: `feature/syntra-aetheris-foundation-v2`.
+The verification surface includes backend tests, dashboard builds, compatibility-contract freeze, CodeQL for Java and JavaScript/TypeScript, dependency lockdown, reproducibility checks, platform evidence certification and cross-repository runtime-integration proofs.
 
-The verification surface includes backend tests, dashboard builds, workstation-agent checks, compatibility-contract freeze, CodeQL for Java and JavaScript/TypeScript, dependency lockdown, two-pass reproducibility and later control-plane regression checks.
-
-Historical validation contracts retained by the repository include **Stage 26** safety/evidence certification and **Stage 27** repository governance; they remain CI guards, not the primary recruiter narrative.
+Runtime-owned regression/safety certification executes in `aetheris-ai-runtime`; the platform retains the certified reference and the integration/evidence checks needed to consume it. Historical Stage 26 safety/evidence and Stage 27 repository-governance contracts remain CI guards, not the primary recruiter narrative.
 
 Hosted CI is repository evidence, **not physical-PC validation**.
 
@@ -248,20 +289,22 @@ Hosted CI is repository evidence, **not physical-PC validation**.
 
 ```text
 aetheris-platform/
-├── gateway/                 API ingress and cross-cutting gateway concerns
-├── identity-service/        Authentication and token lifecycle
-├── user-service/            User-domain service and persistence
-├── audit-service/           Audit/event consumption surface
-├── orchestrator-service/    Optional orchestration/control-plane extensions
-├── workstation-agent/       Pre-PC workstation integration foundation
-├── dashboard/               React + TypeScript operator UI
-├── aetheris-reasoning/      Experimental reasoning/verification components
-├── aetheris-quant/          Fail-closed quant/trading research foundation
-├── observability/           Prometheus/Grafana/Loki/Tempo/OTel config
-├── deploy/                  Kubernetes and Helm assets
-├── docs/                    Architecture, security, runbooks and scope docs
-└── build-evidence/          Repository-side validation evidence/contracts
+├── gateway/                              API ingress and gateway boundary concerns
+├── identity-service/                     Authentication and token lifecycle
+├── user-service/                         User-domain service and persistence
+├── audit-service/                        Audit/event consumption surface
+├── dashboard/                            React + TypeScript operator UI
+├── observability/                        Prometheus/Grafana/Loki/Tempo/OTel config
+├── deploy/                               Kubernetes and Helm assets
+├── contracts/                            Cross-service and external-runtime contracts
+├── architecture/                         Runtime extraction/certification references
+├── docker-compose.integration-external.yml  Certified external-runtime integration
+├── tools/load_certified_ai_runtime.sh    Certified-runtime loading helper
+├── docs/                                 Architecture, security, runbooks and scope docs
+└── build-evidence/                       Repository-side validation evidence/contracts
 ```
+
+Runtime-owned source directories such as `orchestrator-service/`, `workstation-agent/`, `aetheris-reasoning/` and `aetheris-quant/` intentionally live in the separate AI-runtime repository.
 
 ---
 
@@ -275,7 +318,7 @@ aetheris-platform/
 | Reliability | circuit breaking, safe retry decisions and failure containment |
 | Observability | metrics, logs, traces and distributed debugging |
 | DevOps | Docker Compose, Kubernetes, Helm and reproducible CI |
-| AI systems — optional | tool/model separation, policy, approvals and verification |
+| AI systems — optional | cross-repository runtime boundaries, tool/model separation, policy, approvals and verification |
 | Engineering communication | ADRs, runbooks, scope/maturity labeling and trade-off reasoning |
 
 The recommended interview approach is to **defend the core platform first** and discuss the AI/operator extensions only when relevant to the role or interviewer.
