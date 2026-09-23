@@ -86,18 +86,15 @@ Refresh tokens, OAuth client secrets, provider access tokens, provider response 
 
 The live workflow is `.github/workflows/connector-live-write-phase8-live.yml`.
 
-It has no `pull_request` trigger. Ordinary pushes to the Phase 8 branch execute only the disarmed gate job. The mutation job can run only when either:
+It has no `pull_request` or `push` trigger. The live mutation lane can run only through an explicit `workflow_dispatch` from the repository default branch.
 
-1. the workflow is explicitly dispatched after it is available on the repository default branch, or
-2. while `main` remains intentionally untouched, a commit on `feature/connector-live-test-write-phase8` contains the exact marker `[phase8-live-write]` **and** every required Phase 8 repository setting is configured.
-
-The arm marker alone is insufficient. Missing credentials, missing targets, a wrong arm-confirmation secret, or use of the real Aetheris project repository as the GitHub target causes the live lane to fail closed before provider mutation.
+Manual dispatch alone is still insufficient. Missing credentials, missing targets, a wrong arm-confirmation secret, or use of the real Aetheris project repository as the GitHub target causes the live lane to fail closed before provider mutation.
 
 For Google authentication, the gate accepts exactly one complete credential mode: the preferred refresh-token trio or the two legacy access-token secrets. A partially configured mode does not count as ready.
 
-A dedicated acceptance-trigger commit may contain the arm marker solely to request this gated proof. The credential gate remains authoritative: the run must fail closed before any provider request whenever required Phase 8 configuration is absent.
+The former `feature/connector-live-test-write-phase8` acceptance-trigger branch is no longer required for execution. The live proof is now branch-independent and manual-dispatch only, so that historical branch can be retired after this change is merged and canonical CI is green.
 
-After any executor, credential-boundary, provider-error-handling, or refresh-flow change, the exact-head non-mutating CI must pass again before another armed acceptance rerun.
+After any executor, credential-boundary, provider-error-handling, or refresh-flow change, the exact-head non-mutating CI must pass again before another armed manual rerun.
 
 ### Readiness evidence
 
@@ -107,19 +104,19 @@ When an armed provider execution fails, the sanitized report may additionally re
 
 ## Non-mutating CI proof
 
-`.github/workflows/connector-live-write-phase8-contract.yml` is safe for normal PR and push CI. It compiles the Phase 8 harnesses, validates the exact 20-check contract, verifies the live workflow has no pull-request trigger, confirms both Google credential modes are explicitly wired, and confirms the compose override points only to the expected real provider hosts.
+`.github/workflows/connector-live-write-phase8-contract.yml` is safe for normal PR and push CI. It compiles the Phase 8 harnesses, validates the exact 20-check contract, verifies the live workflow has no pull-request or push trigger, confirms both Google credential modes are explicitly wired, and confirms the compose override points only to the expected real provider hosts.
 
 This CI check proves the **validation machinery and safety gates**, not a live provider mutation.
 
-## Acceptance sequence
+## Current rerun sequence
 
-Phase 8 should be accepted in this order:
+For any future Phase 8 live acceptance rerun:
 
-1. exact-head non-mutating contract CI passes on the Phase 8 PR;
+1. exact-head non-mutating contract CI passes for any relevant code/workflow change;
 2. code review confirms no live-provider secret or target is committed;
 3. dedicated test-account secrets are configured outside git;
-4. an explicitly armed live run passes all 20 checks and publishes only the sanitized report;
-5. the Phase 8 PR is merged into `feature/syntra-aetheris-foundation-v2`;
-6. canonical post-merge CI is fully green before any later connector phase begins.
+4. the live workflow is explicitly started with `workflow_dispatch` from the protected default branch;
+5. the credential and arm-confirmation gates pass before provider mutation begins;
+6. the live run passes all 20 checks and publishes only sanitized evidence.
 
-`main` remains outside this work.
+The Phase 8 implementation is already part of canonical protected `main`. This document does not claim that a new provider mutation occurred merely because the branch-specific trigger was retired.

@@ -1,9 +1,6 @@
 name: Connector Live Write Phase 8 Live Test-Account Validation
 
 on:
-  push:
-    branches:
-      - feature/connector-live-test-write-phase8
   workflow_dispatch:
 
 permissions:
@@ -14,15 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate-closed:
-    if: github.event_name == 'push' && !contains(github.event.head_commit.message, '[phase8-live-write]')
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Keep live provider mutations disarmed
-        run: echo 'Phase 8 live provider writes are disarmed. Use an explicit [phase8-live-write] commit signal with repository test-account secrets configured.'
-
   live-test-account-write-validation:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[phase8-live-write]')
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
