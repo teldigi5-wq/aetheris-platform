@@ -10,9 +10,10 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'audit-service/**'
-      - 'orchestrator-service/**'
       - 'observability/**'
       - 'docker-compose.yml'
+      - 'architecture/ai-runtime-consumption.json'
+      - 'tools/load_external_ai_runtime.py'
       - 'tools/observability_runtime_smoke.py'
       - 'build-evidence/observability/observability-runtime-contract.json'
       - '.github/workflows/observability-runtime-proof.yml'
@@ -25,9 +26,10 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'audit-service/**'
-      - 'orchestrator-service/**'
       - 'observability/**'
       - 'docker-compose.yml'
+      - 'architecture/ai-runtime-consumption.json'
+      - 'tools/load_external_ai_runtime.py'
       - 'tools/observability_runtime_smoke.py'
       - 'build-evidence/observability/observability-runtime-contract.json'
       - '.github/workflows/observability-runtime-proof.yml'
@@ -44,7 +46,7 @@ jobs:
   observability-runtime-proof:
     name: observability-runtime-proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       AETHERIS_JWT_SECRET: observability-proof-local-ci-secret-42chars-long
     steps:
@@ -57,11 +59,21 @@ jobs:
           python-version: '3.13.15'
           check-latest: false
 
-      - name: Compile observability proof harness
-        run: python -m py_compile tools/observability_runtime_smoke.py
+      - name: Compile observability proof harnesses
+        run: |
+          python -m py_compile tools/load_external_ai_runtime.py
+          python -m py_compile tools/observability_runtime_smoke.py
 
       - name: Validate observability contract JSON
         run: python -m json.tool build-evidence/observability/observability-runtime-contract.json >/dev/null
+
+      - name: Show Docker runtime
+        run: |
+          docker version
+          docker compose version
+
+      - name: Load certified external AI runtime
+        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
       - name: Start core and observability stack
         run: |
@@ -80,11 +92,14 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/observability/observability-runtime-report.json').read_text())
+          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['physical_pc_validation'] is False, report
           assert report['evidence_class'] == 'HOSTED_OBSERVABILITY', report
+          assert consumption['status'] == 'PASS', consumption
+          assert consumption['physical_pc_validation'] is False, consumption
           assert len(report['checks']) == 13, report
-          print('verified 13 hosted observability checks')
+          print('verified 13 hosted observability checks against certified external AI runtime')
           PY
 
       - name: Capture observability state
@@ -103,7 +118,9 @@ jobs:
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: observability-runtime-proof
-          path: build-evidence/observability/
+          path: |
+            build-evidence/observability/
+            build-evidence/runtime/ai-runtime-consumption-report.json
           if-no-files-found: error
           retention-days: 14
 
