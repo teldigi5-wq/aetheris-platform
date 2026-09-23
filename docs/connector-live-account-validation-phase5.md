@@ -19,7 +19,7 @@ This evidence remains `HOSTED_RUNTIME`; it does **not** claim real production-ac
 
 ## Manual live validation
 
-The workflow `.github/workflows/connector-live-account-phase5-manual.yml` is `workflow_dispatch` only. It requires these GitHub Actions secrets:
+The canonical live-validation workflow is `.github/workflows/connector-live-account-phase5-manual.yml`. It is `workflow_dispatch` only and is started explicitly from the protected default branch when a fresh read-only provider proof is needed. It requires these GitHub Actions secrets:
 
 - `AETHERIS_LIVE_GITHUB_ACCESS_TOKEN`
 - `AETHERIS_LIVE_GMAIL_ACCESS_TOKEN`
@@ -34,6 +34,8 @@ The live workflow contacts only these production hosts:
 - `www.googleapis.com`
 
 If a base URL points elsewhere, live mode fails closed.
+
+The historical `validation/connector-live-phase5` branch is not part of the current execution contract. Its branch-only commits are validation trigger markers rather than product implementation, and the old branch-specific workflow has been retired in favor of the existing manual workflow. Once this change has merged through protected `main`, the exact `main` and canonical-development push suites are green, and the branch lifecycle audit records that evidence, the historical Phase 5 validation branch can be deleted without removing the Phase 5 capability or its manual rerun path.
 
 ## Evidence boundary
 
@@ -54,6 +56,12 @@ It still does not prove or enable:
 - physical-PC validation.
 
 Physical-PC validation remains `BLOCKED_PENDING_HARDWARE`.
+
+## Rerun discipline
+
+A live Phase 5 rerun must remain an explicit operator action. A branch push, pull request, or ordinary canonical push must never perform provider-account access automatically. Before dispatching the manual workflow, confirm the configured credentials are dedicated to the intended read-only validation scope and that no provider-write permission has been introduced.
+
+Changes to the verifier, provider allowlist, credential handling, report sanitization, or manual workflow must first pass the repository's normal protected-main review and exact-head CI gates. The presence of the workflow alone does not claim that a new live-provider validation has occurred.
 
 ## Syntra / Aetheris boundary
 
