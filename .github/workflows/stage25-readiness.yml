@@ -33,7 +33,7 @@ jobs:
             --mode ci \
             --evidence-dir build-evidence/readiness
 
-      - name: Assert CI ownership and physical-PC boundaries
+      - name: Assert source-extracted ownership and physical-PC boundaries
         run: |
           python - <<'PY'
           import json
@@ -51,10 +51,14 @@ jobs:
           assert reference['status'] == 'DESTINATION_RUNTIME_CERTIFIED', reference
           assert reference['destination_runtime']['certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', reference
           assert reference['destination_runtime']['canonical_ci_status'] == '6_OF_6_SUCCESS', reference
-          assert reference['source_root_deletion_status'] == 'BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF', reference
+          assert reference['source_root_deletion_status'] == 'SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION', reference
+          assert reference['platform_runtime_source_present'] is False, reference
           assert reference['truth_boundaries']['physical_pc_status'] == 'BLOCKED_PENDING_HARDWARE', reference
 
-          print('Stage 25 platform/external-runtime ownership boundary: PASS')
+          for source_dir in ('orchestrator-service', 'aetheris-quant', 'aetheris-reasoning', 'workstation-agent'):
+              assert not Path(source_dir).exists(), source_dir
+
+          print('Stage 25 source-extracted platform/external-runtime ownership boundary: PASS')
           PY
 
       - name: Upload Stage 25 readiness evidence

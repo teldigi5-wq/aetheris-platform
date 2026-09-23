@@ -1,11 +1,23 @@
 {
-  "schema_version": 1,
-  "status": "BLOCKED_PENDING_DESTINATION_REPOSITORY",
+  "schema_version": 2,
+  "status": "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
   "source_repository": "teldigi5-wq/aetheris-platform",
   "source_branch": "feature/syntra-aetheris-foundation-v2",
-  "source_certified_sha": "7e08d8c5dca2215a406fade883b53ec299f4fb4e",
+  "source_export_sha": "16e1bbc2b357e36c2a484e0ff66bb81a329c1c99",
+  "platform_adaptation_sha": "38d9834e622a10442412767d4cd2e7f3be671e06",
   "destination_repository": "teldigi5-wq/aetheris-ai-runtime",
-  "history_policy": "Preserve source history where practical; never rewrite certified platform history.",
+  "destination_branch": "main",
+  "destination_certified_sha": "68af39a1115a7330020c18b6e2cb601e66b8f22f",
+  "destination_ci_status": "6_OF_6_SUCCESS",
+  "source_archive_sha256": "df2f1eaa176072ec59c0dcc9061812ab8e2d77977c8a9722ee0ef58ab8d2b389",
+  "destination_runtime_release": {
+    "tag": "runtime-68af39a1115a7330020c18b6e2cb601e66b8f22f",
+    "image_ref": "aetheris-ai-runtime:68af39a1115a7330020c18b6e2cb601e66b8f22f",
+    "archive": "aetheris-ai-runtime-68af39a1115a7330020c18b6e2cb601e66b8f22f.tar.gz",
+    "archive_sha256": "c02ce146d52b816b0327d68a73f9366f11d4a1a5e3db2af492aaf92a338edbd0",
+    "evidence_class": "HOSTED_RUNTIME_ARTIFACT",
+    "registry_publication_claim": false
+  },
   "move_roots": [
     "orchestrator-service",
     "aetheris-quant",
@@ -20,57 +32,88 @@
     "dashboard",
     "observability"
   ],
-  "transfer_workflows": [
+  "runtime_owned_workflows_removed_from_platform": [
     ".github/workflows/ai-runtime-build.yml",
     ".github/workflows/ai-runtime-codeql.yml",
     ".github/workflows/ai-runtime-foundation-bootstrap.yml",
-    ".github/workflows/ai-runtime-foundation-hardening.yml"
-  ],
-  "copy_bootstrap": [
-    "mvnw",
-    "mvnw.cmd",
-    ".mvn/wrapper/maven-wrapper.properties",
-    ".java-version",
-    "scripts/check_dependency_lockdown.py"
-  ],
-  "generated_evidence_to_recreate_in_destination": [
-    "build-evidence/maven/orchestrator-service.txt",
-    "build-evidence/maven/workstation-agent.txt",
-    "build-evidence/ai-runtime-dependency-lock-sha256.txt"
-  ],
-  "platform_retained_contract_assets": [
-    "pom.xml",
-    "docker-compose.core.yml",
-    "docker-compose.integration-external.yml",
-    "tools/core_deployment_boundary_smoke.py",
-    "tools/external_integration_runtime_proof.py",
-    ".github/workflows/deployment-release-runtime-proof.yml",
-    ".github/workflows/step-d-external-integration-cutover.yml"
-  ],
-  "ownership_review_before_final_removal": [
-    ".github/workflows/phase9-*.yml",
-    ".github/workflows/phase10-*.yml",
-    ".github/workflows/phase11-*.yml",
-    ".github/workflows/phase12-*.yml",
-    ".github/workflows/phase13-*.yml",
+    ".github/workflows/ai-runtime-foundation-hardening.yml",
+    ".github/workflows/phase9-memory-production-proof.yml",
+    ".github/workflows/phase10-computer-use-production-proof.yml",
+    ".github/workflows/phase11-security-production-proof.yml",
+    ".github/workflows/phase12-closure-certification.yml",
+    ".github/workflows/phase12-connector-account-continuity-proof.yml",
+    ".github/workflows/phase12-oauth-lifecycle-continuity-proof.yml",
+    ".github/workflows/phase12-specialist-divisions-proof.yml",
+    ".github/workflows/phase13-adapter-aware-runtime-registration.yml",
+    ".github/workflows/phase13-adapter-invocation-lease.yml",
+    ".github/workflows/phase13-adapter-promotion-governance.yml",
+    ".github/workflows/phase13-bound-adapter-invocation-handle.yml",
+    ".github/workflows/phase13-concrete-ollama-adapter-runtime.yml",
+    ".github/workflows/phase13-context-aware-local-inference.yml",
+    ".github/workflows/phase13-live-adapter-registration-reconciliation.yml",
+    ".github/workflows/phase13-local-adapter-activation-governance.yml",
+    ".github/workflows/phase13-local-inference-evaluation.yml",
+    ".github/workflows/phase13-local-runtime-adapter.yml",
+    ".github/workflows/phase13-owner-controlled-adaptation.yml",
+    ".github/workflows/phase13-owner-runtime-readiness-wiring.yml",
+    ".github/workflows/phase13-point-of-invocation-adapter-revalidation.yml",
+    ".github/workflows/phase13-retrieval-rag-foundation.yml",
+    ".github/workflows/phase13-structured-context-assembly.yml",
+    ".github/workflows/phase13-syntra-core-runtime-foundation.yml",
     ".github/workflows/stage28-pc-care.yml",
     ".github/workflows/stage29-trading-intelligence.yml",
     ".github/workflows/stage30-reasoning.yml",
     ".github/workflows/stage31-digital-twins.yml",
-    ".github/workflows/stage32-automation-control.yml"
+    ".github/workflows/stage32-automation-control.yml",
+    ".github/workflows/stage33-governance.yml"
   ],
-  "deletion_allowed_only_when": [
-    "destination repository exists and is accessible",
-    "all move_roots are present in a certified destination commit",
-    "destination AI-runtime build, CodeQL, dependency-lockdown and reproducibility lanes are green",
-    "destination image provenance is pinned to the certified destination commit",
-    "platform external-integration contract proof is green against that destination-produced image",
-    "platform core build/test remains green with all move_roots absent",
-    "source-to-destination provenance mapping is recorded on issue 140"
+  "platform_retained_contract_assets": [
+    "pom.xml",
+    "contracts/ai-runtime-boundary.v1.json",
+    "architecture/ai-runtime-certification-reference.json",
+    "docker-compose.yml",
+    "docker-compose.core.yml",
+    "docker-compose.integration-external.yml",
+    "tools/core_deployment_boundary_smoke.py",
+    "tools/external_integration_runtime_proof.py",
+    "tools/load_certified_ai_runtime.sh",
+    ".github/workflows/deployment-release-runtime-proof.yml",
+    ".github/workflows/step-d-external-integration-cutover.yml"
   ],
+  "platform_retained_certifications": [
+    ".github/workflows/build.yml",
+    ".github/workflows/codeql.yml",
+    ".github/workflows/stage24-foundation-bootstrap.yml",
+    ".github/workflows/stage24-foundation-hardening.yml",
+    ".github/workflows/stage25-readiness.yml",
+    ".github/workflows/stage26-safety-certification.yml",
+    ".github/workflows/stage27-repository-governance.yml",
+    ".github/workflows/stage34-master-build.yml",
+    ".github/workflows/step-d-extraction-manifest-proof.yml",
+    ".github/workflows/step-d-external-integration-cutover.yml"
+  ],
+  "source_to_destination_provenance": {
+    "content_transfer_checkpoint_sha": "912cd4feae40f33e88560e0ac1b5b73f049b33cb",
+    "history_included": false,
+    "history_policy": "Preserve certified platform history unchanged; the deterministic content transfer and destination provenance records are the authoritative extraction mapping.",
+    "destination_provenance_file": "EXTRACTION-PROVENANCE.json",
+    "destination_ownership_file": "architecture/runtime-certification-ownership.json"
+  },
+  "deletion_prerequisites_satisfied": {
+    "destination_repository_exists": true,
+    "all_move_roots_present_in_certified_destination": true,
+    "destination_build_codeql_dependency_reproducibility_green": true,
+    "destination_runtime_artifact_provenance_pinned": true,
+    "platform_external_integration_against_destination_artifact_required": true,
+    "platform_core_source_absent_build_required": true,
+    "issue_140_provenance_mapping_required_before_closure": true
+  },
   "truth_boundaries": {
+    "hosted_ci_only": true,
     "physical_pc_validation": false,
+    "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
     "production_deployment_claim": false,
-    "registry_publication_claim": false
+    "registry_publication_claim": false,
+    "live_money_execution_claim": false
   }
 }

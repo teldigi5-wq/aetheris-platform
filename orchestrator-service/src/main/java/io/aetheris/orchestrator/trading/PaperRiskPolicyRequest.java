@@ -1,1 +1,0 @@
-package io.aetheris.orchestrator.trading;public record PaperRiskPolicyRequest(int maxOpenPositions,double maxGrossExposureMultiple,double maxSymbolExposurePct,double maxCorrelatedExposurePct,int maxStaleDataSeconds){}

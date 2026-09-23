@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "stage": 26,
-  "name": "Evidence Integrity & Pre-PC Change Control — Split Runtime Ownership",
+  "name": "Evidence Integrity & Pre-PC Change Control — Extracted Runtime Ownership",
   "repository_status": "PRE_PC_HARDENED_EXTERNAL_RUNTIME_CERTIFIED",
   "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
   "hard_boundaries": {
@@ -48,7 +48,7 @@
       "contains": [
         "DESTINATION_RUNTIME_CERTIFIED",
         "6_OF_6_SUCCESS",
-        "BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF",
+        "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
         "BLOCKED_PENDING_HARDWARE"
       ]
     }

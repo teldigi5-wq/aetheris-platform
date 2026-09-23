@@ -96,11 +96,19 @@ services:
       - "8083:8083"
 
   orchestrator-service:
-    build: ./orchestrator-service
+    image: ${AETHERIS_AI_RUNTIME_IMAGE:-aetheris-ai-runtime:68af39a1115a7330020c18b6e2cb601e66b8f22f}
+    build:
+      context: https://github.com/teldigi5-wq/aetheris-ai-runtime.git#68af39a1115a7330020c18b6e2cb601e66b8f22f:orchestrator-service
     environment:
       ORCHESTRATOR_PORT: 8090
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
       AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC:-}
       AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8090:8090"
 

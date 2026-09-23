@@ -36,8 +36,13 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
-      - name: Remove AI-runtime-owned source from core hardening workspace
-        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/aetheris-ai-runtime-source"
+      - name: Require AI-runtime-owned source to be absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
+            test ! -e "$source_dir" || { echo "runtime-owned source leaked into platform: $source_dir" >&2; exit 1; }
+          done
       - name: Frozen dashboard install
         working-directory: dashboard
         run: npm ci --ignore-scripts --no-fund
@@ -93,12 +98,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
-      - name: Set up Python for source isolation harness
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Remove AI-runtime-owned source from core reproducibility workspace
-        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/aetheris-ai-runtime-source"
+      - name: Require AI-runtime-owned source to be absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
+            test ! -e "$source_dir" || { echo "runtime-owned source leaked into platform: $source_dir" >&2; exit 1; }
+          done
       - name: Build core reactor - pass 1
         run: ./mvnw clean package
       - name: Build dashboard - pass 1

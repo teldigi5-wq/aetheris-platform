@@ -1,1 +1,0 @@
-package io.aetheris.orchestrator.remote;import org.springframework.data.jpa.repository.JpaRepository;import java.util.UUID;public interface RemoteCompanionSessionRepository extends JpaRepository<RemoteCompanionSessionEntity,UUID>{}
