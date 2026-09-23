@@ -4,6 +4,17 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### AI-runtime extraction and release alignment
+
+- Completed the source-ownership split between `teldigi5-wq/aetheris-platform` and `teldigi5-wq/aetheris-ai-runtime`; runtime-owned roots are no longer duplicated in the platform repository.
+- Platform-owned verification now includes core-source independence, external-runtime readiness/evidence, and an exact certified-runtime reference instead of rebuilding extracted runtime source locally.
+- The platform-recorded certified AI-runtime checkpoint remains `68af39a1115a7330020c18b6e2cb601e66b8f22f`; newer runtime `main` commits do not become certified automatically.
+- Aligned README, architecture, reviewer, interview, demo, contribution, security, verification and release-readiness documentation with the split-repository model.
+- Aligned the `v0.1.0-pre-pc` candidate narrative so platform validation and runtime-owned certification are reported separately.
+- Identified administrative required-status drift in the active `Protect stable main` GitHub ruleset after extraction: legacy platform-local runtime contexts must be replaced with the current platform check names before release publication.
+- Preserved `BLOCKED_PENDING_HARDWARE`, no production-activation claim, no registry-publication claim, no live-money execution claim, and the distinction between hosted CI evidence and physical-PC validation.
+- No `v0.1.0-pre-pc` GitHub release or immutable platform release tag has been published yet.
+
 ### Evidence-first portfolio proof
 
 - Added a machine-readable core-platform evidence manifest at `build-evidence/portfolio/core-platform-evidence.json`.
@@ -33,6 +44,8 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ### Added
 
+The entries below record historical repository work completed before the AI-runtime extraction. Runtime-owned implementations described here now live in `teldigi5-wq/aetheris-ai-runtime`; these changelog entries are retained as project history rather than as claims of current platform source ownership.
+
 - Aetheris Operator v2 site-skill catalog and deterministic autonomous-web-task compiler with per-skill physical-validation gates.
 - Starter LinkedIn profile-inspection/About-update and Vercel deployment-inspection/trigger templates, each constrained to its declared domain and evidence contract.
 - Bounded read-only recovery with a maximum of two attempts, while external mutation skills receive no blind automatic retry.
@@ -53,20 +66,20 @@ All notable repository-level changes to Aetheris are documented here. This chang
 ### Changed
 
 - Repository documentation now reflects the completed **Stage 34 / 34** roadmap without making stage count the primary recruiter narrative.
-- Contribution guidance follows the canonical development branch `feature/syntra-aetheris-foundation-v2` and protected `main` promotion flow.
+- Contribution guidance follows the canonical development branch `feature/syntra-aetheris-foundation-v2` and protected `main` promotion flow, with reviewed `release/*` branches permitted by Stage 27 for stable promotion.
 - Dependabot routine version-update PRs are disabled while security/vulnerability updates remain available.
 
 ### Safety and truth boundaries
 
 - Physical-machine status remains `BLOCKED_PENDING_HARDWARE`.
 - Physical-PC validation remains pending.
-- Operator v2 starter site skills are repository templates only until each exact workflow is physically validated; validating one skill never validates another.
+- Operator/site-skill and browser work is runtime-owned after extraction and remains subject to its exact physical-validation gates.
 - Generic browser repository support does not assert that Chrome/Edge, WebDriver, authenticated sessions or site-specific workflows are validated on the owner PC.
 - Hosted CI is repository evidence, not physical-PC validation.
 - `ALLOW` means eligible to execute, not proof that execution occurred.
 - Success requires verification evidence or an explicit `UNVERIFIED` result.
 - Emergency precedence remains `STOP > TAKE_CONTROL > PAUSE > NORMAL`.
-- Live-money execution, withdrawals, and transfers remain outside the default trusted AI path, including the generic browser path.
+- Live-money execution, withdrawals, and transfers remain outside the default trusted AI path.
 
 ## Repository roadmap completion
 
@@ -76,9 +89,10 @@ The later Syntra × Aetheris repository roadmap reached **Stage 34 / 34** before
 
 Future release entries should identify:
 
-- the exact tag and commit;
+- the exact platform tag and commit;
+- the exact certified AI-runtime checkpoint when runtime integration is part of the release;
 - whether the release is repository-only, pre-PC, or physically validated;
-- the validation gates that passed;
+- the platform and runtime validation gates that passed for their respective ownership scopes;
 - known limitations and deferred physical checks;
 - any compatibility, security, governance, or migration impact.
 
