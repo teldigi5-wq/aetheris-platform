@@ -1,4 +1,4 @@
-name: Stage 25 First-Boot Readiness
+name: Stage 25 Platform + External AI Runtime Readiness
 
 on:
   push:
@@ -22,37 +22,43 @@ jobs:
           python-version: '3.13.15'
 
       - name: Compile Stage 25 verifier
-        run: |
-          python -m py_compile scripts/first_boot_preflight.py
-          python -m py_compile tools/load_external_ai_runtime.py
-          python -m py_compile tools/hide_ai_runtime_sources.py
-
-      - name: Isolate AI-runtime source for pre-removal readiness validation
-        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/stage25-source-hidden"
+        run: python -m py_compile scripts/first_boot_preflight.py
 
       - name: Run Stage 25 unit tests
         run: python -m unittest discover -s tests -p 'test_first_boot_preflight.py' -v
 
-      - name: Run source-absent platform repository preflight
+      - name: Run platform plus external-runtime repository preflight
         run: |
           python scripts/first_boot_preflight.py \
             --mode ci \
             --evidence-dir build-evidence/readiness
 
-      - name: Assert CI did not claim physical-PC validation
+      - name: Assert source-extracted ownership and physical-PC boundaries
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
+
           report = json.loads(Path('build-evidence/readiness/preflight-report.json').read_text())
+          reference = json.loads(Path('architecture/ai-runtime-certification-reference.json').read_text())
+
           assert report['status'] == 'PASS', report
           assert report['physical_pc_status'] == 'NOT_TESTED', report
-          assert report['foundation_scope'] == 'aetheris-platform-with-external-ai-runtime', report
-          checks = {item['check']: item for item in report['checks']}
-          assert checks['ai-runtime-source-ownership']['status'] == 'PASS', checks
-          assert checks['external-ai-runtime-pin']['status'] == 'PASS', checks
-          assert checks['compose-external-ai-runtime-boundary']['status'] == 'PASS', checks
-          print('Stage 25 source-absent platform + external-runtime truth boundary: PASS')
+          assert report['foundation_scope'] == 'aetheris-platform-external-ai-runtime-v1', report
+          assert report['external_ai_runtime_repository'] == 'teldigi5-wq/aetheris-ai-runtime', report
+          assert report['external_ai_runtime_certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', report
+
+          assert reference['status'] == 'DESTINATION_RUNTIME_CERTIFIED', reference
+          assert reference['destination_runtime']['certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', reference
+          assert reference['destination_runtime']['canonical_ci_status'] == '6_OF_6_SUCCESS', reference
+          assert reference['source_root_deletion_status'] == 'SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION', reference
+          assert reference['platform_runtime_source_present'] is False, reference
+          assert reference['truth_boundaries']['physical_pc_status'] == 'BLOCKED_PENDING_HARDWARE', reference
+
+          for source_dir in ('orchestrator-service', 'aetheris-quant', 'aetheris-reasoning', 'workstation-agent'):
+              assert not Path(source_dir).exists(), source_dir
+
+          print('Stage 25 source-extracted platform/external-runtime ownership boundary: PASS')
           PY
 
       - name: Upload Stage 25 readiness evidence

@@ -10,9 +10,8 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'audit-service/**'
+      - 'orchestrator-service/**'
       - 'docker-compose.yml'
-      - 'architecture/ai-runtime-consumption.json'
-      - 'tools/load_external_ai_runtime.py'
       - 'tools/performance_load_runtime_smoke.py'
       - 'build-evidence/runtime/performance-load-runtime-contract.json'
       - 'docs/performance-load-runtime-proof.md'
@@ -26,9 +25,8 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'audit-service/**'
+      - 'orchestrator-service/**'
       - 'docker-compose.yml'
-      - 'architecture/ai-runtime-consumption.json'
-      - 'tools/load_external_ai_runtime.py'
       - 'tools/performance_load_runtime_smoke.py'
       - 'build-evidence/runtime/performance-load-runtime-contract.json'
       - 'docs/performance-load-runtime-proof.md'
@@ -46,7 +44,7 @@ jobs:
   performance-load-runtime-proof:
     name: performance-load-runtime-proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 35
     env:
       AETHERIS_JWT_SECRET: performance-proof-local-ci-secret-change-me-42chars
     steps:
@@ -59,10 +57,8 @@ jobs:
           python-version: '3.13.15'
           check-latest: false
 
-      - name: Compile performance proof harnesses
-        run: |
-          python -m py_compile tools/load_external_ai_runtime.py
-          python -m py_compile tools/performance_load_runtime_smoke.py
+      - name: Compile performance proof harness
+        run: python -m py_compile tools/performance_load_runtime_smoke.py
 
       - name: Validate performance contract JSON
         run: python -m json.tool build-evidence/runtime/performance-load-runtime-contract.json >/dev/null
@@ -71,9 +67,6 @@ jobs:
         run: |
           docker version
           docker compose version
-
-      - name: Load certified external AI runtime
-        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
       - name: Start Aetheris core Compose stack
         run: |
@@ -95,12 +88,10 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path('build-evidence/runtime/performance-load-runtime-report.json').read_text())
-          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['physical_pc_validation'] is False, report
           assert report['production_capacity_claim'] is False, report
-          assert consumption['status'] == 'PASS', consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
           assert set(report['profiles']) == {'burst', 'sustained'}, report
           assert sum(p['total_requests'] for p in report['profiles'].values()) == 540, report
@@ -116,8 +107,7 @@ jobs:
           assert probe['rate_limited_responses'] >= 1, probe
           print(
               f"verified {len(report['checks'])} hosted load checks across "
-              "540 policy-compliant requests plus a 40-request overload probe "
-              "against certified external AI runtime"
+              "540 policy-compliant requests plus a 40-request overload probe"
           )
           PY
 

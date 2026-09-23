@@ -9,7 +9,7 @@ on:
       - 'gateway/**'
       - 'identity-service/**'
       - 'user-service/**'
-      - 'docker-compose.core.yml'
+      - 'docker-compose.yml'
       - 'tools/resilience_runtime_smoke.py'
       - 'build-evidence/runtime/resilience-runtime-contract.json'
       - '.github/workflows/resilience-runtime-proof.yml'
@@ -21,7 +21,7 @@ on:
       - 'gateway/**'
       - 'identity-service/**'
       - 'user-service/**'
-      - 'docker-compose.core.yml'
+      - 'docker-compose.yml'
       - 'tools/resilience_runtime_smoke.py'
       - 'build-evidence/runtime/resilience-runtime-contract.json'
       - '.github/workflows/resilience-runtime-proof.yml'
@@ -62,12 +62,12 @@ jobs:
           docker version
           docker compose version
 
-      - name: Start core-only resilience proof stack
+      - name: Start resilience proof stack
         run: |
-          docker compose -f docker-compose.core.yml up -d --build \
+          docker compose up -d --build \
             postgres redis rabbitmq \
             user-service identity-service gateway
-          docker compose -f docker-compose.core.yml ps
+          docker compose ps
 
       - name: Run resilience runtime proof
         run: |
@@ -94,7 +94,7 @@ jobs:
         if: always()
         run: |
           mkdir -p build-evidence/runtime
-          docker compose -f docker-compose.core.yml ps --all > build-evidence/runtime/resilience-compose-ps.txt || true
+          docker compose ps --all > build-evidence/runtime/resilience-compose-ps.txt || true
           curl --fail-with-body --silent --show-error \
             http://127.0.0.1:8080/actuator/circuitbreakers \
             > build-evidence/runtime/resilience-circuitbreakers.json || true
@@ -102,7 +102,7 @@ jobs:
             http://127.0.0.1:8080/actuator/circuitbreakerevents \
             > build-evidence/runtime/resilience-circuitbreaker-events.json || true
           if [ "${{ job.status }}" != "success" ]; then
-            docker compose -f docker-compose.core.yml logs --no-color --tail=180 \
+            docker compose logs --no-color --tail=180 \
               postgres redis rabbitmq user-service identity-service gateway \
               > build-evidence/runtime/resilience-failure.log 2>&1 || true
           fi
@@ -116,6 +116,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Tear down core-only Compose stack
+      - name: Tear down Compose stack
         if: always()
-        run: docker compose -f docker-compose.core.yml down -v --remove-orphans
+        run: docker compose down -v --remove-orphans

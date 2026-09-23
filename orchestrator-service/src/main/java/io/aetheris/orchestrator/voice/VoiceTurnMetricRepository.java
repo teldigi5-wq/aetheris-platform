@@ -1,1 +1,0 @@
-package io.aetheris.orchestrator.voice;import org.springframework.data.jpa.repository.JpaRepository;import java.util.*;public interface VoiceTurnMetricRepository extends JpaRepository<VoiceTurnMetricEntity,UUID>{List<VoiceTurnMetricEntity> findTop100ByOrderByCreatedAtDesc();}

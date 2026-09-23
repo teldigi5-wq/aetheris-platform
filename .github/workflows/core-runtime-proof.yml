@@ -11,9 +11,10 @@ on:
       - 'user-service/**'
       - 'audit-service/**'
       - 'docker-compose.yml'
-      - 'architecture/ai-runtime-consumption.json'
-      - 'tools/load_external_ai_runtime.py'
+      - 'docker-compose.integration-external.yml'
       - 'tools/core_runtime_smoke.py'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'build-evidence/runtime/core-runtime-contract.json'
       - '.github/workflows/core-runtime-proof.yml'
   push:
@@ -26,9 +27,10 @@ on:
       - 'user-service/**'
       - 'audit-service/**'
       - 'docker-compose.yml'
-      - 'architecture/ai-runtime-consumption.json'
-      - 'tools/load_external_ai_runtime.py'
+      - 'docker-compose.integration-external.yml'
       - 'tools/core_runtime_smoke.py'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'build-evidence/runtime/core-runtime-contract.json'
       - '.github/workflows/core-runtime-proof.yml'
   workflow_dispatch:
@@ -44,9 +46,10 @@ jobs:
   core-runtime-proof:
     name: core-runtime-proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 35
     env:
       AETHERIS_JWT_SECRET: runtime-proof-local-ci-secret-change-me-42chars
+      COMPOSE_FILE: docker-compose.integration-external.yml
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -57,10 +60,8 @@ jobs:
           python-version: '3.13.15'
           check-latest: false
 
-      - name: Compile runtime proof harnesses
-        run: |
-          python -m py_compile tools/load_external_ai_runtime.py
-          python -m py_compile tools/core_runtime_smoke.py
+      - name: Compile runtime proof harness
+        run: python -m py_compile tools/core_runtime_smoke.py
 
       - name: Validate runtime proof contract JSON
         run: python -m json.tool build-evidence/runtime/core-runtime-contract.json >/dev/null
@@ -70,8 +71,8 @@ jobs:
           docker version
           docker compose version
 
-      - name: Load certified external AI runtime
-        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
+      - name: Load certified destination runtime release image
+        run: tools/load_certified_ai_runtime.sh
 
       - name: Start core Compose stack
         run: |
@@ -92,15 +93,11 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/core-runtime-report.json').read_text())
-          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['physical_pc_validation'] is False, report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
-          assert consumption['status'] == 'PASS', consumption
-          assert consumption['physical_pc_validation'] is False, consumption
-          assert consumption['registry_publication_claim'] is False, consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          print(f"verified {len(report['checks'])} hosted runtime checks against certified external AI runtime")
+          print(f"verified {len(report['checks'])} hosted runtime checks")
           PY
 
       - name: Capture Compose state
@@ -110,7 +107,7 @@ jobs:
           docker compose ps --all > build-evidence/runtime/compose-ps.txt || true
           if [ "${{ job.status }}" != "success" ]; then
             docker compose logs --no-color --tail=120 \
-              postgres redis rabbitmq user-service identity-service audit-service orchestrator-service gateway \
+              postgres redis rabbitmq user-service identity-service audit-service gateway \
               > build-evidence/runtime/compose-failure.log 2>&1 || true
           fi
 

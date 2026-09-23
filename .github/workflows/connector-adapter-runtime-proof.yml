@@ -6,9 +6,8 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'architecture/ai-runtime-consumption.json'
+      - 'orchestrator-service/**'
       - 'docker-compose.yml'
-      - 'tools/load_external_ai_runtime.py'
       - 'tools/connector_adapter_runtime_smoke.py'
       - 'build-evidence/runtime/connector-integration-phase2-contract.json'
       - '.github/workflows/connector-adapter-runtime-proof.yml'
@@ -17,9 +16,8 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'architecture/ai-runtime-consumption.json'
+      - 'orchestrator-service/**'
       - 'docker-compose.yml'
-      - 'tools/load_external_ai_runtime.py'
       - 'tools/connector_adapter_runtime_smoke.py'
       - 'build-evidence/runtime/connector-integration-phase2-contract.json'
       - '.github/workflows/connector-adapter-runtime-proof.yml'
@@ -36,7 +34,7 @@ jobs:
   connector-adapter-runtime-proof:
     name: connector-adapter-runtime-proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 30
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -53,10 +51,8 @@ jobs:
           echo "AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
           echo "AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
-      - name: Compile adapter proof harnesses
-        run: |
-          python -m py_compile tools/load_external_ai_runtime.py
-          python -m py_compile tools/connector_adapter_runtime_smoke.py
+      - name: Compile adapter proof harness
+        run: python -m py_compile tools/connector_adapter_runtime_smoke.py
 
       - name: Validate adapter proof contract
         run: python -m json.tool build-evidence/runtime/connector-integration-phase2-contract.json >/dev/null
@@ -66,12 +62,9 @@ jobs:
           docker version
           docker compose version
 
-      - name: Load certified external AI runtime
-        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
-
-      - name: Start external orchestrator service with ephemeral secret injection
+      - name: Start real orchestrator service with ephemeral secret injection
         run: |
-          docker compose up -d orchestrator-service
+          docker compose up -d --build orchestrator-service
           docker compose ps
 
       - name: Run verified adapter proof
@@ -86,14 +79,12 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/connector-integration-phase2-report.json').read_text())
-          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['physical_pc_validation'] is False, report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['capability'] == 'connector-integration-layer-phase2', report
-          assert consumption['status'] == 'PASS', consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          print(f"verified {len(report['checks'])} signed connector-adapter checks against certified external runtime")
+          print(f"verified {len(report['checks'])} signed connector-adapter runtime checks")
           PY
 
       - name: Capture sanitized adapter state

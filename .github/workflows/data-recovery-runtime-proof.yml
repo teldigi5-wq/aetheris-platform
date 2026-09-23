@@ -10,8 +10,6 @@ on:
       - 'user-service/**'
       - 'gateway/**'
       - 'docker-compose.yml'
-      - 'architecture/ai-runtime-consumption.json'
-      - 'tools/load_external_ai_runtime.py'
       - 'tools/data_recovery_runtime_smoke.py'
       - 'build-evidence/runtime/data-recovery-runtime-contract.json'
       - '.github/workflows/data-recovery-runtime-proof.yml'
@@ -24,8 +22,6 @@ on:
       - 'user-service/**'
       - 'gateway/**'
       - 'docker-compose.yml'
-      - 'architecture/ai-runtime-consumption.json'
-      - 'tools/load_external_ai_runtime.py'
       - 'tools/data_recovery_runtime_smoke.py'
       - 'build-evidence/runtime/data-recovery-runtime-contract.json'
       - '.github/workflows/data-recovery-runtime-proof.yml'
@@ -42,7 +38,7 @@ jobs:
   data-recovery-runtime-proof:
     name: data-recovery-runtime-proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 40
     env:
       AETHERIS_JWT_SECRET: data-recovery-proof-local-ci-secret-change-me-42chars
     steps:
@@ -55,10 +51,8 @@ jobs:
           python-version: '3.13.15'
           check-latest: false
 
-      - name: Compile data recovery proof harnesses
-        run: |
-          python -m py_compile tools/load_external_ai_runtime.py
-          python -m py_compile tools/data_recovery_runtime_smoke.py
+      - name: Compile data recovery proof harness
+        run: python -m py_compile tools/data_recovery_runtime_smoke.py
 
       - name: Validate data recovery proof contract JSON
         run: python -m json.tool build-evidence/runtime/data-recovery-runtime-contract.json >/dev/null
@@ -67,9 +61,6 @@ jobs:
         run: |
           docker version
           docker compose version
-
-      - name: Load certified external AI runtime
-        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
       - name: Start data recovery proof stack
         run: |
@@ -111,7 +102,6 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/data-recovery-runtime-report.json').read_text())
-          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['physical_pc_validation'] is False, report
           assert report['production_disaster_recovery_certification'] is False, report
@@ -123,9 +113,8 @@ jobs:
           assert report['backup']['published'] is False, report
           assert len(report['backup']['sha256']) == 64, report
           assert report['backup']['bytes'] > 0, report
-          assert consumption['status'] == 'PASS', consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          print(f"verified {len(report['checks'])} hosted data-recovery checks against certified external AI runtime")
+          print(f"verified {len(report['checks'])} hosted data-recovery runtime checks")
           PY
 
       - name: Capture sanitized recovery state
@@ -146,7 +135,7 @@ jobs:
             > build-evidence/runtime/data-recovery-cache-keys.txt 2>/dev/null || true
           if [ "${{ job.status }}" != "success" ]; then
             docker compose logs --no-color --tail=180 \
-              postgres redis user-service identity-service orchestrator-service gateway \
+              postgres redis user-service identity-service gateway \
               > build-evidence/runtime/data-recovery-failure.log 2>&1 || true
           fi
 

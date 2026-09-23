@@ -6,9 +6,7 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'architecture/ai-runtime-consumption.json'
-      - 'docker-compose.yml'
-      - 'tools/load_external_ai_runtime.py'
+      - 'orchestrator-service/**'
       - 'tools/oauth_provider_stub.py'
       - 'tools/connector_live_write_runtime_smoke.py'
       - 'tools/connector_live_write_runtime_smoke_phase12.py'
@@ -19,9 +17,7 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'architecture/ai-runtime-consumption.json'
-      - 'docker-compose.yml'
-      - 'tools/load_external_ai_runtime.py'
+      - 'orchestrator-service/**'
       - 'tools/oauth_provider_stub.py'
       - 'tools/connector_live_write_runtime_smoke.py'
       - 'tools/connector_live_write_runtime_smoke_phase12.py'
@@ -39,7 +35,7 @@ concurrency:
 jobs:
   connector-live-write-runtime-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 30
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -60,16 +56,12 @@ jobs:
 
       - name: Compile Phase 7 proof harnesses
         run: |
-          python -m py_compile tools/load_external_ai_runtime.py
           python -m py_compile tools/oauth_provider_stub.py
           python -m py_compile tools/connector_live_write_runtime_smoke.py
           python -m py_compile tools/connector_live_write_runtime_smoke_phase12.py
 
       - name: Validate Phase 7 evidence contract
         run: python -m json.tool build-evidence/runtime/connector-live-write-phase7-contract.json >/dev/null
-
-      - name: Load certified external AI runtime
-        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
       - name: Start local synthetic OAuth and provider-write server
         shell: bash
@@ -88,11 +80,11 @@ jobs:
           cat build-evidence/runtime/connector-live-write-stub.log
           exit 1
 
-      - name: Start external orchestrator with Phase 7 guarded live-write runtime
+      - name: Start real orchestrator with Phase 7 guarded live-write runtime
         shell: bash
         run: |
           docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml \
-            up -d orchestrator-service
+            up -d --build orchestrator-service
           docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase7-compose.override.yml ps
 
       - name: Run Phase 7 live-write proof
@@ -107,7 +99,6 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/connector-live-write-phase7-report.json').read_text())
-          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME_PROVIDER_WRITE_STUB', report
           assert report['capability'] == 'connector-live-write-phase7', report
@@ -115,9 +106,8 @@ jobs:
           assert report['production_provider_mutation_proven'] is False, report
           assert report['provider_exactly_once_proven'] is False, report
           assert len(report['checks']) == 20, report
-          assert consumption['status'] == 'PASS', consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          print('verified 20 Phase 7 approval-gated provider-write checks against certified external runtime')
+          print('verified 20 Phase 7 approval-gated provider-write checks')
           PY
 
       - name: Capture sanitized Phase 7 runtime state

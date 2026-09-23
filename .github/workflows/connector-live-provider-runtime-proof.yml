@@ -6,9 +6,7 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'architecture/ai-runtime-consumption.json'
-      - 'docker-compose.yml'
-      - 'tools/load_external_ai_runtime.py'
+      - 'orchestrator-service/**'
       - 'tools/connector_live_provider_runtime_smoke.py'
       - 'tools/oauth_provider_stub.py'
       - 'build-evidence/runtime/connector-live-providers-phase3-*'
@@ -18,9 +16,7 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'architecture/ai-runtime-consumption.json'
-      - 'docker-compose.yml'
-      - 'tools/load_external_ai_runtime.py'
+      - 'orchestrator-service/**'
       - 'tools/connector_live_provider_runtime_smoke.py'
       - 'tools/oauth_provider_stub.py'
       - 'build-evidence/runtime/connector-live-providers-phase3-*'
@@ -37,7 +33,7 @@ concurrency:
 jobs:
   connector-live-provider-runtime-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 30
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -58,15 +54,11 @@ jobs:
 
       - name: Compile proof harnesses
         run: |
-          python -m py_compile tools/load_external_ai_runtime.py
           python -m py_compile tools/oauth_provider_stub.py
           python -m py_compile tools/connector_live_provider_runtime_smoke.py
 
       - name: Validate Phase 3 evidence contract
         run: python -m json.tool build-evidence/runtime/connector-live-providers-phase3-contract.json >/dev/null
-
-      - name: Load certified external AI runtime
-        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
       - name: Start local synthetic OAuth provider
         shell: bash
@@ -82,11 +74,11 @@ jobs:
           cat build-evidence/runtime/connector-live-provider-stub.log
           exit 1
 
-      - name: Start external orchestrator with CI-only OAuth endpoints
+      - name: Start real orchestrator with CI-only OAuth endpoints
         shell: bash
         run: |
           docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-providers-phase3-compose.override.yml \
-            up -d orchestrator-service
+            up -d --build orchestrator-service
           docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-providers-phase3-compose.override.yml ps
 
       - name: Run live-provider OAuth foundation proof
@@ -101,14 +93,12 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/connector-live-providers-phase3-report.json').read_text())
-          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['capability'] == 'connector-live-providers-phase3', report
           assert report['physical_pc_validation'] is False, report
-          assert consumption['status'] == 'PASS', consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          print(f"verified {len(report['checks'])} OAuth/live-provider checks against certified external runtime")
+          print(f"verified {len(report['checks'])} OAuth/live-provider foundation checks")
           PY
 
       - name: Capture sanitized Phase 3 state

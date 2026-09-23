@@ -1,1 +1,0 @@
-package io.aetheris.orchestrator.trading;import org.springframework.data.jpa.repository.JpaRepository;import java.util.*;public interface AdvancedBacktestResultRepository extends JpaRepository<AdvancedBacktestResultEntity,UUID>{List<AdvancedBacktestResultEntity> findTop100ByOrderByCreatedAtDesc();}

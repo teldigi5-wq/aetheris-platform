@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Hosted proof that the source-absent platform consumes a certified external AI runtime.
-
-The runtime image must already have been loaded and verified by
-`tools/load_external_ai_runtime.py`. This proof boots the complete platform and
-observability topology without any AI-runtime source tree in this repository,
-then verifies the authenticated gateway boundary and Prometheus visibility.
-"""
+"""Hosted proof that the source-absent platform consumes the certified external AI runtime artifact."""
 
 from __future__ import annotations
 
@@ -20,6 +14,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "docker-compose.integration-external.yml"
+REFERENCE_FILE = ROOT / "architecture" / "ai-runtime-certification-reference.json"
 REPORT_FILE = ROOT / "build-evidence/runtime/external-integration-runtime-report.json"
 AI_SOURCE_DIRS = (
     "orchestrator-service",
@@ -28,14 +23,12 @@ AI_SOURCE_DIRS = (
     "workstation-agent",
 )
 RUNTIME_IMAGE = os.environ.get("AETHERIS_AI_RUNTIME_IMAGE", "")
-RUNTIME_REVISION = os.environ.get("AETHERIS_AI_RUNTIME_REVISION", "")
-EXPECTED_RUNTIME_IMAGE_ID = os.environ.get("AETHERIS_AI_RUNTIME_IMAGE_ID", "")
 TRUTH_BOUNDARY = (
-    "HOSTED_RUNTIME evidence proves the source-absent platform can build and boot its "
-    "full Docker Compose integration topology with observability while consuming a "
-    "hash-verified, exact-revision artifact from the separate AI-runtime repository. "
-    "It is not production deployment, registry publication, physical-PC validation, "
-    "or target-PC benchmark evidence."
+    "HOSTED_RUNTIME evidence proves the source-absent platform can build and boot its full "
+    "Docker Compose integration topology while consuming the exact certified AI-runtime "
+    "GitHub Release image artifact. It validates the versioned HTTP boundary and Prometheus "
+    "visibility on a GitHub-hosted Ubuntu runner only. It is not a production deployment, "
+    "container-registry publication, physical-PC validation, or target-PC benchmark."
 )
 
 
@@ -131,8 +124,7 @@ def wait_prometheus_runtime_target(timeout: int = 180) -> dict[str, Any]:
         status, body = http_json("GET", url, timeout=8)
         last = body
         if status == 200 and isinstance(body, dict) and body.get("status") == "success":
-            targets = body.get("data", {}).get("activeTargets", [])
-            for target in targets:
+            for target in body.get("data", {}).get("activeTargets", []):
                 labels = target.get("labels", {})
                 discovered = target.get("discoveredLabels", {})
                 job = labels.get("job") or discovered.get("__meta_prometheus_job_name")
@@ -151,6 +143,8 @@ def write_report(
     *,
     status: str,
     platform_revision: str,
+    runtime_revision: str,
+    runtime_repository: str,
     checks: dict[str, str],
     runtime_image_id: str,
     runtime_container_image_id: str,
@@ -163,19 +157,19 @@ def write_report(
         "evidence_class": "HOSTED_RUNTIME",
         "environment": "github-hosted-ubuntu-docker-compose",
         "physical_pc_validation": False,
-        "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
         "production_deployment_claim": False,
         "registry_publication_claim": False,
         "truth_boundary": TRUTH_BOUNDARY,
         "status": status,
-        "revision": platform_revision,
         "platform_revision": platform_revision,
-        "runtime_revision": RUNTIME_REVISION,
+        "runtime_revision": runtime_revision,
+        "runtime_repository": runtime_repository,
         "compose_file": str(COMPOSE_FILE.relative_to(ROOT)),
-        "ai_source_directories_present": [path for path in AI_SOURCE_DIRS if (ROOT / path).exists()],
+        "ai_source_directories_present": [
+            path for path in AI_SOURCE_DIRS if (ROOT / path).exists()
+        ],
         "runtime_image": {
             "ref": RUNTIME_IMAGE,
-            "revision": RUNTIME_REVISION,
             "image_id": runtime_image_id,
             "container_image_id": runtime_container_image_id,
         },
@@ -196,6 +190,10 @@ def main() -> int:
     runtime_container_image_id = ""
     prometheus_target: dict[str, Any] | None = None
     platform_revision = run(["git", "rev-parse", "HEAD"])
+    reference = json.loads(REFERENCE_FILE.read_text(encoding="utf-8"))
+    runtime = reference["destination_runtime"]
+    runtime_revision = runtime["certified_sha"]
+    runtime_repository = runtime["repository"]
 
     def passed(check_id: str) -> None:
         checks[check_id] = "PASS"
@@ -206,7 +204,15 @@ def main() -> int:
             raise AssertionError(
                 f"checked-out platform revision mismatch: expected={expected_platform_revision} actual={platform_revision}"
             )
-        passed("revision.platform-exact-head-bound")
+        passed("revision.exact-platform-head-bound")
+
+        if reference.get("status") != "DESTINATION_RUNTIME_CERTIFIED":
+            raise AssertionError(f"runtime reference is not certified: {reference!r}")
+        if reference.get("source_root_deletion_status") != "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION":
+            raise AssertionError(f"runtime source extraction is not finalized: {reference!r}")
+        if reference.get("platform_runtime_source_present") is not False:
+            raise AssertionError(f"platform runtime source boundary drifted: {reference!r}")
+        passed("ownership.certified-destination-runtime")
 
         present = [path for path in AI_SOURCE_DIRS if (ROOT / path).exists()]
         if present:
@@ -215,13 +221,12 @@ def main() -> int:
 
         if not COMPOSE_FILE.is_file():
             raise AssertionError(f"missing external integration Compose: {COMPOSE_FILE.name}")
-        if not RUNTIME_IMAGE or not RUNTIME_REVISION:
-            raise AssertionError("verified external runtime image and revision must be supplied")
-        if RUNTIME_IMAGE.endswith(":latest") or RUNTIME_REVISION not in RUNTIME_IMAGE:
-            raise AssertionError(
-                f"AI runtime image must be exact runtime-revision tagged: revision={RUNTIME_REVISION} image={RUNTIME_IMAGE}"
-            )
-        passed("runtime.image-ref-exact-runtime-revision-tagged")
+        expected_image = runtime["image_ref"]
+        if RUNTIME_IMAGE != expected_image:
+            raise AssertionError(f"runtime image mismatch: expected={expected_image!r} actual={RUNTIME_IMAGE!r}")
+        if runtime_revision not in RUNTIME_IMAGE:
+            raise AssertionError(f"runtime image is not exact-revision tagged: {RUNTIME_IMAGE!r}")
+        passed("runtime.image-ref-certified-revision-tagged")
 
         rendered_json = json.loads(compose("config", "--format", "json"))
         service_config = rendered_json.get("services", {})
@@ -251,18 +256,25 @@ def main() -> int:
         runtime_image_id = run(["docker", "image", "inspect", RUNTIME_IMAGE, "--format", "{{.Id}}"])
         if not runtime_image_id.startswith("sha256:"):
             raise AssertionError(f"unexpected AI runtime image identity: {runtime_image_id!r}")
-        if EXPECTED_RUNTIME_IMAGE_ID and runtime_image_id != EXPECTED_RUNTIME_IMAGE_ID:
-            raise AssertionError(
-                f"AI runtime image identity drift: expected={EXPECTED_RUNTIME_IMAGE_ID} actual={runtime_image_id}"
-            )
-        revision_label = run(
-            ["docker", "image", "inspect", RUNTIME_IMAGE, "--format", "{{index .Config.Labels \"org.opencontainers.image.revision\"}}"]
-        )
-        if revision_label != RUNTIME_REVISION:
-            raise AssertionError(
-                f"AI runtime OCI revision mismatch: expected={RUNTIME_REVISION} actual={revision_label}"
-            )
-        passed("runtime.real-certified-image-resolved")
+        label_revision = run([
+            "docker", "image", "inspect", RUNTIME_IMAGE, "--format",
+            '{{index .Config.Labels "org.opencontainers.image.revision"}}',
+        ])
+        label_source = run([
+            "docker", "image", "inspect", RUNTIME_IMAGE, "--format",
+            '{{index .Config.Labels "org.opencontainers.image.source"}}',
+        ])
+        label_evidence = run([
+            "docker", "image", "inspect", RUNTIME_IMAGE, "--format",
+            '{{index .Config.Labels "io.aetheris.evidence-class"}}',
+        ])
+        if label_revision != runtime_revision:
+            raise AssertionError(f"runtime provenance revision mismatch: {label_revision!r}")
+        if label_source != f"https://github.com/{runtime_repository}":
+            raise AssertionError(f"runtime provenance source mismatch: {label_source!r}")
+        if label_evidence != runtime["artifact_evidence_class"]:
+            raise AssertionError(f"runtime evidence class mismatch: {label_evidence!r}")
+        passed("runtime.release-artifact-provenance-verified")
 
         compose("up", "-d", "--build", timeout=1200)
         passed("compose.full-integration-started")
@@ -290,7 +302,7 @@ def main() -> int:
             raise AssertionError(
                 f"runtime container image mismatch: expected={runtime_image_id} actual={runtime_container_image_id}"
             )
-        passed("runtime.container-bound-to-supplied-image")
+        passed("runtime.container-bound-to-certified-release-image")
 
         status, direct_tasks = http_json("GET", "http://127.0.0.1:8090/api/orchestrator/tasks")
         if status != 200 or not isinstance(direct_tasks, list):
@@ -337,31 +349,30 @@ def main() -> int:
         write_report(
             status="PASS",
             platform_revision=platform_revision,
+            runtime_revision=runtime_revision,
+            runtime_repository=runtime_repository,
             checks=checks,
             runtime_image_id=runtime_image_id,
             runtime_container_image_id=runtime_container_image_id,
             services=services,
             prometheus_target=prometheus_target,
         )
-        print(
-            json.dumps(
-                {
-                    "status": "PASS",
-                    "platform_revision": platform_revision,
-                    "runtime_revision": RUNTIME_REVISION,
-                    "checks": len(checks),
-                    "services": len(services),
-                    "runtime_image_id": runtime_image_id,
-                    "ai_source_directories_present": [],
-                },
-                sort_keys=True,
-            )
-        )
+        print(json.dumps({
+            "status": "PASS",
+            "platform_revision": platform_revision,
+            "runtime_revision": runtime_revision,
+            "checks": len(checks),
+            "services": len(services),
+            "runtime_image_id": runtime_image_id,
+            "ai_source_directories_present": [],
+        }, sort_keys=True))
         return 0
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         write_report(
             status="FAIL",
             platform_revision=platform_revision,
+            runtime_revision=runtime_revision,
+            runtime_repository=runtime_repository,
             checks=checks,
             runtime_image_id=runtime_image_id,
             runtime_container_image_id=runtime_container_image_id,

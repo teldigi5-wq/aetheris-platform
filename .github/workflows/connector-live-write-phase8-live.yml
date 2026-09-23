@@ -24,7 +24,7 @@ jobs:
   live-test-account-write-validation:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[phase8-live-write]')
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 35
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -39,7 +39,6 @@ jobs:
 
       - name: Validate Phase 8 harness before arming
         run: |
-          python -m py_compile tools/load_external_ai_runtime.py
           python -m py_compile tools/connector_live_write_phase8_token_broker.py
           python -m py_compile tools/connector_live_write_phase8_validation.py
           python tools/connector_live_write_phase8_validation.py \
@@ -263,14 +262,11 @@ jobs:
           echo 'Phase 8 credential broker did not become ready.'
           exit 1
 
-      - name: Load certified external AI runtime
-        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
-
-      - name: Start Aetheris with real provider write endpoints and external runtime
+      - name: Start Aetheris with real provider write endpoints
         shell: bash
         run: |
           docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml \
-            up -d orchestrator-service
+            up -d --build orchestrator-service
           docker compose -f docker-compose.yml -f build-evidence/runtime/connector-live-write-phase8-compose.override.yml ps
 
       - name: Run credential-gated real test-account write validation
@@ -291,7 +287,6 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/connector-live-write-phase8-report.json').read_text())
-          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'LIVE_PROVIDER_TEST_ACCOUNT_WRITES', report
           assert report['capability'] == 'connector-live-write-phase8', report
@@ -304,9 +299,7 @@ jobs:
           assert report['provider_exactly_once_proven'] is False, report
           assert len(report['checks']) == 20, report
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          assert consumption['status'] == 'PASS', consumption
-          assert consumption['physical_pc_status'] == 'BLOCKED_PENDING_HARDWARE', consumption
-          print('verified 20 Phase 8 credential-gated live test-account write checks against certified external runtime')
+          print('verified 20 Phase 8 credential-gated live test-account write checks')
           PY
 
       - name: Publish sanitized Phase 8 evidence only
@@ -317,7 +310,6 @@ jobs:
           path: |
             build-evidence/runtime/connector-live-write-phase8-readiness.json
             build-evidence/runtime/connector-live-write-phase8-report.json
-            build-evidence/runtime/ai-runtime-consumption-report.json
           if-no-files-found: warn
           retention-days: 7
 
