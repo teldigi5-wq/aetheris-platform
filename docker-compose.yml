@@ -1,3 +1,5 @@
+name: aetheris-platform
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -96,11 +98,19 @@ services:
       - "8083:8083"
 
   orchestrator-service:
-    build: ./orchestrator-service
+    image: ${AETHERIS_AI_RUNTIME_IMAGE:?AETHERIS_AI_RUNTIME_IMAGE must identify the certified exact-revision external runtime}
     environment:
       ORCHESTRATOR_PORT: 8090
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
+      AETHERIS_LOCAL_MODEL_BASE_URL: ${AETHERIS_LOCAL_MODEL_BASE_URL:-http://host.docker.internal:11434}
+      AETHERIS_LOCAL_MODEL: ${AETHERIS_LOCAL_MODEL:-qwen2.5:3b}
       AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC:-}
       AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8090:8090"
 
