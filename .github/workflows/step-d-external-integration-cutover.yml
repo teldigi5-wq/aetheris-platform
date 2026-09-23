@@ -39,6 +39,7 @@ jobs:
       - name: Compile external integration proof harnesses
         run: |
           python -m py_compile tools/load_external_ai_runtime.py
+          python -m py_compile tools/hide_ai_runtime_sources.py
           python -m py_compile tools/external_integration_runtime_proof.py
 
       - name: Show Docker runtime
@@ -49,7 +50,10 @@ jobs:
       - name: Load certified destination AI runtime artifact
         run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
-      - name: Assert AI-runtime source is absent from platform checkout
+      - name: Hide AI-runtime source for pre-removal validation
+        run: python tools/hide_ai_runtime_sources.py --destination "$RUNNER_TEMP/step-d-source-hidden"
+
+      - name: Assert AI-runtime source is absent from platform workspace
         run: |
           for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
             test ! -e "$source_dir"
