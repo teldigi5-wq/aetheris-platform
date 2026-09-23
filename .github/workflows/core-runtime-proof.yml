@@ -10,9 +10,11 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'audit-service/**'
-      - 'orchestrator-service/**'
       - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
       - 'tools/core_runtime_smoke.py'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'build-evidence/runtime/core-runtime-contract.json'
       - '.github/workflows/core-runtime-proof.yml'
   push:
@@ -24,9 +26,11 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'audit-service/**'
-      - 'orchestrator-service/**'
       - 'docker-compose.yml'
+      - 'docker-compose.integration-external.yml'
       - 'tools/core_runtime_smoke.py'
+      - 'tools/load_certified_ai_runtime.sh'
+      - 'architecture/ai-runtime-certification-reference.json'
       - 'build-evidence/runtime/core-runtime-contract.json'
       - '.github/workflows/core-runtime-proof.yml'
   workflow_dispatch:
@@ -45,6 +49,7 @@ jobs:
     timeout-minutes: 35
     env:
       AETHERIS_JWT_SECRET: runtime-proof-local-ci-secret-change-me-42chars
+      COMPOSE_FILE: docker-compose.integration-external.yml
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -65,6 +70,9 @@ jobs:
         run: |
           docker version
           docker compose version
+
+      - name: Load certified destination runtime release image
+        run: tools/load_certified_ai_runtime.sh
 
       - name: Start core Compose stack
         run: |
