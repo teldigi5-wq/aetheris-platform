@@ -277,6 +277,8 @@ For the full historical record see **[docs/master-roadmap.md](docs/master-roadma
 
 Stable `main` is protected by the repository ruleset **`Protect stable main`**.
 
+The Stage 27 governance contract still records `feature/syntra-aetheris-foundation-v2` as the canonical development-line marker used by its historical/repository-governance verification. The completed runtime extraction and stable-main promotion do not rewrite that certification contract.
+
 The verification surface includes backend tests, dashboard builds, compatibility-contract freeze, CodeQL for Java and JavaScript/TypeScript, dependency lockdown, reproducibility checks, platform evidence certification and cross-repository runtime-integration proofs.
 
 Runtime-owned regression/safety certification executes in `aetheris-ai-runtime`; the platform retains the certified reference and the integration/evidence checks needed to consume it. Historical Stage 26 safety/evidence and Stage 27 repository-governance contracts remain CI guards, not the primary recruiter narrative.
