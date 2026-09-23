@@ -10,6 +10,8 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'docker-compose.yml'
+      - 'architecture/ai-runtime-consumption.json'
+      - 'tools/load_external_ai_runtime.py'
       - 'tools/security_runtime_smoke.py'
       - 'build-evidence/runtime/security-runtime-contract.json'
       - '.github/workflows/security-runtime-proof.yml'
@@ -22,6 +24,8 @@ on:
       - 'identity-service/**'
       - 'user-service/**'
       - 'docker-compose.yml'
+      - 'architecture/ai-runtime-consumption.json'
+      - 'tools/load_external_ai_runtime.py'
       - 'tools/security_runtime_smoke.py'
       - 'build-evidence/runtime/security-runtime-contract.json'
       - '.github/workflows/security-runtime-proof.yml'
@@ -38,7 +42,7 @@ jobs:
   security-runtime-proof:
     name: security-runtime-proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 40
     env:
       AETHERIS_JWT_SECRET: security-proof-local-ci-secret-change-me-42chars
     steps:
@@ -51,8 +55,10 @@ jobs:
           python-version: '3.13.15'
           check-latest: false
 
-      - name: Compile security proof harness
-        run: python -m py_compile tools/security_runtime_smoke.py
+      - name: Compile security proof harnesses
+        run: |
+          python -m py_compile tools/load_external_ai_runtime.py
+          python -m py_compile tools/security_runtime_smoke.py
 
       - name: Validate security proof contract JSON
         run: python -m json.tool build-evidence/runtime/security-runtime-contract.json >/dev/null
@@ -61,6 +67,9 @@ jobs:
         run: |
           docker version
           docker compose version
+
+      - name: Load certified external AI runtime
+        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
       - name: Start security proof stack
         run: |
@@ -94,12 +103,15 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/security-runtime-report.json').read_text())
+          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['physical_pc_validation'] is False, report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['capability'] == 'security', report
+          assert consumption['status'] == 'PASS', consumption
+          assert consumption['registry_publication_claim'] is False, consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          print(f"verified {len(report['checks'])} hosted security runtime checks")
+          print(f"verified {len(report['checks'])} hosted security runtime checks against certified external AI runtime")
           PY
 
       - name: Capture sanitized security state
@@ -115,7 +127,7 @@ jobs:
             > build-evidence/runtime/security-token-state.txt 2>/dev/null || true
           if [ "${{ job.status }}" != "success" ]; then
             docker compose logs --no-color --tail=160 \
-              postgres user-service identity-service gateway \
+              postgres user-service identity-service orchestrator-service gateway \
               > build-evidence/runtime/security-failure.log 2>&1 || true
           fi
 
