@@ -5,7 +5,9 @@ on:
     branches:
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
+      - 'architecture/ai-runtime-consumption.json'
+      - 'docker-compose.yml'
+      - 'tools/load_external_ai_runtime.py'
       - 'tools/connector_approved_actions_runtime_smoke.py'
       - 'build-evidence/runtime/connector-approved-actions-phase6-contract.json'
       - '.github/workflows/connector-approved-actions-runtime-proof.yml'
@@ -13,7 +15,9 @@ on:
     branches:
       - feature/syntra-aetheris-foundation-v2
     paths:
-      - 'orchestrator-service/**'
+      - 'architecture/ai-runtime-consumption.json'
+      - 'docker-compose.yml'
+      - 'tools/load_external_ai_runtime.py'
       - 'tools/connector_approved_actions_runtime_smoke.py'
       - 'build-evidence/runtime/connector-approved-actions-phase6-contract.json'
       - '.github/workflows/connector-approved-actions-runtime-proof.yml'
@@ -30,7 +34,7 @@ jobs:
   connector-approved-actions-runtime-proof:
     name: connector-approved-actions-runtime-proof
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -41,8 +45,10 @@ jobs:
           python-version: '3.13.15'
           check-latest: false
 
-      - name: Compile Phase 6 proof harness
-        run: python -m py_compile tools/connector_approved_actions_runtime_smoke.py
+      - name: Compile Phase 6 proof harnesses
+        run: |
+          python -m py_compile tools/load_external_ai_runtime.py
+          python -m py_compile tools/connector_approved_actions_runtime_smoke.py
 
       - name: Validate Phase 6 evidence contract
         run: python -m json.tool build-evidence/runtime/connector-approved-actions-phase6-contract.json >/dev/null
@@ -52,11 +58,14 @@ jobs:
           docker version
           docker compose version
 
-      - name: Start real orchestrator service
+      - name: Load certified external AI runtime
+        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
+
+      - name: Start external orchestrator service
         env:
           AETHERIS_CONNECTORS_LIVE_WRITES_ENABLED: 'false'
         run: |
-          docker compose up -d --build orchestrator-service
+          docker compose up -d orchestrator-service
           docker compose ps
 
       - name: Run connector approved-actions proof
@@ -71,13 +80,15 @@ jobs:
           import json
           from pathlib import Path
           report = json.loads(Path('build-evidence/runtime/connector-approved-actions-phase6-report.json').read_text())
+          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['physical_pc_validation'] is False, report
           assert report['live_provider_mutation_proven'] is False, report
           assert report['evidence_class'] == 'HOSTED_RUNTIME_SYNTHETIC_WRITE', report
           assert report['capability'] == 'connector-approved-actions-phase6', report
+          assert consumption['status'] == 'PASS', consumption
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          print(f"verified {len(report['checks'])} connector approved-action checks")
+          print(f"verified {len(report['checks'])} connector approved-action checks against certified external runtime")
           PY
 
       - name: Capture sanitized Phase 6 runtime state
