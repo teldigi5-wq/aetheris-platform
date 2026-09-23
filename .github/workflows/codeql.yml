@@ -46,7 +46,7 @@ jobs:
       - name: Analyze
         uses: github/codeql-action/analyze@faaca9a8f6edddba5725ffe5adefdab6669a2eca
         with:
-          category: '/language:java-kotlin/core-platform'
+          category: '/language:java-kotlin'
 
   analyze-javascript:
     name: Analyze JavaScript/TypeScript
