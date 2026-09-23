@@ -12,7 +12,6 @@ on:
   push:
     branches:
       - feature/syntra-aetheris-foundation-v2
-      - feature/connector-live-test-write-phase8
     paths:
       - 'tools/connector_live_write_phase8_*.py'
       - 'build-evidence/runtime/connector-live-write-phase8-*'
@@ -64,7 +63,7 @@ jobs:
           contract = Path('build-evidence/runtime/connector-live-write-phase8-contract.json').read_text()
 
           required_workflow_fragments = [
-              "[phase8-live-write]",
+              "workflow_dispatch:",
               "AETHERIS_PHASE8_ARM_CONFIRMATION",
               "AETHERIS_PHASE8_GITHUB_ACCESS_TOKEN",
               "AETHERIS_LIVE_GMAIL_ACCESS_TOKEN",
@@ -78,15 +77,17 @@ jobs:
           ]
           for fragment in required_workflow_fragments:
               assert fragment in workflow, fragment
-              assert fragment in contract or fragment == "[phase8-live-write]", fragment
+              if fragment != "workflow_dispatch:":
+                  assert fragment in contract, fragment
 
           assert "https://oauth2.googleapis.com/token" in workflow
           assert "grant_type': 'refresh_token'" in workflow
           assert "google_auth_mode" in workflow
           assert "pull_request:" not in workflow, "live mutation workflow must never run from pull_request"
+          assert "push:" not in workflow, "live mutation workflow must remain manual-dispatch only"
           assert "AETHERIS_WRITE_GMAIL_SEND_URL: https://gmail.googleapis.com/" in compose
           assert "AETHERIS_WRITE_CALENDAR_EVENTS_URL_TEMPLATE: https://www.googleapis.com/" in compose
           assert "AETHERIS_WRITE_GITHUB_ISSUES_URL_TEMPLATE: https://api.github.com/" in compose
           assert "BLOCKED_PENDING_HARDWARE" in contract
-          print('Phase 8 contract is explicit, credential-gated, refresh-capable, and non-mutating in ordinary CI.')
+          print('Phase 8 contract is explicit, credential-gated, refresh-capable, and manual-dispatch only.')
           PY
