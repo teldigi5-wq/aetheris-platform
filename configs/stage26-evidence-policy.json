@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "stage": 26,
-  "name": "Evidence Integrity & Pre-PC Change Control",
-  "repository_status": "PRE_PC_HARDENED",
+  "name": "Evidence Integrity & Pre-PC Change Control — Split Runtime Ownership",
+  "repository_status": "PRE_PC_HARDENED_EXTERNAL_RUNTIME_CERTIFIED",
   "physical_pc_status": "BLOCKED_PENDING_HARDWARE",
   "hard_boundaries": {
     "physicalPilotComplete": false,
@@ -29,15 +29,27 @@
       "path": "docs/stage-25-first-boot-readiness.md",
       "contains": [
         "physical_pc_status: NOT_TESTED",
-        "A hosted CI pass is not a substitute"
+        "A hosted CI pass is not a substitute",
+        "teldigi5-wq/aetheris-ai-runtime",
+        "68af39a1115a7330020c18b6e2cb601e66b8f22f"
       ]
     },
     {
       "path": "configs/first-boot-contract.json",
       "contains": [
         "forbidden_claims_before_physical_validation",
-        "workstation-agent-validation.txt",
-        "orchestrator-health.txt"
+        "aetheris-platform-external-ai-runtime-v1",
+        "architecture/ai-runtime-certification-reference.json",
+        "68af39a1115a7330020c18b6e2cb601e66b8f22f"
+      ]
+    },
+    {
+      "path": "architecture/ai-runtime-certification-reference.json",
+      "contains": [
+        "DESTINATION_RUNTIME_CERTIFIED",
+        "6_OF_6_SUCCESS",
+        "BLOCKED_PENDING_EXTERNAL_INTEGRATION_PROOF",
+        "BLOCKED_PENDING_HARDWARE"
       ]
     }
   ],
@@ -70,6 +82,9 @@
     "scripts/stage23/expected-contract.sha256",
     "scripts/check_dependency_lockdown.py",
     "configs/first-boot-contract.json",
+    "architecture/ai-runtime-certification-reference.json",
+    "docker-compose.core.yml",
+    "docker-compose.integration-external.yml",
     "docs/ai/stage-21-physical-target-pilot.md",
     "docs/stage-25-first-boot-readiness.md",
     "build-evidence/dependency-lock-sha256.txt"
