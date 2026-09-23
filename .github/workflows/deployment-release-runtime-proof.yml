@@ -19,7 +19,7 @@ env:
 jobs:
   deployment-release-runtime-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -31,29 +31,33 @@ jobs:
         with:
           python-version: '3.13.15'
 
-      - name: Compile release proof harness
-        run: python -m py_compile tools/deployment_release_runtime_smoke.py
+      - name: Compile release proof harnesses
+        run: |
+          python -m py_compile tools/load_external_ai_runtime.py
+          python -m py_compile tools/deployment_release_runtime_smoke.py
 
       - name: Validate release proof contract
         run: python -m json.tool build-evidence/runtime/deployment-release-runtime-contract.json >/dev/null
 
-      - name: Verify exact revision binding
+      - name: Verify exact platform revision binding
         run: |
           test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
-          echo "release proof revision=$AETHERIS_EXPECTED_REVISION"
+          echo "release proof platform revision=$AETHERIS_EXPECTED_REVISION"
 
       - name: Show Docker runtime
         run: |
           docker version
           docker compose version
 
-      - name: Build exact-revision release images
+      - name: Load certified destination AI runtime artifact
+        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
+
+      - name: Build exact-revision platform release images
         run: |
-          docker compose build \
-            user-service identity-service audit-service orchestrator-service gateway
+          docker compose build user-service identity-service audit-service gateway
           docker compose images
 
-      - name: Start exact-revision release candidate
+      - name: Start release candidate with certified external runtime
         run: |
           docker compose up -d \
             postgres redis rabbitmq \
@@ -75,6 +79,7 @@ jobs:
 
           report = json.loads(Path('build-evidence/runtime/deployment-release-runtime-report.json').read_text())
           manifest = json.loads(Path('build-evidence/runtime/deployment-release-manifest.json').read_text())
+          consumption = json.loads(Path('build-evidence/runtime/ai-runtime-consumption-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['physical_pc_validation'] is False, report
@@ -89,7 +94,9 @@ jobs:
           assert set(manifest['service_image_ids']) == {
               'gateway', 'identity-service', 'user-service', 'audit-service', 'orchestrator-service'
           }, manifest
-          print('verified 17 hosted deployment/release checks with same-image rollback and state preservation')
+          assert manifest['service_image_ids']['orchestrator-service'] == consumption['image_id'], (manifest, consumption)
+          assert consumption['registry_publication_claim'] is False, consumption
+          print('verified 17 hosted deployment/release checks with destination-produced orchestrator artifact')
           PY
 
       - name: Capture release runtime snapshot
@@ -125,11 +132,10 @@ jobs:
 
   core-external-runtime-boundary-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
       AETHERIS_CORE_NETWORK: aetheris-core-boundary
       AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER: orchestrator-runtime
-      AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE: aetheris/orchestrator-runtime:${{ github.event.pull_request.head.sha || github.sha }}
       AETHERIS_ORCHESTRATOR_URI: http://orchestrator-runtime:8090
     steps:
       - name: Checkout exact revision
@@ -142,32 +148,30 @@ jobs:
         with:
           python-version: '3.13.15'
 
-      - name: Compile deployment boundary proof harness
-        run: python -m py_compile tools/core_deployment_boundary_smoke.py
+      - name: Compile deployment boundary proof harnesses
+        run: |
+          python -m py_compile tools/load_external_ai_runtime.py
+          python -m py_compile tools/core_deployment_boundary_smoke.py
 
-      - name: Verify exact revision binding
+      - name: Verify exact platform revision binding
         run: |
           test "$(git rev-parse HEAD)" = "$AETHERIS_EXPECTED_REVISION"
-          echo "core deployment boundary revision=$AETHERIS_EXPECTED_REVISION"
+          echo "core deployment boundary platform revision=$AETHERIS_EXPECTED_REVISION"
 
       - name: Show Docker runtime
         run: |
           docker version
           docker compose version
 
-      - name: Build separately managed exact-revision AI runtime image
-        run: |
-          docker build \
-            -t "$AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE" \
-            ./orchestrator-service
-          docker image inspect "$AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE" \
-            --format 'external runtime image={{.Id}}'
+      - name: Load certified separately managed AI runtime image
+        run: python tools/load_external_ai_runtime.py --github-env "$GITHUB_ENV"
 
-      - name: Remove AI runtime source from core deployment workspace
+      - name: Assert AI runtime source is absent from platform workspace
         run: |
-          mv orchestrator-service "$RUNNER_TEMP/orchestrator-service-source-hidden"
-          test ! -e orchestrator-service
-          echo "orchestrator source removed before core compose config/build/start"
+          for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
+            test ! -e "$source_dir"
+          done
+          echo "AI runtime source absent before core compose config/build/start"
 
       - name: Run core-only deployment boundary proof
         run: python tools/core_deployment_boundary_smoke.py
@@ -179,6 +183,7 @@ jobs:
           from pathlib import Path
 
           report = json.loads(Path('build-evidence/runtime/core-deployment-boundary-report.json').read_text())
+          consumption = json.loads(Path('architecture/ai-runtime-consumption.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['physical_pc_validation'] is False, report
@@ -188,9 +193,9 @@ jobs:
           assert 'orchestrator-service' not in report['core_services'], report
           assert len(report['checks']) == 15, report
           assert all(value == 'PASS' for value in report['checks'].values()), report
-          assert report['external_orchestrator']['image_ref'].endswith(report['revision']), report
-          assert report['external_orchestrator']['image_id'].startswith('sha256:'), report
-          print('verified 15 hosted core/external-runtime deployment-boundary checks')
+          assert report['external_orchestrator']['image_ref'] == consumption['image_tag'], report
+          assert report['external_orchestrator']['image_id'] == consumption['image_id'], report
+          print('verified 15 hosted core/external-runtime boundary checks against certified destination image')
           PY
 
       - name: Capture core boundary runtime snapshot
