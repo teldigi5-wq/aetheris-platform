@@ -50,6 +50,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
@@ -73,6 +74,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
