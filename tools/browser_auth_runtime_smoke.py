@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DASHBOARD_ORIGIN = "http://127.0.0.1:3000"
+DASHBOARD_ORIGIN = "http://localhost:3000"
 COOKIE_SENTINEL = "COOKIE_BOUND"
 COOKIE_NAME = "aetheris_refresh"
 TRUTH_BOUNDARY = (
