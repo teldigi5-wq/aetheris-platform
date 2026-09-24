@@ -289,6 +289,9 @@ def main() -> int:
         passed("cache.users-list-materialized")
 
         wait_for_event(runtime_user_email)
+        compose("restart", "-t", "10", "audit-service", timeout=60)
+        wait_health("audit-service", 8083)
+        wait_for_event(runtime_user_email)
         passed("messaging.user-created-audit-event")
 
         # Resilience: force user-service unavailable, require gateway fallback, then recover.
