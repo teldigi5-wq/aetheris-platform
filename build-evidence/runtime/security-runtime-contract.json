@@ -5,7 +5,7 @@
   "capability": "security",
   "environment": "github-hosted-ubuntu-docker-compose",
   "physical_pc_validation": false,
-  "truth_boundary": "This contract proves only the checked authentication, authorization, anti-spoofing, token-rotation, and credential-storage behavior observed in the GitHub-hosted Docker Compose environment. It is not a penetration test, formal security audit or certification, production-secret/KMS validation, load/DoS testing, Kubernetes security validation, or physical-PC validation.",
+  "truth_boundary": "This contract proves only the checked authentication, authorization, anti-spoofing, token-rotation, concurrent single-use, and credential-storage behavior observed in the GitHub-hosted Docker Compose environment. It is not a penetration test, formal security audit or certification, production-secret/KMS validation, load/DoS testing, Kubernetes security validation, or physical-PC validation.",
   "checks": [
     {"id": "service.gateway.health", "claim": "Gateway actuator health reports UP before the security exercise."},
     {"id": "service.identity.health", "claim": "Identity-service actuator health reports UP before the security exercise."},
@@ -19,6 +19,7 @@
     {"id": "security.password-stored-as-bcrypt", "claim": "The registered password is persisted only as a BCrypt cost-12 hash rather than plaintext."},
     {"id": "security.refresh-token-not-stored-raw", "claim": "The raw refresh bearer token is absent from the persisted refresh-token values."},
     {"id": "security.refresh-token-stored-as-sha256", "claim": "The persisted refresh-token value matches the SHA-256 digest of the issued raw refresh token."},
+    {"id": "security.concurrent-refresh-single-winner", "claim": "Eight simultaneous refresh attempts using one bearer produce exactly one successful rotation and seven replay rejections."},
     {"id": "security.refresh-rotation-issues-new-token", "claim": "Refreshing rotates the credential and returns a distinct replacement refresh token."},
     {"id": "security.rotated-token-revokes-old-hash", "claim": "After rotation, the original token hash is marked revoked in PostgreSQL."},
     {"id": "security.replacement-token-hash-active", "claim": "The replacement token is represented by a distinct SHA-256 hash that remains active after rotation."},
