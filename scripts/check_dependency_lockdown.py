@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Dependency-lockdown verifier with explicit core and AI-runtime ownership scopes."""
+"""Core-platform dependency-lockdown verifier.
+
+AI-runtime dependency ownership lives in teldigi5-wq/aetheris-ai-runtime. This
+platform-side verifier intentionally validates only retained core surfaces and
+fails if extracted runtime source leaks back into the platform repository.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +21,7 @@ EXACT_SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 FORBIDDEN_LICENSE_MARKERS = ("AGPL-", "SSPL-", "BUSL-", "COMMONS CLAUSE", "GPL-3.0-ONLY")
 CORE_MAVEN_MODULES = ("gateway", "user-service", "identity-service", "audit-service")
 CORE_DOCKERFILES = tuple(f"{module}/Dockerfile" for module in CORE_MAVEN_MODULES)
-AI_MAVEN_MODULES = ("orchestrator-service", "workstation-agent")
+RUNTIME_OWNED_ROOTS = ("orchestrator-service", "aetheris-quant", "aetheris-reasoning", "workstation-agent")
 PINNED_IMAGE = re.compile(r"^[^@\s]+@sha256:[0-9a-f]{64}$")
 MAVEN_3_9_11_SHA512 = "bcfe4fe305c962ace56ac7b5fc7a08b87d5abd8b7e89027ab251069faebee516b0ded8961445d6d91ec1985dfe30f8153268843c89aa392733d1a3ec956c9978"
 
@@ -30,6 +35,14 @@ def require_file(relative: str) -> Path:
     if not path.is_file():
         fail(f"missing required evidence: {relative}")
     return path
+
+
+def runtime_source_boundary_errors(base: Path = ROOT) -> list[str]:
+    return [
+        f"runtime-owned source leaked into platform: {relative}"
+        for relative in RUNTIME_OWNED_ROOTS
+        if (base / relative).exists()
+    ]
 
 
 def verify_node() -> None:
@@ -66,37 +79,13 @@ def verify_node() -> None:
         fail("dashboard lockfile contains no package integrity hashes")
 
 
-def verify_quant_python() -> None:
-    source_path = require_file("aetheris-quant/requirements.in")
-    lock_path = require_file("aetheris-quant/requirements.lock.txt")
-    reasoning = require_file("aetheris-reasoning/pyproject.toml")
-    if reasoning.is_file() and "setuptools>=68" not in reasoning.read_text(encoding="utf-8"):
-        fail("reasoning build-system setuptools floor changed unexpectedly")
-    if not source_path.is_file() or not lock_path.is_file():
-        return
-    for raw in source_path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "==" not in line or any(token in line for token in (">=", "<=", "~=", "!=", "*")):
-            fail(f"Python direct dependency must be exactly pinned: {line}")
-    lines = lock_path.read_text(encoding="utf-8").splitlines()
-    starts = [i for i, line in enumerate(lines) if line and not line[0].isspace() and not line.startswith("#") and "==" in line]
-    if not starts:
-        fail("Python lockfile contains no pinned requirements")
-        return
-    for position, start in enumerate(starts):
-        end = starts[position + 1] if position + 1 < len(starts) else len(lines)
-        block = "\n".join(lines[start:end])
-        requirement = lines[start].split("\\", 1)[0].strip()
-        if "--hash=sha256:" not in block:
-            fail(f"Python lock entry has no SHA-256 hash: {requirement}")
-
-
-def verify_common_toolchain() -> None:
+def verify_core_toolchain() -> None:
     java = require_file(".java-version")
     if java.is_file() and java.read_text(encoding="utf-8").strip() != "21.0.12":
         fail(".java-version must contain 21.0.12")
+    node = require_file(".nvmrc")
+    if node.is_file() and node.read_text(encoding="utf-8").strip() != "22.23.2":
+        fail(".nvmrc must contain 22.23.2")
     wrapper = require_file(".mvn/wrapper/maven-wrapper.properties")
     if wrapper.is_file():
         text = wrapper.read_text(encoding="utf-8")
@@ -106,22 +95,8 @@ def verify_common_toolchain() -> None:
             fail("Maven wrapper distribution must remain pinned to Maven 3.9.11")
 
 
-def verify_core_toolchain() -> None:
-    verify_common_toolchain()
-    node = require_file(".nvmrc")
-    if node.is_file() and node.read_text(encoding="utf-8").strip() != "22.23.2":
-        fail(".nvmrc must contain 22.23.2")
-
-
-def verify_ai_toolchain() -> None:
-    verify_common_toolchain()
-    python = require_file("aetheris-quant/.python-version")
-    if python.is_file() and python.read_text(encoding="utf-8").strip() != "3.13.15":
-        fail("aetheris-quant/.python-version must contain 3.13.15")
-
-
-def verify_maven(modules: tuple[str, ...], include_root: bool) -> None:
-    pom_paths = (["pom.xml"] if include_root else []) + [f"{module}/pom.xml" for module in modules]
+def verify_maven() -> None:
+    pom_paths = ["pom.xml", *(f"{module}/pom.xml" for module in CORE_MAVEN_MODULES)]
     for relative in pom_paths:
         path = require_file(relative)
         if not path.is_file():
@@ -131,7 +106,7 @@ def verify_maven(modules: tuple[str, ...], include_root: bool) -> None:
             fail(f"floating Maven version in {relative}")
         if re.search(r"<version>\s*[\[(]", text):
             fail(f"Maven version range in {relative}")
-    for module in modules:
+    for module in CORE_MAVEN_MODULES:
         evidence = require_file(f"build-evidence/maven/{module}.txt")
         if evidence.is_file() and evidence.stat().st_size == 0:
             fail(f"empty Maven dependency evidence for {module}")
@@ -157,7 +132,11 @@ def container_policy_errors(relative: str, text: str) -> list[str]:
         errors.append(f"{relative}: Maven 3.9.11 archive SHA-512 verification is missing or drifted")
 
     runtime_lines = lines[from_indexes[-1]:]
-    users = [raw.strip().split(maxsplit=1)[1] for raw in runtime_lines if raw.strip().upper().startswith("USER ") and len(raw.strip().split(maxsplit=1)) == 2]
+    users = [
+        raw.strip().split(maxsplit=1)[1]
+        for raw in runtime_lines
+        if raw.strip().upper().startswith("USER ") and len(raw.strip().split(maxsplit=1)) == 2
+    ]
     if not users:
         errors.append(f"{relative}: runtime stage has no explicit non-root USER")
     else:
@@ -179,6 +158,8 @@ def verify_core_containers() -> None:
 
 
 def verify_core_boundaries() -> None:
+    for error in runtime_source_boundary_errors():
+        fail(error)
     for relative in (
         "scripts/stage22/release_gate.py",
         "scripts/stage22/schema_guard.py",
@@ -193,42 +174,18 @@ def verify_core_boundaries() -> None:
         require_file(relative)
 
 
-def verify_ai_boundaries() -> None:
-    for relative in (
-        "orchestrator-service/pom.xml",
-        "workstation-agent/pom.xml",
-        "aetheris-quant/requirements.in",
-        "aetheris-quant/requirements.lock.txt",
-        "aetheris-reasoning/pyproject.toml",
-    ):
-        require_file(relative)
-
-
 def write_hash_manifest(scope: str) -> None:
-    if scope == "core":
-        evidence_files = [
-            "dashboard/package.json", "dashboard/package-lock.json", "dashboard/Dockerfile",
-            *CORE_DOCKERFILES,
-            ".mvn/wrapper/maven-wrapper.properties",
-            *(f"build-evidence/maven/{module}.txt" for module in CORE_MAVEN_MODULES),
-        ]
-        output = ROOT / "build-evidence/core-dependency-lock-sha256.txt"
-    elif scope == "ai-runtime":
-        evidence_files = [
-            "aetheris-quant/requirements.in", "aetheris-quant/requirements.lock.txt",
-            "aetheris-reasoning/pyproject.toml", ".mvn/wrapper/maven-wrapper.properties",
-            *(f"build-evidence/maven/{module}.txt" for module in AI_MAVEN_MODULES),
-        ]
-        output = ROOT / "build-evidence/ai-runtime-dependency-lock-sha256.txt"
-    else:
-        evidence_files = [
-            "dashboard/package.json", "dashboard/package-lock.json", "dashboard/Dockerfile",
-            *CORE_DOCKERFILES,
-            "aetheris-quant/requirements.in", "aetheris-quant/requirements.lock.txt",
-            "aetheris-reasoning/pyproject.toml", ".mvn/wrapper/maven-wrapper.properties",
-            *(f"build-evidence/maven/{module}.txt" for module in (*CORE_MAVEN_MODULES, *AI_MAVEN_MODULES)),
-        ]
-        output = ROOT / "build-evidence/dependency-lock-sha256.txt"
+    if scope != "core":
+        raise ValueError(f"unsupported platform dependency scope: {scope}")
+    evidence_files = [
+        "dashboard/package.json",
+        "dashboard/package-lock.json",
+        "dashboard/Dockerfile",
+        *CORE_DOCKERFILES,
+        ".mvn/wrapper/maven-wrapper.properties",
+        *(f"build-evidence/maven/{module}.txt" for module in CORE_MAVEN_MODULES),
+    ]
+    output = ROOT / "build-evidence/core-dependency-lock-sha256.txt"
     output.parent.mkdir(parents=True, exist_ok=True)
     rows: list[str] = []
     for relative in evidence_files:
@@ -239,31 +196,32 @@ def write_hash_manifest(scope: str) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--scope", choices=("core", "ai-runtime", "all"), default="all")
+    parser = argparse.ArgumentParser(
+        description="Verify retained Aetheris platform-core dependency and source-ownership boundaries."
+    )
+    parser.add_argument(
+        "--scope",
+        choices=("core",),
+        default="core",
+        help="Platform ownership scope. AI-runtime dependencies are verified in aetheris-ai-runtime.",
+    )
     parser.add_argument("--write-hashes", action="store_true")
     args = parser.parse_args()
 
-    if args.scope in ("core", "all"):
-        verify_node()
-        verify_core_toolchain()
-        verify_maven(CORE_MAVEN_MODULES, include_root=True)
-        verify_core_containers()
-        verify_core_boundaries()
-    if args.scope in ("ai-runtime", "all"):
-        verify_quant_python()
-        verify_ai_toolchain()
-        verify_maven(AI_MAVEN_MODULES, include_root=False)
-        verify_ai_boundaries()
+    verify_node()
+    verify_core_toolchain()
+    verify_maven()
+    verify_core_containers()
+    verify_core_boundaries()
     if args.write_hashes:
         write_hash_manifest(args.scope)
 
     if ERRORS:
-        print(f"Aetheris dependency lockdown ({args.scope}) FAILED:", file=sys.stderr)
+        print("Aetheris dependency lockdown (core) FAILED:", file=sys.stderr)
         for error in ERRORS:
             print(f" - {error}", file=sys.stderr)
         return 1
-    print(f"Aetheris dependency lockdown ({args.scope}): PASS")
+    print("Aetheris dependency lockdown (core): PASS")
     return 0
 
 

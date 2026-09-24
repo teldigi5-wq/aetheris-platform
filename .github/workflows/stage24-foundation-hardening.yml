@@ -43,8 +43,8 @@ jobs:
           for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
             test ! -e "$source_dir" || { echo "runtime-owned source leaked into platform: $source_dir" >&2; exit 1; }
           done
-      - name: Test core container lockdown policy
-        run: python -m unittest tests.test_dependency_lockdown_containers -v
+      - name: Test core dependency and ownership policies
+        run: python -m unittest tests.test_dependency_lockdown_containers tests.test_dependency_lockdown_ownership -v
       - name: Frozen dashboard install
         working-directory: dashboard
         run: npm ci --ignore-scripts --no-fund
