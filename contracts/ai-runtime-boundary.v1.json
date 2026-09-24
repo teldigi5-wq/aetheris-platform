@@ -29,9 +29,9 @@
   },
   "certifiedRuntime": {
     "repository": "teldigi5-wq/aetheris-ai-runtime",
-    "revision": "6c714d1772db2db490cd035e11a78308f26f8a63",
-    "releaseTag": "runtime-6c714d1772db2db490cd035e11a78308f26f8a63",
-    "imageRef": "aetheris-ai-runtime:6c714d1772db2db490cd035e11a78308f26f8a63"
+    "revision": "e2af887c13c6851ce950f04d093d190fe791f8fa",
+    "releaseTag": "runtime-e2af887c13c6851ce950f04d093d190fe791f8fa",
+    "imageRef": "aetheris-ai-runtime:e2af887c13c6851ce950f04d093d190fe791f8fa"
   },
   "migration": {
     "localComposeDefaultPreserved": false,

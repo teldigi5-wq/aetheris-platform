@@ -2,7 +2,7 @@
 
 ## Scope
 
-Stage 25 prepares the **Aetheris platform with an independently owned AI runtime** for the owner's future physical PC. Platform-owned services remain in `teldigi5-wq/aetheris-platform`; AI runtime ownership is anchored to `teldigi5-wq/aetheris-ai-runtime` at the currently promoted certified canonical SHA `6c714d1772db2db490cd035e11a78308f26f8a63`.
+Stage 25 prepares the **Aetheris platform with an independently owned AI runtime** for the owner's future physical PC. Platform-owned services remain in `teldigi5-wq/aetheris-platform`; AI runtime ownership is anchored to `teldigi5-wq/aetheris-ai-runtime` at the currently promoted certified canonical SHA `e2af887c13c6851ce950f04d093d190fe791f8fa`.
 
 The four runtime-owned source roots are `orchestrator-service/`, `aetheris-quant/`, `aetheris-reasoning/`, and `workstation-agent/`. Runtime extraction is complete: those source roots are owned by the AI-runtime repository and are intentionally absent from the platform repository. The platform retains only the versioned boundary, exact runtime certification reference, integration composition, and cross-repository evidence required to consume that runtime safely.
 
@@ -18,7 +18,7 @@ Stage 25 preparation passes only when:
 4. Java, Maven, Node and platform Python pins match the contract;
 5. `docker-compose.core.yml` contains only the required platform service/port inventory;
 6. `docker-compose.integration-external.yml` binds orchestrator port `8090` to an exact-revision external runtime image and does not locally build any runtime-owned root;
-7. `architecture/ai-runtime-certification-reference.json` pins `teldigi5-wq/aetheris-ai-runtime` to `6c714d1772db2db490cd035e11a78308f26f8a63` with canonical CI status `6_OF_6_SUCCESS`;
+7. `architecture/ai-runtime-certification-reference.json` pins `teldigi5-wq/aetheris-ai-runtime` to `e2af887c13c6851ce950f04d093d190fe791f8fa` with canonical CI status `6_OF_6_SUCCESS`;
 8. Stage 25 tests pass;
 9. CI reports `physical_pc_status: NOT_TESTED`;
 10. no high-impact workstation or financial boundary is weakened;
