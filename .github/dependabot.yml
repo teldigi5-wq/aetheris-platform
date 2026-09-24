@@ -1,5 +1,6 @@
 version: 2
 
+# Dependency-update ownership follows the canonical repository source boundary.
 updates:
   - package-ecosystem: "npm"
     directory: "/dashboard"
