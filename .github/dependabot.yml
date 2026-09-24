@@ -17,30 +17,14 @@ updates:
           - "minor"
           - "patch"
 
-  - package-ecosystem: "pip"
-    directory: "/aetheris-quant"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 0
-    groups:
-      quant-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-
-  # Treat the Java services as one monorepo dependency surface. Routine
-  # version-update PRs are disabled; security updates remain available.
+  # Treat the platform-owned Java services as one dependency surface.
+  # Runtime-owned services are monitored in aetheris-ai-runtime.
   - package-ecosystem: "maven"
     directories:
       - "/gateway"
       - "/user-service"
       - "/identity-service"
       - "/audit-service"
-      - "/orchestrator-service"
-      - "/workstation-agent"
     schedule:
       interval: "weekly"
       day: "monday"
