@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_RUNTIME_SHA = "6c714d1772db2db490cd035e11a78308f26f8a63"
 
 
 def load_module(name: str, relative: str):
@@ -51,7 +52,7 @@ class Stage26EvidenceIntegrityTests(unittest.TestCase):
         destination = self.runtime["destination_runtime"]
         self.assertEqual(self.runtime["status"], "DESTINATION_RUNTIME_CERTIFIED")
         self.assertEqual(destination["repository"], "teldigi5-wq/aetheris-ai-runtime")
-        self.assertEqual(destination["certified_sha"], "68af39a1115a7330020c18b6e2cb601e66b8f22f")
+        self.assertEqual(destination["certified_sha"], EXPECTED_RUNTIME_SHA)
         self.assertEqual(destination["canonical_ci_status"], "6_OF_6_SUCCESS")
         self.assertEqual(self.runtime["runtime_certifications"]["stage26_runtime_safety"], ".github/workflows/runtime-stage26-safety.yml")
         self.assertEqual(self.runtime["source_root_deletion_status"], "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION")

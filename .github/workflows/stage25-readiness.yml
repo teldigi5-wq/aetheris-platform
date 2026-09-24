@@ -42,14 +42,17 @@ jobs:
           report = json.loads(Path('build-evidence/readiness/preflight-report.json').read_text())
           reference = json.loads(Path('architecture/ai-runtime-certification-reference.json').read_text())
 
+          expected_runtime = '6c714d1772db2db490cd035e11a78308f26f8a63'
+          report_runtime = report['external_ai_runtime_certified_sha']
+
           assert report['status'] == 'PASS', report
           assert report['physical_pc_status'] == 'NOT_TESTED', report
           assert report['foundation_scope'] == 'aetheris-platform-external-ai-runtime-v1', report
           assert report['external_ai_runtime_repository'] == 'teldigi5-wq/aetheris-ai-runtime', report
-          assert report['external_ai_runtime_certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', report
+          assert report_runtime == expected_runtime, report
 
           assert reference['status'] == 'DESTINATION_RUNTIME_CERTIFIED', reference
-          assert reference['destination_runtime']['certified_sha'] == '68af39a1115a7330020c18b6e2cb601e66b8f22f', reference
+          assert reference['destination_runtime']['certified_sha'] == expected_runtime, reference
           assert reference['destination_runtime']['canonical_ci_status'] == '6_OF_6_SUCCESS', reference
           assert reference['source_root_deletion_status'] == 'SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION', reference
           assert reference['platform_runtime_source_present'] is False, reference

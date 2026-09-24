@@ -79,7 +79,7 @@
   ],
   "external_ai_runtime": {
     "repository": "teldigi5-wq/aetheris-ai-runtime",
-    "certified_sha": "68af39a1115a7330020c18b6e2cb601e66b8f22f",
+    "certified_sha": "6c714d1772db2db490cd035e11a78308f26f8a63",
     "certification_reference": "architecture/ai-runtime-certification-reference.json",
     "service": "orchestrator-service",
     "port": 8090,

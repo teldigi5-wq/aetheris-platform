@@ -61,7 +61,7 @@ The AI/control-plane work was added after the core platform foundation. Its runt
 
 This platform repository retains the cross-repository boundary, integration path, certification reference, historical evidence and platform-side validation needed to consume the runtime safely. Key assets include `contracts/ai-runtime-boundary.v1.json`, `architecture/ai-runtime-certification-reference.json` and `docker-compose.integration-external.yml`.
 
-The currently certified runtime checkpoint recorded by the platform is `68af39a1115a7330020c18b6e2cb601e66b8f22f`. That is a certification reference, not a claim that future runtime development is frozen at that SHA.
+The currently certified runtime checkpoint recorded by the platform is `6c714d1772db2db490cd035e11a78308f26f8a63`. That is a certification reference, not a claim that future runtime development is frozen at that SHA.
 
 These are valid engineering artifacts, but they are not all at the same runtime maturity.
 

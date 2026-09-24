@@ -221,7 +221,7 @@ If the interviewer is interested in AI systems or automation, continue with the 
 
 The platform currently records certified runtime checkpoint:
 
-`68af39a1115a7330020c18b6e2cb601e66b8f22f`
+`6c714d1772db2db490cd035e11a78308f26f8a63`
 
 Explain the maturity split first:
 
@@ -230,7 +230,7 @@ Explain the maturity split first:
 - exact browser runtime, authenticated LinkedIn/Vercel sessions and target-PC behavior are **not physically validated yet**;
 - live-money trading is disabled by policy.
 
-Then show the runtime-owned orchestrator/workstation/reasoning/quant code and tests. Do not treat a newer docs-only runtime `main` revision as silently replacing the certified runtime checkpoint.
+Then show the runtime-owned orchestrator/workstation/reasoning/quant code and tests. Do not treat a newer runtime `main` revision as silently replacing the certified runtime checkpoint.
 
 ## 15. Physical validation boundary
 
