@@ -9,10 +9,12 @@ credentials are never written to the generated evidence report.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import re
 import subprocess
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -128,6 +130,23 @@ def refresh_rows(email: str) -> dict[str, bool]:
         token_hash, revoked = line.strip().split("|", 1)
         rows[token_hash] = revoked.lower() in {"t", "true"}
     return rows
+
+
+def concurrent_refresh(raw_token: str, contenders: int = 8) -> list[tuple[int, Any]]:
+    barrier = threading.Barrier(contenders)
+
+    def attempt() -> tuple[int, Any]:
+        barrier.wait(timeout=10)
+        return http_json(
+            "POST",
+            "http://127.0.0.1:8080/api/auth/refresh",
+            {"refreshToken": raw_token},
+            timeout=20,
+        )
+
+    with ThreadPoolExecutor(max_workers=contenders) as pool:
+        futures = [pool.submit(attempt) for _ in range(contenders)]
+        return [future.result(timeout=30) for future in futures]
 
 
 def write_report(path: Path, checks: dict[str, str], status: str, error: str | None = None) -> None:
@@ -297,6 +316,36 @@ def main() -> int:
         )
         expect_status(status, 401, "rotated refresh replay")
         passed("security.rotated-token-replay-rejected")
+
+        race_results = concurrent_refresh(replacement, contenders=8)
+        race_statuses = [status for status, _ in race_results]
+        if race_statuses.count(200) != 1 or race_statuses.count(401) != 7:
+            raise AssertionError(
+                "concurrent refresh must have exactly one winner and seven rejected replays: "
+                f"statuses={sorted(race_statuses)!r}"
+            )
+        successful_bodies = [body for status, body in race_results if status == 200]
+        winner_body = successful_bodies[0]
+        if not isinstance(winner_body, dict) or not isinstance(winner_body.get("refreshToken"), str):
+            raise AssertionError(f"concurrent refresh winner missing replacement token: {winner_body!r}")
+        concurrent_replacement = winner_body["refreshToken"]
+        if concurrent_replacement == replacement:
+            raise AssertionError("concurrent refresh winner returned the consumed token")
+        passed("security.concurrent-refresh-single-winner")
+
+        concurrent_digest = hashlib.sha256(concurrent_replacement.encode("utf-8")).hexdigest()
+        race_rows = refresh_rows(email)
+        if race_rows.get(new_digest) is not True:
+            raise AssertionError(f"concurrently consumed token hash was not revoked: rows={race_rows!r}")
+        if race_rows.get(concurrent_digest) is not False:
+            raise AssertionError(f"winning descendant token hash is not active: rows={race_rows!r}")
+        active_hashes = [token_hash for token_hash, revoked in race_rows.items() if not revoked]
+        if active_hashes != [concurrent_digest]:
+            raise AssertionError(
+                "concurrent rotation created more than one active descendant refresh credential: "
+                f"active_hashes={active_hashes!r}"
+            )
+        passed("security.concurrent-refresh-single-active-descendant")
 
         missing = sorted(set(required_checks) - set(checks))
         extra = sorted(set(checks) - set(required_checks))

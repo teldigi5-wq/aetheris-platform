@@ -5,7 +5,7 @@
   "capability": "security",
   "environment": "github-hosted-ubuntu-docker-compose",
   "physical_pc_validation": false,
-  "truth_boundary": "This contract proves only the checked authentication, authorization, anti-spoofing, token-rotation, and credential-storage behavior observed in the GitHub-hosted Docker Compose environment. It is not a penetration test, formal security audit or certification, production-secret/KMS validation, load/DoS testing, Kubernetes security validation, or physical-PC validation.",
+  "truth_boundary": "This contract proves only the checked authentication, authorization, anti-spoofing, token-rotation, concurrent-refresh, and credential-storage behavior observed in the GitHub-hosted Docker Compose environment. It is not a penetration test, formal security audit or certification, production-secret/KMS validation, load/DoS testing, Kubernetes security validation, or physical-PC validation.",
   "checks": [
     {"id": "service.gateway.health", "claim": "Gateway actuator health reports UP before the security exercise."},
     {"id": "service.identity.health", "claim": "Identity-service actuator health reports UP before the security exercise."},
@@ -22,6 +22,8 @@
     {"id": "security.refresh-rotation-issues-new-token", "claim": "Refreshing rotates the credential and returns a distinct replacement refresh token."},
     {"id": "security.rotated-token-revokes-old-hash", "claim": "After rotation, the original token hash is marked revoked in PostgreSQL."},
     {"id": "security.replacement-token-hash-active", "claim": "The replacement token is represented by a distinct SHA-256 hash that remains active after rotation."},
-    {"id": "security.rotated-token-replay-rejected", "claim": "Replaying the already-rotated refresh token is rejected with HTTP 401."}
+    {"id": "security.rotated-token-replay-rejected", "claim": "Replaying the already-rotated refresh token is rejected with HTTP 401."},
+    {"id": "security.concurrent-refresh-single-winner", "claim": "Eight concurrent refresh attempts using the same active refresh token produce exactly one successful rotation and seven HTTP 401 rejections."},
+    {"id": "security.concurrent-refresh-single-active-descendant", "claim": "After the concurrent refresh race, PostgreSQL contains exactly one active descendant refresh-token hash for the proof account."}
   ]
 }
