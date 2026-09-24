@@ -2,8 +2,8 @@
 """Classify drift between the platform-certified AI runtime and live runtime main.
 
 The guard is intentionally semantic rather than commit-count based:
-- runtime-owned source or runtime configuration drift requires deliberate promotion;
-- CI/test/script-only drift is surfaced for review but does not invalidate runtime source;
+- runtime-owned source, runtime configuration, or authoritative build/certification control drift requires deliberate promotion;
+- evidence-only tests/workflows/scripts are surfaced for review without invalidating runtime source;
 - docs/license/dependency-governance-only drift is informational.
 """
 
@@ -25,6 +25,38 @@ DEFAULT_OUTPUT = ROOT / "build" / "runtime-certification" / "drift-report.json"
 PROMOTION_SENSITIVE_PREFIXES = ("architecture/", "configs/")
 EVIDENCE_PIPELINE_PREFIXES = (".github/workflows/", "scripts/", "tests/")
 
+CERTIFICATION_CONTROL_PATHS = frozenset(
+    {
+        ".github/workflows/ai-runtime-build.yml",
+        ".github/workflows/ai-runtime-foundation-hardening.yml",
+        ".github/workflows/ai-runtime-image-provenance.yml",
+        ".github/workflows/runtime-migrated-certification.yml",
+        ".github/workflows/runtime-stage26-safety.yml",
+        "scripts/check_dependency_lockdown.py",
+        "EXTRACTION-PROVENANCE.json",
+        ".java-version",
+        ".mvn/wrapper/maven-wrapper.properties",
+        "mvnw",
+        "mvnw.cmd",
+    }
+)
+CERTIFICATION_CONTROL_PREFIXES = (
+    ".github/workflows/phase9-",
+    ".github/workflows/phase10-",
+    ".github/workflows/phase11-",
+    ".github/workflows/phase12-",
+    ".github/workflows/phase13-",
+    ".github/workflows/stage28-",
+    ".github/workflows/stage29-",
+    ".github/workflows/stage30-",
+    ".github/workflows/stage31-",
+    ".github/workflows/stage32-",
+    ".github/workflows/stage33-",
+    "scripts/stage26/",
+    "scripts/stage28/",
+    "scripts/stage29/",
+)
+
 
 def _github_json(url: str, token: str | None = None) -> dict[str, Any]:
     headers = {
@@ -43,10 +75,15 @@ def _runtime_owned(path: str, runtime_roots: list[str]) -> bool:
     return any(path == root or path.startswith(f"{root}/") for root in runtime_roots)
 
 
+def _certification_control(path: str) -> bool:
+    return path in CERTIFICATION_CONTROL_PATHS or path.startswith(CERTIFICATION_CONTROL_PREFIXES)
+
+
 def classify_changed_paths(paths: list[str], runtime_roots: list[str]) -> tuple[str, dict[str, list[str]]]:
     categories: dict[str, list[str]] = {
         "runtime_source": [],
         "runtime_config": [],
+        "certification_control": [],
         "evidence_pipeline": [],
         "non_runtime": [],
     }
@@ -56,12 +93,14 @@ def classify_changed_paths(paths: list[str], runtime_roots: list[str]) -> tuple[
             categories["runtime_source"].append(path)
         elif path.startswith(PROMOTION_SENSITIVE_PREFIXES):
             categories["runtime_config"].append(path)
+        elif _certification_control(path):
+            categories["certification_control"].append(path)
         elif path.startswith(EVIDENCE_PIPELINE_PREFIXES):
             categories["evidence_pipeline"].append(path)
         else:
             categories["non_runtime"].append(path)
 
-    if categories["runtime_source"] or categories["runtime_config"]:
+    if categories["runtime_source"] or categories["runtime_config"] or categories["certification_control"]:
         return "RUNTIME_PROMOTION_REQUIRED", categories
     if categories["evidence_pipeline"]:
         return "EVIDENCE_PIPELINE_DRIFT", categories
@@ -95,6 +134,7 @@ def build_report(reference: dict[str, Any], runtime_head: str, compare: dict[str
             "categories": {
                 "runtime_source": [],
                 "runtime_config": [],
+                "certification_control": [],
                 "evidence_pipeline": [],
                 "non_runtime": [],
             },
