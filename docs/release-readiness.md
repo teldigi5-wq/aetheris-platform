@@ -11,6 +11,7 @@ A GitHub release is a source/distribution milestone. It must not silently become
 - Stage 27 canonical development-line marker: `feature/syntra-aetheris-foundation-v2`
 - AI runtime source owner: `teldigi5-wq/aetheris-ai-runtime`
 - Platform-recorded certified runtime checkpoint: `68af39a1115a7330020c18b6e2cb601e66b8f22f`
+- Software license: **Apache License 2.0** for both Aetheris source-owner repositories
 - Physical-machine status: `BLOCKED_PENDING_HARDWARE`
 - Physical-PC validation remains pending
 
@@ -45,6 +46,7 @@ This classification may be used only after the first-boot and physical-machine v
 - [ ] Platform/runtime boundary assets remain consistent: contract, certification reference and external integration composition.
 - [ ] Stage 34 historical truth-boundary language remains intact where validators depend on it.
 - [ ] `README.md` still contains `Stage 34 / 34`, `Physical-PC validation remains pending` and `BLOCKED_PENDING_HARDWARE` truth markers required by repository governance.
+- [ ] `LICENSE` exists in both Aetheris source-owner repositories and the selected project license remains Apache License 2.0.
 - [ ] Release notes identify known limitations and do not imply physical validation, production activation or registry publication.
 - [ ] No secrets, credentials, tokens, private keys or sensitive evidence are included.
 - [ ] Changelog/release notes identify both the platform commit and the certified runtime checkpoint when the release includes AI-runtime integration.
@@ -94,9 +96,9 @@ Known limitations
 - ...
 ```
 
-## Licensing gate
+## Licensing gate — satisfied
 
-Aetheris currently has no repository-recognized software license. A license must be selected deliberately by the owner before presenting the project as generally licensed for third-party reuse. This checklist does not choose a license automatically because licensing changes legal rights and obligations.
+The owner selected the **Apache License 2.0** for both `aetheris-platform` and `aetheris-ai-runtime`. Each repository must retain its canonical `LICENSE` file, and third-party dependencies or incorporated materials remain subject to their own licenses. Licensing is a reuse/distribution decision only; it does not change certification, hardware-validation or production truth boundaries.
 
 ## Physical validation gate
 
