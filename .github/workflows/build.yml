@@ -102,11 +102,11 @@ jobs:
       - name: Verify deterministic evidence generation
         run: |
           cp build/stage22/sbom.cdx.json /tmp/stage22-sbom-a.json
-          cp build/stage22/release-manifest.json /tmp/stage22-release-manifest-a.json
+          cp build/stage22/release-manifest.json /tmp/stage22-manifest-a.json
           python scripts/stage22/generate_sbom.py --output build/stage22/sbom.cdx.json
           python scripts/stage22/release_manifest.py --output build/stage22/release-manifest.json
           cmp /tmp/stage22-sbom-a.json build/stage22/sbom.cdx.json
-          cmp /tmp/stage22-release-manifest-a.json build/stage22/release-manifest.json
+          cmp /tmp/stage22-manifest-a.json build/stage22/release-manifest.json
       - name: Compute merge-readiness evidence
         run: python scripts/stage22/merge_readiness.py
       - name: Upload Stage 22 release evidence
