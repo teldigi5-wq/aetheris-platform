@@ -1,0 +1,4 @@
+# Explicit opt-in for the Stage 7 local learning/demo workflow only.
+# Do not use this file for shared, staging, internet-facing, or production clusters.
+global:
+  allowInsecureLocalDefaults: true
