@@ -2,27 +2,32 @@
 
 Stage 24 turns dependency management into a reviewable, reproducible process rather than a best-effort convention.
 
+## Repository ownership
+
+This platform repository owns dependency lockdown for the retained core: gateway, user service, identity service, audit service, and dashboard. AI-runtime dependency policy for `orchestrator-service`, `workstation-agent`, `aetheris-quant`, and `aetheris-reasoning` is owned and enforced in `teldigi5-wq/aetheris-ai-runtime`. Extracted runtime dependency files must not be treated as platform-owned evidence or required by the platform verifier.
+
 ## Reproducibility rules
 
 - Node direct dependencies and development dependencies must use exact versions. `latest`, `*`, caret, tilde, and other floating selectors are not permitted.
 - `dashboard/package-lock.json` is mandatory and must be installed with `npm ci`; CI must never regenerate the graph implicitly with `npm install`.
-- Python direct requirements live in `aetheris-quant/requirements.in`. The deployable graph is `requirements.lock.txt`, generated with `pip-compile --generate-hashes` and installed with `pip --require-hashes`.
-- Maven is executed through the committed Maven Wrapper for repository builds. The wrapper is pinned to wrapper 3.3.4 and Maven 3.9.11. Java service container builds likewise pin Maven 3.9.11 and verify the downloaded Maven archive by its exact SHA-512. Runtime dependency-tree snapshots for every Java service are committed under `build-evidence/maven/` because Maven has no native lockfile equivalent.
-- CI pins the operating-system runner, Java, Node, Python, and third-party GitHub Actions. Platform application container base images must use immutable `tag@sha256:<digest>` references rather than mutable tags.
+- Maven is executed through the committed Maven Wrapper for repository builds. The wrapper is pinned to wrapper 3.3.4 and Maven 3.9.11. Java service container builds likewise pin Maven 3.9.11 and verify the downloaded Maven archive by its exact SHA-512. Runtime dependency-tree snapshots for the retained Java services are committed under `build-evidence/maven/` because Maven has no native lockfile equivalent.
+- CI pins the operating-system runner, Java, Node, Python used by policy tooling, and third-party GitHub Actions. Platform application container base images must use immutable `tag@sha256:<digest>` references rather than mutable tags.
 - Java service runtime images must declare an explicit non-root `USER`; build stages may use elevated privileges only as an isolated image-build concern.
 - The build timestamp used for Maven artifacts is fixed through `.mvn/maven.config` so archive metadata does not change solely because the build was rerun later.
 
 ## Drift control
 
-Any dependency change must be explicit in the same pull request as its regenerated lock/evidence files. CI regenerates the npm lock, Python hash lock, and Maven dependency trees and fails if `git diff` detects drift. `scripts/check_dependency_lockdown.py` also rejects floating versions, absent hashes, missing evidence, mutable core Java base images, missing/non-root runtime-user declarations, and selected prohibited license markers.
+Any platform dependency change must be explicit in the same pull request as its regenerated lock/evidence files. Platform CI regenerates the dashboard npm lock and retained-core Maven dependency trees and fails if `git diff` detects drift. `scripts/check_dependency_lockdown.py` is intentionally core-owned: its default invocation validates the retained platform surfaces, rejects runtime-owned source leaking back into this repository, rejects floating versions and missing evidence, and enforces immutable/non-root core Java container policy.
 
-Dependabot is enabled weekly for npm, pip, Maven, and GitHub Actions. Automated update pull requests are inputs to review; they do not bypass tests, security checks, or reproducibility gates.
+The external AI-runtime repository independently regenerates and audits its Python hash lock and runtime Maven dependency trees. Changing runtime-owned dependency or certification controls requires the runtime repository's own governed CI/certification path; platform CI does not manufacture or substitute that evidence.
+
+Dependabot is enabled weekly for npm, Maven, and GitHub Actions on platform-owned surfaces. Automated update pull requests are inputs to review; they do not bypass tests, security checks, or reproducibility gates.
 
 ## Security policy
 
-- High or critical npm advisories fail the dependency job.
-- The Python hash-locked graph is audited with a pinned `pip-audit` release. Known vulnerabilities must be fixed, removed, or documented in a narrowly scoped, time-bounded exception before merge.
+- High or critical npm advisories fail the platform dependency job.
 - Java dependency changes are reviewed through the committed dependency trees and Dependabot advisories. A vulnerability exception must identify the affected coordinate, advisory/CVE, exposure analysis, compensating control, owner, and expiry date.
+- Runtime Python dependency auditing is owned by `aetheris-ai-runtime` and is not claimed by this platform verifier.
 - Lockfile integrity hashes and container image digests are treated as supply-chain evidence, not as substitutes for vulnerability scanning.
 - Security-tool failure is a failed check; it must not be silently converted into success.
 
@@ -30,15 +35,15 @@ Dependabot is enabled weekly for npm, pip, Maven, and GitHub Actions. Automated 
 
 This is an engineering policy, not legal advice.
 
-Permissive and commonly compatible licenses such as MIT, BSD-family, ISC, Apache-2.0, and similarly approved licenses are normally acceptable. New dependencies carrying AGPL, SSPL, Business Source License, Commons Clause, GPL-3.0-only, an unknown license, or a non-standard/custom license require explicit review before merge. Runtime dependencies receive stricter review than development-only tools.
+Permissive and commonly compatible licenses such as MIT, BSD-family, ISC, Apache-2.0, and similarly approved licenses are normally acceptable. New dependencies carrying AGPL, SSPL, Business Source License, Commons Clause, GPL-3.0-only, an unknown license, or a non-standard/custom license require explicit review before merge. Runtime dependencies receive stricter review in their owning runtime repository.
 
-The Node lock verifier blocks selected prohibited markers automatically. Python and Maven license metadata must remain visible in dependency evidence/review; an automated scanner does not override the requirement to review unusual or ambiguous terms.
+The Node lock verifier blocks selected prohibited markers automatically. Maven license metadata must remain visible in dependency evidence/review; an automated scanner does not override the requirement to review unusual or ambiguous terms.
 
 ## Artifact evidence
 
-Every hardened CI run produces `build-evidence/` containing:
+Every hardened platform CI run produces `build-evidence/` containing:
 
-- SHA-256 hashes for the dependency manifests, lockfiles, Maven trees, and pinned platform application Dockerfiles;
+- SHA-256 hashes for the platform dependency manifests, lockfiles, retained-core Maven trees, and pinned platform application Dockerfiles;
 - SHA-256 hashes for built Java JARs and a normalized dashboard archive;
 - first-build and second-build hash manifests whose equality is checked by CI;
 - Maven dependency-tree evidence for gateway, user-service, identity-service, and audit-service.
