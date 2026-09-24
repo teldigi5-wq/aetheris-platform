@@ -36,6 +36,7 @@ class RuntimeCertificationDriftTest(unittest.TestCase):
         self.assertEqual("ALIGNED", report["status"])
         self.assertFalse(report["promotion_required"])
         self.assertFalse(report["review_recommended"])
+        self.assertEqual([], report["categories"]["certification_control"])
 
     def test_docs_license_and_dependabot_only_are_non_runtime_drift(self):
         compare = {
@@ -52,13 +53,13 @@ class RuntimeCertificationDriftTest(unittest.TestCase):
         self.assertEqual("NON_RUNTIME_DRIFT", report["status"])
         self.assertFalse(report["promotion_required"])
 
-    def test_workflow_or_test_only_changes_are_visible_without_false_invalidation(self):
+    def test_non_authoritative_workflow_and_test_only_changes_remain_review_only(self):
         compare = {
             "status": "ahead",
             "ahead_by": 2,
             "behind_by": 0,
             "files": [
-                {"filename": ".github/workflows/ai-runtime-build.yml"},
+                {"filename": ".github/workflows/ai-runtime-codeql.yml"},
                 {"filename": "tests/test_runtime_contract.py"},
             ],
         }
@@ -66,6 +67,82 @@ class RuntimeCertificationDriftTest(unittest.TestCase):
         self.assertEqual("EVIDENCE_PIPELINE_DRIFT", report["status"])
         self.assertFalse(report["promotion_required"])
         self.assertTrue(report["review_recommended"])
+        self.assertEqual([], report["categories"]["certification_control"])
+
+    def test_runtime_build_workflow_change_requires_deliberate_promotion(self):
+        compare = {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "files": [{"filename": ".github/workflows/ai-runtime-build.yml"}],
+        }
+        report = runtime_drift.build_report(self.reference, "newer", compare)
+        self.assertEqual("RUNTIME_PROMOTION_REQUIRED", report["status"])
+        self.assertTrue(report["promotion_required"])
+        self.assertEqual(
+            [".github/workflows/ai-runtime-build.yml"],
+            report["categories"]["certification_control"],
+        )
+
+    def test_migrated_runtime_certification_workflow_change_requires_deliberate_promotion(self):
+        compare = {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "files": [{"filename": ".github/workflows/phase13-context-aware-local-inference.yml"}],
+        }
+        report = runtime_drift.build_report(self.reference, "newer", compare)
+        self.assertEqual("RUNTIME_PROMOTION_REQUIRED", report["status"])
+        self.assertTrue(report["promotion_required"])
+        self.assertEqual(
+            [".github/workflows/phase13-context-aware-local-inference.yml"],
+            report["categories"]["certification_control"],
+        )
+
+    def test_runtime_safety_verifier_change_requires_deliberate_promotion(self):
+        compare = {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "files": [{"filename": "scripts/stage26/runtime_safety_certification.py"}],
+        }
+        report = runtime_drift.build_report(self.reference, "newer", compare)
+        self.assertEqual("RUNTIME_PROMOTION_REQUIRED", report["status"])
+        self.assertTrue(report["promotion_required"])
+        self.assertEqual(
+            ["scripts/stage26/runtime_safety_certification.py"],
+            report["categories"]["certification_control"],
+        )
+
+    def test_stage29_runtime_logic_script_change_requires_deliberate_promotion(self):
+        compare = {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "files": [{"filename": "scripts/stage29/trading_intelligence.py"}],
+        }
+        report = runtime_drift.build_report(self.reference, "newer", compare)
+        self.assertEqual("RUNTIME_PROMOTION_REQUIRED", report["status"])
+        self.assertTrue(report["promotion_required"])
+        self.assertEqual(
+            ["scripts/stage29/trading_intelligence.py"],
+            report["categories"]["certification_control"],
+        )
+
+    def test_root_maven_toolchain_change_requires_deliberate_promotion(self):
+        compare = {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "files": [{"filename": ".mvn/wrapper/maven-wrapper.properties"}],
+        }
+        report = runtime_drift.build_report(self.reference, "newer", compare)
+        self.assertEqual("RUNTIME_PROMOTION_REQUIRED", report["status"])
+        self.assertTrue(report["promotion_required"])
+        self.assertEqual(
+            [".mvn/wrapper/maven-wrapper.properties"],
+            report["categories"]["certification_control"],
+        )
 
     def test_runtime_owned_source_change_requires_deliberate_promotion(self):
         compare = {
