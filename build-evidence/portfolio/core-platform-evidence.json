@@ -28,6 +28,54 @@
       ]
     },
     {
+      "id": "identity.browser-refresh-cookie-boundary",
+      "title": "Dashboard refresh credentials are HttpOnly cookie-bound, same-origin checked, non-cacheable, and never returned as raw browser JSON",
+      "maturity": "REPOSITORY_TESTED",
+      "evidence": [
+        {
+          "path": "identity-service/src/main/java/io/aetheris/identity/BrowserAuthController.java",
+          "contains": [
+            "httpOnly(true)",
+            "sameSite(\"Strict\")",
+            "secure(secureCookie)",
+            "CacheControl.noStore()",
+            "authority.equalsIgnoreCase(browserHost)"
+          ]
+        },
+        {
+          "path": "identity-service/src/main/java/io/aetheris/identity/AuthDtos.java",
+          "contains": [
+            "COOKIE_BOUND_REFRESH = \"COOKIE_BOUND\""
+          ]
+        },
+        {
+          "path": "dashboard/nginx.conf",
+          "contains": [
+            "location = /api/auth/refresh",
+            "X-Aetheris-Browser \"aetheris-dashboard-v1\"",
+            "X-Aetheris-Browser-Host $http_host",
+            "location ^~ /api/auth/browser/"
+          ]
+        },
+        {
+          "path": "identity-service/src/test/java/io/aetheris/identity/BrowserAuthControllerTest.java",
+          "contains": [
+            "loginSetsProtectedCookieAndReturnsOnlyBindingSentinel",
+            "rejectsMissingOrCrossOriginBrowserRequest"
+          ]
+        },
+        {
+          "path": "tools/browser_auth_runtime_smoke.py",
+          "contains": [
+            "browser.registration-cookie-bound",
+            "browser.refresh-rotates-cookie",
+            "browser.cross-origin-refresh-rejected",
+            "browser.logout-revokes-cookie"
+          ]
+        }
+      ]
+    },
+    {
       "id": "redis.cache-policy",
       "title": "User-service caching is configured through Spring Cache backed by Redis configuration",
       "maturity": "CORE_IMPLEMENTED",
