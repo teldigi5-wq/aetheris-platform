@@ -80,8 +80,8 @@ jobs:
 
           report = json.loads(Path('build-evidence/runtime/deployment-release-runtime-report.json').read_text())
           manifest = json.loads(Path('build-evidence/runtime/deployment-release-manifest.json').read_text())
-          expected_runtime = '6c714d1772db2db490cd035e11a78308f26f8a63'
-          expected_archive = '47e4e22cd0ff1abb8131d13194a016d01e5d6b3c20b865f554cca3d036a76855'
+          expected_runtime = 'e2af887c13c6851ce950f04d093d190fe791f8fa'
+          expected_archive = '790a2c4fb8bd3d651b66f57365cea24ae10e6183a423278c02a1ad791bbe5ade'
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['physical_pc_validation'] is False, report
@@ -172,7 +172,7 @@ jobs:
       - name: Bind certified runtime image to core boundary proof
         run: |
           set -euo pipefail
-          test "$AETHERIS_AI_RUNTIME_REVISION" = "6c714d1772db2db490cd035e11a78308f26f8a63"
+          test "$AETHERIS_AI_RUNTIME_REVISION" = "e2af887c13c6851ce950f04d093d190fe791f8fa"
           echo "AETHERIS_EXTERNAL_ORCHESTRATOR_IMAGE=$AETHERIS_AI_RUNTIME_IMAGE" >> "$GITHUB_ENV"
           docker image inspect "$AETHERIS_AI_RUNTIME_IMAGE" --format 'certified external runtime image={{.Id}}'
 
@@ -192,7 +192,7 @@ jobs:
           import json
           from pathlib import Path
 
-          expected_runtime = '6c714d1772db2db490cd035e11a78308f26f8a63'
+          expected_runtime = 'e2af887c13c6851ce950f04d093d190fe791f8fa'
           report = json.loads(Path('build-evidence/runtime/core-deployment-boundary-report.json').read_text())
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
