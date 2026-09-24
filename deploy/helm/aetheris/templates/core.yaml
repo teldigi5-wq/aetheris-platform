@@ -273,7 +273,7 @@ spec:
           env:
             - name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED
               value: "true"
-            {{- if or (eq $app.name "user-service") (eq $app.name "identity-service") }}
+            {{- if or (eq $app.name "user-service") (eq $app.name "identity-service") (eq $app.name "audit-service") }}
             - name: SPRING_DATASOURCE_URL
               valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATASOURCE_URL } }
             - name: SPRING_DATASOURCE_USERNAME
@@ -375,7 +375,8 @@ metadata:
   name: dashboard
 spec:
   type: {{ .Values.service.dashboard.type }}
-  selector: { app: dashboard }
+  selector:
+    app: dashboard
   ports:
     - port: {{ .Values.service.dashboard.port }}
       targetPort: 80
