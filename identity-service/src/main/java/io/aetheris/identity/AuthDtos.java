@@ -28,4 +28,21 @@ record AuthResponse(
         AccountResponse account
 ) {}
 
+record BrowserAuthResponse(
+        String accessToken,
+        String tokenType,
+        long expiresInSeconds,
+        long refreshExpiresInSeconds,
+        AccountResponse account
+) {
+    static BrowserAuthResponse from(AuthResponse response) {
+        return new BrowserAuthResponse(
+                response.accessToken(),
+                response.tokenType(),
+                response.expiresInSeconds(),
+                response.refreshExpiresInSeconds(),
+                response.account());
+    }
+}
+
 record AccountResponse(Long id, String name, String email, Role role, Set<String> scopes) {}
