@@ -87,6 +87,8 @@ jobs:
           python-version: ${{ env.POLICY_PYTHON_VERSION }}
       - name: Core / AI runtime architecture boundary
         run: python -m unittest tests.test_core_ai_runtime_boundary -v
+      - name: Dashboard browser security boundary
+        run: python -m unittest tests.test_dashboard_browser_boundary -v
       - name: Secret and sensitive-file gate
         run: python scripts/stage22/release_gate.py
       - name: Persistence schema guard
