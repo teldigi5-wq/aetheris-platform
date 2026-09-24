@@ -10,6 +10,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
   flyway:
     enabled: true
+    table: flyway_audit_schema_history
     baseline-on-migrate: true
     baseline-version: "0"
   rabbitmq:
