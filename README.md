@@ -350,7 +350,13 @@ The recommended interview approach is to **defend the core platform first** and 
 
 ## Release status
 
-A repository pre-PC candidate named `v0.1.0-pre-pc` has been prepared but not published. A repository-recognized software license has not yet been selected, so this repository should not imply third-party reuse rights that the owner has not explicitly granted.
+A repository pre-PC candidate named `v0.1.0-pre-pc` has been prepared but not published. The platform is licensed under the **Apache License 2.0**; publication still requires the exact release-candidate verification and truth-boundary checks documented in the release-readiness checklist.
+
+## License
+
+Aetheris Platform is licensed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for the full terms. Third-party dependencies and incorporated third-party materials remain subject to their respective licenses.
+
+Licensing does not imply physical-PC validation, production activation, registry publication, or live-money execution. The physical-machine status remains `BLOCKED_PENDING_HARDWARE`.
 
 ---
 
