@@ -4,6 +4,14 @@ server:
 spring:
   application:
     name: aetheris-audit-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
+    username: ${SPRING_DATASOURCE_USERNAME:aetheris}
+    password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: "0"
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
