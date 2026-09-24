@@ -43,40 +43,40 @@ public class BrowserAuthController {
     public ResponseEntity<BrowserAuthResponse> register(
             @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
             @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
-            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
+            @RequestHeader(name = "Origin", required = false) String origin,
             @Valid @RequestBody RegisterRequest request) {
         requireBrowserRequest(browserHeader, browserHost, origin);
-        return authenticated(identityService.register(request));
+        return authenticated(identityService.register(request), HttpStatus.CREATED);
     }
 
     @PostMapping("/login")
     public ResponseEntity<BrowserAuthResponse> login(
             @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
             @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
-            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
+            @RequestHeader(name = "Origin", required = false) String origin,
             @Valid @RequestBody LoginRequest request) {
         requireBrowserRequest(browserHeader, browserHost, origin);
-        return authenticated(identityService.login(request));
+        return authenticated(identityService.login(request), HttpStatus.OK);
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<BrowserAuthResponse> refresh(
             @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
             @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
-            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
+            @RequestHeader(name = "Origin", required = false) String origin,
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
         requireBrowserRequest(browserHeader, browserHost, origin);
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new RefreshTokenService.InvalidRefreshTokenException();
         }
-        return authenticated(identityService.refresh(new RefreshRequest(refreshToken)));
+        return authenticated(identityService.refresh(new RefreshRequest(refreshToken)), HttpStatus.OK);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
             @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
             @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
-            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
+            @RequestHeader(name = "Origin", required = false) String origin,
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
         requireBrowserRequest(browserHeader, browserHost, origin);
         if (refreshToken != null && !refreshToken.isBlank()) {
@@ -89,8 +89,8 @@ public class BrowserAuthController {
                 .build();
     }
 
-    private ResponseEntity<BrowserAuthResponse> authenticated(AuthResponse auth) {
-        return ResponseEntity.ok()
+    private ResponseEntity<BrowserAuthResponse> authenticated(AuthResponse auth, HttpStatus status) {
+        return ResponseEntity.status(status)
                 .header(HttpHeaders.SET_COOKIE, refreshCookie(auth.refreshToken(), auth.refreshExpiresInSeconds()).toString())
                 .cacheControl(CacheControl.noStore())
                 .header(HttpHeaders.PRAGMA, "no-cache")
@@ -129,7 +129,11 @@ public class BrowserAuthController {
             String scheme = parsedOrigin.getScheme();
             String authority = parsedOrigin.getRawAuthority();
             boolean supportedScheme = "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
-            if (!supportedScheme || authority == null || !authority.equalsIgnoreCase(browserHost)) {
+            boolean originShapeValid = parsedOrigin.getUserInfo() == null
+                    && (parsedOrigin.getRawPath() == null || parsedOrigin.getRawPath().isEmpty())
+                    && parsedOrigin.getRawQuery() == null
+                    && parsedOrigin.getRawFragment() == null;
+            if (!supportedScheme || !originShapeValid || authority == null || !authority.equalsIgnoreCase(browserHost)) {
                 throw new BrowserRequestRejectedException();
             }
         } catch (IllegalArgumentException ex) {
