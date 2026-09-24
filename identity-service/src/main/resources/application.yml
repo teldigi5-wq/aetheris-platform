@@ -10,7 +10,7 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
 
 aetheris:
