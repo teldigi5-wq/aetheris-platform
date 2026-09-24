@@ -36,9 +36,11 @@ The runtime contract covers:
 8. rejection of a previously used refresh token;
 9. refresh-token revocation through logout;
 10. actual Redis cache materialization for `userById` and `usersList`;
-11. a real `user.created` event travelling through RabbitMQ and appearing in the audit service;
+11. a real `user.created` event travelling through RabbitMQ, being persisted by the audit service, surviving an audit-service restart, and remaining queryable afterward;
 12. gateway fallback when `user-service` is deliberately stopped;
 13. route recovery after `user-service` is restarted.
+
+The audit service stores consumed domain events idempotently in PostgreSQL using `event_id` as the conflict boundary. `GET /api/events` intentionally exposes only the newest 100 events, but that response limit does not delete older persisted audit rows.
 
 The machine-readable contract is stored at:
 
