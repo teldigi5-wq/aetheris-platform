@@ -35,7 +35,7 @@ public class RefreshTokenService {
 
     @Transactional
     public RotationResult rotate(String rawToken) {
-        RefreshToken existing = repository.findByTokenHash(hash(rawToken))
+        RefreshToken existing = repository.findByTokenHashForUpdate(hash(rawToken))
                 .orElseThrow(InvalidRefreshTokenException::new);
 
         if (existing.isRevoked() || existing.isExpired()) {
@@ -50,7 +50,7 @@ public class RefreshTokenService {
 
     @Transactional
     public void revoke(String rawToken) {
-        repository.findByTokenHash(hash(rawToken)).ifPresent(token -> {
+        repository.findByTokenHashForUpdate(hash(rawToken)).ifPresent(token -> {
             token.revoke();
             repository.save(token);
         });
