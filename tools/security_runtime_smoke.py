@@ -16,7 +16,9 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -266,12 +268,33 @@ def main() -> int:
             raise AssertionError(f"persisted refresh values were not SHA-256 hex: {before_rows!r}")
         passed("security.refresh-token-stored-as-sha256")
 
-        status, rotated = http_json(
-            "POST",
-            "http://127.0.0.1:8080/api/auth/refresh",
-            {"refreshToken": refresh_token},
-        )
-        expect_status(status, 200, "refresh rotation")
+        attempts = 8
+        barrier = Barrier(attempts)
+
+        def concurrent_refresh(_: int) -> tuple[int, Any]:
+            barrier.wait(timeout=10)
+            return http_json(
+                "POST",
+                "http://127.0.0.1:8080/api/auth/refresh",
+                {"refreshToken": refresh_token},
+                timeout=30,
+            )
+
+        with ThreadPoolExecutor(max_workers=attempts) as pool:
+            concurrent_results = list(pool.map(concurrent_refresh, range(attempts)))
+
+        successes = [body for status, body in concurrent_results if status == 200]
+        rejections = [body for status, body in concurrent_results if status == 401]
+        unexpected_statuses = sorted(status for status, _ in concurrent_results if status not in {200, 401})
+        if len(successes) != 1 or len(rejections) != attempts - 1 or unexpected_statuses:
+            statuses = sorted(status for status, _ in concurrent_results)
+            raise AssertionError(
+                "concurrent refresh single-use violated: "
+                f"expected one 200 and {attempts - 1} 401 responses, got statuses={statuses}"
+            )
+        passed("security.concurrent-refresh-single-winner")
+
+        rotated = successes[0]
         if not isinstance(rotated, dict) or not isinstance(rotated.get("refreshToken"), str):
             raise AssertionError(f"rotation response missing refresh token: {rotated!r}")
         replacement = rotated["refreshToken"]
