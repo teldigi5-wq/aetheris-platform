@@ -86,12 +86,17 @@ services:
   audit-service:
     build: ./audit-service
     environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
+      SPRING_DATASOURCE_USERNAME: aetheris
+      SPRING_DATASOURCE_PASSWORD: aetheris
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
       SPRING_RABBITMQ_PASSWORD: aetheris
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     ports:
