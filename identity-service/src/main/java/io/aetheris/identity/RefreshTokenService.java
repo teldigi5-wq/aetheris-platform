@@ -35,17 +35,22 @@ public class RefreshTokenService {
 
     @Transactional
     public RotationResult rotate(String rawToken) {
-        RefreshToken existing = repository.findByTokenHash(hash(rawToken))
+        String tokenHash = hash(rawToken);
+        RefreshToken existing = repository.findByTokenHash(tokenHash)
                 .orElseThrow(InvalidRefreshTokenException::new);
 
         if (existing.isRevoked() || existing.isExpired()) {
             throw new InvalidRefreshTokenException();
         }
 
-        existing.revoke();
-        repository.save(existing);
-        IssuedRefreshToken replacement = issue(existing.getAccount());
-        return new RotationResult(existing.getAccount(), replacement);
+        int claimed = repository.revokeIfActive(tokenHash, Instant.now());
+        if (claimed != 1) {
+            throw new InvalidRefreshTokenException();
+        }
+
+        IdentityAccount account = existing.getAccount();
+        IssuedRefreshToken replacement = issue(account);
+        return new RotationResult(account, replacement);
     }
 
     @Transactional
