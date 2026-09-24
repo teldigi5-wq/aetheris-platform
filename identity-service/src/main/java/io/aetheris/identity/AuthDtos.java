@@ -30,14 +30,18 @@ record AuthResponse(
 
 record BrowserAuthResponse(
         String accessToken,
+        String refreshToken,
         String tokenType,
         long expiresInSeconds,
         long refreshExpiresInSeconds,
         AccountResponse account
 ) {
+    static final String COOKIE_BOUND_REFRESH = "COOKIE_BOUND";
+
     static BrowserAuthResponse from(AuthResponse response) {
         return new BrowserAuthResponse(
                 response.accessToken(),
+                COOKIE_BOUND_REFRESH,
                 response.tokenType(),
                 response.expiresInSeconds(),
                 response.refreshExpiresInSeconds(),
