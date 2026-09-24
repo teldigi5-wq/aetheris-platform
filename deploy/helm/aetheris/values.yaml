@@ -1,6 +1,10 @@
 global:
   imagePullPolicy: IfNotPresent
   storageClass: ""
+  # Fail closed by default. Local/demo installs must opt in explicitly through
+  # values-local.yaml; shared/staging/non-local installs must replace the bundled
+  # credentials and pin every image by digest.
+  allowInsecureLocalDefaults: false
 
 secrets:
   jwtSecret: change-me-local-development-secret-32chars
