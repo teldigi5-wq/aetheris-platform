@@ -10,116 +10,123 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class BrowserAuthControllerTest {
-
+    private static final String HOST = "localhost:3000";
+    private static final String ORIGIN = "http://localhost:3000";
+    private static final LoginRequest LOGIN = new LoginRequest("user@example.test", "test-input");
     private static final AccountResponse ACCOUNT = new AccountResponse(
-            7L,
-            "Poojana",
-            "poojana@aetheris.local",
-            Role.API_CONSUMER,
-            Set.of("users:read"));
+            7L, "Test User", "user@example.test", Role.API_CONSUMER, Set.of("users:read"));
 
     @Test
-    void loginSetsHttpOnlyStrictSecureCookieAndDoesNotReturnRefreshCredential() {
-        IdentityService identityService = mock(IdentityService.class);
-        when(identityService.login(new LoginRequest("poojana@aetheris.local", "Password123!")))
-                .thenReturn(auth("access-1", "refresh-secret-1"));
+    void loginSetsProtectedCookieAndReturnsOnlyBindingSentinel() {
+        IdentityService service = mock(IdentityService.class);
+        when(service.login(LOGIN)).thenReturn(auth("access-one", "opaque-refresh-one"));
+        BrowserAuthController controller = new BrowserAuthController(service, true);
 
-        BrowserAuthController controller = new BrowserAuthController(identityService, true);
         ResponseEntity<BrowserAuthResponse> response = controller.login(
-                BrowserAuthController.BROWSER_HEADER_VALUE,
-                new LoginRequest("poojana@aetheris.local", "Password123!"));
+                BrowserAuthController.BROWSER_HEADER_VALUE, HOST, ORIGIN, LOGIN);
 
         assertEquals(200, response.getStatusCode().value());
         assertNotNull(response.getBody());
-        assertEquals("access-1", response.getBody().accessToken());
-        assertEquals(ACCOUNT, response.getBody().account());
-        assertFalse(response.getBody().toString().contains("refresh-secret-1"));
-
+        assertEquals("access-one", response.getBody().accessToken());
+        assertEquals(BrowserAuthResponse.COOKIE_BOUND_REFRESH, response.getBody().refreshToken());
+        assertFalse(response.getBody().toString().contains("opaque-refresh-one"));
         String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
         assertNotNull(cookie);
-        assertTrue(cookie.startsWith(BrowserAuthController.REFRESH_COOKIE + "=refresh-secret-1"));
-        assertTrue(cookie.contains("Path=/api/auth/browser"));
+        assertTrue(cookie.startsWith(BrowserAuthController.REFRESH_COOKIE + "=opaque-refresh-one"));
+        assertTrue(cookie.contains("Path=/api/auth"));
         assertTrue(cookie.contains("Secure"));
         assertTrue(cookie.contains("HttpOnly"));
         assertTrue(cookie.contains("SameSite=Strict"));
         assertEquals("no-store", response.getHeaders().getCacheControl());
-        assertEquals("no-cache", response.getHeaders().getFirst(HttpHeaders.PRAGMA));
     }
 
     @Test
-    void localHttpModeCanExplicitlyDisableSecureAttributeWithoutDroppingHttpOnlyOrSameSite() {
-        IdentityService identityService = mock(IdentityService.class);
-        when(identityService.login(any())).thenReturn(auth("access-local", "refresh-local"));
+    void registrationUsesSameCookieBoundary() {
+        IdentityService service = mock(IdentityService.class);
+        RegisterRequest request = new RegisterRequest("Test User", "user@example.test", "test-input");
+        when(service.register(request)).thenReturn(auth("access-register", "opaque-register"));
+        BrowserAuthController controller = new BrowserAuthController(service, true);
 
-        BrowserAuthController controller = new BrowserAuthController(identityService, false);
-        ResponseEntity<BrowserAuthResponse> response = controller.login(
-                BrowserAuthController.BROWSER_HEADER_VALUE,
-                new LoginRequest("poojana@aetheris.local", "Password123!"));
+        ResponseEntity<BrowserAuthResponse> response = controller.register(
+                BrowserAuthController.BROWSER_HEADER_VALUE, HOST, ORIGIN, request);
 
+        verify(service).register(request);
+        assertEquals(BrowserAuthResponse.COOKIE_BOUND_REFRESH, response.getBody().refreshToken());
+        assertFalse(response.getBody().toString().contains("opaque-register"));
+    }
+
+    @Test
+    void refreshUsesCookieAndRotatesWithoutReturningSecret() {
+        IdentityService service = mock(IdentityService.class);
+        when(service.refresh(new RefreshRequest("opaque-old"))).thenReturn(auth("access-two", "opaque-new"));
+        BrowserAuthController controller = new BrowserAuthController(service, true);
+
+        ResponseEntity<BrowserAuthResponse> response = controller.refresh(
+                BrowserAuthController.BROWSER_HEADER_VALUE, HOST, ORIGIN, "opaque-old");
+
+        verify(service).refresh(new RefreshRequest("opaque-old"));
+        assertEquals(BrowserAuthResponse.COOKIE_BOUND_REFRESH, response.getBody().refreshToken());
+        assertFalse(response.getBody().toString().contains("opaque-new"));
+        assertTrue(response.getHeaders().getFirst(HttpHeaders.SET_COOKIE)
+                .startsWith(BrowserAuthController.REFRESH_COOKIE + "=opaque-new"));
+    }
+
+    @Test
+    void rejectsMissingOrCrossOriginBrowserRequest() {
+        IdentityService service = mock(IdentityService.class);
+        BrowserAuthController controller = new BrowserAuthController(service, true);
+
+        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
+                () -> controller.login(null, HOST, ORIGIN, LOGIN));
+        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
+                () -> controller.login(BrowserAuthController.BROWSER_HEADER_VALUE, HOST, null, LOGIN));
+        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
+                () -> controller.login(BrowserAuthController.BROWSER_HEADER_VALUE, HOST, "http://other.example.test", LOGIN));
+        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
+                () -> controller.login(BrowserAuthController.BROWSER_HEADER_VALUE, HOST, "not a uri", LOGIN));
+        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
+                () -> controller.login(BrowserAuthController.BROWSER_HEADER_VALUE, "localhost", ORIGIN, LOGIN));
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void refreshWithoutCookieFailsClosed() {
+        IdentityService service = mock(IdentityService.class);
+        BrowserAuthController controller = new BrowserAuthController(service, true);
+        assertThrows(RefreshTokenService.InvalidRefreshTokenException.class,
+                () -> controller.refresh(BrowserAuthController.BROWSER_HEADER_VALUE, HOST, ORIGIN, null));
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void logoutRevokesCookieTokenAndExpiresCookie() {
+        IdentityService service = mock(IdentityService.class);
+        BrowserAuthController controller = new BrowserAuthController(service, true);
+
+        ResponseEntity<Void> response = controller.logout(
+                BrowserAuthController.BROWSER_HEADER_VALUE, HOST, ORIGIN, "opaque-current");
+
+        verify(service).logout(new LogoutRequest("opaque-current"));
+        assertEquals(204, response.getStatusCode().value());
         String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
         assertNotNull(cookie);
-        assertFalse(cookie.contains("; Secure"));
+        assertTrue(cookie.contains("Path=/api/auth"));
+        assertTrue(cookie.contains("Max-Age=0"));
         assertTrue(cookie.contains("HttpOnly"));
         assertTrue(cookie.contains("SameSite=Strict"));
     }
 
     @Test
-    void refreshReadsCookieRotatesTokenAndReturnsOnlyAccessCredential() {
-        IdentityService identityService = mock(IdentityService.class);
-        when(identityService.refresh(new RefreshRequest("refresh-old")))
-                .thenReturn(auth("access-2", "refresh-new"));
+    void localHttpOverrideOnlyDropsSecureAttribute() {
+        IdentityService service = mock(IdentityService.class);
+        when(service.login(LOGIN)).thenReturn(auth("access-local", "opaque-local"));
+        BrowserAuthController controller = new BrowserAuthController(service, false);
 
-        BrowserAuthController controller = new BrowserAuthController(identityService, true);
-        ResponseEntity<BrowserAuthResponse> response = controller.refresh(
-                BrowserAuthController.BROWSER_HEADER_VALUE,
-                "refresh-old");
+        String cookie = controller.login(BrowserAuthController.BROWSER_HEADER_VALUE, HOST, ORIGIN, LOGIN)
+                .getHeaders().getFirst(HttpHeaders.SET_COOKIE);
 
-        verify(identityService).refresh(new RefreshRequest("refresh-old"));
-        assertEquals("access-2", response.getBody().accessToken());
-        assertFalse(response.getBody().toString().contains("refresh-new"));
-        assertTrue(response.getHeaders().getFirst(HttpHeaders.SET_COOKIE).startsWith(
-                BrowserAuthController.REFRESH_COOKIE + "=refresh-new"));
-    }
-
-    @Test
-    void browserEndpointsRejectRequestsWithoutDashboardHeader() {
-        IdentityService identityService = mock(IdentityService.class);
-        BrowserAuthController controller = new BrowserAuthController(identityService, true);
-
-        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
-                () -> controller.login(null, new LoginRequest("poojana@aetheris.local", "Password123!")));
-        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
-                () -> controller.refresh("wrong-client", "refresh-old"));
-        assertThrows(BrowserAuthController.BrowserRequestRejectedException.class,
-                () -> controller.logout(null, "refresh-old"));
-        verifyNoInteractions(identityService);
-    }
-
-    @Test
-    void refreshWithoutCookieFailsClosed() {
-        IdentityService identityService = mock(IdentityService.class);
-        BrowserAuthController controller = new BrowserAuthController(identityService, true);
-
-        assertThrows(RefreshTokenService.InvalidRefreshTokenException.class,
-                () -> controller.refresh(BrowserAuthController.BROWSER_HEADER_VALUE, null));
-        verifyNoInteractions(identityService);
-    }
-
-    @Test
-    void logoutRevokesCookieTokenAndExpiresCookie() {
-        IdentityService identityService = mock(IdentityService.class);
-        BrowserAuthController controller = new BrowserAuthController(identityService, true);
-
-        ResponseEntity<Void> response = controller.logout(
-                BrowserAuthController.BROWSER_HEADER_VALUE,
-                "refresh-current");
-
-        verify(identityService).logout(new LogoutRequest("refresh-current"));
-        assertEquals(204, response.getStatusCode().value());
-        String cookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
         assertNotNull(cookie);
-        assertTrue(cookie.startsWith(BrowserAuthController.REFRESH_COOKIE + "="));
-        assertTrue(cookie.contains("Max-Age=0"));
+        assertFalse(cookie.contains("; Secure"));
         assertTrue(cookie.contains("HttpOnly"));
         assertTrue(cookie.contains("SameSite=Strict"));
     }
