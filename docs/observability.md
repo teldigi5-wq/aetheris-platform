@@ -6,6 +6,8 @@ Stage 5 gives Aetheris three complementary telemetry signals: metrics, logs, and
 
 Every Java service exposes Spring Boot Actuator's `/actuator/prometheus` endpoint through Micrometer. Prometheus scrapes the gateway, user service, identity service, and audit service every five seconds. Grafana is provisioned with Prometheus and an Aetheris overview dashboard.
 
+The `/actuator/health` endpoint remains available for health/readiness checks, but component details are hidden by default. Local operators who deliberately need detailed health output can opt in with `MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always`; that override should not be treated as an internet-facing production default.
+
 Useful interview concepts: counters vs gauges, histograms, request rate, latency, JVM memory, scrape-based monitoring, labels, cardinality, and alerting.
 
 ## Logs
