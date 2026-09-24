@@ -15,7 +15,10 @@ ERRORS: list[str] = []
 EXACT_SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 FORBIDDEN_LICENSE_MARKERS = ("AGPL-", "SSPL-", "BUSL-", "COMMONS CLAUSE", "GPL-3.0-ONLY")
 CORE_MAVEN_MODULES = ("gateway", "user-service", "identity-service", "audit-service")
+CORE_DOCKERFILES = tuple(f"{module}/Dockerfile" for module in CORE_MAVEN_MODULES)
 AI_MAVEN_MODULES = ("orchestrator-service", "workstation-agent")
+PINNED_IMAGE = re.compile(r"^[^@\s]+@sha256:[0-9a-f]{64}$")
+MAVEN_3_9_11_SHA512 = "bcfe4fe305c962ace56ac7b5fc7a08b87d5abd8b7e89027ab251069faebee516b0ded8961445d6d91ec1985dfe30f8153268843c89aa392733d1a3ec956c9978"
 
 
 def fail(message: str) -> None:
@@ -134,6 +137,47 @@ def verify_maven(modules: tuple[str, ...], include_root: bool) -> None:
             fail(f"empty Maven dependency evidence for {module}")
 
 
+def container_policy_errors(relative: str, text: str) -> list[str]:
+    """Return deterministic supply-chain/runtime-user violations for one Dockerfile."""
+    errors: list[str] = []
+    lines = text.splitlines()
+    from_indexes = [i for i, raw in enumerate(lines) if raw.strip().upper().startswith("FROM ")]
+    if not from_indexes:
+        return [f"{relative}: Dockerfile has no FROM instruction"]
+
+    for index in from_indexes:
+        parts = lines[index].strip().split()
+        if len(parts) < 2 or not PINNED_IMAGE.fullmatch(parts[1]):
+            image = parts[1] if len(parts) >= 2 else "<missing>"
+            errors.append(f"{relative}: mutable or invalid base image {image!r}; require tag@sha256:<64-hex>")
+
+    if "ARG MAVEN_VERSION=3.9.11" not in text:
+        errors.append(f"{relative}: container build Maven must remain pinned to 3.9.11")
+    if f"ARG MAVEN_SHA512={MAVEN_3_9_11_SHA512}" not in text:
+        errors.append(f"{relative}: Maven 3.9.11 archive SHA-512 verification is missing or drifted")
+
+    runtime_lines = lines[from_indexes[-1]:]
+    users = [raw.strip().split(maxsplit=1)[1] for raw in runtime_lines if raw.strip().upper().startswith("USER ") and len(raw.strip().split(maxsplit=1)) == 2]
+    if not users:
+        errors.append(f"{relative}: runtime stage has no explicit non-root USER")
+    else:
+        final_user = users[-1].strip().lower()
+        principal = final_user.split(":", 1)[0]
+        if principal in {"0", "root"}:
+            errors.append(f"{relative}: runtime stage resolves to root USER {users[-1]!r}")
+
+    return errors
+
+
+def verify_core_containers() -> None:
+    for relative in CORE_DOCKERFILES:
+        path = require_file(relative)
+        if not path.is_file():
+            continue
+        for error in container_policy_errors(relative, path.read_text(encoding="utf-8")):
+            fail(error)
+
+
 def verify_core_boundaries() -> None:
     for relative in (
         "scripts/stage22/release_gate.py",
@@ -164,6 +208,7 @@ def write_hash_manifest(scope: str) -> None:
     if scope == "core":
         evidence_files = [
             "dashboard/package.json", "dashboard/package-lock.json", "dashboard/Dockerfile",
+            *CORE_DOCKERFILES,
             ".mvn/wrapper/maven-wrapper.properties",
             *(f"build-evidence/maven/{module}.txt" for module in CORE_MAVEN_MODULES),
         ]
@@ -178,6 +223,7 @@ def write_hash_manifest(scope: str) -> None:
     else:
         evidence_files = [
             "dashboard/package.json", "dashboard/package-lock.json", "dashboard/Dockerfile",
+            *CORE_DOCKERFILES,
             "aetheris-quant/requirements.in", "aetheris-quant/requirements.lock.txt",
             "aetheris-reasoning/pyproject.toml", ".mvn/wrapper/maven-wrapper.properties",
             *(f"build-evidence/maven/{module}.txt" for module in (*CORE_MAVEN_MODULES, *AI_MAVEN_MODULES)),
@@ -202,6 +248,7 @@ def main() -> int:
         verify_node()
         verify_core_toolchain()
         verify_maven(CORE_MAVEN_MODULES, include_root=True)
+        verify_core_containers()
         verify_core_boundaries()
     if args.scope in ("ai-runtime", "all"):
         verify_quant_python()
