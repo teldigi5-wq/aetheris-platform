@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -24,8 +25,9 @@ import java.util.Map;
 public class BrowserAuthController {
     static final String BROWSER_HEADER = "X-Aetheris-Browser";
     static final String BROWSER_HEADER_VALUE = "aetheris-dashboard-v1";
+    static final String BROWSER_HOST_HEADER = "X-Aetheris-Browser-Host";
     static final String REFRESH_COOKIE = "aetheris_refresh";
-    private static final String COOKIE_PATH = "/api/auth/browser";
+    private static final String COOKIE_PATH = "/api/auth";
 
     private final IdentityService identityService;
     private final boolean secureCookie;
@@ -37,19 +39,33 @@ public class BrowserAuthController {
         this.secureCookie = secureCookie;
     }
 
+    @PostMapping("/register")
+    public ResponseEntity<BrowserAuthResponse> register(
+            @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
+            @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
+            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
+            @Valid @RequestBody RegisterRequest request) {
+        requireBrowserRequest(browserHeader, browserHost, origin);
+        return authenticated(identityService.register(request));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<BrowserAuthResponse> login(
             @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
+            @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
+            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
             @Valid @RequestBody LoginRequest request) {
-        requireBrowserRequest(browserHeader);
+        requireBrowserRequest(browserHeader, browserHost, origin);
         return authenticated(identityService.login(request));
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<BrowserAuthResponse> refresh(
             @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
+            @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
+            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
-        requireBrowserRequest(browserHeader);
+        requireBrowserRequest(browserHeader, browserHost, origin);
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new RefreshTokenService.InvalidRefreshTokenException();
         }
@@ -59,8 +75,10 @@ public class BrowserAuthController {
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
             @RequestHeader(name = BROWSER_HEADER, required = false) String browserHeader,
+            @RequestHeader(name = BROWSER_HOST_HEADER, required = false) String browserHost,
+            @RequestHeader(name = HttpHeaders.ORIGIN, required = false) String origin,
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
-        requireBrowserRequest(browserHeader);
+        requireBrowserRequest(browserHeader, browserHost, origin);
         if (refreshToken != null && !refreshToken.isBlank()) {
             identityService.logout(new LogoutRequest(refreshToken));
         }
@@ -99,28 +117,55 @@ public class BrowserAuthController {
                 .build();
     }
 
-    private static void requireBrowserRequest(String browserHeader) {
-        if (!BROWSER_HEADER_VALUE.equals(browserHeader)) {
+    private static void requireBrowserRequest(String browserHeader, String browserHost, String origin) {
+        if (!BROWSER_HEADER_VALUE.equals(browserHeader)
+                || browserHost == null || browserHost.isBlank()
+                || origin == null || origin.isBlank()) {
+            throw new BrowserRequestRejectedException();
+        }
+
+        try {
+            URI parsedOrigin = URI.create(origin);
+            String scheme = parsedOrigin.getScheme();
+            String authority = parsedOrigin.getRawAuthority();
+            boolean supportedScheme = "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme);
+            if (!supportedScheme || authority == null || !authority.equalsIgnoreCase(browserHost)) {
+                throw new BrowserRequestRejectedException();
+            }
+        } catch (IllegalArgumentException ex) {
             throw new BrowserRequestRejectedException();
         }
     }
 
     @ExceptionHandler(BrowserRequestRejectedException.class)
-    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.FORBIDDEN)
-    Map<String, Object> browserRequestRejected() {
-        return Map.of("timestamp", Instant.now().toString(), "status", 403, "error", "Forbidden", "message", "Browser auth request rejected");
+    public ResponseEntity<Map<String, Object>> browserRequestRejected() {
+        return noStoreError(HttpStatus.FORBIDDEN, "Forbidden", "Browser auth request rejected");
+    }
+
+    @ExceptionHandler(IdentityService.EmailAlreadyRegisteredException.class)
+    public ResponseEntity<Map<String, Object>> duplicateEmail() {
+        return noStoreError(HttpStatus.CONFLICT, "Conflict", "Email already registered");
     }
 
     @ExceptionHandler(IdentityService.InvalidCredentialsException.class)
-    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.UNAUTHORIZED)
-    Map<String, Object> invalidCredentials() {
-        return Map.of("timestamp", Instant.now().toString(), "status", 401, "error", "Unauthorized", "message", "Invalid email or password");
+    public ResponseEntity<Map<String, Object>> invalidCredentials() {
+        return noStoreError(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid email or password");
     }
 
     @ExceptionHandler(RefreshTokenService.InvalidRefreshTokenException.class)
-    @org.springframework.web.bind.annotation.ResponseStatus(HttpStatus.UNAUTHORIZED)
-    Map<String, Object> invalidRefreshToken() {
-        return Map.of("timestamp", Instant.now().toString(), "status", 401, "error", "Unauthorized", "message", "Invalid, expired, or already used refresh token");
+    public ResponseEntity<Map<String, Object>> invalidRefreshToken() {
+        return noStoreError(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid, expired, or already used refresh token");
+    }
+
+    private ResponseEntity<Map<String, Object>> noStoreError(HttpStatus status, String error, String message) {
+        return ResponseEntity.status(status)
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .body(Map.of(
+                        "timestamp", Instant.now().toString(),
+                        "status", status.value(),
+                        "error", error,
+                        "message", message));
     }
 
     static class BrowserRequestRejectedException extends RuntimeException {}
