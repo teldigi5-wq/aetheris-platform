@@ -14,6 +14,8 @@ spring:
     open-in-view: false
 
 aetheris:
+  browser-auth:
+    secure-cookie: ${AETHERIS_BROWSER_REFRESH_COOKIE_SECURE:true}
   jwt:
     secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
     expiration-seconds: ${AETHERIS_JWT_EXPIRATION_SECONDS:3600}

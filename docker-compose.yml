@@ -76,6 +76,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: aetheris
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      AETHERIS_BROWSER_REFRESH_COOKIE_SECURE: "false"
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
