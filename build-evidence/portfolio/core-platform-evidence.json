@@ -5,7 +5,7 @@
   "claims": [
     {
       "id": "identity.refresh-token-lifecycle",
-      "title": "Refresh tokens are generated with secure randomness, stored by SHA-256 hash, rotated, and revocable",
+      "title": "Refresh tokens are generated with secure randomness, stored by SHA-256 hash, atomically single-use during rotation, and revocable",
       "maturity": "REPOSITORY_TESTED",
       "evidence": [
         {
@@ -14,14 +14,15 @@
             "new SecureRandom()",
             "MessageDigest.getInstance(\"SHA-256\")",
             "public RotationResult rotate(String rawToken)",
-            "existing.revoke()",
+            "repository.revokeIfActive(tokenHash, Instant.now())",
             "public void revoke(String rawToken)"
           ]
         },
         {
           "path": "identity-service/src/test/java/io/aetheris/identity/RefreshTokenServiceTest.java",
           "contains": [
-            "service.rotate(first.token())"
+            "service.rotate(first.token())",
+            "rotationRejectsRequestThatLosesAtomicClaimRace"
           ]
         }
       ]
