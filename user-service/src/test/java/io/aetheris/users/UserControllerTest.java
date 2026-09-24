@@ -56,8 +56,8 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("Validation failed"))
                 .andExpect(jsonPath("$.path").value("/api/users"))
-                .andExpect(jsonPath("$.fields.name").exists())
-                .andExpect(jsonPath("$.fields.email").exists());
+                .andExpect(jsonPath("$.fieldErrors.name").exists())
+                .andExpect(jsonPath("$.fieldErrors.email").exists());
 
         verifyNoInteractions(service);
     }
