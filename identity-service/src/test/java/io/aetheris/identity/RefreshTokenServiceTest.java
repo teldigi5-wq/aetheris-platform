@@ -12,12 +12,13 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class RefreshTokenServiceTest {
 
     @Test
-    void rotationRevokesPresentedTokenAndIssuesReplacement() {
+    void rotationAtomicallyClaimsPresentedTokenAndIssuesReplacement() {
         RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
         IdentityAccount account = new IdentityAccount("Poojana", "poojana@aetheris.local", "hash", Role.API_CONSUMER);
         RefreshTokenService service = new RefreshTokenService(repository, 604800L);
@@ -30,12 +31,31 @@ class RefreshTokenServiceTest {
         RefreshToken persisted = created.getValue();
 
         when(repository.findByTokenHash(persisted.getTokenHash())).thenReturn(Optional.of(persisted));
+        when(repository.revokeIfActive(eq(persisted.getTokenHash()), any(Instant.class))).thenReturn(1);
+
         RefreshTokenService.RotationResult rotation = service.rotate(first.token());
 
-        assertTrue(persisted.isRevoked());
         assertEquals(account, rotation.account());
         assertNotEquals(first.token(), rotation.refreshToken().token());
-        verify(repository, times(3)).save(any(RefreshToken.class));
+        verify(repository).revokeIfActive(eq(persisted.getTokenHash()), any(Instant.class));
+        verify(repository, times(2)).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void rotationRejectsRequestThatLosesAtomicClaimRace() {
+        RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
+        IdentityAccount account = new IdentityAccount("Poojana", "poojana@aetheris.local", "hash", Role.API_CONSUMER);
+        RefreshTokenService service = new RefreshTokenService(repository, 604800L);
+        String raw = "racing-token";
+        String tokenHash = sha256(raw);
+        RefreshToken token = new RefreshToken(account, tokenHash, Instant.now().plusSeconds(300));
+
+        when(repository.findByTokenHash(tokenHash)).thenReturn(Optional.of(token));
+        when(repository.revokeIfActive(eq(tokenHash), any(Instant.class))).thenReturn(0);
+
+        assertThrows(RefreshTokenService.InvalidRefreshTokenException.class, () -> service.rotate(raw));
+        verify(repository).revokeIfActive(eq(tokenHash), any(Instant.class));
+        verify(repository, never()).save(any(RefreshToken.class));
     }
 
     @Test
@@ -53,6 +73,7 @@ class RefreshTokenServiceTest {
         when(repository.findByTokenHash(persisted.getTokenHash())).thenReturn(Optional.of(persisted));
 
         assertThrows(RefreshTokenService.InvalidRefreshTokenException.class, () -> service.rotate(first.token()));
+        verify(repository, never()).revokeIfActive(anyString(), any(Instant.class));
     }
 
     @Test
@@ -65,6 +86,7 @@ class RefreshTokenServiceTest {
         when(repository.findByTokenHash(sha256(raw))).thenReturn(Optional.of(expired));
 
         assertThrows(RefreshTokenService.InvalidRefreshTokenException.class, () -> service.rotate(raw));
+        verify(repository, never()).revokeIfActive(anyString(), any(Instant.class));
         verify(repository, never()).save(any(RefreshToken.class));
     }
 
