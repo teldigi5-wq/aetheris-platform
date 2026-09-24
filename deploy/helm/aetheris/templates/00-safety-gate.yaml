@@ -1,0 +1,21 @@
+{{- /*
+Fail closed unless the installer explicitly opts into the repository's local
+learning/demo defaults. Non-local renders must replace every bundled demo
+credential and use digest-pinned images.
+*/ -}}
+{{- if not .Values.global.allowInsecureLocalDefaults -}}
+  {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
+    {{- fail "unsafe Helm default: replace secrets.jwtSecret or explicitly opt into values-local.yaml for local development" -}}
+  {{- end -}}
+  {{- if eq .Values.secrets.postgresPassword "aetheris" -}}
+    {{- fail "unsafe Helm default: replace secrets.postgresPassword or explicitly opt into values-local.yaml for local development" -}}
+  {{- end -}}
+  {{- if eq .Values.secrets.rabbitmqPassword "aetheris" -}}
+    {{- fail "unsafe Helm default: replace secrets.rabbitmqPassword or explicitly opt into values-local.yaml for local development" -}}
+  {{- end -}}
+  {{- range $name, $image := .Values.images -}}
+    {{- if not (contains "@sha256:" $image) -}}
+      {{- fail (printf "unsafe Helm image reference: images.%s must be digest-pinned for non-local installs (got %s)" $name $image) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
