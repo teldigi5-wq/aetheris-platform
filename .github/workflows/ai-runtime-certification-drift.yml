@@ -1,0 +1,72 @@
+name: AI Runtime Certification Drift
+
+on:
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+  push:
+    branches: [ main, feature/syntra-aetheris-foundation-v2 ]
+    paths:
+      - 'architecture/ai-runtime-certification-reference.json'
+      - 'tools/check_ai_runtime_certification_drift.py'
+      - 'tests/test_ai_runtime_certification_drift.py'
+      - '.github/workflows/ai-runtime-certification-drift.yml'
+  pull_request:
+    branches: [ main, feature/syntra-aetheris-foundation-v2 ]
+    paths:
+      - 'architecture/ai-runtime-certification-reference.json'
+      - 'tools/check_ai_runtime_certification_drift.py'
+      - 'tests/test_ai_runtime_certification_drift.py'
+      - '.github/workflows/ai-runtime-certification-drift.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-certification-drift:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Set up Python 3.13.15
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+
+      - name: Compile drift classifier
+        run: python -m py_compile tools/check_ai_runtime_certification_drift.py
+
+      - name: Run drift-classifier unit tests
+        run: python -m unittest discover -s tests -p 'test_ai_runtime_certification_drift.py' -v
+
+      - name: Compare certified checkpoint with live runtime main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/check_ai_runtime_certification_drift.py \
+            --output build/runtime-certification/drift-report.json
+
+      - name: Assert truth boundaries and accepted non-source drift states
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = json.loads(Path('build/runtime-certification/drift-report.json').read_text())
+          assert report['status'] in {'ALIGNED', 'NON_RUNTIME_DRIFT', 'EVIDENCE_PIPELINE_DRIFT'}, report
+          assert report['promotion_required'] is False, report
+          assert report['physical_pc_status'] == 'BLOCKED_PENDING_HARDWARE', report
+          assert report['production_deployment_claim'] is False, report
+          assert report['registry_publication_claim'] is False, report
+          assert report['live_money_execution_claim'] is False, report
+          print(f"AI runtime certification drift: {report['status']}")
+          PY
+
+      - name: Publish runtime drift evidence
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: ai-runtime-certification-drift
+          path: build/runtime-certification/drift-report.json
+          if-no-files-found: error
+          retention-days: 30
