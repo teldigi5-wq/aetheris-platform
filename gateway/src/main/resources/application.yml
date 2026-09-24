@@ -147,7 +147,7 @@ management:
         include: health,info,prometheus,circuitbreakers,circuitbreakerevents
   endpoint:
     health:
-      show-details: always
+      show-details: ${MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS:never}
   health:
     circuitbreakers:
       enabled: true
