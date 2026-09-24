@@ -90,7 +90,7 @@ kubectl port-forward -n aetheris svc/dashboard 3000:80
 
 Open `http://localhost:3000`.
 
-The dashboard Nginx container sends `/api/*` and `/actuator/*` traffic to the Kubernetes Service named `gateway`, so the browser continues to use a same-origin path while Kubernetes DNS handles internal service discovery.
+The dashboard Nginx container sends `/api/*` traffic and the single browser health check `/actuator/health` to the Kubernetes Service named `gateway`, so the browser continues to use same-origin paths while Kubernetes DNS handles internal service discovery. Other `/actuator/*` paths are intentionally not exposed through the dashboard proxy.
 
 ## Validate the platform
 
@@ -174,6 +174,8 @@ Only delete the namespace when its persisted local test data is no longer needed
 ## Security note
 
 The values file contains development-only local defaults. Do not use the included passwords or JWT secret in a shared, internet-facing, staging, or production cluster. Production secrets should come from an external secret manager or a separately managed Kubernetes Secret.
+
+The dashboard Nginx layer emits baseline browser security headers and limits its Actuator proxy to `/actuator/health`. The current Stage 8–23 static consoles still contain inline script/style blocks, so the dashboard CSP explicitly permits inline script/style execution for compatibility. Removing that allowance requires first extracting those legacy inline blocks into external assets; the current CSP should not be described as strict nonce/hash-based CSP.
 
 ## Interview concepts
 
