@@ -2,19 +2,21 @@ package io.aetheris.audit;
 
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedDeque;
 
 @Service
 public class AuditEventStore {
-    private static final int MAX_EVENTS = 100;
-    private final Deque<UserDomainEvent> events = new ConcurrentLinkedDeque<>();
+    private final AuditEventRepository repository;
 
+    public AuditEventStore(AuditEventRepository repository) {
+        this.repository = repository;
+    }
+
+    @Transactional
     @RabbitListener(queues = RabbitAuditConfig.USER_AUDIT_QUEUE)
     public void consume(Map<String, Object> message) {
         UserDomainEvent event = new UserDomainEvent(
@@ -24,13 +26,10 @@ public class AuditEventStore {
                 Long.valueOf(String.valueOf(message.get("userId"))),
                 String.valueOf(message.get("name")),
                 String.valueOf(message.get("email")));
-        events.addFirst(event);
-        while (events.size() > MAX_EVENTS) {
-            events.removeLast();
-        }
+        repository.saveIfAbsent(event);
     }
 
     public List<UserDomainEvent> recent() {
-        return new ArrayList<>(events);
+        return repository.recent();
     }
 }
