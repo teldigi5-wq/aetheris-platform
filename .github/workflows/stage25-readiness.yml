@@ -42,7 +42,7 @@ jobs:
           report = json.loads(Path('build-evidence/readiness/preflight-report.json').read_text())
           reference = json.loads(Path('architecture/ai-runtime-certification-reference.json').read_text())
 
-          expected_runtime = 'e2af887c13c6851ce950f04d093d190fe791f8fa'
+          expected_runtime = '65a6262717adcd52ac8d8a16ed6f223e299fd74d'
           report_runtime = report['external_ai_runtime_certified_sha']
 
           assert report['status'] == 'PASS', report

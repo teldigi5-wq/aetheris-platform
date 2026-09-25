@@ -72,7 +72,7 @@ jobs:
               Path('build-evidence/runtime/external-integration-runtime-report.json').read_text()
           )
           expected_platform = '${{ github.event.pull_request.head.sha || github.sha }}'
-          expected_runtime = 'e2af887c13c6851ce950f04d093d190fe791f8fa'
+          expected_runtime = '65a6262717adcd52ac8d8a16ed6f223e299fd74d'
           assert report['status'] == 'PASS', report
           assert report['evidence_class'] == 'HOSTED_RUNTIME', report
           assert report['physical_pc_validation'] is False, report

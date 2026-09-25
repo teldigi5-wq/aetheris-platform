@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_RUNTIME_SHA = "e2af887c13c6851ce950f04d093d190fe791f8fa"
+EXPECTED_RUNTIME_SHA = "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
 
 
 def load_module(name: str, relative: str):

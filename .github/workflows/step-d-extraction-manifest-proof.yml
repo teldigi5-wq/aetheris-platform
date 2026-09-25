@@ -16,7 +16,7 @@ permissions:
 
 env:
   AETHERIS_EXPECTED_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-  AETHERIS_AI_RUNTIME_IMAGE: aetheris-ai-runtime:e2af887c13c6851ce950f04d093d190fe791f8fa
+  AETHERIS_AI_RUNTIME_IMAGE: aetheris-ai-runtime:65a6262717adcd52ac8d8a16ed6f223e299fd74d
 
 jobs:
   final-source-extracted-boundary:
@@ -73,13 +73,13 @@ jobs:
               Path('build-evidence/architecture/ai-runtime-extraction-final-report.json').read_text()
           )
           expected_platform = '${{ github.event.pull_request.head.sha || github.sha }}'
-          expected_runtime = 'e2af887c13c6851ce950f04d093d190fe791f8fa'
+          expected_runtime = '65a6262717adcd52ac8d8a16ed6f223e299fd74d'
           assert report['status'] == 'PASS', report
           assert report['mode'] == 'platform-source-extracted', report
           assert report['platform_revision'] == expected_platform, report
           assert report['destination_repository'] == 'teldigi5-wq/aetheris-ai-runtime', report
           assert report['destination_certified_sha'] == expected_runtime, report
-          assert report['runtime_release_archive_sha256'] == '790a2c4fb8bd3d651b66f57365cea24ae10e6183a423278c02a1ad791bbe5ade', report
+          assert report['runtime_release_archive_sha256'] == '18d934cee0ac61bb1065cfd8c104c4b91d10bad6d1d745c5ff72e86c03e0f14c', report
           assert report['platform_runtime_source_present'] is False, report
           assert len(report['move_roots']) == 4, report
           assert len(report['runtime_owned_workflows_removed']) == 33, report

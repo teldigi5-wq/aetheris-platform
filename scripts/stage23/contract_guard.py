@@ -8,8 +8,8 @@ from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED_RUNTIME_SHA = "e2af887c13c6851ce950f04d093d190fe791f8fa"
-EXPECTED_RUNTIME_ARCHIVE_SHA256 = "790a2c4fb8bd3d651b66f57365cea24ae10e6183a423278c02a1ad791bbe5ade"
+EXPECTED_RUNTIME_SHA = "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
+EXPECTED_RUNTIME_ARCHIVE_SHA256 = "18d934cee0ac61bb1065cfd8c104c4b91d10bad6d1d745c5ff72e86c03e0f14c"
 
 
 def fail(message: str, errors: list[str]) -> None:

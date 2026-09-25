@@ -17,8 +17,8 @@ CONTRACT_PATH = ROOT / "contracts" / "ai-runtime-boundary.v1.json"
 EVIDENCE_DIR = ROOT / "build-evidence" / "architecture"
 EXPECTED_CORE_MODULES = {"gateway", "user-service", "identity-service", "audit-service"}
 EXPECTED_DESTINATION = "teldigi5-wq/aetheris-ai-runtime"
-EXPECTED_DESTINATION_SHA = "e2af887c13c6851ce950f04d093d190fe791f8fa"
-EXPECTED_ARCHIVE_SHA256 = "790a2c4fb8bd3d651b66f57365cea24ae10e6183a423278c02a1ad791bbe5ade"
+EXPECTED_DESTINATION_SHA = "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
+EXPECTED_ARCHIVE_SHA256 = "18d934cee0ac61bb1065cfd8c104c4b91d10bad6d1d745c5ff72e86c03e0f14c"
 
 
 def git(*args: str) -> str:

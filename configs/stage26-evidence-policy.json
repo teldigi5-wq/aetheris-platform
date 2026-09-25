@@ -31,7 +31,7 @@
         "physical_pc_status: NOT_TESTED",
         "A hosted CI pass is not a substitute",
         "teldigi5-wq/aetheris-ai-runtime",
-        "e2af887c13c6851ce950f04d093d190fe791f8fa"
+        "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
       ]
     },
     {
@@ -40,7 +40,7 @@
         "forbidden_claims_before_physical_validation",
         "aetheris-platform-external-ai-runtime-v1",
         "architecture/ai-runtime-certification-reference.json",
-        "e2af887c13c6851ce950f04d093d190fe791f8fa"
+        "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
       ]
     },
     {

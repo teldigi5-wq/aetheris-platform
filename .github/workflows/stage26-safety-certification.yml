@@ -50,7 +50,7 @@ jobs:
           integrity = json.loads(Path('build/stage26/evidence-integrity.json').read_text())
           catalog = json.loads(Path('build/stage26/catalog-1.json').read_text())
           runtime = json.loads(Path('architecture/ai-runtime-certification-reference.json').read_text())
-          expected_runtime = 'e2af887c13c6851ce950f04d093d190fe791f8fa'
+          expected_runtime = '65a6262717adcd52ac8d8a16ed6f223e299fd74d'
 
           assert integrity['status'] == 'PASS', integrity
           assert integrity['physicalPcStatus'] == 'BLOCKED_PENDING_HARDWARE', integrity
