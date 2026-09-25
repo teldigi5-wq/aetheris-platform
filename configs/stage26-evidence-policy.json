@@ -14,7 +14,7 @@
     "unrestrictedShellAllowed": false,
     "adminBypassAllowed": false
   },
-  "stage23_expected_contract_sha256": "64281827c21ece9072259100b70bb440b3c5f234ed3802f520a498e12073f399",
+  "stage23_expected_contract_sha256": "31f345f0b0c882c5ed2faae4739747b4d18c1e0357592bc66be774c9bdd1d26f",
   "required_claims": [
     {
       "path": "docs/ai/stage-21-physical-target-pilot.md",
@@ -31,7 +31,7 @@
         "physical_pc_status: NOT_TESTED",
         "A hosted CI pass is not a substitute",
         "teldigi5-wq/aetheris-ai-runtime",
-        "6c714d1772db2db490cd035e11a78308f26f8a63"
+        "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
       ]
     },
     {
@@ -40,7 +40,7 @@
         "forbidden_claims_before_physical_validation",
         "aetheris-platform-external-ai-runtime-v1",
         "architecture/ai-runtime-certification-reference.json",
-        "6c714d1772db2db490cd035e11a78308f26f8a63"
+        "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
       ]
     },
     {

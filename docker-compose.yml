@@ -104,9 +104,9 @@ services:
       - "8083:8083"
 
   orchestrator-service:
-    image: ${AETHERIS_AI_RUNTIME_IMAGE:-aetheris-ai-runtime:6c714d1772db2db490cd035e11a78308f26f8a63}
+    image: ${AETHERIS_AI_RUNTIME_IMAGE:-aetheris-ai-runtime:65a6262717adcd52ac8d8a16ed6f223e299fd74d}
     build:
-      context: https://github.com/teldigi5-wq/aetheris-ai-runtime.git#6c714d1772db2db490cd035e11a78308f26f8a63:orchestrator-service
+      context: https://github.com/teldigi5-wq/aetheris-ai-runtime.git#65a6262717adcd52ac8d8a16ed6f223e299fd74d:orchestrator-service
     environment:
       ORCHESTRATOR_PORT: 8090
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
