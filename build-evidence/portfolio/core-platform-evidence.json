@@ -179,7 +179,7 @@
           "path": "architecture/ai-runtime-certification-reference.json",
           "contains": [
             "teldigi5-wq/aetheris-ai-runtime",
-            "6c714d1772db2db490cd035e11a78308f26f8a63",
+            "65a6262717adcd52ac8d8a16ed6f223e299fd74d",
             "SOURCE_EXTRACTED_TO_CERTIFIED_DESTINATION",
             "runtime-stage26-safety.yml"
           ]
