@@ -13,7 +13,7 @@ Implemented now:
 - native Tauri 2 Windows shell;
 - premium dark command-center UI;
 - Overview, Chat, Tasks, Memory, Devices, Approvals and Settings navigation shell;
-- visible `STOP`, `PAUSE`, `RESUME` and `TAKE CONTROL` controls;
+- visible `STOP`, `PAUSE`, `RESUME` and `TAKE_CONTROL` controls;
 - local-only control state with explicit no-success-without-evidence wording;
 - system-health panel and local gateway health probing;
 - live event timeline shell;
@@ -24,10 +24,12 @@ The UI source is under `ui/`. The native Rust/Tauri host is under `src-tauri/`.
 
 ## Build locally later
 
-On a Windows machine with the pinned Rust toolchain available:
+On a Windows machine with the pinned Rust toolchain available, generate the deterministic development icon first and then build:
 
 ```powershell
-cd apps\syntra-desktop\src-tauri
+cd apps\syntra-desktop
+.\scripts\generate-dev-icon.ps1
+cd src-tauri
 cargo generate-lockfile
 cargo build --locked --release
 ```
@@ -38,7 +40,7 @@ Expected executable:
 apps\syntra-desktop\src-tauri\target\release\Syntra.exe
 ```
 
-The GitHub workflow `.github/workflows/syntra-desktop-build.yml` performs the equivalent Windows build in CI and publishes the unsigned development executable as an artifact.
+The generated icon is development-only and is intentionally not treated as final Syntra branding. The GitHub workflow `.github/workflows/syntra-desktop-build.yml` performs the same preparation and Windows build in CI, then publishes the unsigned development executable as an artifact.
 
 ## Desktop contract
 
