@@ -51,7 +51,7 @@ Aetheris now has an explicit two-repository ownership model.
 
 The currently certified runtime checkpoint recorded by the platform is:
 
-`teldigi5-wq/aetheris-ai-runtime@6c714d1772db2db490cd035e11a78308f26f8a63`
+`teldigi5-wq/aetheris-ai-runtime@65a6262717adcd52ac8d8a16ed6f223e299fd74d`
 
 That SHA is a **certification reference**, not a claim that the runtime repository can never advance. Platform integration should move to a newer runtime only through the same evidence-driven certification process.
 

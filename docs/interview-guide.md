@@ -155,7 +155,7 @@ Syntra is the owner-facing assistant/coordination experience. Aetheris is the in
 
 ### Where does the AI runtime live now?
 
-The runtime implementation lives in `teldigi5-wq/aetheris-ai-runtime`. The platform repository retains the boundary contract, integration composition and certification reference. The platform currently records `6c714d1772db2db490cd035e11a78308f26f8a63` as the certified runtime checkpoint; a newer runtime revision must not be presented as automatically recertified just because it exists on `main`.
+The runtime implementation lives in `teldigi5-wq/aetheris-ai-runtime`. The platform repository retains the boundary contract, integration composition and certification reference. The platform currently records `65a6262717adcd52ac8d8a16ed6f223e299fd74d` as the certified runtime checkpoint; a newer runtime revision must not be presented as automatically recertified just because it exists on `main`.
 
 ### Why not lead the interview with this part?
 

@@ -11,7 +11,7 @@ The current implementation is split across two repositories:
 - **`teldigi5-wq/aetheris-platform`** — gateway, identity, user, audit, dashboard, observability, deployment, cross-repository contracts and integration evidence;
 - **`teldigi5-wq/aetheris-ai-runtime`** — orchestrator, workstation-agent, reasoning and quantitative runtime source plus runtime-owned certification.
 
-The platform currently records runtime checkpoint `6c714d1772db2db490cd035e11a78308f26f8a63` as its certified external-runtime reference. A future runtime revision must be recertified before the platform reference advances.
+The platform currently records runtime checkpoint `65a6262717adcd52ac8d8a16ed6f223e299fd74d` as its certified external-runtime reference. A future runtime revision must be recertified before the platform reference advances.
 
 Conceptually the system remains split into three planes:
 
@@ -103,7 +103,7 @@ The platform consumes the runtime through explicit integration assets instead of
 - `docker-compose.integration-external.yml` — external-runtime integration topology;
 - `tools/load_certified_ai_runtime.sh` — helper for loading the certified runtime reference.
 
-The platform certification reference records `6c714d1772db2db490cd035e11a78308f26f8a63` with canonical runtime CI status `6_OF_6_SUCCESS`. It also explicitly records that platform runtime source is absent and that physical-PC, production-deployment, registry-publication and live-money claims remain false.
+The platform certification reference records `65a6262717adcd52ac8d8a16ed6f223e299fd74d` with canonical runtime CI status `6_OF_6_SUCCESS`. It also explicitly records that platform runtime source is absent and that physical-PC, production-deployment, registry-publication and live-money claims remain false.
 
 A runtime update is therefore a controlled dependency/integration change, not a source-copy operation.
 
