@@ -10,7 +10,7 @@ A GitHub release is a source/distribution milestone. It must not silently become
 - Platform stable branch: protected `main`
 - Stage 27 canonical development-line marker: `feature/syntra-aetheris-foundation-v2`
 - AI runtime source owner: `teldigi5-wq/aetheris-ai-runtime`
-- Platform-recorded certified runtime checkpoint: `6c714d1772db2db490cd035e11a78308f26f8a63`
+- Platform-recorded certified runtime checkpoint: `65a6262717adcd52ac8d8a16ed6f223e299fd74d`
 - Software license: **Apache License 2.0** for both Aetheris source-owner repositories
 - Physical-machine status: `BLOCKED_PENDING_HARDWARE`
 - Physical-PC validation remains pending
