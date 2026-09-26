@@ -1,7 +1,7 @@
 {
   "name": "Syntra Desktop",
   "stage": 6,
-  "desktopVersion": "0.2.0-aetheris-health-integration",
+  "desktopVersion": "0.3.0-installer-hardening",
   "apiBase": "/api/orchestrator",
   "liveStream": "/api/orchestrator/live/events",
   "runtimeHealthProbe": {
@@ -15,7 +15,14 @@
   "hostPairing": "challenge-response",
   "hostExecutionDefault": "simulation-only",
   "secretStorage": "os-backed-required-for-production",
-  "packagingStatus": "unsigned-ci-executable-integration",
+  "packagingStatus": "unsigned-ci-nsis-installer",
+  "installer": {
+    "format": "nsis",
+    "installMode": "currentUser",
+    "codeSigningStatus": "unsigned-development-only",
+    "checksumManifest": "SHA256SUMS.txt"
+  },
+  "desktopUiStatus": "multi-panel-pre-pc-shell",
   "backendCommandWiringStatus": "not-wired-no-success-claims",
   "readOnlyRuntimeIntegrationStatus": "health-only",
   "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",

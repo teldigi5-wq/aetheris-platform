@@ -1,6 +1,6 @@
 [package]
 name = "syntra-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "Owner-facing Syntra desktop shell for the Aetheris platform"
 authors = ["Poojana Kaveesh"]
 edition = "2021"
