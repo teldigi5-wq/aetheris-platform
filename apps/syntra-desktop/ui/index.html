@@ -40,19 +40,20 @@
     <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">SYNTRA DESKTOP · v0.1 FOUNDATION</p>
+          <p class="eyebrow">SYNTRA DESKTOP · v0.2 AETHERIS INTEGRATION</p>
           <h1 id="page-title">Command Center</h1>
         </div>
         <div class="topbar-actions">
           <div class="clock" id="clock">--:--:--</div>
           <button class="ghost-button" id="probe-gateway">Probe local gateway</button>
+          <button class="ghost-button" id="probe-runtime">Probe Aetheris runtime</button>
         </div>
       </header>
 
       <section class="truth-banner" role="status">
         <div>
-          <strong>Development shell only</strong>
-          <span>This build does not claim physical-PC certification, production activation, registry publication, or live-money execution.</span>
+          <strong>Read-only runtime integration</strong>
+          <span>This slice can verify local Aetheris runtime health only. It does not claim physical-PC certification, command execution, production activation, registry publication, or live-money execution.</span>
         </div>
         <span class="truth-chip">EVIDENCE REQUIRED</span>
       </section>
@@ -73,11 +74,11 @@
           <div class="card-header">
             <div>
               <p class="eyebrow">OWNER ASSISTANT</p>
-              <h2>Ready to become the real Syntra desktop app.</h2>
+              <h2>Native Syntra now has a truthful Aetheris health boundary.</h2>
             </div>
             <span class="pill neutral">OFFLINE-FIRST</span>
           </div>
-          <p class="lead">This first executable foundation gives Syntra a native Windows shell while preserving the Aetheris safety and evidence boundaries.</p>
+          <p class="lead">The desktop can probe the proven loopback Aetheris actuator endpoint through the native host while keeping chat, task, memory, approval and control execution unwired until their contracts are verified.</p>
           <div class="quick-input">
             <input id="prompt-input" type="text" placeholder="Ask Syntra something…" autocomplete="off" />
             <button id="send-prompt">Send</button>
@@ -88,11 +89,11 @@
         <article class="card status-card">
           <div class="card-header">
             <h3>System health</h3>
-            <span class="pill pending">UNVERIFIED</span>
+            <span class="pill pending">EVIDENCE-DRIVEN</span>
           </div>
           <ul class="health-list">
             <li><span>Aetheris Gateway</span><strong id="gateway-status">Not probed</strong></li>
-            <li><span>AI Runtime</span><strong>Certified artifact available</strong></li>
+            <li><span>AI Runtime</span><strong id="runtime-status">Not probed</strong></li>
             <li><span>Workstation Agent</span><strong>Hardware pending</strong></li>
             <li><span>Local Model</span><strong>Not configured</strong></li>
             <li><span>Voice</span><strong>Hardware pending</strong></li>
@@ -107,7 +108,7 @@
           <div class="empty-state">
             <div class="orb" aria-hidden="true"></div>
             <p>No mission is running.</p>
-            <span>Syntra will show task lifecycle, active tools, approvals and evidence here.</span>
+            <span>Syntra will show task lifecycle, active tools, approvals and evidence here after those contracts are deliberately integrated.</span>
           </div>
         </article>
 
@@ -133,8 +134,8 @@
             <div class="timeline-event">
               <span class="event-dot"></span>
               <div>
-                <strong>Syntra desktop foundation loaded</strong>
-                <p>Native shell is running. Backend execution is not being claimed.</p>
+                <strong>Syntra desktop v0.2 integration shell loaded</strong>
+                <p>Runtime health is available as a read-only native probe. Backend execution is not being claimed.</p>
               </div>
               <time>now</time>
             </div>
@@ -148,14 +149,15 @@
           </div>
           <div class="empty-state compact">
             <p>No actions require approval.</p>
-            <span>High-risk host actions will remain owner-gated.</span>
+            <span>High-risk host actions remain owner-gated and are not wired by this health-only slice.</span>
           </div>
         </article>
       </section>
 
       <footer class="app-footer">
-        <span>Syntra Desktop v0.1 foundation</span>
+        <span>Syntra Desktop v0.2 Aetheris integration</span>
         <span>Gateway contract: <code>/api/orchestrator</code></span>
+        <span>Runtime health: <code>127.0.0.1:8090/actuator/health</code></span>
         <span>Live events: <code>/api/orchestrator/live/events</code></span>
       </footer>
     </main>

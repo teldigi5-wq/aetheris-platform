@@ -1,6 +1,6 @@
 [package]
 name = "syntra-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Owner-facing Syntra desktop shell for the Aetheris platform"
 authors = ["Poojana Kaveesh"]
 edition = "2021"
@@ -16,3 +16,5 @@ tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
 tauri = { version = "=2.11.5", features = [] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+serde = { version = "1", features = ["derive"] }
