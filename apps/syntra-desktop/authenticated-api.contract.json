@@ -1,0 +1,123 @@
+{
+  "name": "Syntra Desktop Authenticated API Contract",
+  "contractVersion": "1.0.0",
+  "contractStatus": "SOURCE_VERIFIED_NOT_WIRED",
+  "sourceRevisions": {
+    "platform": "57ad3e0e602efa6feb275328254151b959a3499b",
+    "aiRuntime": "65a6262717adcd52ac8d8a16ed6f223e299fd74d"
+  },
+  "gateway": {
+    "loopbackDevelopmentBase": "http://127.0.0.1:8080",
+    "orchestratorPath": "/api/orchestrator/**",
+    "runtimeTargetDefault": "http://orchestrator-service:8090",
+    "authentication": {
+      "scheme": "Bearer",
+      "header": "Authorization",
+      "missingBearerStatus": 401,
+      "invalidOrExpiredStatus": 401,
+      "missingScopeStatus": 403,
+      "requiredReadScope": "orchestrator:read",
+      "requiredWriteScope": "orchestrator:write"
+    },
+    "verifiedIdentityHeaders": [
+      "X-Aetheris-User-Id",
+      "X-Aetheris-User-Email",
+      "X-Aetheris-User-Role",
+      "X-Aetheris-Scopes"
+    ],
+    "clientSuppliedIdentityHeadersAreReplaced": true,
+    "ownerIdHeaderSynthesized": false
+  },
+  "identity": {
+    "login": {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "requestFields": ["email", "password"],
+      "responseFields": [
+        "accessToken",
+        "refreshToken",
+        "tokenType",
+        "expiresInSeconds",
+        "refreshExpiresInSeconds",
+        "account"
+      ]
+    },
+    "refresh": {
+      "method": "POST",
+      "path": "/api/auth/refresh",
+      "requestFields": ["refreshToken"]
+    },
+    "logout": {
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "requestFields": ["refreshToken"],
+      "successStatus": 204
+    },
+    "accountFields": ["id", "name", "email", "role", "scopes"],
+    "roles": {
+      "ADMIN": ["orchestrator:read", "orchestrator:write"],
+      "DEVELOPER": ["orchestrator:read", "orchestrator:write"],
+      "API_CONSUMER": ["orchestrator:read"]
+    },
+    "desktopSecretStorage": "OS_BACKED_REQUIRED_BEFORE_SESSION_WIRING"
+  },
+  "endpoints": {
+    "controls": [
+      {"method": "GET", "path": "/api/orchestrator/control/emergency-stop", "scope": "orchestrator:read", "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/control/emergency-stop/engage", "scope": "orchestrator:write", "optionalBodyFields": ["reason"], "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/control/emergency-stop/release", "scope": "orchestrator:write", "optionalBodyFields": ["reason"], "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/control/tasks/{taskId}/cancel", "scope": "orchestrator:write", "optionalBodyFields": ["reason"], "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/control/tasks/{taskId}/pause", "scope": "orchestrator:write", "optionalBodyFields": ["reason"], "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/control/tasks/{taskId}/resume", "scope": "orchestrator:write", "optionalBodyFields": ["reason"], "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/control/tasks/{taskId}/take-control", "scope": "orchestrator:write", "optionalBodyFields": ["reason"], "wired": false}
+    ],
+    "approvals": [
+      {"method": "GET", "path": "/api/orchestrator/approvals/pending", "scope": "orchestrator:read", "wired": false},
+      {"method": "GET", "path": "/api/orchestrator/approvals/task/{taskId}", "scope": "orchestrator:read", "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/approvals/{id}/decision", "scope": "orchestrator:write", "bodyFields": ["approved", "note"], "approvedValues": [true, false], "resultStatuses": ["PENDING", "APPROVED", "REJECTED", "EXPIRED"], "wired": false}
+    ],
+    "tasks": [
+      {"method": "POST", "path": "/api/orchestrator/tasks", "scope": "orchestrator:write", "wired": false},
+      {"method": "GET", "path": "/api/orchestrator/tasks", "scope": "orchestrator:read", "wired": false},
+      {"method": "GET", "path": "/api/orchestrator/tasks/{id}", "scope": "orchestrator:read", "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/tasks/{id}/transition", "scope": "orchestrator:write", "wired": false},
+      {"method": "GET", "path": "/api/orchestrator/tasks/{id}/events/history", "scope": "orchestrator:read", "wired": false},
+      {"method": "GET", "path": "/api/orchestrator/tasks/{id}/events", "scope": "orchestrator:read", "mediaType": "text/event-stream", "initialEventNames": ["task-replay", "task-snapshot"], "wired": false}
+    ],
+    "liveEvents": {
+      "method": "GET",
+      "path": "/api/orchestrator/live/events",
+      "scope": "orchestrator:read",
+      "mediaType": "text/event-stream",
+      "wired": false
+    },
+    "localModel": [
+      {"method": "GET", "path": "/api/orchestrator/models/local/health", "scope": "orchestrator:read", "wired": false},
+      {"method": "POST", "path": "/api/orchestrator/models/local/generate", "scope": "orchestrator:write", "wired": false}
+    ],
+    "modelExecution": {
+      "method": "POST",
+      "path": "/api/orchestrator/models/execute",
+      "scope": "orchestrator:write",
+      "wired": false
+    },
+    "memory": {
+      "capabilities": {"method": "GET", "path": "/api/orchestrator/memory/capabilities", "scope": "orchestrator:read", "wired": false},
+      "ownerScopedOperationsRequireHeader": "X-Aetheris-Owner-Id",
+      "optionalProjectHeader": "X-Aetheris-Project-Id",
+      "compatibilityStatus": "BLOCKED_OWNER_ID_HEADER_MAPPING",
+      "reason": "Gateway verifies JWT identity into X-Aetheris-User-* headers but does not synthesize X-Aetheris-Owner-Id. Desktop must not invent this mapping.",
+      "wired": false
+    }
+  },
+  "desktopBoundary": {
+    "backendWiringAllowed": false,
+    "currentDirectRuntimeOperation": "GET_LOOPBACK_ACTUATOR_HEALTH_ONLY",
+    "hostExecutionDefault": "simulation-only",
+    "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+    "productionActivationAllowed": false,
+    "registryPublicationClaimed": false,
+    "physicalCertificationClaimed": false,
+    "liveMoneyAllowed": false
+  }
+}
