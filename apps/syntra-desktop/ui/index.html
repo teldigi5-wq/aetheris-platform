@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>Syntra</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">S</div>
+        <div>
+          <strong>Syntra</strong>
+          <span>Aetheris Interface</span>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item active" data-section="overview">Overview</button>
+        <button class="nav-item" data-section="chat">Chat</button>
+        <button class="nav-item" data-section="tasks">Tasks</button>
+        <button class="nav-item" data-section="memory">Memory</button>
+        <button class="nav-item" data-section="devices">Devices</button>
+        <button class="nav-item" data-section="approvals">Approvals</button>
+        <button class="nav-item" data-section="settings">Settings</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="status-line">
+          <span class="status-dot pending"></span>
+          <span>Hardware validation pending</span>
+        </div>
+        <small>BLOCKED_PENDING_HARDWARE</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">SYNTRA DESKTOP · v0.1 FOUNDATION</p>
+          <h1 id="page-title">Command Center</h1>
+        </div>
+        <div class="topbar-actions">
+          <div class="clock" id="clock">--:--:--</div>
+          <button class="ghost-button" id="probe-gateway">Probe local gateway</button>
+        </div>
+      </header>
+
+      <section class="truth-banner" role="status">
+        <div>
+          <strong>Development shell only</strong>
+          <span>This build does not claim physical-PC certification, production activation, registry publication, or live-money execution.</span>
+        </div>
+        <span class="truth-chip">EVIDENCE REQUIRED</span>
+      </section>
+
+      <section class="control-strip" aria-label="Deterministic controls">
+        <button class="control danger" data-control="STOP">STOP</button>
+        <button class="control warning" data-control="PAUSE">PAUSE</button>
+        <button class="control" data-control="RESUME">RESUME</button>
+        <button class="control strong" data-control="TAKE_CONTROL">TAKE CONTROL</button>
+        <div class="control-state">
+          <span>Local control state</span>
+          <strong id="control-state">NORMAL</strong>
+        </div>
+      </section>
+
+      <section class="grid" id="overview-panel">
+        <article class="card hero-card">
+          <div class="card-header">
+            <div>
+              <p class="eyebrow">OWNER ASSISTANT</p>
+              <h2>Ready to become the real Syntra desktop app.</h2>
+            </div>
+            <span class="pill neutral">OFFLINE-FIRST</span>
+          </div>
+          <p class="lead">This first executable foundation gives Syntra a native Windows shell while preserving the Aetheris safety and evidence boundaries.</p>
+          <div class="quick-input">
+            <input id="prompt-input" type="text" placeholder="Ask Syntra something…" autocomplete="off" />
+            <button id="send-prompt">Send</button>
+          </div>
+          <p class="microcopy" id="prompt-status">Backend chat wiring is intentionally not claimed in this slice.</p>
+        </article>
+
+        <article class="card status-card">
+          <div class="card-header">
+            <h3>System health</h3>
+            <span class="pill pending">UNVERIFIED</span>
+          </div>
+          <ul class="health-list">
+            <li><span>Aetheris Gateway</span><strong id="gateway-status">Not probed</strong></li>
+            <li><span>AI Runtime</span><strong>Certified artifact available</strong></li>
+            <li><span>Workstation Agent</span><strong>Hardware pending</strong></li>
+            <li><span>Local Model</span><strong>Not configured</strong></li>
+            <li><span>Voice</span><strong>Hardware pending</strong></li>
+          </ul>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h3>Active mission</h3>
+            <span class="pill neutral">NONE</span>
+          </div>
+          <div class="empty-state">
+            <div class="orb" aria-hidden="true"></div>
+            <p>No mission is running.</p>
+            <span>Syntra will show task lifecycle, active tools, approvals and evidence here.</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="card-header">
+            <h3>Context & memory</h3>
+            <span class="pill neutral">LOCAL VIEW</span>
+          </div>
+          <div class="metric-grid">
+            <div><span>Conversation</span><strong>0</strong><small>items</small></div>
+            <div><span>Project context</span><strong>0</strong><small>sources</small></div>
+            <div><span>Retrieved docs</span><strong>0</strong><small>active</small></div>
+            <div><span>Approvals</span><strong>0</strong><small>pending</small></div>
+          </div>
+        </article>
+
+        <article class="card timeline-card">
+          <div class="card-header">
+            <h3>Live event timeline</h3>
+            <span class="pill neutral">LOCAL SHELL</span>
+          </div>
+          <div class="timeline" id="timeline">
+            <div class="timeline-event">
+              <span class="event-dot"></span>
+              <div>
+                <strong>Syntra desktop foundation loaded</strong>
+                <p>Native shell is running. Backend execution is not being claimed.</p>
+              </div>
+              <time>now</time>
+            </div>
+          </div>
+        </article>
+
+        <article class="card approval-card">
+          <div class="card-header">
+            <h3>Approval center</h3>
+            <span class="pill neutral">0 PENDING</span>
+          </div>
+          <div class="empty-state compact">
+            <p>No actions require approval.</p>
+            <span>High-risk host actions will remain owner-gated.</span>
+          </div>
+        </article>
+      </section>
+
+      <footer class="app-footer">
+        <span>Syntra Desktop v0.1 foundation</span>
+        <span>Gateway contract: <code>/api/orchestrator</code></span>
+        <span>Live events: <code>/api/orchestrator/live/events</code></span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
