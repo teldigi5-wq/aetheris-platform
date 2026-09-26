@@ -12,49 +12,35 @@
     <aside class="sidebar" aria-label="Primary navigation">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">S</div>
-        <div>
-          <strong>Syntra</strong>
-          <span>Aetheris Interface</span>
-        </div>
+        <div><strong>Syntra</strong><span>Aetheris Interface</span></div>
       </div>
-
       <nav class="nav-list">
-        <button class="nav-item active" data-section="overview">Overview</button>
-        <button class="nav-item" data-section="chat">Chat</button>
-        <button class="nav-item" data-section="tasks">Tasks</button>
-        <button class="nav-item" data-section="memory">Memory</button>
-        <button class="nav-item" data-section="devices">Devices</button>
-        <button class="nav-item" data-section="approvals">Approvals</button>
-        <button class="nav-item" data-section="settings">Settings</button>
+        <button class="nav-item active" data-section="overview">Overview <kbd>Ctrl+1</kbd></button>
+        <button class="nav-item" data-section="chat">Chat <kbd>Ctrl+2</kbd></button>
+        <button class="nav-item" data-section="tasks">Tasks <kbd>Ctrl+3</kbd></button>
+        <button class="nav-item" data-section="memory">Memory <kbd>Ctrl+4</kbd></button>
+        <button class="nav-item" data-section="devices">Devices <kbd>Ctrl+5</kbd></button>
+        <button class="nav-item" data-section="approvals">Approvals <kbd>Ctrl+6</kbd></button>
+        <button class="nav-item" data-section="settings">Settings <kbd>Ctrl+7</kbd></button>
       </nav>
-
       <div class="sidebar-footer">
-        <div class="status-line">
-          <span class="status-dot pending"></span>
-          <span>Hardware validation pending</span>
-        </div>
+        <div class="status-line"><span class="status-dot pending"></span><span>Hardware validation pending</span></div>
         <small>BLOCKED_PENDING_HARDWARE</small>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">SYNTRA DESKTOP · v0.2 AETHERIS INTEGRATION</p>
-          <h1 id="page-title">Command Center</h1>
-        </div>
+        <div><p class="eyebrow">SYNTRA DESKTOP · v0.3 PRE-PC HARDENING</p><h1 id="page-title">Command Center</h1></div>
         <div class="topbar-actions">
           <div class="clock" id="clock">--:--:--</div>
-          <button class="ghost-button" id="probe-gateway">Probe local gateway</button>
-          <button class="ghost-button" id="probe-runtime">Probe Aetheris runtime</button>
+          <button class="ghost-button" id="probe-gateway">Probe gateway</button>
+          <button class="ghost-button" id="probe-runtime">Probe runtime</button>
         </div>
       </header>
 
-      <section class="truth-banner" role="status">
-        <div>
-          <strong>Read-only runtime integration</strong>
-          <span>This slice can verify local Aetheris runtime health only. It does not claim physical-PC certification, command execution, production activation, registry publication, or live-money execution.</span>
-        </div>
+      <section class="truth-banner" role="status" aria-live="polite">
+        <div><strong>Pre-PC development build</strong><span>Installer, navigation, settings and offline states can be prepared now. Physical-PC certification, backend command execution, registry publication and live-money execution are not claimed.</span></div>
         <span class="truth-chip">EVIDENCE REQUIRED</span>
       </section>
 
@@ -63,106 +49,73 @@
         <button class="control warning" data-control="PAUSE">PAUSE</button>
         <button class="control" data-control="RESUME">RESUME</button>
         <button class="control strong" data-control="TAKE_CONTROL">TAKE CONTROL</button>
-        <div class="control-state">
-          <span>Local control state</span>
-          <strong id="control-state">NORMAL</strong>
+        <div class="control-state"><span>Local control state</span><strong id="control-state">NORMAL</strong></div>
+      </section>
+
+      <div id="notice" class="notice" aria-live="polite"></div>
+
+      <section class="view active" data-view="overview">
+        <div class="grid">
+          <article class="card hero-card">
+            <div class="card-header"><div><p class="eyebrow">OWNER ASSISTANT</p><h2>Syntra is now installer-ready while staying truthful about what is not yet connected.</h2></div><span class="pill neutral">OFFLINE-FIRST</span></div>
+            <p class="lead">This build keeps the verified read-only runtime health probe, adds real desktop navigation and persistent local settings, and packages an unsigned NSIS installer in CI.</p>
+            <div class="quick-input"><input id="prompt-input" type="text" maxlength="4000" placeholder="Capture a local prompt…" autocomplete="off" /><button id="send-prompt">Capture</button></div>
+            <p class="microcopy" id="prompt-status">No AI response is fabricated until the authenticated orchestrator contract is deliberately wired.</p>
+          </article>
+          <article class="card status-card">
+            <div class="card-header"><h3>System health</h3><span class="pill pending">EVIDENCE-DRIVEN</span></div>
+            <ul class="health-list">
+              <li><span>Aetheris Gateway</span><strong id="gateway-status">Not probed</strong></li>
+              <li><span>AI Runtime</span><strong id="runtime-status">Not probed</strong></li>
+              <li><span>Workstation Agent</span><strong>Hardware pending</strong></li>
+              <li><span>Local Model</span><strong>Not configured</strong></li>
+              <li><span>Voice</span><strong>Hardware pending</strong></li>
+            </ul>
+          </article>
+          <article class="card"><div class="card-header"><h3>Active mission</h3><span class="pill neutral">NONE</span></div><div class="empty-state"><div class="orb" aria-hidden="true"></div><p>No mission is running.</p><span>Task execution remains unwired until the real authenticated contract is proven.</span></div></article>
+          <article class="card"><div class="card-header"><h3>Context & memory</h3><span class="pill neutral">LOCAL VIEW</span></div><div class="metric-grid"><div><span>Captured prompts</span><strong id="prompt-count">0</strong><small>local only</small></div><div><span>Project context</span><strong>0</strong><small>sources</small></div><div><span>Retrieved docs</span><strong>0</strong><small>active</small></div><div><span>Approvals</span><strong>0</strong><small>pending</small></div></div></article>
+          <article class="card timeline-card"><div class="card-header"><h3>Local event timeline</h3><span class="pill neutral">LOCAL SHELL</span></div><div class="timeline" id="timeline"><div class="timeline-event"><span class="event-dot"></span><div><strong>Syntra Desktop v0.3 loaded</strong><p>Installer-ready pre-PC shell loaded. Backend execution remains unwired.</p></div><time>now</time></div></div></article>
+          <article class="card approval-card"><div class="card-header"><h3>Approval center</h3><span class="pill neutral">0 PENDING</span></div><div class="empty-state compact"><p>No actions require approval.</p><span>High-risk host actions remain owner-gated and unavailable in this pre-PC slice.</span></div></article>
         </div>
       </section>
 
-      <section class="grid" id="overview-panel">
-        <article class="card hero-card">
-          <div class="card-header">
-            <div>
-              <p class="eyebrow">OWNER ASSISTANT</p>
-              <h2>Native Syntra now has a truthful Aetheris health boundary.</h2>
-            </div>
-            <span class="pill neutral">OFFLINE-FIRST</span>
-          </div>
-          <p class="lead">The desktop can probe the proven loopback Aetheris actuator endpoint through the native host while keeping chat, task, memory, approval and control execution unwired until their contracts are verified.</p>
-          <div class="quick-input">
-            <input id="prompt-input" type="text" placeholder="Ask Syntra something…" autocomplete="off" />
-            <button id="send-prompt">Send</button>
-          </div>
-          <p class="microcopy" id="prompt-status">Backend chat wiring is intentionally not claimed in this slice.</p>
-        </article>
+      <section class="view" data-view="chat" hidden>
+        <article class="card full-card"><div class="card-header"><div><p class="eyebrow">CHAT</p><h2>Local conversation staging</h2></div><span class="pill pending">BACKEND UNWIRED</span></div><p class="lead">Prompts can be staged locally for interface testing. Syntra will not invent model responses.</p><div class="chat-log" id="chat-log"><div class="empty-state compact"><p>No captured prompts yet.</p><span>Captured entries stay in this app session only.</span></div></div></article>
+      </section>
 
-        <article class="card status-card">
-          <div class="card-header">
-            <h3>System health</h3>
-            <span class="pill pending">EVIDENCE-DRIVEN</span>
-          </div>
-          <ul class="health-list">
-            <li><span>Aetheris Gateway</span><strong id="gateway-status">Not probed</strong></li>
-            <li><span>AI Runtime</span><strong id="runtime-status">Not probed</strong></li>
-            <li><span>Workstation Agent</span><strong>Hardware pending</strong></li>
-            <li><span>Local Model</span><strong>Not configured</strong></li>
-            <li><span>Voice</span><strong>Hardware pending</strong></li>
-          </ul>
-        </article>
+      <section class="view" data-view="tasks" hidden>
+        <article class="card full-card"><div class="card-header"><div><p class="eyebrow">TASKS</p><h2>Mission lifecycle</h2></div><span class="pill neutral">CONTRACT PENDING</span></div><div class="state-grid"><div><strong>Queue</strong><span>Unavailable</span><small>No task API is claimed.</small></div><div><strong>Running</strong><span>0</span><small>No task execution is active.</small></div><div><strong>Evidence</strong><span>Required</span><small>Success must be proven.</small></div></div></article>
+      </section>
 
-        <article class="card">
-          <div class="card-header">
-            <h3>Active mission</h3>
-            <span class="pill neutral">NONE</span>
-          </div>
-          <div class="empty-state">
-            <div class="orb" aria-hidden="true"></div>
-            <p>No mission is running.</p>
-            <span>Syntra will show task lifecycle, active tools, approvals and evidence here after those contracts are deliberately integrated.</span>
-          </div>
-        </article>
+      <section class="view" data-view="memory" hidden>
+        <article class="card full-card"><div class="card-header"><div><p class="eyebrow">MEMORY</p><h2>Context visibility</h2></div><span class="pill neutral">READ CONTRACT PENDING</span></div><p class="lead">Conversation, project, retrieved-document and tool context surfaces are reserved here. No backend memory contents are displayed until a verified read contract exists.</p><div class="state-grid"><div><strong>Conversation</strong><span>Local session</span><small>Captured prompts only.</small></div><div><strong>Project memory</strong><span>Unverified</span><small>No remote memory query.</small></div><div><strong>Retrieved docs</strong><span>Unverified</span><small>No retrieval claim.</small></div></div></article>
+      </section>
 
-        <article class="card">
-          <div class="card-header">
-            <h3>Context & memory</h3>
-            <span class="pill neutral">LOCAL VIEW</span>
-          </div>
-          <div class="metric-grid">
-            <div><span>Conversation</span><strong>0</strong><small>items</small></div>
-            <div><span>Project context</span><strong>0</strong><small>sources</small></div>
-            <div><span>Retrieved docs</span><strong>0</strong><small>active</small></div>
-            <div><span>Approvals</span><strong>0</strong><small>pending</small></div>
-          </div>
-        </article>
+      <section class="view" data-view="devices" hidden>
+        <article class="card full-card"><div class="card-header"><div><p class="eyebrow">DEVICES</p><h2>Owner workstation readiness</h2></div><span class="pill pending">HARDWARE PENDING</span></div><ul class="health-list wide"><li><span>Target Windows PC</span><strong>Not physically available</strong></li><li><span>GPU / CUDA</span><strong>UNVERIFIED</strong></li><li><span>Microphone / speaker</span><strong>UNVERIFIED</strong></li><li><span>WSL2 / Docker</span><strong>UNVERIFIED</strong></li><li><span>Credential Manager / DPAPI</span><strong>UNVERIFIED</strong></li></ul></article>
+      </section>
 
-        <article class="card timeline-card">
-          <div class="card-header">
-            <h3>Live event timeline</h3>
-            <span class="pill neutral">LOCAL SHELL</span>
-          </div>
-          <div class="timeline" id="timeline">
-            <div class="timeline-event">
-              <span class="event-dot"></span>
-              <div>
-                <strong>Syntra desktop v0.2 integration shell loaded</strong>
-                <p>Runtime health is available as a read-only native probe. Backend execution is not being claimed.</p>
-              </div>
-              <time>now</time>
-            </div>
-          </div>
-        </article>
+      <section class="view" data-view="approvals" hidden>
+        <article class="card full-card"><div class="card-header"><div><p class="eyebrow">APPROVALS</p><h2>Owner-controlled execution boundary</h2></div><span class="pill neutral">0 PENDING</span></div><div class="empty-state"><div class="orb" aria-hidden="true"></div><p>No pending approval requests.</p><span>Approve/reject controls will only become active with a verified authenticated backend approval contract.</span></div></article>
+      </section>
 
-        <article class="card approval-card">
-          <div class="card-header">
-            <h3>Approval center</h3>
-            <span class="pill neutral">0 PENDING</span>
-          </div>
-          <div class="empty-state compact">
-            <p>No actions require approval.</p>
-            <span>High-risk host actions remain owner-gated and are not wired by this health-only slice.</span>
-          </div>
+      <section class="view" data-view="settings" hidden>
+        <article class="card full-card">
+          <div class="card-header"><div><p class="eyebrow">SETTINGS</p><h2>Safe local configuration</h2></div><span class="pill neutral">LOCAL ONLY</span></div>
+          <form id="settings-form" class="settings-grid" novalidate>
+            <label><span>Gateway base URL</span><input id="gateway-base-input" type="url" maxlength="120" spellcheck="false" /><small>Loopback only: http://127.0.0.1:&lt;port&gt; or http://localhost:&lt;port&gt;</small></label>
+            <label><span>Runtime port</span><input id="runtime-port-input" type="number" min="1" max="65535" /></label>
+            <label><span>Privacy profile</span><select id="privacy-profile"><option value="private">Private / local-first</option><option value="balanced">Balanced (future)</option></select></label>
+            <label><span>Startup behavior</span><select id="startup-behavior"><option value="manual">Manual</option><option value="remember">Remember last view</option></select></label>
+            <div class="settings-actions"><button type="submit" class="primary-button">Save local settings</button><button type="button" class="ghost-button" id="reset-settings">Reset</button></div>
+          </form>
+          <p class="microcopy">No credentials or provider API keys are stored by this settings screen.</p>
         </article>
       </section>
 
-      <footer class="app-footer">
-        <span>Syntra Desktop v0.2 Aetheris integration</span>
-        <span>Gateway contract: <code>/api/orchestrator</code></span>
-        <span>Runtime health: <code>127.0.0.1:8090/actuator/health</code></span>
-        <span>Live events: <code>/api/orchestrator/live/events</code></span>
-      </footer>
+      <footer class="app-footer"><span>Syntra Desktop v0.3 pre-PC hardening</span><span>Gateway contract: <code>/api/orchestrator</code></span><span>Runtime health: <code>127.0.0.1:8090/actuator/health</code></span><span>Installer: unsigned NSIS development artifact</span></footer>
     </main>
   </div>
-
   <script src="./app.js"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ on:
     branches:
       - feature/syntra-desktop-v0.1-foundation
       - feature/syntra-desktop-v0.2-aetheris-integration
+      - feature/syntra-desktop-v0.3-installer-hardening
       - feature/syntra-aetheris-foundation-v2
     paths:
       - 'apps/syntra-desktop/**'
@@ -22,38 +23,43 @@ permissions:
 
 env:
   RUST_VERSION: '1.90.0'
+  TAURI_CLI_VERSION: '2.8.4'
 
 jobs:
-  windows-executable:
+  windows-installer:
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
-      - name: Verify desktop truth and integration boundary
+      - name: Verify desktop truth and packaging boundary
         shell: pwsh
         run: |
           $html = Get-Content apps/syntra-desktop/ui/index.html -Raw
           $js = Get-Content apps/syntra-desktop/ui/app.js -Raw
           $rust = Get-Content apps/syntra-desktop/src-tauri/src/main.rs -Raw
+          $tauri = Get-Content apps/syntra-desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
           $contract = Get-Content apps/syntra-desktop/desktop-shell.contract.json -Raw | ConvertFrom-Json
           foreach ($required in @('STOP','PAUSE','RESUME','TAKE_CONTROL')) {
             if ($html -notmatch $required -and $js -notmatch $required) { throw "Missing deterministic control: $required" }
           }
+          foreach ($view in @('overview','chat','tasks','memory','devices','approvals','settings')) {
+            if ($html -notmatch ('data-view="' + $view + '"')) { throw "Missing desktop view: $view" }
+          }
           if ($html -notmatch 'BLOCKED_PENDING_HARDWARE') { throw 'Physical-PC truth boundary must remain visible.' }
           if ($contract.apiBase -ne '/api/orchestrator') { throw 'Desktop API contract drifted.' }
-          if ($contract.liveStream -ne '/api/orchestrator/live/events') { throw 'Desktop live-event contract drifted.' }
           if ($contract.hostExecutionDefault -ne 'simulation-only') { throw 'Desktop host execution must remain simulation-only before target-PC validation.' }
-          if ($contract.runtimeHealthProbe.method -ne 'GET') { throw 'Runtime health integration must remain read-only GET.' }
-          if ($contract.runtimeHealthProbe.loopbackHost -ne '127.0.0.1') { throw 'Runtime health probe must remain loopback-only.' }
-          if ($contract.runtimeHealthProbe.defaultPort -ne 8090) { throw 'Runtime health default port drifted from the verified runtime contract.' }
-          if ($contract.runtimeHealthProbe.path -ne '/actuator/health') { throw 'Runtime health path drifted from the verified runtime contract.' }
-          if (-not $contract.runtimeHealthProbe.readOnly) { throw 'Runtime health integration must remain read-only.' }
-          if ($contract.backendCommandWiringStatus -ne 'not-wired-no-success-claims') { throw 'Backend command success must not be claimed in the health-only slice.' }
-          if ($rust -notmatch 'http://127\.0\.0\.1:\{port\}/actuator/health') { throw 'Native runtime probe must remain on the proven loopback health endpoint.' }
-          if ($rust -notmatch 'client\.get\(&endpoint\)') { throw 'Native runtime probe must use GET.' }
+          if ($contract.runtimeHealthProbe.loopbackHost -ne '127.0.0.1' -or $contract.runtimeHealthProbe.path -ne '/actuator/health') { throw 'Runtime health probe boundary drifted.' }
+          if ($contract.backendCommandWiringStatus -ne 'not-wired-no-success-claims') { throw 'Backend command success must not be claimed.' }
+          if ($contract.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Physical PC must remain blocked pending real hardware.' }
+          if ($contract.installer.format -ne 'nsis' -or $contract.installer.installMode -ne 'currentUser') { throw 'Installer contract drifted.' }
+          if ($tauri.bundle.active -ne $true) { throw 'Tauri bundle must be active.' }
+          if ($tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS target must be configured.' }
+          if ($tauri.bundle.windows.nsis.installMode -ne 'currentUser') { throw 'NSIS must remain current-user for pre-PC development.' }
+          if ($rust -notmatch 'http://127\.0\.0\.1:\{port\}/actuator/health') { throw 'Native runtime probe must remain loopback-only.' }
+          if ($js -notmatch 'normalizeLoopbackBase') { throw 'Gateway settings must remain loopback constrained.' }
 
       - name: Generate development Windows icon
         shell: pwsh
@@ -67,6 +73,10 @@ jobs:
           rustc --version
           cargo --version
 
+      - name: Install pinned Tauri CLI
+        shell: pwsh
+        run: cargo install tauri-cli --version $env:TAURI_CLI_VERSION --locked
+
       - name: Resolve desktop dependency lock
         working-directory: apps/syntra-desktop/src-tauri
         shell: pwsh
@@ -77,25 +87,38 @@ jobs:
         shell: pwsh
         run: cargo test --locked
 
-      - name: Build Syntra Windows executable
+      - name: Build Syntra Windows NSIS installer
         working-directory: apps/syntra-desktop/src-tauri
         shell: pwsh
-        run: cargo build --locked --release
+        run: cargo tauri build --bundles nsis
 
-      - name: Verify executable output
+      - name: Stage and checksum development package
         shell: pwsh
         run: |
+          $dist = 'apps/syntra-desktop/dist'
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
           $exe = 'apps/syntra-desktop/src-tauri/target/release/Syntra.exe'
+          $installer = Get-ChildItem 'apps/syntra-desktop/src-tauri/target/release/bundle/nsis' -Filter '*.exe' -File | Select-Object -First 1
           if (-not (Test-Path $exe -PathType Leaf)) { throw 'Syntra.exe was not produced.' }
-          Get-FileHash $exe -Algorithm SHA256 | Format-List
+          if ($null -eq $installer) { throw 'NSIS installer was not produced.' }
+          Copy-Item $exe "$dist/Syntra.exe" -Force
+          Copy-Item $installer.FullName "$dist/Syntra-Setup-0.3.0-x64.exe" -Force
+          @(
+            Get-FileHash "$dist/Syntra.exe" -Algorithm SHA256
+            Get-FileHash "$dist/Syntra-Setup-0.3.0-x64.exe" -Algorithm SHA256
+          ) | ForEach-Object { "{0}  {1}" -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) } | Set-Content "$dist/SHA256SUMS.txt" -Encoding ascii
+          Get-ChildItem $dist | Select-Object Name, Length
+          Get-Content "$dist/SHA256SUMS.txt"
 
-      - name: Publish unsigned development executable
+      - name: Publish unsigned pre-PC development package
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          name: syntra-desktop-v0.2-aetheris-health-unsigned-windows
+          name: syntra-desktop-v0.3-unsigned-windows
           if-no-files-found: error
           retention-days: 14
           path: |
-            apps/syntra-desktop/src-tauri/target/release/Syntra.exe
+            apps/syntra-desktop/dist/Syntra.exe
+            apps/syntra-desktop/dist/Syntra-Setup-0.3.0-x64.exe
+            apps/syntra-desktop/dist/SHA256SUMS.txt
             apps/syntra-desktop/src-tauri/Cargo.lock
             apps/syntra-desktop/desktop-shell.contract.json

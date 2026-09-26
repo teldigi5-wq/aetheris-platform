@@ -1,94 +1,74 @@
-# Syntra Desktop v0.2 — Aetheris Health Integration
+# Syntra Desktop v0.3 — Pre-PC Hardening and Installer Readiness
 
-Syntra Desktop is a native Tauri 2 Windows application foundation for the owner-facing Aetheris interface. v0.2 adds the first deliberately verified runtime integration: a **read-only native health probe** against the local Aetheris orchestrator actuator endpoint.
+Syntra Desktop is the owner-facing native Windows shell for Aetheris. v0.3 keeps the verified read-only Aetheris health integration from v0.2 and adds the first real Windows installer pipeline plus hardened multi-panel desktop UX.
 
-The functional desktop boundary still consumes authenticated Aetheris gateway APIs rather than bypassing the gateway for chat, task, memory, approval or control execution. The v0.2 runtime probe is health evidence only and is restricted to loopback.
+## Implemented in v0.3
 
-## Current v0.2 slice
+- Tauri package version advanced to `0.3.0`;
+- Windows bundling enabled for an **NSIS current-user installer**;
+- generated development icon is used for the executable and installer;
+- reproducible packaging script builds/tests first, then creates the NSIS bundle;
+- CI publishes `Syntra.exe`, `Syntra-Setup-0.3.0-x64.exe`, `SHA256SUMS.txt`, the Cargo lock, and desktop contract;
+- real navigable Overview, Chat, Tasks, Memory, Devices, Approvals and Settings views;
+- keyboard navigation (`Ctrl+1` through `Ctrl+7`);
+- safe loopback-only gateway settings and validated runtime port persistence;
+- local prompt staging for UI testing without fabricated model output;
+- explicit offline/unverified states for PC, GPU, voice, WSL2/Docker and OS credential storage;
+- visible deterministic `STOP`, `PAUSE`, `RESUME` and `TAKE CONTROL` local-intent controls;
+- reduced-motion support and keyboard focus treatment.
 
-Implemented now:
+## Windows development packaging
 
-- all v0.1 native Windows shell and command-center UI behavior;
-- separate local gateway health probing;
-- native Rust probe for `GET http://127.0.0.1:<port>/actuator/health`;
-- default runtime port `8090`, matching the verified runtime configuration;
-- three-second native probe timeout with explicit reachable/healthy distinction;
-- actuator `status` evidence surfaced in the System health panel and local timeline;
-- deterministic unit tests proving the probe stays on loopback and only treats successful `UP` responses as healthy;
-- visible `STOP`, `PAUSE`, `RESUME` and `TAKE_CONTROL` controls that remain local-only;
-- Windows CI build for an unsigned development executable.
-
-The native Rust/Tauri host is under `src-tauri/`. The UI source is under `ui/`.
-
-## Verified runtime contract used by this slice
-
-The current `teldigi5-wq/aetheris-ai-runtime` orchestrator configuration exposes Spring Boot actuator `health`, `info` and `prometheus` endpoints and defaults the orchestrator port to `8090`. Its orchestrator module includes `spring-boot-starter-actuator` and does not include Spring Security. v0.2 therefore sends no credentials and uses only the read-only health route.
-
-Syntra does **not** infer health from repository state. The UI changes to `UP` only when the running local endpoint returns a successful HTTP response with actuator status `UP`. A non-success response, a non-`UP` status, malformed JSON, timeout, or connection failure remains visibly non-healthy/unavailable.
-
-The probe host is hard-coded to `127.0.0.1` in native Rust. The UI may choose a local port, but it cannot use this command to probe arbitrary remote hosts.
-
-## What remains deliberately unwired
-
-This slice does not wire:
-
-- chat or model inference requests;
-- task creation or mutation;
-- memory reads/writes;
-- approvals;
-- `/api/orchestrator/live/events`;
-- remote `STOP`, `PAUSE`, `RESUME` or `TAKE_CONTROL` execution.
-
-Those surfaces must be integrated only after their exact route, authentication, payload, authorization and failure contracts are verified.
-
-## Build locally later
-
-On a Windows machine with the pinned Rust toolchain available, generate the deterministic development icon and build:
+From a Windows development machine with the pinned Rust toolchain:
 
 ```powershell
 cd apps\syntra-desktop
-.\scripts\generate-dev-icon.ps1
-cd src-tauri
-cargo generate-lockfile
-cargo test --locked
-cargo build --locked --release
+.\scripts\package-windows.ps1
 ```
 
-Expected executable:
+The script generates the development icon, installs the pinned Tauri CLI if needed, resolves the Cargo lock, executes native tests, builds the NSIS installer, copies outputs to `dist\`, and creates `SHA256SUMS.txt`.
+
+Expected development outputs:
 
 ```text
-apps\syntra-desktop\src-tauri\target\release\Syntra.exe
+apps\syntra-desktop\dist\Syntra.exe
+apps\syntra-desktop\dist\Syntra-Setup-0.3.0-x64.exe
+apps\syntra-desktop\dist\SHA256SUMS.txt
 ```
 
-The generated icon is development-only and is intentionally not treated as final Syntra branding. GitHub Actions performs the same preparation, tests and Windows build, then publishes the unsigned development executable as an artifact.
+The installer uses `currentUser` mode so this development package does not require an administrator-wide installation merely to exercise the desktop shell. Code signing is intentionally **not** claimed: CI artifacts remain unsigned development evidence.
 
-## Desktop contract
+## Verified runtime boundary
 
-The shell contract remains authoritative for the platform-facing boundary:
+The only direct runtime operation currently implemented is the read-only loopback health probe:
 
-- API base: `/api/orchestrator`;
-- live stream: `/api/orchestrator/live/events`;
-- runtime health: loopback-only `GET /actuator/health`, default port `8090`;
-- controls: `STOP`, `PAUSE`, `RESUME`, `TAKE_CONTROL`, `APPROVE`, `REJECT`;
-- host pairing: challenge/response;
-- host execution default: simulation-only;
-- production secret storage: OS-backed.
+```text
+GET http://127.0.0.1:<port>/actuator/health
+```
 
-The current UI does **not** invent backend success. The new health integration is read-only. Control buttons update only local desktop intent state until an authenticated control endpoint is deliberately wired and tested.
+Default port: `8090`.
 
-## Safety and truth boundaries
+The native probe reports healthy only after an actual successful response with actuator status `UP`. The functional desktop API boundary remains `/api/orchestrator`; chat/model inference, task mutation, memory mutation, approvals, live events and remote control execution remain deliberately unwired until their exact authenticated contracts are verified.
 
-Hard requirements remain:
+## Local settings boundary
 
-- no embedded API secrets;
-- no generic shell capability;
-- emergency controls must not depend on model inference;
-- high-risk host actions require owner policy/approval;
-- GPU-heavy effects must yield to inference and interaction responsiveness;
-- runtime/provider/tool/task/approval/host state must be visible rather than implied;
-- local APIs must not be exposed directly to the public internet;
-- live-money execution remains outside the trusted default authority.
+The Settings view persists only non-secret local preferences:
 
-The CI-produced executable is **unsigned development evidence only**. It is not a production-certified Windows installation.
+- loopback gateway base URL;
+- runtime port;
+- privacy profile;
+- startup behavior.
 
-**Physical-machine status remains `BLOCKED_PENDING_HARDWARE`.** Final microphone, GPU, WSL2, Docker, DPAPI/Credential Manager, local-model performance, startup, thermal and end-to-end validation still require the real target PC.
+Gateway configuration rejects non-loopback hosts. This screen does not store API keys, bearer tokens, passwords or provider credentials. Production secrets must eventually use OS-backed storage and still require physical Windows validation.
+
+## Truth boundaries
+
+- `BLOCKED_PENDING_HARDWARE` remains authoritative.
+- CI-generated installers are not physical-PC validation.
+- no production activation/deployment is claimed;
+- no registry publication is claimed;
+- no Windows code-signing certificate is claimed;
+- no GPU, microphone, WSL2, Docker, DPAPI/Credential Manager or local-model performance validation is claimed;
+- no live-money execution is enabled or claimed.
+
+When the target PC returns, the real installer and physical validation sequence must follow Issue #49 and `docs/first-boot-runbook.md` rather than treating GitHub-hosted Windows builds as owner-PC evidence.
