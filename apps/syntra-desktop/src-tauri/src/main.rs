@@ -3,7 +3,6 @@
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-const RUNTIME_HEALTH_PATH: &str = "/actuator/health";
 const RUNTIME_PROBE_TIMEOUT_SECONDS: u64 = 3;
 
 #[derive(Debug, Deserialize)]
@@ -23,7 +22,7 @@ struct RuntimeHealthProbe {
 }
 
 fn runtime_health_url(port: u16) -> String {
-    format!("http://127.0.0.1:{port}{RUNTIME_HEALTH_PATH}")
+    format!("http://127.0.0.1:{port}/actuator/health")
 }
 
 fn is_healthy(status: reqwest::StatusCode, reported_status: Option<&str>) -> bool {
