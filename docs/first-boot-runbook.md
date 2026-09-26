@@ -2,7 +2,7 @@
 
 This runbook is prepared before the owner's physical PC arrives. It is an acceptance procedure, not evidence that the machine has already passed.
 
-The platform repository is `teldigi5-wq/aetheris-platform`. The independently owned AI runtime is `teldigi5-wq/aetheris-ai-runtime`, with the current certified canonical runtime SHA pinned by `architecture/ai-runtime-certification-reference.json` as `6c714d1772db2db490cd035e11a78308f26f8a63`.
+The platform repository is `teldigi5-wq/aetheris-platform`. The independently owned AI runtime is `teldigi5-wq/aetheris-ai-runtime`, with the current certified canonical runtime SHA pinned by `architecture/ai-runtime-certification-reference.json` as `65a6262717adcd52ac8d8a16ed6f223e299fd74d`.
 
 ## Safety boundary
 
