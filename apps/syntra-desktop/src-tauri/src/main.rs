@@ -71,7 +71,9 @@ async fn probe_aetheris_runtime(port: u16) -> RuntimeHealthProbe {
                 .ok()
                 .and_then(|health| health.status);
             let healthy = is_healthy(status, reported_status.as_deref());
-            let status_label = reported_status.as_deref().unwrap_or("UNKNOWN");
+            let status_label = reported_status
+                .clone()
+                .unwrap_or_else(|| "UNKNOWN".to_string());
 
             RuntimeHealthProbe {
                 endpoint,
