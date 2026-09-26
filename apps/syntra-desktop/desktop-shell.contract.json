@@ -1,7 +1,7 @@
 {
   "name": "Syntra Desktop",
   "stage": 6,
-  "desktopVersion": "0.3.0-installer-hardening",
+  "desktopVersion": "0.4.0-diagnostics-recovery",
   "apiBase": "/api/orchestrator",
   "liveStream": "/api/orchestrator/live/events",
   "runtimeHealthProbe": {
@@ -22,7 +22,19 @@
     "codeSigningStatus": "unsigned-development-only",
     "checksumManifest": "SHA256SUMS.txt"
   },
-  "desktopUiStatus": "multi-panel-pre-pc-shell",
+  "desktopUiStatus": "multi-panel-diagnostics-recovery-shell",
+  "diagnostics": {
+    "nativeExport": true,
+    "destination": "current-user-temporary-directory",
+    "promptContentIncluded": false,
+    "secretMaterialIncluded": false,
+    "gatewayMustBeLoopback": true
+  },
+  "recovery": {
+    "automaticSuccessClaims": false,
+    "readOnlyProbeRetry": true,
+    "degradedAndUnavailableRemainVisible": true
+  },
   "backendCommandWiringStatus": "not-wired-no-success-claims",
   "readOnlyRuntimeIntegrationStatus": "health-only",
   "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
