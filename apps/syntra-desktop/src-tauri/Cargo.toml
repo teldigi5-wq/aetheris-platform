@@ -1,0 +1,18 @@
+[package]
+name = "syntra-desktop"
+version = "0.1.0"
+description = "Owner-facing Syntra desktop shell for the Aetheris platform"
+authors = ["Poojana Kaveesh"]
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[[bin]]
+name = "Syntra"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.5", features = [] }
