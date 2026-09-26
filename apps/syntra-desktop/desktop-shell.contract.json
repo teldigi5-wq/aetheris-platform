@@ -1,11 +1,15 @@
 {
   "name": "Syntra Desktop",
   "stage": 6,
+  "desktopVersion": "0.1.0-foundation",
   "apiBase": "/api/orchestrator",
   "liveStream": "/api/orchestrator/live/events",
   "controls": ["STOP", "PAUSE", "RESUME", "TAKE_CONTROL", "APPROVE", "REJECT"],
   "hostPairing": "challenge-response",
   "hostExecutionDefault": "simulation-only",
   "secretStorage": "os-backed-required-for-production",
-  "packagingStatus": "contract-only-until-target-windows-pc-arrives"
+  "packagingStatus": "unsigned-ci-executable-foundation",
+  "backendCommandWiringStatus": "not-wired-no-success-claims",
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "productionActivationAllowed": false
 }
