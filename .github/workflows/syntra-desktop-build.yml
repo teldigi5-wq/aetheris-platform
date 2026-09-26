@@ -45,6 +45,10 @@ jobs:
           if ($contract.liveStream -ne '/api/orchestrator/live/events') { throw 'Desktop live-event contract drifted.' }
           if ($contract.hostExecutionDefault -ne 'simulation-only') { throw 'Desktop host execution must remain simulation-only before target-PC validation.' }
 
+      - name: Generate development Windows icon
+        shell: pwsh
+        run: ./apps/syntra-desktop/scripts/generate-dev-icon.ps1
+
       - name: Install pinned Rust toolchain
         shell: pwsh
         run: |
