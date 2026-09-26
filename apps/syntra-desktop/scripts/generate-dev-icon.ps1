@@ -33,14 +33,34 @@ $format.Alignment = [System.Drawing.StringAlignment]::Center
 $format.LineAlignment = [System.Drawing.StringAlignment]::Center
 $graphics.DrawString('S', $font, $textBrush, (New-Object System.Drawing.RectangleF 0, 0, 256, 244), $format)
 
-$handle = $bitmap.GetHicon()
-$icon = [System.Drawing.Icon]::FromHandle($handle)
-$stream = [System.IO.File]::Open($iconPath, [System.IO.FileMode]::Create)
+$pngStream = New-Object System.IO.MemoryStream
 try {
-    $icon.Save($stream)
+    $bitmap.Save($pngStream, [System.Drawing.Imaging.ImageFormat]::Png)
+    [byte[]]$pngBytes = $pngStream.ToArray()
+
+    # Write a standards-compliant single-image ICO container whose image payload
+    # is a 256x256 PNG. Width/height bytes are zero by ICO convention for 256 px.
+    $fileStream = [System.IO.File]::Open($iconPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write)
+    $writer = New-Object System.IO.BinaryWriter($fileStream)
+    try {
+        $writer.Write([UInt16]0)                 # ICONDIR.reserved
+        $writer.Write([UInt16]1)                 # ICONDIR.type = icon
+        $writer.Write([UInt16]1)                 # ICONDIR.count
+        $writer.Write([Byte]0)                   # width 256
+        $writer.Write([Byte]0)                   # height 256
+        $writer.Write([Byte]0)                   # color count
+        $writer.Write([Byte]0)                   # ICONDIRENTRY.reserved
+        $writer.Write([UInt16]1)                 # planes
+        $writer.Write([UInt16]32)                # bits per pixel
+        $writer.Write([UInt32]$pngBytes.Length)  # payload size
+        $writer.Write([UInt32]22)                # 6-byte header + 16-byte entry
+        $writer.Write([Byte[]]$pngBytes)
+        $writer.Flush()
+    } finally {
+        $writer.Dispose()
+    }
 } finally {
-    $stream.Dispose()
-    $icon.Dispose()
+    $pngStream.Dispose()
     $format.Dispose()
     $textBrush.Dispose()
     $font.Dispose()
@@ -50,4 +70,12 @@ try {
 }
 
 if (-not (Test-Path $iconPath -PathType Leaf)) { throw 'Development icon was not produced.' }
-Write-Host "Generated unsigned-development Syntra icon at $iconPath"
+
+$bytes = [System.IO.File]::ReadAllBytes($iconPath)
+if ($bytes.Length -lt 22) { throw 'Generated ICO is too small.' }
+if ($bytes[0] -ne 0 -or $bytes[1] -ne 0 -or $bytes[2] -ne 1 -or $bytes[3] -ne 0 -or $bytes[4] -ne 1 -or $bytes[5] -ne 0) {
+    throw 'Generated ICO header is invalid.'
+}
+if ($bytes[9] -ne 0) { throw 'Generated ICONDIRENTRY reserved byte must be zero.' }
+
+Write-Host "Generated standards-compliant unsigned-development Syntra icon at $iconPath"
