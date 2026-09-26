@@ -1,11 +1,23 @@
 {
   "name": "Syntra Desktop",
   "stage": 6,
+  "desktopVersion": "0.2.0-aetheris-health-integration",
   "apiBase": "/api/orchestrator",
   "liveStream": "/api/orchestrator/live/events",
+  "runtimeHealthProbe": {
+    "method": "GET",
+    "loopbackHost": "127.0.0.1",
+    "defaultPort": 8090,
+    "path": "/actuator/health",
+    "readOnly": true
+  },
   "controls": ["STOP", "PAUSE", "RESUME", "TAKE_CONTROL", "APPROVE", "REJECT"],
   "hostPairing": "challenge-response",
   "hostExecutionDefault": "simulation-only",
   "secretStorage": "os-backed-required-for-production",
-  "packagingStatus": "contract-only-until-target-windows-pc-arrives"
+  "packagingStatus": "unsigned-ci-executable-integration",
+  "backendCommandWiringStatus": "not-wired-no-success-claims",
+  "readOnlyRuntimeIntegrationStatus": "health-only",
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "productionActivationAllowed": false
 }

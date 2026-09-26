@@ -1,0 +1,101 @@
+name: Syntra Desktop Build
+
+on:
+  push:
+    branches:
+      - feature/syntra-desktop-v0.1-foundation
+      - feature/syntra-desktop-v0.2-aetheris-integration
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'apps/syntra-desktop/**'
+      - '.github/workflows/syntra-desktop-build.yml'
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+      - main
+    paths:
+      - 'apps/syntra-desktop/**'
+      - '.github/workflows/syntra-desktop-build.yml'
+
+permissions:
+  contents: read
+
+env:
+  RUST_VERSION: '1.90.0'
+
+jobs:
+  windows-executable:
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Verify desktop truth and integration boundary
+        shell: pwsh
+        run: |
+          $html = Get-Content apps/syntra-desktop/ui/index.html -Raw
+          $js = Get-Content apps/syntra-desktop/ui/app.js -Raw
+          $rust = Get-Content apps/syntra-desktop/src-tauri/src/main.rs -Raw
+          $contract = Get-Content apps/syntra-desktop/desktop-shell.contract.json -Raw | ConvertFrom-Json
+          foreach ($required in @('STOP','PAUSE','RESUME','TAKE_CONTROL')) {
+            if ($html -notmatch $required -and $js -notmatch $required) { throw "Missing deterministic control: $required" }
+          }
+          if ($html -notmatch 'BLOCKED_PENDING_HARDWARE') { throw 'Physical-PC truth boundary must remain visible.' }
+          if ($contract.apiBase -ne '/api/orchestrator') { throw 'Desktop API contract drifted.' }
+          if ($contract.liveStream -ne '/api/orchestrator/live/events') { throw 'Desktop live-event contract drifted.' }
+          if ($contract.hostExecutionDefault -ne 'simulation-only') { throw 'Desktop host execution must remain simulation-only before target-PC validation.' }
+          if ($contract.runtimeHealthProbe.method -ne 'GET') { throw 'Runtime health integration must remain read-only GET.' }
+          if ($contract.runtimeHealthProbe.loopbackHost -ne '127.0.0.1') { throw 'Runtime health probe must remain loopback-only.' }
+          if ($contract.runtimeHealthProbe.defaultPort -ne 8090) { throw 'Runtime health default port drifted from the verified runtime contract.' }
+          if ($contract.runtimeHealthProbe.path -ne '/actuator/health') { throw 'Runtime health path drifted from the verified runtime contract.' }
+          if (-not $contract.runtimeHealthProbe.readOnly) { throw 'Runtime health integration must remain read-only.' }
+          if ($contract.backendCommandWiringStatus -ne 'not-wired-no-success-claims') { throw 'Backend command success must not be claimed in the health-only slice.' }
+          if ($rust -notmatch 'http://127\.0\.0\.1:\{port\}/actuator/health') { throw 'Native runtime probe must remain on the proven loopback health endpoint.' }
+          if ($rust -notmatch 'client\.get\(&endpoint\)') { throw 'Native runtime probe must use GET.' }
+
+      - name: Generate development Windows icon
+        shell: pwsh
+        run: ./apps/syntra-desktop/scripts/generate-dev-icon.ps1
+
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: |
+          rustup toolchain install $env:RUST_VERSION --profile minimal --target x86_64-pc-windows-msvc
+          rustup default $env:RUST_VERSION
+          rustc --version
+          cargo --version
+
+      - name: Resolve desktop dependency lock
+        working-directory: apps/syntra-desktop/src-tauri
+        shell: pwsh
+        run: cargo generate-lockfile
+
+      - name: Test Syntra native integration boundary
+        working-directory: apps/syntra-desktop/src-tauri
+        shell: pwsh
+        run: cargo test --locked
+
+      - name: Build Syntra Windows executable
+        working-directory: apps/syntra-desktop/src-tauri
+        shell: pwsh
+        run: cargo build --locked --release
+
+      - name: Verify executable output
+        shell: pwsh
+        run: |
+          $exe = 'apps/syntra-desktop/src-tauri/target/release/Syntra.exe'
+          if (-not (Test-Path $exe -PathType Leaf)) { throw 'Syntra.exe was not produced.' }
+          Get-FileHash $exe -Algorithm SHA256 | Format-List
+
+      - name: Publish unsigned development executable
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: syntra-desktop-v0.2-aetheris-health-unsigned-windows
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            apps/syntra-desktop/src-tauri/target/release/Syntra.exe
+            apps/syntra-desktop/src-tauri/Cargo.lock
+            apps/syntra-desktop/desktop-shell.contract.json
