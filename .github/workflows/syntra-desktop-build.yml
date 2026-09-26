@@ -6,6 +6,7 @@ on:
       - feature/syntra-desktop-v0.1-foundation
       - feature/syntra-desktop-v0.2-aetheris-integration
       - feature/syntra-desktop-v0.3-installer-hardening
+      - feature/syntra-desktop-v0.4-diagnostics-recovery
       - feature/syntra-aetheris-foundation-v2
     paths:
       - 'apps/syntra-desktop/**'
@@ -45,7 +46,7 @@ jobs:
           foreach ($required in @('STOP','PAUSE','RESUME','TAKE_CONTROL')) {
             if ($html -notmatch $required -and $js -notmatch $required) { throw "Missing deterministic control: $required" }
           }
-          foreach ($view in @('overview','chat','tasks','memory','devices','approvals','settings')) {
+          foreach ($view in @('overview','chat','tasks','memory','devices','approvals','settings','diagnostics')) {
             if ($html -notmatch ('data-view="' + $view + '"')) { throw "Missing desktop view: $view" }
           }
           if ($html -notmatch 'BLOCKED_PENDING_HARDWARE') { throw 'Physical-PC truth boundary must remain visible.' }
@@ -55,10 +56,15 @@ jobs:
           if ($contract.backendCommandWiringStatus -ne 'not-wired-no-success-claims') { throw 'Backend command success must not be claimed.' }
           if ($contract.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Physical PC must remain blocked pending real hardware.' }
           if ($contract.installer.format -ne 'nsis' -or $contract.installer.installMode -ne 'currentUser') { throw 'Installer contract drifted.' }
-          if ($tauri.bundle.active -ne $true) { throw 'Tauri bundle must be active.' }
-          if ($tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS target must be configured.' }
+          if (-not $contract.diagnostics.nativeExport -or $contract.diagnostics.promptContentIncluded -or $contract.diagnostics.secretMaterialIncluded) { throw 'Diagnostics must remain native, sanitized, and secret-free.' }
+          if (-not $contract.diagnostics.gatewayMustBeLoopback) { throw 'Diagnostics gateway boundary must remain loopback-only.' }
+          if ($contract.recovery.automaticSuccessClaims) { throw 'Recovery must not synthesize success.' }
+          if ($tauri.version -ne '0.4.0') { throw 'Tauri package version drifted.' }
+          if ($tauri.bundle.active -ne $true -or $tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS bundling must remain active.' }
           if ($tauri.bundle.windows.nsis.installMode -ne 'currentUser') { throw 'NSIS must remain current-user for pre-PC development.' }
-          if ($rust -notmatch 'http://127\.0\.0\.1:\{port\}/actuator/health') { throw 'Native runtime probe must remain loopback-only.' }
+          if ($rust -notmatch 'export_diagnostics') { throw 'Native sanitized diagnostics export is missing.' }
+          if ($rust -notmatch 'prompt_content_included: false') { throw 'Diagnostics must explicitly exclude prompt content.' }
+          if ($rust -notmatch 'secret_material_included: false') { throw 'Diagnostics must explicitly exclude secret material.' }
           if ($js -notmatch 'normalizeLoopbackBase') { throw 'Gateway settings must remain loopback constrained.' }
 
       - name: Generate development Windows icon
@@ -102,10 +108,10 @@ jobs:
           if (-not (Test-Path $exe -PathType Leaf)) { throw 'Syntra.exe was not produced.' }
           if ($null -eq $installer) { throw 'NSIS installer was not produced.' }
           Copy-Item $exe "$dist/Syntra.exe" -Force
-          Copy-Item $installer.FullName "$dist/Syntra-Setup-0.3.0-x64.exe" -Force
+          Copy-Item $installer.FullName "$dist/Syntra-Setup-0.4.0-x64.exe" -Force
           @(
             Get-FileHash "$dist/Syntra.exe" -Algorithm SHA256
-            Get-FileHash "$dist/Syntra-Setup-0.3.0-x64.exe" -Algorithm SHA256
+            Get-FileHash "$dist/Syntra-Setup-0.4.0-x64.exe" -Algorithm SHA256
           ) | ForEach-Object { "{0}  {1}" -f $_.Hash.ToLowerInvariant(), (Split-Path $_.Path -Leaf) } | Set-Content "$dist/SHA256SUMS.txt" -Encoding ascii
           Get-ChildItem $dist | Select-Object Name, Length
           Get-Content "$dist/SHA256SUMS.txt"
@@ -113,12 +119,12 @@ jobs:
       - name: Publish unsigned pre-PC development package
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          name: syntra-desktop-v0.3-unsigned-windows
+          name: syntra-desktop-v0.4-unsigned-windows
           if-no-files-found: error
           retention-days: 14
           path: |
             apps/syntra-desktop/dist/Syntra.exe
-            apps/syntra-desktop/dist/Syntra-Setup-0.3.0-x64.exe
+            apps/syntra-desktop/dist/Syntra-Setup-0.4.0-x64.exe
             apps/syntra-desktop/dist/SHA256SUMS.txt
             apps/syntra-desktop/src-tauri/Cargo.lock
             apps/syntra-desktop/desktop-shell.contract.json

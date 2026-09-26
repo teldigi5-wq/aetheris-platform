@@ -1,74 +1,77 @@
-# Syntra Desktop v0.3 — Pre-PC Hardening and Installer Readiness
+# Syntra Desktop v0.4 — Diagnostics and Recovery
 
-Syntra Desktop is the owner-facing native Windows shell for Aetheris. v0.3 keeps the verified read-only Aetheris health integration from v0.2 and adds the first real Windows installer pipeline plus hardened multi-panel desktop UX.
+Syntra Desktop is the owner-facing native Windows shell for Aetheris. v0.4 builds on the verified read-only runtime-health and unsigned NSIS installer work by adding a fail-closed recovery center and a native sanitized diagnostics export.
 
-## Implemented in v0.3
+## Implemented in v0.4
 
-- Tauri package version advanced to `0.3.0`;
-- Windows bundling enabled for an **NSIS current-user installer**;
-- generated development icon is used for the executable and installer;
-- reproducible packaging script builds/tests first, then creates the NSIS bundle;
-- CI publishes `Syntra.exe`, `Syntra-Setup-0.3.0-x64.exe`, `SHA256SUMS.txt`, the Cargo lock, and desktop contract;
-- real navigable Overview, Chat, Tasks, Memory, Devices, Approvals and Settings views;
-- keyboard navigation (`Ctrl+1` through `Ctrl+7`);
-- safe loopback-only gateway settings and validated runtime port persistence;
-- local prompt staging for UI testing without fabricated model output;
-- explicit offline/unverified states for PC, GPU, voice, WSL2/Docker and OS credential storage;
-- visible deterministic `STOP`, `PAUSE`, `RESUME` and `TAKE CONTROL` local-intent controls;
-- reduced-motion support and keyboard focus treatment.
+- package and installer version advanced to `0.4.0`;
+- dedicated Diagnostics view and `Ctrl+8` navigation;
+- explicit gateway/runtime states: `NOT_PROBED`, `UP`, `UNAVAILABLE`, `DEGRADED`, `ERROR`;
+- recovery check retries only existing read-only local health probes;
+- unavailable/degraded components never become synthetic success;
+- local chat staging can be cleared without claiming backend-memory deletion;
+- prompt contents are removed from event-timeline details;
+- native diagnostics export writes `syntra-diagnostics-latest.json` to the current user's temporary directory;
+- diagnostics contain only coarse app/configuration/health metadata;
+- prompt text, passwords, tokens, API keys and other secret material are explicitly excluded;
+- native diagnostics export independently validates loopback gateway configuration and allowlisted state labels;
+- Rust unit tests cover loopback validation and diagnostic-label allowlists.
+
+## Sanitized diagnostics schema
+
+The native report records:
+
+- Syntra version and schema version;
+- generation timestamp;
+- `BLOCKED_PENDING_HARDWARE` physical status;
+- backend-command wiring status;
+- local deterministic control state;
+- loopback gateway base and runtime port;
+- coarse gateway/runtime health states;
+- non-secret privacy/startup preferences;
+- count of locally staged prompts.
+
+It does **not** include prompt content, timeline text, bearer tokens, passwords, provider API keys or other secrets. The native command refuses non-loopback gateway bases and unexpected state labels before writing a file.
+
+## Recovery behavior
+
+`Run recovery check` retries only the read-only gateway/runtime health checks. It does not restart services, mutate the host, execute shell commands, elevate privileges or claim recovery when a component remains unavailable. This makes the recovery UI usable before the target PC exists without crossing the physical validation boundary.
 
 ## Windows development packaging
-
-From a Windows development machine with the pinned Rust toolchain:
 
 ```powershell
 cd apps\syntra-desktop
 .\scripts\package-windows.ps1
 ```
 
-The script generates the development icon, installs the pinned Tauri CLI if needed, resolves the Cargo lock, executes native tests, builds the NSIS installer, copies outputs to `dist\`, and creates `SHA256SUMS.txt`.
-
 Expected development outputs:
 
 ```text
 apps\syntra-desktop\dist\Syntra.exe
-apps\syntra-desktop\dist\Syntra-Setup-0.3.0-x64.exe
+apps\syntra-desktop\dist\Syntra-Setup-0.4.0-x64.exe
 apps\syntra-desktop\dist\SHA256SUMS.txt
 ```
 
-The installer uses `currentUser` mode so this development package does not require an administrator-wide installation merely to exercise the desktop shell. Code signing is intentionally **not** claimed: CI artifacts remain unsigned development evidence.
+The installer remains unsigned, current-user development evidence only.
 
 ## Verified runtime boundary
 
-The only direct runtime operation currently implemented is the read-only loopback health probe:
+The only direct runtime operation remains:
 
 ```text
 GET http://127.0.0.1:<port>/actuator/health
 ```
 
-Default port: `8090`.
-
-The native probe reports healthy only after an actual successful response with actuator status `UP`. The functional desktop API boundary remains `/api/orchestrator`; chat/model inference, task mutation, memory mutation, approvals, live events and remote control execution remain deliberately unwired until their exact authenticated contracts are verified.
-
-## Local settings boundary
-
-The Settings view persists only non-secret local preferences:
-
-- loopback gateway base URL;
-- runtime port;
-- privacy profile;
-- startup behavior.
-
-Gateway configuration rejects non-loopback hosts. This screen does not store API keys, bearer tokens, passwords or provider credentials. Production secrets must eventually use OS-backed storage and still require physical Windows validation.
+Default port: `8090`. Chat/model inference, task mutation, memory mutation, approvals, live events and remote control execution remain deliberately unwired until their exact authenticated contracts are verified.
 
 ## Truth boundaries
 
 - `BLOCKED_PENDING_HARDWARE` remains authoritative.
-- CI-generated installers are not physical-PC validation.
+- CI-generated installers and diagnostics are not physical-PC validation.
 - no production activation/deployment is claimed;
 - no registry publication is claimed;
 - no Windows code-signing certificate is claimed;
 - no GPU, microphone, WSL2, Docker, DPAPI/Credential Manager or local-model performance validation is claimed;
 - no live-money execution is enabled or claimed.
 
-When the target PC returns, the real installer and physical validation sequence must follow Issue #49 and `docs/first-boot-runbook.md` rather than treating GitHub-hosted Windows builds as owner-PC evidence.
+When the target PC returns, physical validation still starts from Issue #49 and `docs/first-boot-runbook.md`.
