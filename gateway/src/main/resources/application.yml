@@ -122,6 +122,9 @@ spring:
 aetheris:
   jwt:
     secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
+  media:
+    # Explicit owner opt-in; stages short-lived metadata, never starts a GPU task.
+    staging-enabled: ${AETHERIS_MEDIA_STAGING_ENABLED:false}
 
 resilience4j:
   circuitbreaker:
