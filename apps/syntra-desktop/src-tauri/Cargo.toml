@@ -16,6 +16,14 @@ tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
 tauri = { version = "=2.11.5", features = [] }
+# Keep the 2.11.x runtime API aligned with tauri=2.11.5.
+# Unrestricted 2.x transitive resolution upgraded runtime-wry to 2.12.1
+# and broke the pre-PC Windows CI build (monitor/menu API mismatch).
+tauri-runtime = "=2.11.3"
+tauri-runtime-wry = "=2.11.4"
+tauri-utils = "=2.9.3"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Source-only native gateway contract; no OS credential broker or live transport.
+syntra-native-media-contract = { path = "../native-media-client" }

@@ -217,9 +217,36 @@ fn export_diagnostics(payload: DiagnosticsPayload) -> Result<DiagnosticsExport, 
     })
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeMediaBridgeStatus {
+    provider: &'static str,
+    credential_broker_status: &'static str,
+    outbound_gateway_calls: bool,
+    direct_comfyui_calls: bool,
+    browser_bearer_tokens_allowed: bool,
+    media_gpu_generation_enabled: bool,
+    physical_pc_status: &'static str,
+}
+
+/// Read-only truthful native status; no bearer token can be supplied by JS.
+/// Credential provider and media HTTP transport must be independently audited.
+#[tauri::command]
+fn native_media_bridge_status() -> NativeMediaBridgeStatus {
+    NativeMediaBridgeStatus {
+        provider: "syntra-native-media-contract",
+        credential_broker_status: syntra_native_media_contract::bridge_status(),
+        outbound_gateway_calls: false,
+        direct_comfyui_calls: false,
+        browser_bearer_tokens_allowed: false,
+        media_gpu_generation_enabled: false,
+        physical_pc_status: PHYSICAL_PC_STATUS,
+    }
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![probe_aetheris_runtime, export_diagnostics])
+        .invoke_handler(tauri::generate_handler![probe_aetheris_runtime, export_diagnostics, native_media_bridge_status])
         .run(tauri::generate_context!())
         .expect("failed to run Syntra desktop shell");
 }
@@ -227,6 +254,17 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_media_bridge_is_not_a_live_generation_or_auth_channel() {
+        let status = native_media_bridge_status();
+        assert_eq!(status.physical_pc_status, "BLOCKED_PENDING_HARDWARE");
+        assert_eq!(status.credential_broker_status, "NO_OS_CREDENTIAL_BROKER_NOT_WIRED");
+        assert!(!status.outbound_gateway_calls);
+        assert!(!status.direct_comfyui_calls);
+        assert!(!status.browser_bearer_tokens_allowed);
+        assert!(!status.media_gpu_generation_enabled);
+    }
 
     #[test]
     fn runtime_health_url_is_loopback_only_and_uses_proven_path() {

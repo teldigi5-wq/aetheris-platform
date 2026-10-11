@@ -1,0 +1,53 @@
+name: Syntra Native Media Security Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/syntra-desktop/native-media-client/**'
+      - 'apps/syntra-desktop/src-tauri/**'
+      - '.github/workflows/syntra-native-media-contract.yml'
+  push:
+    branches: [main, release/syntra-native-media-contract-20261011]
+    paths:
+      - 'apps/syntra-desktop/native-media-client/**'
+      - 'apps/syntra-desktop/src-tauri/**'
+      - '.github/workflows/syntra-native-media-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-media-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install exact Rust version
+        run: |
+          rustup toolchain install 1.90.0 --profile minimal
+          rustup default 1.90.0
+          cargo --version
+      - name: Run credential-isolation and stage-only contract tests
+        working-directory: apps/syntra-desktop/native-media-client
+        run: cargo test --all-targets --verbose
+      - name: Enforce no JavaScript credential parameter or activation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          rust = Path('apps/syntra-desktop/src-tauri/src/main.rs').read_text()
+          code = Path('apps/syntra-desktop/native-media-client/src/lib.rs').read_text()
+          assert 'fn native_media_bridge_status()' in rust
+          assert 'native_media_bridge_status]' in rust
+          assert 'bridge_status()' in rust
+          assert 'NO_OS_CREDENTIAL_BROKER_NOT_WIRED' in code
+          assert 'BLOCKED_PENDING_HARDWARE' in code
+          assert 'false,\n        direct_comfyui_calls: false' in rust
+          assert 'browser_bearer_tokens_allowed: false' in rust
+          assert 'NoNativeCredential' in code
+          assert 'ClientError::NoNativeCredential' in code
+          assert 'pub trait NativeCredentialProvider' in code
+          assert 'pub trait NativeGatewayTransport' in code
+          PY
