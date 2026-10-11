@@ -1,0 +1,42 @@
+name: Media Owner-Staging Security
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/src/main/java/io/aetheris/identity/Role.java'
+      - '.github/workflows/media-staging-gateway.yml'
+      - 'docs/security/media-job-authenticated-staging.md'
+  push:
+    branches: [main]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/src/main/java/io/aetheris/identity/Role.java'
+      - '.github/workflows/media-staging-gateway.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  media-owner-staging-security:
+    name: media-owner-staging-security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Ensure feature is default off and blocked pending hardware
+        shell: bash
+        run: |
+          grep -F 'AETHERIS_MEDIA_STAGING_ENABLED:false' gateway/src/main/resources/application.yml
+          grep -F 'BLOCKED_PENDING_HARDWARE' gateway/src/main/java/io/aetheris/gateway/StagedMediaJobService.java
+          grep -F 'NOT_WIRED' gateway/src/main/java/io/aetheris/gateway/MediaStagingController.java
+      - name: Run owner-isolation, replay, auth and HTTP contract tests
+        run: ./mvnw -f gateway/pom.xml -Dtest=MediaJobAuthWebFilterTest,StagedMediaJobServiceTest,MediaEndpointWebFluxIntegrationTest test
