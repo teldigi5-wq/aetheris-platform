@@ -18,6 +18,7 @@
         <button class="nav-item" data-section="memory">Memory <kbd>Ctrl+4</kbd></button>
         <button class="nav-item" data-section="devices">Devices <kbd>Ctrl+5</kbd></button>
         <button class="nav-item" data-section="approvals">Approvals <kbd>Ctrl+6</kbd></button>
+        <button class="nav-item" data-section="media">Media Studio <kbd>Ctrl+9</kbd></button>
         <button class="nav-item" data-section="settings">Settings <kbd>Ctrl+7</kbd></button>
         <button class="nav-item" data-section="diagnostics">Diagnostics <kbd>Ctrl+8</kbd></button>
       </nav>
@@ -58,6 +59,34 @@
       <section class="view" data-view="devices" hidden><article class="card full-card"><div class="card-header"><div><p class="eyebrow">DEVICES</p><h2>Owner workstation readiness</h2></div><span class="pill pending">HARDWARE PENDING</span></div><ul class="health-list wide"><li><span>Target Windows PC</span><strong>Not physically available</strong></li><li><span>GPU / CUDA</span><strong>UNVERIFIED</strong></li><li><span>Microphone / speaker</span><strong>UNVERIFIED</strong></li><li><span>WSL2 / Docker</span><strong>UNVERIFIED</strong></li><li><span>Credential Manager / DPAPI</span><strong>UNVERIFIED</strong></li></ul></article></section>
 
       <section class="view" data-view="approvals" hidden><article class="card full-card"><div class="card-header"><div><p class="eyebrow">APPROVALS</p><h2>Owner-controlled execution boundary</h2></div><span class="pill neutral">0 PENDING</span></div><div class="empty-state"><div class="orb" aria-hidden="true"></div><p>No pending approval requests.</p><span>Approve/reject controls will only become active with a verified authenticated backend approval contract.</span></div></article></section>
+
+
+      <section class="view" data-view="media" hidden>
+        <article class="card full-card media-card">
+          <div class="card-header"><div><p class="eyebrow">MEDIA STUDIO · DEVELOPMENT PREVIEW</p><h2>Local creative workspace</h2></div><span class="pill pending">GENERATION NOT WIRED</span></div>
+          <p class="lead">Compose an image or video idea in Syntra. This preview stores drafts in this app session only. It does not call the AI runtime, ComfyUI, any paid API, or an external server.</p>
+          <div class="media-readiness" role="status">
+            <div><span>Image engine</span><strong>LOCAL CLI SOURCE READY · NOT VERIFIED</strong></div>
+            <div><span>Video engine</span><strong>PLANNED · NOT WIRED</strong></div>
+            <div><span>GPU compatibility</span><strong>BLOCKED_PENDING_HARDWARE</strong></div>
+            <div><span>Cloud spending</span><strong>DISABLED BY DEFAULT</strong></div>
+          </div>
+          <form id="media-stage-form" class="media-form" novalidate>
+            <label><span>Generation type</span><select id="media-type"><option value="image">Image · local draft</option><option value="video">Video · future hardware phase</option></select></label>
+            <label><span>Frame size (draft only)</span><select id="media-dimensions"><option value="512x512">512 × 512</option><option value="512x768">512 × 768</option><option value="768x512">768 × 512</option></select></label>
+            <label class="media-wide"><span>Creative prompt</span><textarea id="media-prompt" rows="4" maxlength="1200" required placeholder="Describe the scene, lighting, mood and composition..."></textarea></label>
+            <label class="media-wide"><span>Negative prompt (image only)</span><input id="media-negative" maxlength="500" placeholder="Unwanted artifacts and styles" /></label>
+            <div class="media-actions media-wide">
+              <button type="submit" class="primary-button" id="media-stage">Stage locally</button>
+              <button type="button" class="ghost-button" id="media-clear">Clear media drafts</button>
+              <span id="media-stage-count">0 session drafts</span>
+            </div>
+          </form>
+          <p class="microcopy" id="media-status" role="status" aria-live="polite">No media generation has been requested. The hardware-adaptive ComfyUI CLI is separate and not linked to the desktop yet.</p>
+          <div class="media-preview" aria-label="Local draft list"><div class="card-header"><h3>Draft queue</h3><span class="pill neutral">NO GPU JOBS</span></div><div id="media-drafts" class="media-drafts"><p>No staged media ideas yet.</p></div></div>
+          <p class="microcopy">Backend design: model files are owner-managed, local ComfyUI accepts only loopback requests, and GPU tests must be completed before generation can be activated. No videos or images are claimed as created by this UI.</p>
+        </article>
+      </section>
 
       <section class="view" data-view="settings" hidden>
         <article class="card full-card"><div class="card-header"><div><p class="eyebrow">SETTINGS</p><h2>Safe local configuration</h2></div><span class="pill neutral">LOCAL ONLY</span></div><form id="settings-form" class="settings-grid" novalidate><label><span>Gateway base URL</span><input id="gateway-base-input" type="url" maxlength="120" spellcheck="false" /><small>Loopback only: http://127.0.0.1:&lt;port&gt; or http://localhost:&lt;port&gt;</small></label><label><span>Runtime port</span><input id="runtime-port-input" type="number" min="1" max="65535" /></label><label><span>Privacy profile</span><select id="privacy-profile"><option value="private">Private / local-first</option><option value="balanced">Balanced (future)</option></select></label><label><span>Startup behavior</span><select id="startup-behavior"><option value="manual">Manual</option><option value="remember">Remember last view</option></select></label><div class="settings-actions"><button type="submit" class="primary-button">Save local settings</button><button type="button" class="ghost-button" id="reset-settings">Reset</button></div></form><p class="microcopy">No credentials or provider API keys are stored by this settings screen.</p></article>
