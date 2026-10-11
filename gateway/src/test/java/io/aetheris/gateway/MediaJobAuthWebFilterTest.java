@@ -57,8 +57,8 @@ class MediaJobAuthWebFilterTest {
                         .header("X-Aetheris-User-Id", "999").build());
         var forwarded = apply(exchange);
         assertNotNull(forwarded.get());
-        assertEquals(42L, forwarded.get().getAttribute(MediaJobAuthWebFilter.VERIFIED_OWNER_ATTRIBUTE));
-        assertNotEquals(999L, forwarded.get().getAttribute(MediaJobAuthWebFilter.VERIFIED_OWNER_ATTRIBUTE));
+        assertEquals(Long.valueOf(42L), forwarded.get().getAttribute(MediaJobAuthWebFilter.VERIFIED_OWNER_ATTRIBUTE));
+        assertNotEquals(Long.valueOf(999L), forwarded.get().getAttribute(MediaJobAuthWebFilter.VERIFIED_OWNER_ATTRIBUTE));
     }
 
     @Test
