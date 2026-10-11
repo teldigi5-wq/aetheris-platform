@@ -63,7 +63,7 @@ class MediaEndpointWebFluxIntegrationTest {
     }
 
     @Test
-    void stagedJobsAreNeverExposedAcrossAccounts() {
+    void stagedJobsAreNeverExposedAcrossAccounts() throws Exception {
         WebTestClient web = client(true);
         String key = UUID.randomUUID().toString();
         byte[] reply = web.post().uri("/api/media/jobs")
