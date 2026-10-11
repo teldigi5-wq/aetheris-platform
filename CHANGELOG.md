@@ -2,18 +2,18 @@
 
 All notable repository-level changes to Aetheris are documented here. This changelog describes source and engineering-state changes; it does not convert repository evidence into physical-PC validation.
 
-## Unreleased
+## Verified current checkpoints (2026-10-11)\n\n- `aetheris-platform` main: `57ad3e0e602efa6feb275328254151b959a3499b`.\n- Certified external `aetheris-ai-runtime`: `65a6262717adcd52ac8d8a16ed6f223e299fd74d`.\n- `v0.1.0-pre-pc` is a published prerelease (2026-09-24), not physical-PC certification.\n- Syntra Desktop v0.4 diagnostics/recovery is in main; authenticated desktop wiring PR #207 remains unmerged.\n- Physical owner-PC state: `BLOCKED_PENDING_HARDWARE`.\n\n## Unreleased
 
 ### AI-runtime extraction and release alignment
 
 - Completed the source-ownership split between `teldigi5-wq/aetheris-platform` and `teldigi5-wq/aetheris-ai-runtime`; runtime-owned roots are no longer duplicated in the platform repository.
 - Platform-owned verification now includes core-source independence, external-runtime readiness/evidence, and an exact certified-runtime reference instead of rebuilding extracted runtime source locally.
-- The platform-recorded certified AI-runtime checkpoint remains `68af39a1115a7330020c18b6e2cb601e66b8f22f`; newer runtime `main` commits do not become certified automatically.
+- The platform-recorded certified AI-runtime checkpoint is `65a6262717adcd52ac8d8a16ed6f223e299fd74d`; newer runtime `main` commits do not become certified automatically.
 - Aligned README, architecture, reviewer, interview, demo, contribution, security, verification and release-readiness documentation with the split-repository model.
 - Aligned the `v0.1.0-pre-pc` candidate narrative so platform validation and runtime-owned certification are reported separately.
 - Identified administrative required-status drift in the active `Protect stable main` GitHub ruleset after extraction: legacy platform-local runtime contexts must be replaced with the current platform check names before release publication.
 - Preserved `BLOCKED_PENDING_HARDWARE`, no production-activation claim, no registry-publication claim, no live-money execution claim, and the distinction between hosted CI evidence and physical-PC validation.
-- No `v0.1.0-pre-pc` GitHub release or immutable platform release tag has been published yet.
+- The `v0.1.0-pre-pc` GitHub prerelease was published on 2026-09-24; later pre-PC changes remain unreleased until promoted.
 
 ### Evidence-first portfolio proof
 
@@ -40,7 +40,7 @@ All notable repository-level changes to Aetheris are documented here. This chang
 - Added semantic versioning and release-class rules that reserve `v1.0.0` for a later, explicitly validated milestone.
 - Added GitHub generated-release-note categorization through `.github/release.yml`.
 - Added dedicated release-candidate notes in `docs/releases/v0.1.0-pre-pc.md`.
-- No GitHub release or immutable tag has been published yet.
+- The `v0.1.0-pre-pc` prerelease and tag were published on 2026-09-24; this entry records earlier preparation work.
 
 ### Added
 
