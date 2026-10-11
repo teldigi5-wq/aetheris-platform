@@ -1,5 +1,6 @@
 package io.aetheris.gateway;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -16,6 +17,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.Iterator;
 import java.util.UUID;
 
 /**
@@ -25,6 +28,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/media")
 public final class MediaStagingController {
+    private static final Set<String> ALLOWED_IMAGE_FIELDS = Set.of("kind", "prompt", "negativePrompt", "width", "height");
     private final StagedMediaJobService staging;
 
     public MediaStagingController(StagedMediaJobService staging) {
@@ -50,11 +54,11 @@ public final class MediaStagingController {
     public ResponseEntity<StagedMediaJobService.JobView> stage(
             ServerWebExchange exchange,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-            @RequestBody StagedMediaJobService.MediaRequest request) {
+            @RequestBody JsonNode request) {
         long owner = verifiedOwner(exchange);
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .body(staging.submit(owner, idempotencyKey, request));
+                .body(staging.submit(owner, idempotencyKey, strictImageRequest(request)));
     }
 
     @GetMapping("/jobs/{id}")
@@ -66,6 +70,37 @@ public final class MediaStagingController {
     public ResponseEntity<Void> discard(ServerWebExchange exchange, @PathVariable String id) {
         staging.remove(verifiedOwner(exchange), parseId(id));
         return ResponseEntity.noContent().header(HttpHeaders.CACHE_CONTROL, "no-store").build();
+    }
+
+    /**
+     * Explicit allowlist: do not silently discard new client fields like model,
+     * workflow, remote URL, path, shell arguments or payment instructions.
+     */
+    private static StagedMediaJobService.MediaRequest strictImageRequest(JsonNode body) {
+        if (body == null || !body.isObject()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Media request must be a JSON object");
+        }
+        Iterator<String> keys = body.fieldNames();
+        while (keys.hasNext()) {
+            if (!ALLOWED_IMAGE_FIELDS.contains(keys.next())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unrecognized media request field");
+            }
+        }
+        JsonNode kind = body.get("kind");
+        JsonNode prompt = body.get("prompt");
+        JsonNode negative = body.get("negativePrompt");
+        JsonNode width = body.get("width");
+        JsonNode height = body.get("height");
+        if (kind == null || !kind.isTextual()
+                || prompt == null || !prompt.isTextual()
+                || negative != null && !negative.isTextual()
+                || width == null || !width.isIntegralNumber() || !width.canConvertToInt()
+                || height == null || !height.isIntegralNumber() || !height.canConvertToInt()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Media request field types invalid");
+        }
+        return new StagedMediaJobService.MediaRequest(
+                kind.asText(), prompt.asText(), negative == null ? "" : negative.asText(),
+                width.intValue(), height.intValue());
     }
 
     private static long verifiedOwner(ServerWebExchange exchange) {
