@@ -40,3 +40,25 @@ jobs:
           grep -F 'NOT_WIRED' gateway/src/main/java/io/aetheris/gateway/MediaStagingController.java
       - name: Run owner-isolation, replay, auth and HTTP contract tests
         run: ./mvnw -f gateway/pom.xml -Dtest=MediaJobAuthWebFilterTest,StagedMediaJobServiceTest,MediaEndpointWebFluxIntegrationTest test
+      - name: Verify exact four-route additive Stage 23 API delta
+        run: |
+          python scripts/stage23/contract_baseline.py --output build/stage23/media-contract-baseline.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path("build/stage23/media-contract-baseline.json").read_text())
+          actual = {(item["method"], item["path"]) for item in manifest["httpEndpoints"]
+                    if item["path"].startswith("/api/media/")}
+          expected = {
+              ("GET", "/api/media/capabilities"),
+              ("POST", "/api/media/jobs"),
+              ("GET", "/api/media/jobs/{id}"),
+              ("DELETE", "/api/media/jobs/{id}"),
+          }
+          assert actual == expected, f"Media API contract differs: {actual}"
+          assert manifest["hardBoundaries"]["physicalStage21BlockedPendingHardware"] is True
+          assert manifest["hardBoundaries"]["productionActivationAllowed"] is False
+          assert manifest["hardBoundaries"]["liveMoneyOrdersAllowed"] is False
+          pinned = Path("scripts/stage23/expected-contract.sha256").read_text().strip()
+          assert pinned == manifest["contractSha256"], "Frozen HTTP inventory hash must remain an exact pin"
+          PY
