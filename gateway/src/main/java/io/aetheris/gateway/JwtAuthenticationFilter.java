@@ -64,17 +64,35 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
             }
 
+            // Memory is owner-scoped by the runtime. Client-supplied owner headers are
+            // never an authority; derive a stable namespace from a verified JWT uid.
+            String memoryOwnerId = null;
+            if (isOwnerScopedMemoryPath(path)) {
+                if (!((userId instanceof Integer) || (userId instanceof Long))
+                        || ((Number) userId).longValue() <= 0) {
+                    return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Memory access requires a valid user identity");
+                }
+                memoryOwnerId = "user:" + ((Number) userId).longValue();
+            }
+
             String requiredScope = requiredScope(path, exchange.getRequest().getMethod());
             if (requiredScope != null && !scopes.contains(requiredScope)) {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
             }
 
+            final String verifiedMemoryOwnerId = memoryOwnerId;
             ServerWebExchange authenticatedExchange = exchange.mutate()
                     .request(builder -> builder.headers(headers -> {
                         headers.remove("X-Aetheris-User-Id");
                         headers.remove("X-Aetheris-User-Email");
                         headers.remove("X-Aetheris-User-Role");
                         headers.remove("X-Aetheris-Scopes");
+                        // Strip owner authority on ALL protected paths to prevent spoofing
+                        // into current or future downstream services.
+                        headers.remove("X-Aetheris-Owner-Id");
+                        if (verifiedMemoryOwnerId != null) {
+                            headers.set("X-Aetheris-Owner-Id", verifiedMemoryOwnerId);
+                        }
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
                         headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
@@ -106,6 +124,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return path.equals("/api/users") || path.startsWith("/api/users/")
                 || path.equals("/api/events") || path.startsWith("/api/events/")
                 || path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/");
+    }
+
+    private boolean isOwnerScopedMemoryPath(String path) {
+        return path.equals("/api/orchestrator/memory") || path.startsWith("/api/orchestrator/memory/");
     }
 
     private String requiredScope(String path, HttpMethod method) {
