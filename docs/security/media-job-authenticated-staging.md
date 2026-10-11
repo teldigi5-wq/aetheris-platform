@@ -58,7 +58,7 @@ Original Stage 23 contract hash: `31f345f0b0c882c5ed2faae4739747b4d18c1e0357592b
 
 Recomputed Stage 23 hash from the failed guard's canonical evidence (before updating the pin): `f3dbafffce15c4a1ae0e0671c9a36f58664315d760023f3cb23dc31202c7fc48`.
 
-`scripts/stage23/expected-contract.sha256` was updated to the observed value **for review on this draft PR only**, with the hashing script and guard unchanged. Reviewers must explicitly approve this four-route schema expansion and check the regenerated inventory. A green guard after modifying its pinned hash is **not independent authorization** to change the API.
+`scripts/stage23/expected-contract.sha256` was updated to the observed value **for review on this draft PR only**, with the hashing script and guard unchanged. The corresponding `configs/stage26-evidence-policy.json` pin now matches it, so Stage 26's nested checksum integrity test stays intact; no hard-boundary values, runtime certification, or public-ready claims changed. Reviewers must explicitly approve this four-route schema expansion and check the regenerated inventory. A green guard after modifying its pinned hash is **not independent authorization** to change the API.
 
 ## Hosted test strategy
 
