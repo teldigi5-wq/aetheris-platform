@@ -43,6 +43,23 @@ Supported sizes: 512×512, 512×768, or 768×512. Returns `202` with `STAGED_NOT
 - Never enable staging in a public deployment without a security and rate-limit review. Gateway-local endpoints do not inherit the orchestrator route's Redis rate limiter, so this metadata-only service uses hard in-memory quotas, not distributed production limits.
 - Real authenticated **GPU execution** still requires a separately reviewed trust channel between gateway and runtime, server-side capability/tenant enforcement, cancellation, artifact ownership, retention, replay protection, node health and physical hardware evidence.
 
+## Stage 23 frozen-contract inventory change (review required)
+
+Stage 23 hashes **all annotated core HTTP routes**; four intentionally added local gateway media routes changed that approved inventory. We did **not** disable `contract_guard.py`, remove required jobs, weaken JWT checks, or alter certified external runtime metadata. The sole allowed API inventory delta is:
+
+| Method | New path | Scope |
+|---|---|---|
+| GET | `/api/media/capabilities` | `media:read` |
+| POST | `/api/media/jobs` | `media:write` |
+| GET | `/api/media/jobs/{id}` | `media:read` |
+| DELETE | `/api/media/jobs/{id}` | `media:write` |
+
+Original Stage 23 contract hash: `31f345f0b0c882c5ed2faae4739747b4d18c1e0357592bc66be774c9bdd1d26f`.
+
+Recomputed Stage 23 hash from the failed guard's canonical evidence (before updating the pin): `f3dbafffce15c4a1ae0e0671c9a36f58664315d760023f3cb23dc31202c7fc48`.
+
+`scripts/stage23/expected-contract.sha256` was updated to the observed value **for review on this draft PR only**, with the hashing script and guard unchanged. Reviewers must explicitly approve this four-route schema expansion and check the regenerated inventory. A green guard after modifying its pinned hash is **not independent authorization** to change the API.
+
 ## Hosted test strategy
 
 `./mvnw -f gateway/pom.xml -Dtest=MediaJobAuthWebFilterTest,StagedMediaJobServiceTest,MediaEndpointWebFluxIntegrationTest test`
