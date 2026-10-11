@@ -63,6 +63,30 @@ class MediaEndpointWebFluxIntegrationTest {
     }
 
     @Test
+    void extraFieldsOrJsonTypeCoercionCannotExpandMediaAuthority() {
+        WebTestClient web = client(true);
+        String[] invalid = {
+            "{\"kind\":\"IMAGE\",\"prompt\":\"safe\",\"width\":512,\"height\":512,\"model\":\"untrusted.safetensors\"}",
+            "{\"kind\":\"IMAGE\",\"prompt\":\"safe\",\"width\":512,\"height\":512,\"url\":\"http://evil.example\"}",
+            "{\"kind\":\"IMAGE\",\"prompt\":\"safe\",\"width\":512,\"height\":512,\"ownerId\":999}",
+            "{\"kind\":\"IMAGE\",\"prompt\":\"safe\",\"width\":\"512\",\"height\":512}",
+            "{\"kind\":\"IMAGE\",\"prompt\":123,\"width\":512,\"height\":512}",
+            "{\"kind\":\"IMAGE\",\"prompt\":\"safe\",\"width\":512.2,\"height\":512}",
+            "{\"kind\":\"IMAGE\",\"prompt\":\"safe\",\"width\":512,\"height\":512,\"workflow\":{}}",
+            "[{\"kind\":\"IMAGE\",\"prompt\":\"safe\",\"width\":512,\"height\":512}]"
+        };
+        for (String payload : invalid) {
+            web.post().uri("/api/media/jobs")
+                    .header("X-Aetheris-Client", "syntra-native")
+                    .header("Authorization", "Bearer " + token(42, "media:write"))
+                    .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(payload)
+                    .exchange().expectStatus().isBadRequest();
+        }
+    }
+
+    @Test
     void stagedJobsAreNeverExposedAcrossAccounts() throws Exception {
         WebTestClient web = client(true);
         String key = UUID.randomUUID().toString();
