@@ -3,7 +3,6 @@
 //! Transport and credential storage are deliberately NOT wired in production.
 use serde_json::{json, Value};
 use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 const STAGING_TRUTH: &str = "BLOCKED_PENDING_HARDWARE";
 const STAGED_ONLY: &str = "STAGED_NOT_EXECUTED";
@@ -222,4 +221,162 @@ impl<C: NativeCredentialProvider, T: NativeGatewayTransport> NativeMediaClient<C
 /// This is the only live desktop-compatible provider presently shipped.
 pub fn bridge_status() -> &'static str {
     "NO_OS_CREDENTIAL_BROKER_NOT_WIRED"
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    const ID: &str = "123e4567-e89b-12d3-a456-426614174000";
+    fn draft() -> JobDraft {
+        JobDraft {
+            prompt: "sunrise on a hill".into(), negative_prompt: "blur".into(),
+            width: 512, height: 512,
+        }
+    }
+    #[derive(Default)]
+    struct Counts(AtomicUsize);
+    struct FakeTransport {
+        sent: Arc<Counts>,
+        expected_path: String,
+        expected_verb: Verb,
+        reply: NativeResponse,
+    }
+    impl NativeGatewayTransport for FakeTransport {
+        fn send(&self, port: u16, request: &NativeRequest<'_>) -> Result<NativeResponse, ClientError> {
+            assert_eq!(port, 8080);
+            assert_eq!(request.path, self.expected_path);
+            assert_eq!(request.method, self.expected_verb);
+            assert!(request.bearer.as_bytes().starts_with(b"test-token"));
+            assert!(!format!("{request:?}").contains("test-token"));
+            self.sent.0.fetch_add(1, Ordering::SeqCst);
+            Ok(NativeResponse { status: self.reply.status, body: self.reply.body.clone() })
+        }
+    }
+    fn transport(method: Verb, path: &str, status: u16, body: &str, counts: Arc<Counts>) -> FakeTransport {
+        FakeTransport { sent: counts, expected_path: path.to_owned(), expected_verb: method,
+            reply: NativeResponse { status, body: body.as_bytes().to_vec() } }
+    }
+    struct MockNativeBroker;
+    impl NativeCredentialProvider for MockNativeBroker {
+        fn access_token(&self) -> Result<NativeAccessToken, ClientError> {
+            NativeAccessToken::from_native_broker(b"test-token-from-fake-vault".to_vec())
+        }
+    }
+    fn reply(id: &str) -> String {
+        json!({"id":id,"state":"STAGED_NOT_EXECUTED","gpuJobStarted":false,
+            "physicalPcStatus":"BLOCKED_PENDING_HARDWARE"}).to_string()
+    }
+
+    #[test]
+    fn real_desktop_credential_source_always_refuses_before_transport() {
+        let counts = Arc::new(Counts::default());
+        let c = NativeMediaClient::new(8080, NoNativeCredential,
+            transport(Verb::Get, "/api/media/capabilities", 200, "{}", counts.clone())).unwrap();
+        assert!(matches!(c.capabilities(), Err(ClientError::NoNativeCredential)));
+        assert_eq!(counts.0.load(Ordering::SeqCst), 0);
+        assert_eq!(bridge_status(), "NO_OS_CREDENTIAL_BROKER_NOT_WIRED");
+    }
+    #[test]
+    fn invalid_port_and_no_external_url_parameter_possible() {
+        let counts = Arc::new(Counts::default());
+        assert!(matches!(NativeMediaClient::new(0, MockNativeBroker,
+            transport(Verb::Get, "", 200, "{}", counts)), Err(ClientError::InvalidGatewayPort)));
+    }
+    #[test]
+    fn invalid_drafts_and_oversized_payloads_refuse_without_network() {
+        let counts = Arc::new(Counts::default());
+        let c = NativeMediaClient::new(8080, MockNativeBroker,
+            transport(Verb::Post, "/api/media/jobs", 202, &reply(ID), counts.clone())).unwrap();
+        for p in [
+            JobDraft{prompt:"".into(),..draft()},
+            JobDraft{prompt:"x".repeat(1201),..draft()},
+            JobDraft{negative_prompt:"x".repeat(501),..draft()},
+            JobDraft{width:8192,..draft()},
+            JobDraft{height:4096,..draft()},
+        ] {
+            assert!(matches!(c.stage_image(&p, ID), Err(ClientError::InvalidRequest)));
+        }
+        assert!(matches!(c.stage_image(&draft(), "../bypass"), Err(ClientError::InvalidRequest)));
+        assert_eq!(counts.0.load(Ordering::SeqCst), 0);
+    }
+    #[test]
+    fn bad_ids_cannot_become_arbitrary_paths() {
+        for id in ["../../etc/passwd", "http://evil.com/path", "deadbeef", 
+                   "123e4567-e89b-12d3-a456-426614174000/../../evil",
+                   "123E4567-E89B-12D3-A456-426614174000"] {
+            assert!(!is_canonical_job_uuid(id));
+        }
+        assert!(is_canonical_job_uuid(ID));
+    }
+    #[test]
+    fn valid_native_mock_roundtrip_never_claims_generation() {
+        let counts = Arc::new(Counts::default());
+        let c = NativeMediaClient::new(8080, MockNativeBroker,
+            transport(Verb::Post, "/api/media/jobs", 202, &reply(ID), counts.clone())).unwrap();
+        let receipt = c.stage_image(&draft(), ID).unwrap();
+        assert_eq!(receipt.id, ID);
+        assert_eq!(receipt.status, "STAGED_NOT_EXECUTED");
+        assert_eq!(receipt.hardware_status, "BLOCKED_PENDING_HARDWARE");
+        assert!(!receipt.gpu_job_started);
+        assert_eq!(counts.0.load(Ordering::SeqCst), 1);
+    }
+    #[test]
+    fn rejects_fake_completed_or_hardware_ready_gateway_responses() {
+        for body in [
+            json!({"id":ID,"state":"SUCCEEDED","gpuJobStarted":false,
+                "physicalPcStatus":"BLOCKED_PENDING_HARDWARE"}).to_string(),
+            json!({"id":ID,"state":"STAGED_NOT_EXECUTED","gpuJobStarted":true,
+                "physicalPcStatus":"BLOCKED_PENDING_HARDWARE"}).to_string(),
+            json!({"id":ID,"state":"STAGED_NOT_EXECUTED","gpuJobStarted":false,
+                "physicalPcStatus":"READY"}).to_string()
+        ] {
+            let c = NativeMediaClient::new(8080, MockNativeBroker,
+                transport(Verb::Post, "/api/media/jobs", 202, &body, Arc::new(Counts::default()))).unwrap();
+            assert!(matches!(c.stage_image(&draft(), ID), Err(ClientError::UnsupportedExecution)));
+        }
+    }
+    #[test]
+    fn read_only_capabilities_remain_not_wired() {
+        let c = NativeMediaClient::new(8080, MockNativeBroker, transport(
+            Verb::Get, "/api/media/capabilities", 200,
+            r#"{"stagingEnabled":false,"imageGenerationState":"NOT_WIRED",
+               "videoGenerationState":"NOT_WIRED","physicalPcStatus":"BLOCKED_PENDING_HARDWARE",
+               "gpuJobStarted":false}"#, Arc::new(Counts::default()))).unwrap();
+        let v = c.capabilities().unwrap();
+        assert!(!v.staging_enabled);
+        assert_eq!(v.video_generation_state, "NOT_WIRED");
+        assert!(!v.gpu_job_started);
+    }
+    #[test]
+    fn never_return_unbounded_or_untrusted_gateway_response() {
+        let x = NativeMediaClient::new(8080, MockNativeBroker, transport(
+            Verb::Post, "/api/media/jobs", 202, &"x".repeat(9000),
+            Arc::new(Counts::default()))).unwrap();
+        assert!(matches!(x.stage_image(&draft(), ID), Err(ClientError::InvalidResponse)));
+        let x = NativeMediaClient::new(8080, MockNativeBroker, transport(
+            Verb::Post, "/api/media/jobs", 500, &reply(ID),
+            Arc::new(Counts::default()))).unwrap();
+        assert!(matches!(x.stage_image(&draft(), ID), Err(ClientError::InvalidResponse)));
+    }
+    #[test]
+    fn credentials_and_request_debug_output_are_redacted() {
+        let value = NativeAccessToken::from_native_broker(b"secret-native-token-test".to_vec()).unwrap();
+        assert!(!format!("{value:?}").contains("secret-native-token-test"));
+        assert_eq!(value.as_bytes(), b"secret-native-token-test");
+        assert!(NativeAccessToken::from_native_broker(b"bad\nsecret".to_vec()).is_err());
+    }
+    #[test]
+    fn read_and_discard_are_owner_scope_delegated_to_gateway() {
+        let c = NativeMediaClient::new(8080, MockNativeBroker, transport(
+            Verb::Get, &format!("/api/media/jobs/{ID}"), 200, &reply(ID), Arc::new(Counts::default()))).unwrap();
+        assert_eq!(c.read_job(ID).unwrap().status, "STAGED_NOT_EXECUTED");
+        let c = NativeMediaClient::new(8080, MockNativeBroker, transport(
+            Verb::Delete, &format!("/api/media/jobs/{ID}"), 204, "", Arc::new(Counts::default()))).unwrap();
+        assert!(c.discard_job(ID).is_ok());
+        assert!(matches!(c.discard_job("../x"), Err(ClientError::InvalidJobId)));
+    }
 }
