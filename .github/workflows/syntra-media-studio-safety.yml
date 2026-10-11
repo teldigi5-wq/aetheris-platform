@@ -1,0 +1,31 @@
+name: Syntra Media Studio Safety
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/syntra-desktop/**'
+      - 'tests/test_syntra_media_studio.py'
+      - '.github/workflows/syntra-media-studio-safety.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/syntra-desktop/**'
+      - 'tests/test_syntra_media_studio.py'
+      - '.github/workflows/syntra-media-studio-safety.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  media-staging-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+      - name: Verify no synthetic GPU/backend generation claims
+        run: python -m unittest discover -s tests -p 'test_syntra_media_studio.py' -v
