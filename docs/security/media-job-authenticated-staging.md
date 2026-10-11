@@ -27,6 +27,8 @@ The platform's existing `JwtAuthenticationFilter` is a Spring Cloud Gateway `Glo
 }
 ```
 
+The controller rejects any unexpected JSON field (including `ownerId`, `model`, `workflow`, URL/path fields) and any string/float coercion of numeric dimensions. This prevents silently expanding the staging surface when future generators are added.
+
 Supported sizes: 512×512, 512×768, or 768×512. Returns `202` with `STAGED_NOT_EXECUTED`, UUID, creation time and no prompt text. Not a media generation response. A repeated owner+key+payload returns the original record; conflicting repeated content returns `409`. Video or unsupported resource sizes are rejected.
 
 `GET /api/media/jobs/{uuid}` — returns only **the signed owner's** temporary staged metadata; a different owner gets the same `404` as an unknown ID.
