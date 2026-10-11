@@ -1,6 +1,7 @@
 package io.aetheris.gateway;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -8,14 +9,12 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -45,6 +44,7 @@ public final class StagedMediaJobService {
     private final Map<UUID, StoredJob> jobs = new HashMap<>();
     private final Map<String, UUID> dedupeIndex = new HashMap<>();
 
+    @Autowired
     public StagedMediaJobService(@Value("${aetheris.media.staging-enabled:false}") boolean enabled) {
         this(enabled, Clock.systemUTC());
     }
