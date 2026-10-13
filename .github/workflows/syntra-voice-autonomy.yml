@@ -8,6 +8,10 @@ on:
     paths:
       - 'apps/syntra-desktop/voice/**'
       - 'tests/test_syntra_voice_intent_preflight.cjs'
+      - 'apps/syntra-desktop/ui/local-voice-output.js'
+      - 'apps/syntra-desktop/ui/index.html'
+      - 'apps/syntra-desktop/ui/styles.css'
+      - 'tests/test_syntra_local_voice_output.cjs'
       - 'tests/test_syntra_voice_session.cjs'
       - 'docs/ai/syntra-voice-and-autonomy.md'
       - '.github/workflows/syntra-voice-autonomy.yml'
@@ -29,5 +33,9 @@ jobs:
           node --version
           node --check apps/syntra-desktop/voice/voice-intent-preflight.cjs
           node --check tests/test_syntra_voice_intent_preflight.cjs
+          node --check apps/syntra-desktop/ui/local-voice-output.js
+          node --check tests/test_syntra_local_voice_output.cjs
       - name: Exercise wake-word, owner consent and safe intent boundaries
-        run: node --test tests/test_syntra_voice_intent_preflight.cjs
+        run: |
+          node --test tests/test_syntra_voice_intent_preflight.cjs
+          node --test tests/test_syntra_local_voice_output.cjs
