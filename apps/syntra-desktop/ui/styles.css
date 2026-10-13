@@ -39,3 +39,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 @media (max-width:1180px) { .app-shell { grid-template-columns:210px 1fr; }.workspace { padding:24px 22px; }.control-strip { grid-template-columns:repeat(2,1fr); }.control-state { min-height:48px; grid-column:span 2; }.hero-card,.status-card,.timeline-card,.approval-card,.card { grid-column:span 12; }.topbar { align-items:flex-start; }.topbar-actions { flex-wrap:wrap; justify-content:flex-end; }.state-grid,.recovery-grid { grid-template-columns:1fr; } }
 @media (max-width:900px) { .app-shell { grid-template-columns:176px 1fr; }.sidebar { padding:18px 10px; }.nav-item kbd { display:none; }.workspace { padding:20px 16px; }.settings-grid { grid-template-columns:1fr; }.truth-banner { align-items:flex-start; }.control-strip { grid-template-columns:1fr 1fr; }h1 { font-size:27px; }h2 { font-size:24px; } }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; } }
+
+/* Opt-in local speech controls. No audio device is activated by styling. */
+.syntra-voice-choice {display:flex;align-items:center;gap:10px;margin:14px 0;color:#c2d8e6;font-size:13px;cursor:pointer;}
+.syntra-voice-choice input {accent-color:#7fe8dd;width:18px;height:18px;flex-shrink:0;}
+.syntra-voice-label {display:block;margin:12px 0 7px;color:#a9c2d3;font-size:12px;font-weight:700;}
+#syntra-voice-text {display:block;width:100%;min-height:42px;box-sizing:border-box;padding:10px 12px;border-radius:10px;border:1px solid rgba(120,190,235,.2);background:#09141e;color:#eaf6ff;font:inherit;}
+#syntra-voice-text:focus-visible {outline:2px solid #8deedb;outline-offset:2px;}
+.syntra-voice-actions {display:flex;gap:9px;flex-wrap:wrap;margin-top:12px;}
+.syntra-voice-actions button:focus-visible {outline:2px solid #8deedb;outline-offset:2px;}
+@media (max-width:680px) {.syntra-voice-actions button {flex:1 1 130px;}}
