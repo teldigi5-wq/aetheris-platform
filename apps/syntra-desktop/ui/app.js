@@ -295,7 +295,7 @@ function changeMediaType() {
     : "Image staging is local only. The opt-in ComfyUI worker is not connected to this desktop.";
 }
 
-const titles = { overview: "Command Center", chat: "Chat", media: "Media Studio", plugins: "Plugins & Skills", tasks: "Tasks", memory: "Memory", devices: "Devices", approvals: "Approvals", settings: "Settings", diagnostics: "Diagnostics & Recovery" };
+const titles = { overview: "Command Center", chat: "Chat", media: "Media Studio", plugins: "Plugins & Skills", creative: "Creative Studio", tasks: "Tasks", memory: "Memory", devices: "Devices", approvals: "Approvals", settings: "Settings", diagnostics: "Diagnostics & Recovery" };
 function activateView(section) {
   if (!titles[section]) return;
   document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.section === section));
@@ -422,6 +422,7 @@ document.getElementById("refresh-diagnostics-preview").addEventListener("click",
 document.addEventListener("keydown", (event) => {
   if (!event.ctrlKey || event.altKey || event.metaKey) return;
   if (event.key === "0") { event.preventDefault(); activateView("plugins"); return; }
+  if (event.shiftKey && event.key.toLowerCase() === "c") { event.preventDefault(); activateView("creative"); return; }
   const sections = ["overview", "chat", "tasks", "memory", "devices", "approvals", "settings", "diagnostics", "media"];
   const index = Number.parseInt(event.key, 10) - 1;
   if (index >= 0 && index < sections.length) {

@@ -20,6 +20,7 @@
         <button class="nav-item" data-section="approvals">Approvals <kbd>Ctrl+6</kbd></button>
         <button class="nav-item" data-section="media">Media Studio <kbd>Ctrl+9</kbd></button>
         <button class="nav-item" data-section="plugins">Plugins &amp; Skills <kbd>Ctrl+0</kbd></button>
+        <button class="nav-item" data-section="creative">Creative Studio <kbd>Ctrl+Shift+C</kbd></button>
         <button class="nav-item" data-section="settings">Settings <kbd>Ctrl+7</kbd></button>
         <button class="nav-item" data-section="diagnostics">Diagnostics <kbd>Ctrl+8</kbd></button>
       </nav>
@@ -61,6 +62,65 @@
 
       <section class="view" data-view="approvals" hidden><article class="card full-card"><div class="card-header"><div><p class="eyebrow">APPROVALS</p><h2>Owner-controlled execution boundary</h2></div><span class="pill neutral">0 PENDING</span></div><div class="empty-state"><div class="orb" aria-hidden="true"></div><p>No pending approval requests.</p><span>Approve/reject controls will only become active with a verified authenticated backend approval contract.</span></div></article></section>
 
+
+      <section class="view" data-view="creative" hidden aria-labelledby="creative-main-title">
+        <article class="card full-card creative-workspace">
+          <div class="creative-hero">
+            <div class="creative-hero-text">
+              <p class="eyebrow">SYNTRA CREATIVE STUDIO · CONCEPT WORKSPACE</p>
+              <h2 id="creative-main-title">From imagination to intentional design.</h2>
+              <p class="lead">Plan elevated interfaces, motion systems, interactive 3D scenes and production workflows. Five professional review templates. Zero hidden execution.</p>
+              <div class="creative-hero-tags">
+                <span class="creative-tag">UX STRATEGY</span><span class="creative-tag">MOTION DIRECTION</span><span class="creative-tag">3D EXPERIENCE</span><span class="creative-tag">ACCESSIBILITY</span>
+              </div>
+            </div>
+            <div class="creative-hero-visual" aria-hidden="true">
+              <div class="creative-stage-halo"></div><div class="creative-stage-ring creative-ring-one"></div><div class="creative-stage-ring creative-ring-two"></div>
+              <div class="creative-monogram">S<span>✦</span></div>
+              <div class="creative-visual-caption">CONCEPT / NOT RENDERED</div>
+            </div>
+          </div>
+          <div class="creative-trust-line" role="note"><span class="status-dot pending"></span> Design tools, 3D engines and model inference are not connected. All planning is local to this session. <strong>BLOCKED_PENDING_HARDWARE</strong></div>
+          <div class="creative-stats">
+            <div><strong>05</strong><small>Skill templates</small></div>
+            <div><strong>12</strong><small>Library references</small></div>
+            <div><strong>00</strong><small>Installed engines</small></div>
+            <div><strong>∞</strong><small>Ideas you can plan</small></div>
+          </div>
+          <div class="creative-content">
+            <div class="creative-main-column">
+              <div class="creative-section-head"><div><p class="eyebrow">01 · SPECIALIST DIRECTIONS</p><h3>Choose your discipline</h3></div><span class="pill neutral">READ-ONLY SKILLS</span></div>
+              <div id="creative-skill-list" class="creative-skill-list" aria-label="Creative review disciplines"></div>
+              <div class="creative-composer">
+                <div class="creative-section-head"><div><p class="eyebrow">02 · DESIGN BRIEF</p><h3>Structure your idea</h3></div><span class="pill neutral">LOCAL ONLY</span></div>
+                <h4 id="creative-selected-title">UI / UX Design</h4>
+                <p id="creative-selected-summary" class="creative-selected-summary">Select a review template above.</p>
+                <div id="creative-deliverables" class="creative-proposed-deliverables"></div>
+                <form id="creative-form" novalidate>
+                  <label for="creative-subject">What are you designing?</label>
+                  <textarea id="creative-subject" rows="4" maxlength="600" required placeholder="Example: A cinematic, accessible real-estate website with a realistic 3D property viewer, refined interactions, and mobile-first navigation…"></textarea>
+                  <div class="creative-form-actions"><button id="creative-plan-submit" class="primary-button" type="submit">Prepare offline review plan</button><button id="creative-clear" class="ghost-button" type="button">Clear brief</button></div>
+                </form>
+                <div id="creative-plan" class="creative-plan" role="status" aria-live="polite"><p class="creative-plan-empty">Your private brief stays in this window only. Choose a skill and prepare a new checklist.</p></div>
+                <p class="microcopy" id="creative-status" role="status" aria-live="polite">This workbench creates deterministic checklists, not AI-generated designs or rendered graphics.</p>
+              </div>
+            </div>
+            <aside class="creative-side-column">
+              <div class="creative-source-panel">
+                <p class="eyebrow">03 · RESEARCH LIBRARY</p><h3>Tools worth evaluating</h3>
+                <p>Curated GitHub projects are listed for future permission, licensing and compatibility review. No packages are installed.</p>
+                <label for="creative-source-search">Search reference libraries</label>
+                <input id="creative-source-search" type="search" maxlength="100" autocomplete="off" placeholder="Three.js, GSAP, Blender…" />
+                <label for="creative-source-category">Capability</label>
+                <select id="creative-source-category"><option value="all">All categories</option></select>
+                <div class="creative-source-count" id="creative-source-count" aria-live="polite">12 references</div>
+                <div id="creative-sources" class="creative-sources" aria-label="Uninstalled creative libraries"></div>
+                <p class="microcopy">GitHub-reported license labels do not authorize commercial reuse, redistribution or model asset usage.</p>
+              </div>
+            </aside>
+          </div>
+        </article>
+      </section>
 
       <section class="view" data-view="plugins" hidden aria-labelledby="extensions-main-title">
         <article class="card full-card extension-directory">
@@ -154,5 +214,7 @@
   <script src="./plugins-catalog.js"></script>
   <script src="./app.js"></script>
   <script src="./plugins-directory.js"></script>
+  <script src="./creative-catalog.js"></script>
+  <script src="./creative-workbench.js"></script>
 </body>
 </html>

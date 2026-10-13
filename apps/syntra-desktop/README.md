@@ -72,6 +72,18 @@ node --test tests/test_syntra_plugins_directory.cjs
 
 The dedicated `syntra-plugins-directory.yml` workflow also checks JavaScript syntax and reruns Media Studio regression tests. Because this is a *stacked draft* based on the still-unmerged Media Studio PR #211, mergeability depends on that parent, its verified Windows installer, the independent dependency patch PR #210, security review, and all protected-branch CI. No shortcut merging or production activation is authorized.
 
+## Proposed Creative Studio planning workbench (separate stacked draft)
+
+Syntra has an additional **Creative Studio** workspace (`Ctrl+Shift+C`) with a premium responsive interface and five selectable review disciplines: UI/UX, motion graphics, 3D experience, frontend quality, and creative production. This is **not yet an AI agent, media renderer or design file editor**.
+
+It is a deterministic **offline planning experience**: type a project brief (maximum 600 characters), choose a read-only skill template, and get a structured checklist of recommended review outputs and required evidence. The brief is held in renderer memory only; Clear removes it from the displayed form and checklist. There are no API calls, Tauri invocations, external providers, project writes, model inference, 3D rendering or video output.
+
+It also displays **12 uninstalled design-library candidates** (Three.js, React Three Fiber, Motion, GSAP, Storybook, Tailwind, axe-core, Playwright, Blender, Remotion, Figma plugin samples, ffmpeg.wasm) from [runtime Creative Studio draft PR #20](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/20). They are a frozen local snapshot for research; availability, exact revisions, commercial/asset licenses, security and GPU compatibility are not certified.
+
+Security boundaries are encoded in `creative-studio.contract.json`. CI verifies no elevated capability, the source and skill counts, inert DOM text handling, actual simulated UI events, preservation of Media Studio and Plugins directory, and Windows installer packaging. Use `python -m unittest discover -s tests -p 'test_syntra_creative_studio.py'` and `node --test tests/test_syntra_creative_studio.cjs` to reproduce on CI-capable computers.
+
+This PR must stay **stacked** on the read-only Plugins Directory PR #215, itself stacked on Media Studio PR #211. The actual creative agents, design file editing, plugin installation, image/video generation and owner-PC certification are separate later review and authorization gates. `BLOCKED_PENDING_HARDWARE` remains in force.
+
 ## Windows development packaging
 
 ```powershell

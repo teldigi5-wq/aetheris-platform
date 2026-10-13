@@ -1,0 +1,43 @@
+name: Syntra Creative Studio Contract
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-plugins-skills-directory-20261013
+    paths:
+      - 'apps/syntra-desktop/ui/**'
+      - 'apps/syntra-desktop/creative-studio.contract.json'
+      - 'tests/test_syntra_creative_studio.py'
+      - 'tests/test_syntra_creative_studio.cjs'
+      - '.github/workflows/syntra-creative-studio.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  creative-studio-ui-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+      - name: Safety boundaries and parent Plugins/Media Studio regression
+        run: |
+          python -m unittest discover -s tests -p 'test_syntra_creative_studio.py' -v
+          python -m unittest discover -s tests -p 'test_syntra_plugins_directory.py' -v
+          python -m unittest discover -s tests -p 'test_syntra_media_studio.py' -v
+      - name: Check offline JavaScript syntax
+        run: |
+          node --check apps/syntra-desktop/ui/app.js
+          node --check apps/syntra-desktop/ui/creative-catalog.js
+          node --check apps/syntra-desktop/ui/creative-workbench.js
+          node --check tests/test_syntra_creative_studio.cjs
+      - name: Validate actual UI events in dependency-free synthetic DOM
+        run: |
+          node --test tests/test_syntra_creative_studio.cjs
+          node --test tests/test_syntra_plugins_directory.cjs

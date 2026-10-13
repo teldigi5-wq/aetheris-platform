@@ -15,6 +15,7 @@ on:
     branches:
       - feature/syntra-aetheris-foundation-v2
       - release/syntra-media-studio-staging-20261011
+      - feature/syntra-plugins-skills-directory-20261013
       - main
     paths:
       - 'apps/syntra-desktop/**'
@@ -52,6 +53,10 @@ jobs:
           }
           if ($html -notmatch 'BLOCKED_PENDING_HARDWARE') { throw 'Physical-PC truth boundary must remain visible.' }
           if ($html -notmatch 'data-view="plugins"') { throw 'Plugins directory view missing from packaged Syntra.' }
+          if ($html -notmatch 'data-view="creative"') { throw 'Creative Studio view missing from packaged Syntra.' }
+          $creative = Get-Content apps/syntra-desktop/creative-studio.contract.json -Raw | ConvertFrom-Json
+          if ($creative.mode -ne 'LOCAL_CREATIVE_REVIEW_ONLY' -or $creative.hardwareStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Creative Studio evidence boundary changed.' }
+          if (-not $creative.noAiInference -or -not $creative.noPackageInstallation -or -not $creative.noExternalNetwork -or -not $creative.noTauriCommandInvocation) { throw 'Creative Studio must not use external tools or runtime inference.' }
           $plugins = Get-Content apps/syntra-desktop/plugins-directory.contract.json -Raw | ConvertFrom-Json
           if ($plugins.scope -ne 'PACKAGED_OFFLINE_RESEARCH_ONLY' -or $plugins.pluginInstallEnabled -ne $false -or $plugins.externalHttpFromExtensionView -ne $false -or $plugins.modelGenerationEnabled -ne $false) { throw 'Plugins directory introduced network, installation or generation authority.' }
           if ($plugins.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Plugins directory cannot claim physical hardware validation.' }

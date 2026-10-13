@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "mode": "LOCAL_CREATIVE_REVIEW_ONLY",
+  "catalogRuntimePr": "https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/20",
+  "hardwareStatus": "BLOCKED_PENDING_HARDWARE",
+  "skills": 5,
+  "libraryReferences": 12,
+  "noAiInference": true,
+  "noImageGeneration": true,
+  "noVideoGeneration": true,
+  "noFigmaWrites": true,
+  "noBlenderExecution": true,
+  "noBrowserAutomation": true,
+  "noExternalNetwork": true,
+  "noPackageInstallation": true,
+  "noPluginActivation": true,
+  "noTauriCommandInvocation": true,
+  "noPromptPersistence": true,
+  "noClipboardSecrets": true,
+  "ownerApprovalRequiredForAnyFutureWrite": true,
+  "sessionPlanType": "DETERMINISTIC_OFFLINE_CHECKLIST",
+  "realRenderPerformanceVerified": false
+}
