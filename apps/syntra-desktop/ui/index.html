@@ -49,6 +49,15 @@
             <button class="ghost-button" id="check-auth-readiness" type="button">Check native readiness</button>
             <p class="microcopy">Four read routes are contract-reviewed only. No login, network call or AI execution will be performed.</p>
           </article>
+          <article class="card" aria-labelledby="syntra-voice-heading">
+            <div class="card-header"><div><p class="eyebrow">VOICE · DEVELOPMENT</p><h3 id="syntra-voice-heading">Local speech output</h3></div><span class="pill pending">OPT-IN</span></div>
+            <p class="lead">Speak typed text using a verified locally installed system voice. This does not listen through your microphone, generate an AI answer, or connect to cloud speech services.</p>
+            <label class="syntra-voice-choice"><input id="syntra-voice-enable" type="checkbox" /> Enable local voice output</label>
+            <label for="syntra-voice-text" class="syntra-voice-label">Text to speak</label>
+            <input id="syntra-voice-text" type="text" maxlength="300" placeholder="Enter a short sentence…" autocomplete="off" spellcheck="false" />
+            <div class="syntra-voice-actions"><button class="ghost-button" type="button" id="syntra-voice-speak">Speak</button><button class="ghost-button" type="button" id="syntra-voice-stop">Stop / Mute</button></div>
+            <p id="syntra-voice-status" role="status" aria-live="polite" class="microcopy">Voice disabled. No microphone is active.</p>
+          </article>
           <article class="card"><div class="card-header"><h3>Active mission</h3><span class="pill neutral">NONE</span></div><div class="empty-state"><div class="orb" aria-hidden="true"></div><p>No mission is running.</p><span>Task execution remains unwired until the real authenticated contract is proven.</span></div></article>
           <article class="card"><div class="card-header"><h3>Context & memory</h3><span class="pill neutral">LOCAL VIEW</span></div><div class="metric-grid"><div><span>Captured prompts</span><strong id="prompt-count">0</strong><small>local only</small></div><div><span>Project context</span><strong>0</strong><small>sources</small></div><div><span>Retrieved docs</span><strong>0</strong><small>active</small></div><div><span>Approvals</span><strong>0</strong><small>pending</small></div></div></article>
           <article class="card timeline-card"><div class="card-header"><h3>Local event timeline</h3><span class="pill neutral">SANITIZED</span></div><div class="timeline" id="timeline"><div class="timeline-event"><span class="event-dot"></span><div><strong>Syntra Desktop v0.4 loaded</strong><p>Diagnostics and recovery shell loaded. Backend execution remains unwired.</p></div><time>now</time></div></div></article>
@@ -82,5 +91,6 @@
   </div>
   <script src="./app.js"></script>
   <script src="./auth-readiness-panel.js"></script>
+  <script src="./local-voice-output.js"></script>
 </body>
 </html>
