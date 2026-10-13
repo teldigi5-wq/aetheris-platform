@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "feature": "SYNTRA_NATIVE_WINDOWS_SESSION_VAULT",
+  "status": "ISOLATED_IMPLEMENTATION_NOT_WIRED",
+  "platform": "windows",
+  "backend": "Windows Credential Manager",
+  "credentialType": "CRED_TYPE_GENERIC",
+  "persistence": "CRED_PERSIST_SESSION",
+  "maxSecretBytes": 2560,
+  "allowedProductionTargets": [
+    "com.aetheris.syntra.auth.refresh.v1"
+  ],
+  "mockTestTarget": "com.aetheris.syntra.tests.credential-smoke.v1",
+  "tokenLoggingAllowed": false,
+  "secretDebugPrintingAllowed": false,
+  "desktopTauriCommandExposed": false,
+  "liveLoginEnabled": false,
+  "realAccessOrRefreshTokenProvisioned": false,
+  "modelOrTaskExecutionEnabled": false,
+  "networkCallsEnabled": false,
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "productionActivationAllowed": false
+}
