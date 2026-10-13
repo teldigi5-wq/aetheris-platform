@@ -206,6 +206,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .spec-device-mobile .spec-title { font-size:35px; }
 .spec-device-mobile .spec-lead { font-size:16px; }
 .spec-device-mobile .spec-viewport::after { width:165px; height:165px; right:-100px; }
+/* Portable snapshot handoff — HTML details keeps optional controls keyboard accessible. */
+.spec-handoff { margin:21px 0 14px; border:1px solid rgba(127,195,222,.22); border-radius:13px; background:rgba(6,22,34,.64); }
+.spec-handoff summary { cursor:pointer; padding:14px 16px; min-height:48px; color:#e1eff6; font-size:14px; font-weight:720; line-height:1.4; }
+.spec-handoff summary:focus-visible { outline:2px solid #66d8ff; outline-offset:3px; }
+.spec-handoff summary span { display:inline-block; margin-left:9px; color:#a5c3d4; font-size:12px; font-weight:500; letter-spacing:.04em; }
+.spec-handoff-content { padding:2px 16px 17px; }
+.spec-handoff-content p { color:#bbd2df; font-size:14px; line-height:1.65; }
+.spec-handoff-content label { display:block; margin:12px 0 8px; color:#d5e8f2; font-weight:680; font-size:14px; }
+.spec-handoff-content textarea { display:block; width:100%; min-width:0; min-height:124px; padding:11px 12px; border:1px solid rgba(122,187,216,.35); border-radius:10px; background:#091a28; color:#f0f8fc; font:14px/1.6 ui-monospace,Consolas,monospace; resize:vertical; overflow-wrap:anywhere; }
+.spec-handoff-content textarea:focus-visible { outline:2px solid #66d8ff; outline-offset:2px; }
+.spec-handoff-content .spec-actions button { min-height:44px; font-size:14px; }
+@media(max-width:650px) { .spec-handoff-content { padding:2px 12px 13px; } .spec-handoff summary { padding:13px 12px; } }
+
 .spec-source-label { display:block; color:#93b5c8; font-size:14px; font-weight:700; margin:21px 0 9px; }
 .spec-source { display:block; line-height:1.5; resize:vertical; font:13px/1.6 ui-monospace,Consolas,monospace; white-space:pre; overflow:auto; min-height:135px; background:rgba(4,15,24,.8); }
 .spec-actions { display:flex; gap:10px; flex-wrap:wrap; margin:11px 0; }
