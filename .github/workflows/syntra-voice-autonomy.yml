@@ -1,0 +1,41 @@
+name: Syntra Voice Autonomy Preflight
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-windows-credential-vault-20261013
+      - main
+    paths:
+      - 'apps/syntra-desktop/voice/**'
+      - 'tests/test_syntra_voice_intent_preflight.cjs'
+      - 'apps/syntra-desktop/ui/local-voice-output.js'
+      - 'apps/syntra-desktop/ui/index.html'
+      - 'apps/syntra-desktop/ui/styles.css'
+      - 'tests/test_syntra_local_voice_output.cjs'
+      - 'tests/test_syntra_voice_session.cjs'
+      - 'docs/ai/syntra-voice-and-autonomy.md'
+      - '.github/workflows/syntra-voice-autonomy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-voice-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact draft
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Confirm Node runtime and syntax
+        run: |
+          node --version
+          node --check apps/syntra-desktop/voice/voice-intent-preflight.cjs
+          node --check tests/test_syntra_voice_intent_preflight.cjs
+          node --check apps/syntra-desktop/ui/local-voice-output.js
+          node --check tests/test_syntra_local_voice_output.cjs
+      - name: Exercise wake-word, owner consent and safe intent boundaries
+        run: |
+          node --test tests/test_syntra_voice_intent_preflight.cjs
+          node --test tests/test_syntra_local_voice_output.cjs

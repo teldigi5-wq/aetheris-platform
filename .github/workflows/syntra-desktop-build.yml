@@ -14,6 +14,7 @@ on:
       - '.github/workflows/syntra-desktop-build.yml'
   pull_request:
     branches:
+      - feature/syntra-windows-credential-vault-20261013
       - feature/syntra-auth-read-boundary-20261013
       - feature/syntra-aetheris-foundation-v2
       - main
@@ -88,6 +89,17 @@ jobs:
           if ($authContract.desktopBoundary.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Authenticated API contract crossed the physical-PC boundary.' }
           if ($authContract.desktopBoundary.productionActivationAllowed -or $authContract.desktopBoundary.registryPublicationClaimed -or $authContract.desktopBoundary.physicalCertificationClaimed -or $authContract.desktopBoundary.liveMoneyAllowed) { throw 'Authenticated API contract crossed a release or safety truth boundary.' }
 
+          $cargo = Get-Content apps/syntra-desktop/src-tauri/Cargo.toml -Raw
+          foreach ($requiredTauriPin in @(
+            'tauri = { version = "=2.11.5"',
+            'tauri-runtime = "=2.11.3"',
+            'tauri-runtime-wry = "=2.11.4"',
+            'tauri-utils = "=2.9.3"'
+          )) {
+            if (-not $cargo.Contains($requiredTauriPin)) { throw "Tauri runtime compatibility pin missing: $requiredTauriPin" }
+          }
+          if ($html -notmatch 'local-voice-output.js' -or $html -notmatch 'syntra-voice-enable' -or $html -notmatch 'syntra-voice-stop') { throw 'Local voice output controls are not packaged in the desktop view.' }
+          if (-not (Test-Path 'apps/syntra-desktop/ui/local-voice-output.js')) { throw 'Local speech output adapter missing.' }
           if ($tauri.version -ne '0.4.0') { throw 'Tauri package version drifted.' }
           if ($tauri.bundle.active -ne $true -or $tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS bundling must remain active.' }
           if ($tauri.bundle.windows.nsis.installMode -ne 'currentUser') { throw 'NSIS must remain current-user for pre-PC development.' }
