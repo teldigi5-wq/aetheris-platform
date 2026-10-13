@@ -93,7 +93,10 @@ impl TaskEventDecoder {
                 continue;
             }
             if line[0] == b':' { continue; } // SSE heartbeat/comment
-            let decoded = std::str::from_utf8(&line).map_err(|_| DecodeError::InvalidUtf8)?;
+            let decoded = match std::str::from_utf8(&line) {
+                Ok(value) => value,
+                Err(_) => { self.reset(); return Err(DecodeError::InvalidUtf8); }
+            };
             let Some((field, rest)) = decoded.split_once(':') else {
                 self.reset();
                 return Err(DecodeError::InvalidFrame);
@@ -186,7 +189,7 @@ fn valid_instant(value: &str) -> bool {
         fraction.len() < 2 || fraction.len() > 10 ||
         !fraction[1..].iter().all(u8::is_ascii_digit)) { return false; }
     let num = |a: usize, z: usize| -> u32 {
-        b[a..z].iter().fold(0_u32,|total,d| total*10 + u32::from(d-b'0'))
+        b[a..z].iter().fold(0_u32,|total,d| total*10 + u32::from(*d-b'0'))
     };
     let year=num(0,4); let month=num(5,7); let day=num(8,10);
     let hour=num(11,13); let minute=num(14,16); let second=num(17,19);
@@ -266,6 +269,14 @@ mod tests {
         huge.extend(vec![b'A';MAX_FRAME_BYTES+3]);
         assert_eq!(d.push(&huge),Err(DecodeError::Oversized));
         assert!(d.push(&event("RUNNING","2026-10-13T12:00:00Z")).is_ok());
+    }
+
+    #[test]
+    fn malformed_utf8_fails_closed_and_decoder_can_recover() {
+        let mut d=TaskEventDecoder::new();
+        assert_eq!(d.push(&[0xFF, b'\\n']),Err(DecodeError::InvalidUtf8));
+        let good=event("QUEUED","2026-10-13T12:00:00Z");
+        assert_eq!(d.push(&good).unwrap().len(),1);
     }
 
     #[test]
