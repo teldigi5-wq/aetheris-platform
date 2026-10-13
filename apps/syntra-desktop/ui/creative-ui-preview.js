@@ -46,7 +46,12 @@
   const HISTORY_LIMIT=24;
   let committed=engine.normalize(D);
   const equal=(a,b)=>FIELDS.every(field=>a[field]===b[field]);
-  const isDirty=()=>FIELDS.some(field=>refs["spec-"+field].value!==committed[field]);
+  function isDirty(){
+    // Normalization trims ordinary incidental whitespace; invalid input stays dirty
+    // so Undo remains available to recover a safe committed snapshot.
+    try{return !equal(engine.normalize(read()),committed);}
+    catch(_){return FIELDS.some(field=>refs["spec-"+field].value!==committed[field]);}
+  }
   function updateHistory(){
     const dirty=isDirty();
     refs["spec-undo"].disabled=!dirty&&past.length===0;
