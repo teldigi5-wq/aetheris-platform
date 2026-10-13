@@ -1,0 +1,46 @@
+name: Syntra Owner Mission Access Safety
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-native-mission-stream-codec-20261013
+      - main
+    paths:
+      - 'apps/syntra-desktop/mission-owner-gate/**'
+      - 'tests/test_syntra_owner_mission_gate.py'
+      - '.github/workflows/syntra-owner-mission-access.yml'
+      - 'apps/syntra-desktop/README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  mission-owner-denial:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact draft revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Check ownership evidence and no production activation
+        run: python3 -m unittest discover -s tests -p 'test_syntra_owner_mission_gate.py' -v
+      - name: Prove fail closed and cross-task isolation with native decoder
+        working-directory: apps/syntra-desktop/mission-owner-gate
+        run: |
+          cargo generate-lockfile
+          cargo test --locked
+  mission-owner-windows:
+    runs-on: windows-2022
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact draft revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate native owner isolation on Windows
+        working-directory: apps/syntra-desktop/mission-owner-gate
+        shell: pwsh
+        run: |
+          cargo generate-lockfile
+          cargo test --locked
