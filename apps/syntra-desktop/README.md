@@ -94,6 +94,8 @@ The Syntra **Creative Studio** now contains a working, dependency-free **HTML/CS
 - `creative-ui-spec-engine.js` exports one standalone, offline, static HTML document with inline CSS and a restrictive CSP. Content is HTML-escaped; styles are selected only from predefined palette values. It contains no JavaScript, external assets, networking, forms or active CTA navigation.
 - Generated markup appears in a read-only text area, and **Copy HTML** uses the clipboard only on an explicit click. If the clipboard API is unavailable, the generated code is selected for manual copy. No automatic file creation or deployment.
 - UI work is session-only: no localStorage, secrets, user tracking, API requests, privileged Tauri invocations, plugin installations, AI inference or GPU rendering.
+- The Creative Studio now offers bounded **Undo / Redo** controls for up to 24 committed concept changes per active session (text field changes are committed on blur). Undo can also revert an incomplete or invalid edit; Reset is reversible for valid edits. History is not persisted.
+- Studio input text, labels, device controls, accessibility results and supporting copy use improved readable sizes, including 16px editing controls to avoid mobile auto-zoom. Real-browser and screen-reader validation remains required.
 - Accessibility basics include label associations, reduced-motion styles, keyboard-usable buttons and explicit preview status/validation messages.
 
 Checks:
