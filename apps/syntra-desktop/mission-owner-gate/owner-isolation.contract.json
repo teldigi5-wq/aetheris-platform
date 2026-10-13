@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "module": "SYNTRA_NATIVE_OWNER_SCOPED_MISSION_GATE",
+  "status": "BLOCKED_OWNER_BOUND_TASK_ISOLATION",
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "sourceRuntime": {
+    "repo": "teldigi5-wq/aetheris-ai-runtime",
+    "sha": "65a6262717adcd52ac8d8a16ed6f223e299fd74d",
+    "files": [
+      "orchestrator-service/src/main/java/io/aetheris/orchestrator/api/OperationsStreamController.java",
+      "orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskEventStreamService.java",
+      "orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskEntity.java",
+      "orchestrator-service/src/main/java/io/aetheris/orchestrator/api/TaskController.java"
+    ]
+  },
+  "evidence": {
+    "aggregateSseUsesSubscribeAll": true,
+    "taskEntityHasVerifiedOwnerBinding": false,
+    "taskSseEndpointChecksOwnerScope": false,
+    "gatewayBearerReadScopeAloneIsOwnerBinding": false,
+    "globalEventsRoute": "/api/orchestrator/live/events",
+    "scopedCandidateRoute": "/api/orchestrator/tasks/{taskId}/events"
+  },
+  "activation": {
+    "globalSseAllowed": false,
+    "perTaskSseAllowed": false,
+    "backendOwnerProofAvailable": false,
+    "nativeAuthenticatedSessionConnected": false,
+    "desktopTauriCommandExposed": false,
+    "productionDataAccessAllowed": false,
+    "modelOrToolExecutionAllowed": false,
+    "testOwnerGrantsCompiledInProduction": false
+  },
+  "futureServerRequirement": "Runtime must persist trusted task owner/project binding, verify caller identity independently at ingress, filter task history and live event subscriptions server-side, prevent bypass of gateway by direct runtime port, and certify cross-account isolation before native client activation."
+}
