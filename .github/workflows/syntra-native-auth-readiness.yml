@@ -1,0 +1,40 @@
+name: Syntra Native Auth Readiness Safety
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-auth-read-boundary-20261013
+      - main
+    paths:
+      - 'apps/syntra-desktop/src-tauri/src/auth_readiness.rs'
+      - 'apps/syntra-desktop/src-tauri/src/main.rs'
+      - 'apps/syntra-desktop/ui/auth-readiness-panel.js'
+      - 'apps/syntra-desktop/ui/index.html'
+      - 'tests/test_syntra_native_auth_readiness.py'
+      - 'tests/test_syntra_native_auth_ui.cjs'
+      - '.github/workflows/syntra-native-auth-readiness.yml'
+      - 'apps/syntra-desktop/README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  native-session-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Execute pure Rust authorization policy tests
+        run: |
+          rustc --version
+          rustc --edition=2021 --test apps/syntra-desktop/src-tauri/src/auth_readiness.rs -o /tmp/syntra-native-auth-policy
+          /tmp/syntra-native-auth-policy
+      - name: Verify inert UI and adversarial IPC handling
+        run: |
+          node --check apps/syntra-desktop/ui/auth-readiness-panel.js
+          node --test tests/test_syntra_native_auth_ui.cjs
+      - name: Assert native control and fail-closed contract
+        run: python3 -m unittest discover -s tests -p 'test_syntra_native_auth_readiness.py' -v
