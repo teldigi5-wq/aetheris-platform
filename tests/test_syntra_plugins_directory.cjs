@@ -65,7 +65,9 @@ test("filters: five skill templates, two local-memory projects, reset to all", (
   assert.equal(nodes["extension-list"].children.length, 2);
   nodes["extension-search"].value = "n8n";
   nodes["extension-search"].trigger("input");
-  assert.equal(nodes["extension-list"].children.length, 0);
+  assert.match(nodes["extension-results-count"].textContent, /0 of 25 reference entries/);
+  assert.equal(nodes["extension-list"].children.length, 1);
+  assert.match(nodes["extension-list"].children[0].textContent, /No matching references/);
   nodes["extension-clear"].trigger("click");
   assert.equal(nodes["extension-list"].children.length, 25);
 });
