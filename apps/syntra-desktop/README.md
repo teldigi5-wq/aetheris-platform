@@ -105,6 +105,21 @@ Only **task ID, timestamp, state and agent ID** survive parsing. `message`, `met
 
 **Next integration boundary:** a separately reviewed native Windows-authenticated agent-session manager must obtain a scoped bearer session using OS-backed credential storage, then consume `task-event` SSE securely with reconnect/history replay, owner/project isolation and strict event provenance. It cannot derive authentication from the reducer, a JSON file, UI state or an arbitrary SSE connection. The current Tauri native command continues reporting `BLOCKED_NATIVE_CREDENTIAL_BOUNDARY`; the owner workstation remains `BLOCKED_PENDING_HARDWARE`.
 
+## Native TaskEvent Stream Decoder (isolated; NOT CONNECTED)
+
+`mission-stream/` is a standalone Rust SSE framing/parser crate for the external Aetheris runtime, **not** a native authenticated session, an HTTP client or a Tauri IPC command. It is deliberately not linked into `src-tauri` and therefore cannot read an owner's tasks on its own. The source contract is `teldigi5-wq/aetheris-ai-runtime@65a6262717adcd52ac8d8a16ed6f223e299fd74d` `TaskEventStreamService.java`: the aggregate SSE route emits an `event: task-event`, `id: <taskId>:<Instant>` and a JSON `data:` body.
+
+The decoder:
+- handles bounded incremental LF and CRLF frames, including fragmented packets and SSE comment keepalives;
+- requires a valid UUID, Java UTC `Instant`, one of ten source-defined states, a bounded optional agent identifier and an SSE ID exactly matching the task/timestamp;
+- borrows only expected JSON fields; does **not** materialize message, metadata or potential token payloads as returned data;
+- refuses malformed or oversized frames and caps in-memory replay IDs at 1,024;
+- gives every parsed result the explicit `UnauthenticatedBytes` provenance. Parsing does not imply a verified source, authenticated owner, successful execution or safe UI display.
+
+Run tests: `cargo test` in `apps/syntra-desktop/mission-stream` plus `python3 -m unittest discover -s tests -p 'test_syntra_native_mission_stream_contract.py'`. Dedicated GitHub Actions executes parser tests on Ubuntu and Windows. The existing offline JSON inspector and voice UI remain unchanged in behavior.
+
+**Activation blocker:** a separately reviewed native session manager must connect Windows OS-backed credentials, verify the JWT and gateway/owner scope, enforce loopback identity, protect against replay across reconnects, and provide secure user/project isolation before connecting a real SSE client. `syntra_auth_readiness` still reports `BLOCKED_NATIVE_CREDENTIAL_BOUNDARY` and the actual owner PC is `BLOCKED_PENDING_HARDWARE`. This decoder is tested against synthetic source-format event payloads, not live mission traffic.
+
 ## Windows development packaging
 
 ```powershell
