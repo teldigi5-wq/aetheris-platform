@@ -67,6 +67,16 @@ This does **not** constitute a logged-in session, successful API call, secure cr
 
 Run offline preflight tests with `node --test tests/test_syntra_auth_read_preflight.cjs`. Dedicated GitHub Actions CI exercises adversarial routes and contract drift.
 
+## Native authentication readiness (stacked development draft)
+
+The desktop now has a **Secure AI session** status panel that can ask a new no-argument native Tauri command, `syntra_auth_readiness`, for its actual pre-PC status. It never accepts browser-provided credentials, scopes or readiness flags. The command deliberately returns `BLOCKED_NATIVE_CREDENTIAL_BOUNDARY`, `credentialVaultConnected=false`, `authenticatedSessionActive=false`, `canExecute=false`, and `BLOCKED_PENDING_HARDWARE`.
+
+A dependency-free Rust policy module (`src-tauri/src/auth_readiness.rs`) models the prerequisites for an eventual *read-only* native session: trusted Windows OS-backed vault evidence, signed-session verification, expiry, `orchestrator:read`, gateway identity/authorization evidence, explicit owner consent and hardware certification. Every prerequisite fails closed. Its positive-case unit test is **hypothetical policy evidence only**, not an operational credential or login. The exposed native command **always uses an empty, blocked evidence snapshot**, not the hypothetical test fixture. There is no Tauri login, credential vault, bearer transport, refresh, task mutation or model call.
+
+`ui/auth-readiness-panel.js` displays the native result only after the user presses **Check native readiness**. The UI accepts exclusively the known blocked response; missing native runtime, exceptions, or unexpected / forged responses remain blocked. Native error details and secrets are not rendered. The panel performs no direct HTTP request or persistence.
+
+Validation uses `rustc --edition=2021 --test apps/syntra-desktop/src-tauri/src/auth_readiness.rs`, `node --test tests/test_syntra_native_auth_ui.cjs`, and `python3 -m unittest discover -s tests -p 'test_syntra_native_auth_readiness.py'`, plus a dedicated fast CI workflow and a Windows NSIS shell integration check. Real native OS Credential Manager integration, secure login/refresh/logout, certificate/loopback request trust, revocation, user-consent lifecycle and physical owner-PC testing remain separately reviewed future work. This branch does not install plugins, access paid APIs or update the separate Wayfarer project.
+
 ## Windows development packaging
 
 ```powershell

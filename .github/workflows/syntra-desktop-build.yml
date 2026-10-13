@@ -14,6 +14,7 @@ on:
       - '.github/workflows/syntra-desktop-build.yml'
   pull_request:
     branches:
+      - feature/syntra-auth-read-boundary-20261013
       - feature/syntra-aetheris-foundation-v2
       - main
     paths:
@@ -87,10 +88,26 @@ jobs:
           if ($authContract.desktopBoundary.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Authenticated API contract crossed the physical-PC boundary.' }
           if ($authContract.desktopBoundary.productionActivationAllowed -or $authContract.desktopBoundary.registryPublicationClaimed -or $authContract.desktopBoundary.physicalCertificationClaimed -or $authContract.desktopBoundary.liveMoneyAllowed) { throw 'Authenticated API contract crossed a release or safety truth boundary.' }
 
+          # Pin the specific compatible native Tauri API family proven in PR #213.
+          # A generated Cargo.lock alone does not constrain future 2.x minor drift.
+          $cargo = Get-Content apps/syntra-desktop/src-tauri/Cargo.toml -Raw
+          foreach ($pin in @(
+            'tauri = { version = "=2.11.5"',
+            'tauri-runtime = "=2.11.3"',
+            'tauri-runtime-wry = "=2.11.4"',
+            'tauri-utils = "=2.9.3"'
+          )) {
+            if (-not $cargo.Contains($pin)) { throw "Unsupported Tauri dependency compatibility change: $pin" }
+          }
           if ($tauri.version -ne '0.4.0') { throw 'Tauri package version drifted.' }
           if ($tauri.bundle.active -ne $true -or $tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS bundling must remain active.' }
           if ($tauri.bundle.windows.nsis.installMode -ne 'currentUser') { throw 'NSIS must remain current-user for pre-PC development.' }
           if ($rust -notmatch 'export_diagnostics') { throw 'Native sanitized diagnostics export is missing.' }
+          if ($rust -notmatch 'syntra_auth_readiness') { throw 'Native session readiness IPC command missing.' }
+          if (-not (Test-Path 'apps/syntra-desktop/src-tauri/src/auth_readiness.rs')) { throw 'Native fail-closed authorization policy missing.' }
+          if (-not (Test-Path 'apps/syntra-desktop/ui/auth-readiness-panel.js')) { throw 'Native readiness UI script missing.' }
+          if ($html -notmatch 'auth-readiness-panel.js' -or $html -notmatch 'check-auth-readiness') { throw 'Native session availability must remain visible and disabled.' }
+
           if ($rust -notmatch 'prompt_content_included: false') { throw 'Diagnostics must explicitly exclude prompt content.' }
           if ($rust -notmatch 'secret_material_included: false') { throw 'Diagnostics must explicitly exclude secret material.' }
           if ($js -notmatch 'normalizeLoopbackBase') { throw 'Gateway settings must remain loopback constrained.' }
