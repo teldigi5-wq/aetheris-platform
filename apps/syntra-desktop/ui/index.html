@@ -143,6 +143,19 @@
                     <p>Check real devices, 320px reflow, 200% zoom, keyboard focus, screen readers, motion preferences, target sizes, content truth and performance. This reports static color pairs only; it does not certify WCAG compliance.</p>
                   </div>
                 </section>
+                <details class="spec-handoff">
+                  <summary>Portable concept handoff <span>JSON · MANUAL TRANSFER</span></summary>
+                  <div class="spec-handoff-content">
+                    <p>Copy a versioned concept to share between offline sessions, or paste one here to restore its text, palette and layout. This is data only, not a design file or AI-generated project.</p>
+                    <label for="spec-snapshot-input">Concept JSON to copy or import</label>
+                    <textarea id="spec-snapshot-input" maxlength="2048" rows="6" spellcheck="false" autocomplete="off" placeholder="Paste a Syntra version 1 concept snapshot here."></textarea>
+                    <div class="spec-actions">
+                      <button id="spec-snapshot-copy" type="button" class="ghost-button">Copy concept JSON</button>
+                      <button id="spec-snapshot-import" type="button" class="ghost-button">Import pasted JSON</button>
+                    </div>
+                    <p class="microcopy" id="spec-handoff-status" role="status" aria-live="polite">No automatic saving or syncing. Imported concepts are validated locally before replacing the editor.</p>
+                  </div>
+                </details>
                 <label class="spec-source-label" for="spec-export">Standalone HTML source · no scripts or external assets</label>
                 <textarea id="spec-export" class="spec-source" readonly spellcheck="false" aria-label="Generated one-file static HTML and CSS" rows="7"></textarea>
                 <div class="spec-actions"><button id="spec-undo" type="button" class="ghost-button" disabled>Undo</button><button id="spec-redo" type="button" class="ghost-button" disabled>Redo</button><button id="spec-copy" type="button" class="primary-button">Copy HTML</button><button id="spec-reset" type="button" class="ghost-button">Reset concept</button></div>
