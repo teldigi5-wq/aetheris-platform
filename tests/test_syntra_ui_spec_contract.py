@@ -14,6 +14,7 @@ class UiConceptBuilderContract(unittest.TestCase):
         cls.js=(UI/"creative-ui-preview.js").read_text(encoding="utf-8")
         cls.compiler=(UI/"creative-ui-spec-engine.js").read_text(encoding="utf-8")
         cls.styles=(UI/"styles.css").read_text(encoding="utf-8")
+        cls.quality=(UI/"design-quality-gates.js").read_text(encoding="utf-8")
 
     def test_constrained_feature_scope(self):
         c=self.contract
@@ -45,9 +46,18 @@ class UiConceptBuilderContract(unittest.TestCase):
         self.assertLess(self.html.index('src="./creative-ui-spec-engine.js"'),
                         self.html.index('src="./creative-ui-preview.js"'))
         self.assertIn("prefers-reduced-motion:reduce",self.styles)
+        for element_id in ("spec-quality-status","spec-quality-list","spec-quality-warnings"):
+            self.assertIn(f'id="{element_id}"',self.html)
+        self.assertLess(self.html.index('src="./creative-ui-spec-engine.js"'),
+                        self.html.index('src="./design-quality-gates.js"'))
+        self.assertLess(self.html.index('src="./design-quality-gates.js"'),
+                        self.html.index('src="./creative-ui-preview.js"'))
+        self.assertIn("NOT CERTIFIED",self.html)
+        self.assertIn("Manual review",self.html)
+
 
     def test_preview_never_executes_or_stores_user_content(self):
-        for source in (self.js,self.compiler):
+        for source in (self.js,self.compiler,self.quality):
             for unsafe in ("fetch(","XMLHttpRequest","WebSocket","EventSource","localStorage",
                            "sessionStorage","__TAURI__","eval(","innerHTML","outerHTML",
                            "document.write","insertAdjacentHTML","navigator.sendBeacon",
@@ -62,6 +72,9 @@ class UiConceptBuilderContract(unittest.TestCase):
         self.assertIn('escapeHTML(s.description)',self.compiler)
         self.assertIn('escapeHTML(s.action)',self.compiler)
         self.assertIn('navigator.clipboard.writeText',self.js)
+        self.assertIn('STATIC_CHECKS_PASSED_MANUAL_AUDIT_REQUIRED',self.quality)
+        self.assertIn('BLOCKED_STATIC_CONTRAST',self.quality)
+
 
 if __name__=="__main__":
     unittest.main()
