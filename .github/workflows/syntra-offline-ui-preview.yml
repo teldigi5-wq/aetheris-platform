@@ -1,0 +1,47 @@
+name: Syntra Offline UI Preview Safety
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-creative-studio-workbench-20261013
+    paths:
+      - 'apps/syntra-desktop/ui/**'
+      - 'apps/syntra-desktop/ui-spec.contract.json'
+      - 'tests/test_syntra_ui_spec_engine.cjs'
+      - 'tests/test_syntra_ui_preview.cjs'
+      - 'tests/test_syntra_ui_spec_contract.py'
+      - '.github/workflows/syntra-offline-ui-preview.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-ui-preview-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+      - name: Verify offline code generator and parent review boundaries
+        run: |
+          python -m unittest discover -s tests -p 'test_syntra_ui_spec_contract.py' -v
+          python -m unittest discover -s tests -p 'test_syntra_creative_studio.py' -v
+          python -m unittest discover -s tests -p 'test_syntra_plugins_directory.py' -v
+          python -m unittest discover -s tests -p 'test_syntra_media_studio.py' -v
+      - name: Syntax-check source and tests with runner Node
+        run: |
+          node --check apps/syntra-desktop/ui/creative-ui-spec-engine.js
+          node --check apps/syntra-desktop/ui/creative-ui-preview.js
+          node --check tests/test_syntra_ui_spec_engine.cjs
+          node --check tests/test_syntra_ui_preview.cjs
+      - name: Exercise deterministic HTML compiler and UI interactions
+        run: |
+          node --test tests/test_syntra_ui_spec_engine.cjs
+          node --test tests/test_syntra_ui_preview.cjs
+          node --test tests/test_syntra_creative_studio.cjs
+          node --test tests/test_syntra_plugins_directory.cjs
