@@ -75,7 +75,7 @@ pub fn evaluate(e: &TrustedEvidence, now_unix: u64) -> ReadGate {
 }
 
 /// Only this fail-closed snapshot is exposed by the current Tauri command.
-/// Do not feed UI input, localStorage or remote JSON into the native trust policy.
+/// Do not feed renderer input, browser persistence or remote JSON into the native trust policy.
 pub fn pre_pc_report() -> ReadGate {
     evaluate(&TrustedEvidence::default(), 0)
 }
