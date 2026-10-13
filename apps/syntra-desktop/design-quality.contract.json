@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "feature": "SYNTRA_CREATIVE_STUDIO_DESIGN_QUALITY",
+  "mode": "STATIC_PALETTE_AND_COPY_ASSURANCE",
+  "standards": [
+    "WCAG_2_2_AA_TARGET",
+    "RESPONSIVE_REFLOW_REVIEW",
+    "KEYBOARD_FOCUS_REVIEW",
+    "REDUCED_MOTION_REVIEW",
+    "SOURCE_PROVENANCE_AND_TRUTH"
+  ],
+  "requirements": {
+    "normalTextContrastMin": 4.5,
+    "largeTextContrastMin": 3,
+    "nonTextContrastMin": 3,
+    "preferredPointerTargetPx": 44,
+    "minimumReviewWidthPx": 320,
+    "maxMotionTransitionMs": 380,
+    "paletteChecks": 7
+  },
+  "staticCheckOnly": true,
+  "actualWCAGCertification": false,
+  "realBrowserTestsClaimed": false,
+  "gpuPerformanceMeasured": false,
+  "noThirdPartyPackageInstallation": true,
+  "noExternalNetwork": true,
+  "noPaidServices": true,
+  "noFigmaWrite": true,
+  "noWayfarerDeployment": true,
+  "requireManualReview": true,
+  "ownerApprovalRequired": true,
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE"
+}
