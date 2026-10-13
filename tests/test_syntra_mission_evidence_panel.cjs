@@ -52,7 +52,7 @@ test("initial inspector has no verified connection and no fabricated tasks",()=>
 });
 test("real task event format can be reviewed offline without revealing sensitive data",async()=>{
   const x=harness();
-  const shown=await x.load([event("RUNNING"),event("COMPLETED","2026-10-13T12:00:01Z")]);
+  const shown=await x.load([event("RUNNING"),event("VERIFYING","2026-10-13T12:00:01Z"),event("COMPLETED","2026-10-13T12:00:02Z")]);
   assert.match(shown,/OFFLINE IMPORT · UNVERIFIED/);
   assert.match(shown,/Completed \(imported\) 1/);
   assert.match(shown,/COMPLETED/);
