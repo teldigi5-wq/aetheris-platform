@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "feature": "SYNTRA_OFFLINE_UI_CONCEPT_BUILDER",
+  "mode": "DETERMINISTIC_LOCAL_PREVIEW_AND_STATIC_HTML_EXPORT",
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "palettePresets": [
+    "obsidian",
+    "ivory",
+    "ocean"
+  ],
+  "layoutPresets": [
+    "editorial",
+    "centered"
+  ],
+  "desktopPreviewEnabled": true,
+  "mobilePreviewEnabled": true,
+  "codeCopyOnlyOnUserGesture": true,
+  "userTextHtmlEscaped": true,
+  "generatedHtmlContentSecurityPolicy": true,
+  "generatedHtmlNoScripts": true,
+  "externalNetworkEnabled": false,
+  "modelInferenceEnabled": false,
+  "interactiveSiteDeploymentEnabled": false,
+  "figmaWriteEnabled": false,
+  "thirdPartyCodeInstallEnabled": false,
+  "gpuRenderingEnabled": false,
+  "runtimeCommandAccessEnabled": false,
+  "paidProvidersEnabled": false,
+  "briefPersistenceEnabled": false,
+  "executionSuccessClaimed": false
+}
