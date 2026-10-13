@@ -50,6 +50,28 @@ The desktop now has a **Media Studio** navigation entry (`Ctrl+9`) with local-on
 
 No paid-provider API calls or GPU access can be started from this desktop view. The original v0.4 diagnostics, local health probes and unsigned packaging continue unchanged.
 
+## Proposed Plugins & Skills research directory (stacked draft)
+
+The draft Syntra Plugins & Skills tab (`Ctrl+0`) adds a premium, accessible, offline-only review browser. It is **not** a plugin installer or marketplace connection.
+
+- 25 packaged static entries: **14 external GitHub research candidates, 5 Aetheris read-only Agent Skills templates and 6 package/model/skills discovery directories**, based on [runtime draft PR #18](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/18).
+- Local search across source names, categories and reported licenses; kind and capability filters; responsive result cards; keyboard focus styling; source URL display and user-initiated clipboard copying.
+- Per-entry **hypothetical** capability and permission previews. Tool scopes, network access, license approvals, custom code execution, model assets and hardware compatibility are never assumed granted.
+- Optional comparison of up to six candidates remains **in the current renderer session only**; there is no backend write, localStorage persistence, credential exchange or external network fetch.
+- The exact source snapshot is bundled in `ui/plugins-catalog.js`, not fetched from GitHub. The UI enforces its pinned schema, trusted-source host allowlist, 14+5+6 counts, zero-installed flags and `BLOCKED_PENDING_HARDWARE`. Tampering fails closed.
+- All candidate metadata and license labels are **not final legal/security assessments**. In particular, n8n fair-code use and GPL/media checkpoint licenses must be reviewed independently. None of these entries are imported, installed, registered, executed or even connected.
+
+The UI is implemented as `ui/plugins-directory.js` using only safe DOM text nodes, no HTML interpolation, dynamic imports, `eval`, network `fetch`, or Tauri plugin commands. The `plugins-directory.contract.json` safety contract prohibits installation, network access, native secrets and generation claims. It retains the parent branch's Media Studio local-only drafting behavior.
+
+Run review tests on a CI-capable workstation (not required on the owner's unavailable PC):
+
+~~~text
+python -m unittest discover -s tests -p 'test_syntra_plugins_directory.py' -v
+node --test tests/test_syntra_plugins_directory.cjs
+~~~
+
+The dedicated `syntra-plugins-directory.yml` workflow also checks JavaScript syntax and reruns Media Studio regression tests. Because this is a *stacked draft* based on the still-unmerged Media Studio PR #211, mergeability depends on that parent, its verified Windows installer, the independent dependency patch PR #210, security review, and all protected-branch CI. No shortcut merging or production activation is authorized.
+
 ## Windows development packaging
 
 ```powershell
