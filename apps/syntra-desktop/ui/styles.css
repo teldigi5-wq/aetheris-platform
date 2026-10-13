@@ -49,3 +49,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .syntra-voice-actions {display:flex;gap:9px;flex-wrap:wrap;margin-top:12px;}
 .syntra-voice-actions button:focus-visible {outline:2px solid #8deedb;outline-offset:2px;}
 @media (max-width:680px) {.syntra-voice-actions button {flex:1 1 130px;}}
+
+/* Offline mission evidence: never implies a connected or authenticated task stream. */
+#syntra-mission-evidence-file {display:block;width:100%;max-width:620px;margin:9px 0;padding:10px;box-sizing:border-box;border-radius:10px;border:1px solid rgba(119,180,221,.22);background:#0a1823;color:#d0e8f6;font:inherit;}
+#syntra-mission-evidence-file:focus-visible {outline:2px solid #8deedb;outline-offset:2px;}
+.syntra-mission-evidence-list {display:grid;gap:8px;margin-top:16px;}
+.syntra-mission-evidence-item {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:7px;padding:11px 13px;border-radius:10px;border:1px solid rgba(119,180,221,.13);color:#96b4c8;background:rgba(8,21,31,.55);font-size:12px;overflow-wrap:anywhere;}
+.syntra-mission-evidence-item strong {font-size:11px;color:#9de8dd;letter-spacing:.04em;}
