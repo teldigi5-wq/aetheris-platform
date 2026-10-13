@@ -67,7 +67,7 @@ public class JwtService {
                 .claim("scopes", account.getRole().scopes().stream().sorted().toList())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)))
-                .signWith(key)
+                .signWith(key, Jwts.SIG.HS256)
                 .compact();
     }
 
