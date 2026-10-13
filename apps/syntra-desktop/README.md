@@ -90,6 +90,21 @@ Validation uses `rustc --edition=2021 --test apps/syntra-desktop/src-tauri/src/a
 
 The API documentation is based on Microsoft's WinCred definitions: generic credentials are OS-managed but do **not** automatically provide backend authentication or an access-token lifecycle. Additional work must cover gateway TLS/loopback trust, secret rotation, validated access and refresh responses, memory zeroization coverage, logout/revocation, consent, Windows account boundaries, identity mapping, security review, and real hardware testing. The existing `syntra_auth_readiness` command remains **BLOCKED_NATIVE_CREDENTIAL_BOUNDARY** and `BLOCKED_PENDING_HARDWARE`; this isolated crate must not be described as a successful Windows PC installation.
 
+## Offline Mission Evidence Inspector — source-verified TaskEvent contract (stacked draft)
+
+The Tasks view now includes an **Agent task evidence inspector**. It can ingest up to 500 events from a **user-selected local JSON file (max 256 KiB)** matching the real external runtime's `TaskEvent` record. No socket, token, SSE connection or cloud provider is accessed. The panel opens **disconnected**, and every imported state is marked **OFFLINE IMPORT · UNVERIFIED**. It is an inspector, not a mission executor or a claim that an autonomous agent is working.
+
+The source contract (`mission-evidence.contract.json`) matches these external files at runtime SHA `65a6262717adcd52ac8d8a16ed6f223e299fd74d`:
+- `task/TaskEvent.java`: `taskId`, `timestamp`, `state`, `agentId`, `message`, `metadata`;
+- `task/TaskState.java`: `QUEUED`, `PLANNING`, `AWAITING_APPROVAL`, `RUNNING`, `VERIFYING`, `PAUSED`, `ROLLING_BACK`, `COMPLETED`, `FAILED`, `CANCELLED`;
+- `task/TaskEventStreamService.java`: `task-event` on the aggregate route `GET /api/orchestrator/live/events`.
+
+Only **task ID, timestamp, state and agent ID** survive parsing. `message`, `metadata`, command text, tokens and external instructions are discarded, never rendered or persisted. User-selected files are parsed in-memory, no browser storage is used, and neither the desktop's existing session-only conversation nor control state is changed. The reducer keeps a maximum of 48 task summaries and 96 recent events, rejecting malformed/duplicate/out-of-order timestamps and changes after terminal states.
+
+`node --test tests/test_syntra_mission_evidence.cjs` and `node --test tests/test_syntra_mission_evidence_panel.cjs` cover exact source states, independent task tracking, unverified status, adversarial JSON, size bounds, replay/reorder/terminal protection, refusal to display secrets, and no networking or host calls. The Windows installer workflow also verifies the panel assets and nonactivation contract.
+
+**Next integration boundary:** a separately reviewed native Windows-authenticated agent-session manager must obtain a scoped bearer session using OS-backed credential storage, then consume `task-event` SSE securely with reconnect/history replay, owner/project isolation and strict event provenance. It cannot derive authentication from the reducer, a JSON file, UI state or an arbitrary SSE connection. The current Tauri native command continues reporting `BLOCKED_NATIVE_CREDENTIAL_BOUNDARY`; the owner workstation remains `BLOCKED_PENDING_HARDWARE`.
+
 ## Windows development packaging
 
 ```powershell

@@ -67,7 +67,17 @@
 
       <section class="view" data-view="chat" hidden><article class="card full-card"><div class="card-header"><div><p class="eyebrow">CHAT</p><h2>Local conversation staging</h2></div><span class="pill pending">BACKEND UNWIRED</span></div><p class="lead">Prompts can be staged locally for interface testing. Syntra will not invent model responses, and prompt content is excluded from diagnostics.</p><div class="chat-log" id="chat-log"><div class="empty-state compact"><p>No captured prompts yet.</p><span>Captured entries stay in this app session only.</span></div></div></article></section>
 
-      <section class="view" data-view="tasks" hidden><article class="card full-card"><div class="card-header"><div><p class="eyebrow">TASKS</p><h2>Mission lifecycle</h2></div><span class="pill neutral">CONTRACT PENDING</span></div><div class="state-grid"><div><strong>Queue</strong><span>Unavailable</span><small>No task API is claimed.</small></div><div><strong>Running</strong><span>0</span><small>No task execution is active.</small></div><div><strong>Evidence</strong><span>Required</span><small>Success must be proven.</small></div></div></article></section>
+      <section class="view" data-view="tasks" hidden>
+        <article class="card full-card" aria-labelledby="syntra-evidence-heading">
+          <div class="card-header"><div><p class="eyebrow">MISSION CONTROL · EVIDENCE</p><h2 id="syntra-evidence-heading">Agent task evidence inspector</h2></div><span class="pill pending">OFFLINE · NOT CONNECTED</span></div>
+          <p class="lead">Inspect a JSON export of source-format Aetheris task events without connecting to a backend. Imported records are unverified and are never treated as live execution or permission to act.</p>
+          <label class="syntra-voice-label" for="syntra-mission-evidence-file">Import task-event JSON (up to 256 KB, up to 500 events)</label>
+          <input type="file" id="syntra-mission-evidence-file" accept=".json,application/json" />
+          <p class="microcopy" role="status" aria-live="polite" id="syntra-mission-evidence-status">No file imported. Authenticated mission stream remains disconnected.</p>
+          <div class="state-grid" id="syntra-mission-evidence-summary"><div><strong>Connection</strong><span>Not connected</span><small>Native authentication required</small></div><div><strong>Verified live actions</strong><span>None</span><small>No live task execution is claimed</small></div></div>
+          <div class="syntra-mission-evidence-list" id="syntra-mission-evidence-list" aria-label="Offline imported task states"></div>
+          <p class="microcopy">For privacy, event messages, task commands, attachments and metadata are never displayed or stored. A user-selected file is read locally in this window only.</p>
+        </article><article class="card full-card"><div class="card-header"><div><p class="eyebrow">TASKS</p><h2>Mission lifecycle</h2></div><span class="pill neutral">CONTRACT PENDING</span></div><div class="state-grid"><div><strong>Queue</strong><span>Unavailable</span><small>No task API is claimed.</small></div><div><strong>Running</strong><span>0</span><small>No task execution is active.</small></div><div><strong>Evidence</strong><span>Required</span><small>Success must be proven.</small></div></div></article></section>
 
       <section class="view" data-view="memory" hidden><article class="card full-card"><div class="card-header"><div><p class="eyebrow">MEMORY</p><h2>Context visibility</h2></div><span class="pill neutral">READ CONTRACT PENDING</span></div><p class="lead">Conversation, project, retrieved-document and tool context surfaces are reserved here. No backend memory contents are displayed until a verified read contract exists.</p><div class="state-grid"><div><strong>Conversation</strong><span>Local session</span><small>Captured prompts only.</small></div><div><strong>Project memory</strong><span>Unverified</span><small>No remote memory query.</small></div><div><strong>Retrieved docs</strong><span>Unverified</span><small>No retrieval claim.</small></div></div></article></section>
 
@@ -92,5 +102,7 @@
   <script src="./app.js"></script>
   <script src="./auth-readiness-panel.js"></script>
   <script src="./local-voice-output.js"></script>
+  <script src="./mission-evidence.js"></script>
+  <script src="./mission-evidence-panel.js"></script>
 </body>
 </html>

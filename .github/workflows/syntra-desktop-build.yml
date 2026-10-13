@@ -14,6 +14,7 @@ on:
       - '.github/workflows/syntra-desktop-build.yml'
   pull_request:
     branches:
+      - feature/syntra-voice-autonomy-preflight-20261013
       - feature/syntra-windows-credential-vault-20261013
       - feature/syntra-auth-read-boundary-20261013
       - feature/syntra-aetheris-foundation-v2
@@ -99,6 +100,13 @@ jobs:
             if (-not $cargo.Contains($requiredTauriPin)) { throw "Tauri runtime compatibility pin missing: $requiredTauriPin" }
           }
           if ($html -notmatch 'local-voice-output.js' -or $html -notmatch 'syntra-voice-enable' -or $html -notmatch 'syntra-voice-stop') { throw 'Local voice output controls are not packaged in the desktop view.' }
+          foreach ($asset in @('mission-evidence.js','mission-evidence-panel.js')) {
+            if ($html -notmatch [regex]::Escape($asset)) { throw "Offline mission evidence script not packaged: $asset" }
+            if (-not (Test-Path "apps/syntra-desktop/ui/$asset")) { throw "Missing offline mission evidence script: $asset" }
+          }
+          $missionEvidence = Get-Content apps/syntra-desktop/mission-evidence.contract.json -Raw | ConvertFrom-Json
+          if ($missionEvidence.status -ne 'OFFLINE_IMPORT_UNVERIFIED_NOT_CONNECTED' -or $missionEvidence.backendWiringAllowed -or $missionEvidence.nativeAuthenticatedStreamConnected -or $missionEvidence.liveTaskExecutionClaimed) { throw 'Offline mission inspector must never claim live backend integration.' }
+
           if (-not (Test-Path 'apps/syntra-desktop/ui/local-voice-output.js')) { throw 'Local speech output adapter missing.' }
           if ($tauri.version -ne '0.4.0') { throw 'Tauri package version drifted.' }
           if ($tauri.bundle.active -ne $true -or $tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS bundling must remain active.' }
