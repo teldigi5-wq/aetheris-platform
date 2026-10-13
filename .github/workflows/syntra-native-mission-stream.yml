@@ -1,0 +1,46 @@
+name: Syntra Native Mission Stream Safety
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-mission-evidence-20261013
+      - main
+    paths:
+      - 'apps/syntra-desktop/mission-stream/**'
+      - 'tests/test_syntra_native_mission_stream_contract.py'
+      - '.github/workflows/syntra-native-mission-stream.yml'
+      - 'apps/syntra-desktop/README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  native-stream-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Checkout exact draft
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Verify no network, no secrets and source schema
+        run: python3 -m unittest discover -s tests -p 'test_syntra_native_mission_stream_contract.py' -v
+      - name: Test bounded native SSE decoder
+        working-directory: apps/syntra-desktop/mission-stream
+        run: |
+          cargo generate-lockfile
+          cargo test --locked
+  native-stream-windows:
+    runs-on: windows-2022
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact draft
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate native SSE decoder on Windows
+        working-directory: apps/syntra-desktop/mission-stream
+        shell: pwsh
+        run: |
+          cargo generate-lockfile
+          cargo test --locked
