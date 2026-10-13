@@ -1,0 +1,51 @@
+name: Syntra Plugins and Skills Directory Safety
+
+on:
+  pull_request:
+    branches:
+      - main
+      - release/syntra-media-studio-staging-20261011
+    paths:
+      - 'apps/syntra-desktop/ui/**'
+      - 'apps/syntra-desktop/plugins-directory.contract.json'
+      - 'tests/test_syntra_plugins_directory.py'
+      - 'tests/test_syntra_plugins_directory.cjs'
+      - '.github/workflows/syntra-plugins-directory.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/syntra-desktop/ui/**'
+      - 'apps/syntra-desktop/plugins-directory.contract.json'
+      - 'tests/test_syntra_plugins_directory.py'
+      - 'tests/test_syntra_plugins_directory.cjs'
+      - '.github/workflows/syntra-plugins-directory.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  plugins-directory-contract:
+    name: plugins-directory-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+      - name: Verify local snapshot contains no executable or enabled integrations
+        run: |
+          python -m unittest discover -s tests -p 'test_syntra_plugins_directory.py' -v
+          python -m unittest discover -s tests -p 'test_syntra_media_studio.py' -v
+      - name: Verify JavaScript syntax with runner-provided Node.js
+        run: |
+          node --version
+          node --check apps/syntra-desktop/ui/app.js
+          node --check apps/syntra-desktop/ui/plugins-catalog.js
+          node --check apps/syntra-desktop/ui/plugins-directory.js
+          node --check tests/test_syntra_plugins_directory.cjs
+      - name: Exercise offline UI search, filtering and fail-closed behavior
+        run: node --test tests/test_syntra_plugins_directory.cjs

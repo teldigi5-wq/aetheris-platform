@@ -14,6 +14,7 @@ on:
   pull_request:
     branches:
       - feature/syntra-aetheris-foundation-v2
+      - release/syntra-media-studio-staging-20261011
       - main
     paths:
       - 'apps/syntra-desktop/**'
@@ -50,6 +51,10 @@ jobs:
             if ($html -notmatch ('data-view="' + $view + '"')) { throw "Missing desktop view: $view" }
           }
           if ($html -notmatch 'BLOCKED_PENDING_HARDWARE') { throw 'Physical-PC truth boundary must remain visible.' }
+          if ($html -notmatch 'data-view="plugins"') { throw 'Plugins directory view missing from packaged Syntra.' }
+          $plugins = Get-Content apps/syntra-desktop/plugins-directory.contract.json -Raw | ConvertFrom-Json
+          if ($plugins.scope -ne 'PACKAGED_OFFLINE_RESEARCH_ONLY' -or $plugins.pluginInstallEnabled -ne $false -or $plugins.externalHttpFromExtensionView -ne $false -or $plugins.modelGenerationEnabled -ne $false) { throw 'Plugins directory introduced network, installation or generation authority.' }
+          if ($plugins.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Plugins directory cannot claim physical hardware validation.' }
           if ($contract.apiBase -ne '/api/orchestrator') { throw 'Desktop API contract drifted.' }
           if ($contract.hostExecutionDefault -ne 'simulation-only') { throw 'Desktop host execution must remain simulation-only before target-PC validation.' }
           if ($contract.runtimeHealthProbe.loopbackHost -ne '127.0.0.1' -or $contract.runtimeHealthProbe.path -ne '/actuator/health') { throw 'Runtime health probe boundary drifted.' }
