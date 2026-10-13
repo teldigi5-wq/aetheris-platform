@@ -88,6 +88,17 @@ jobs:
           if ($authContract.desktopBoundary.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Authenticated API contract crossed the physical-PC boundary.' }
           if ($authContract.desktopBoundary.productionActivationAllowed -or $authContract.desktopBoundary.registryPublicationClaimed -or $authContract.desktopBoundary.physicalCertificationClaimed -or $authContract.desktopBoundary.liveMoneyAllowed) { throw 'Authenticated API contract crossed a release or safety truth boundary.' }
 
+          # Pin the specific compatible native Tauri API family proven in PR #213.
+          # A generated Cargo.lock alone does not constrain future 2.x minor drift.
+          $cargo = Get-Content apps/syntra-desktop/src-tauri/Cargo.toml -Raw
+          foreach ($pin in @(
+            'tauri = { version = "=2.11.5"',
+            'tauri-runtime = "=2.11.3"',
+            'tauri-runtime-wry = "=2.11.4"',
+            'tauri-utils = "=2.9.3"'
+          )) {
+            if (-not $cargo.Contains($pin)) { throw "Unsupported Tauri dependency compatibility change: $pin" }
+          }
           if ($tauri.version -ne '0.4.0') { throw 'Tauri package version drifted.' }
           if ($tauri.bundle.active -ne $true -or $tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS bundling must remain active.' }
           if ($tauri.bundle.windows.nsis.installMode -ne 'currentUser') { throw 'NSIS must remain current-user for pre-PC development.' }
