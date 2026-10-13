@@ -68,13 +68,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         String token = authorization.substring(7).trim();
         try {
-            Claims claims = Jwts.parser()
+            var verified = Jwts.parser()
                     .verifyWith(key)
                     .requireIssuer(issuer)
                     .requireAudience(audience)
                     .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+                    .parseSignedClaims(token);
+            if (!"HS256".equals(verified.getHeader().getAlgorithm())) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid access token algorithm");
+            }
+            Claims claims = verified.getPayload();
 
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
