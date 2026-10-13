@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "source": "owner-provided Wayfarer design master brief; reference-only, not deployed",
+  "product": "Wayfarer",
+  "status": "REVIEW_ONLY_NOT_PRODUCTION_TOKENS",
+  "palette": {
+    "midnight": "#071421",
+    "deepOcean": "#0B2133",
+    "glacier": "#F6F8FA",
+    "teal": "#21C6B7",
+    "sand": "#E8D6B2",
+    "slate": "#8293A5",
+    "coral": "#FF806B"
+  },
+  "approvedNormalTextPairs": [
+    {
+      "foreground": "glacier",
+      "background": "midnight",
+      "role": "hero-heading-and-body"
+    },
+    {
+      "foreground": "glacier",
+      "background": "deepOcean",
+      "role": "navigation-and-dark-panels"
+    },
+    {
+      "foreground": "teal",
+      "background": "midnight",
+      "role": "dark-background-eyebrow-and-active-text"
+    },
+    {
+      "foreground": "slate",
+      "background": "midnight",
+      "role": "muted-text-on-midnight"
+    },
+    {
+      "foreground": "midnight",
+      "background": "glacier",
+      "role": "booking-detail-normal-text"
+    },
+    {
+      "foreground": "deepOcean",
+      "background": "glacier",
+      "role": "high-contrast-light-panels"
+    },
+    {
+      "foreground": "midnight",
+      "background": "teal",
+      "role": "cta-label-on-teal-fill"
+    }
+  ],
+  "prohibitedNormalTextPairs": [
+    {
+      "foreground": "teal",
+      "background": "glacier",
+      "reason": "2.01:1 insufficient for normal text"
+    },
+    {
+      "foreground": "slate",
+      "background": "glacier",
+      "reason": "2.96:1 insufficient for normal text"
+    },
+    {
+      "foreground": "coral",
+      "background": "glacier",
+      "reason": "2.31:1 insufficient for normal text"
+    },
+    {
+      "foreground": "sand",
+      "background": "glacier",
+      "reason": "1.34:1 insufficient for normal text"
+    }
+  ],
+  "recommendations": {
+    "lightSurfacePrimaryText": "midnight",
+    "darkSurfacePrimaryText": "glacier",
+    "darkSurfaceAccentText": "teal",
+    "lightSurfacePrimaryButtonFill": "midnight",
+    "lightSurfacePrimaryButtonLabel": "glacier",
+    "darkSurfacePrimaryButtonFill": "teal",
+    "darkSurfacePrimaryButtonLabel": "midnight",
+    "lightSurfaceErrorTextProposed": "#992E35"
+  },
+  "scope": {
+    "autoAudited": "exact solid foreground/background hex pair thresholds only",
+    "browserUIAudited": false,
+    "overlayAudited": false,
+    "designApproved": false,
+    "productionDeployed": false
+  }
+}

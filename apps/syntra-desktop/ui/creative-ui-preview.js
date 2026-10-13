@@ -2,16 +2,19 @@
 (() => {
   "use strict";
   const engine=window.SyntraUiSpecEngine;
+  const quality=window.SyntraDesignQuality;
   const ids=["spec-eyebrow","spec-headline","spec-description","spec-action","spec-palette",
     "spec-layout","spec-preview","spec-export","spec-status","spec-copy",
-    "spec-reset","spec-device-desktop","spec-device-mobile"];
+    "spec-reset","spec-device-desktop","spec-device-mobile",
+    "spec-quality-status","spec-quality-list","spec-quality-warnings"];
   const refs=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
   if(ids.some(id=>!refs[id]))return;
   const unavailable=(message)=>{
     refs["spec-status"].textContent=message;
     for(const id of ["spec-copy","spec-reset","spec-device-desktop","spec-device-mobile"])refs[id].disabled=true;
   };
-  if(!engine||typeof engine.documentHTML!=="function"||typeof engine.normalize!=="function"){
+  if(!engine||typeof engine.documentHTML!=="function"||typeof engine.normalize!=="function"
+     ||!quality||typeof quality.audit!=="function"){
     unavailable("Offline compiler unavailable. No code generated.");
     return;
   }
@@ -36,14 +39,47 @@
     description:refs["spec-description"].value,action:refs["spec-action"].value,
     palette:refs["spec-palette"].value,layout:refs["spec-layout"].value
   });
+  function renderQuality(result){
+    const summary=refs["spec-quality-status"];
+    const out=refs["spec-quality-list"];
+    const note=refs["spec-quality-warnings"];
+    wipe(out);
+    wipe(note);
+    summary.textContent=result.passedChecks+"/"+result.staticCheckCount+
+      " contrast pair checks passed · "+result.blockingChecks+
+      " blocked. Manual review still required; this is not WCAG certification.";
+    for(const c of result.checks){
+      const entry=el("li","spec-quality-item");
+      entry.append(el("span","",c.label),
+        el("strong",c.status==="PASS"?"spec-quality-pass":"spec-quality-fail",
+          c.ratio.toFixed(2)+":1 / "+c.minimum+":1 · "+c.status));
+      out.append(entry);
+    }
+    for(const warning of result.warnings)note.append(el("li","",warning));
+    if(result.warnings.length===0)note.append(el("li","","No preset-specific warnings. Real-browser, usability and accessibility review are still required."));
+  }
   function render(){
-    let spec,code;
-    try {spec=engine.normalize(read());code=engine.documentHTML(spec);}
-    catch(error){
+    let spec,code,inspection;
+    try {
+      spec=engine.normalize(read());
+      inspection=quality.audit(spec,engine);
+      code=inspection.blockingChecks===0?engine.documentHTML(spec):"";
+    } catch(error){
       wipe(refs["spec-preview"]);
+      wipe(refs["spec-quality-list"]);
+      wipe(refs["spec-quality-warnings"]);
+      refs["spec-quality-status"].textContent="The static audit cannot evaluate invalid inputs.";
       refs["spec-export"].value="";
       refs["spec-copy"].disabled=true;
       refs["spec-status"].textContent="Invalid fields. The preview and export have been cleared; nothing executed.";
+      return;
+    }
+    renderQuality(inspection);
+    if(inspection.blockingChecks!==0){
+      wipe(refs["spec-preview"]);
+      refs["spec-export"].value="";
+      refs["spec-copy"].disabled=true;
+      refs["spec-status"].textContent="Static contrast gate blocked HTML export. Review the palette and try a compliant preset.";
       return;
     }
     const root=refs["spec-preview"];

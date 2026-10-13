@@ -17,6 +17,7 @@ on:
       - release/syntra-media-studio-staging-20261011
       - feature/syntra-plugins-skills-directory-20261013
       - feature/syntra-creative-studio-workbench-20261013
+      - feature/syntra-creative-live-preview-20261013
       - main
     paths:
       - 'apps/syntra-desktop/**'
@@ -61,6 +62,9 @@ jobs:
           $spec = Get-Content apps/syntra-desktop/ui-spec.contract.json -Raw | ConvertFrom-Json
           if ($spec.mode -ne 'DETERMINISTIC_LOCAL_PREVIEW_AND_STATIC_HTML_EXPORT' -or $spec.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Offline UI preview contract drifted.' }
           if ($spec.externalNetworkEnabled -or $spec.modelInferenceEnabled -or $spec.interactiveSiteDeploymentEnabled -or $spec.runtimeCommandAccessEnabled -or $spec.thirdPartyCodeInstallEnabled) { throw 'Creative code compiler cannot gain execution or network authority.' }
+          if (-not (Test-Path 'apps/syntra-desktop/ui/design-quality-gates.js')) { throw 'Local WCAG pair evaluator missing from package.' }
+          $quality = Get-Content apps/syntra-desktop/design-quality.contract.json -Raw | ConvertFrom-Json
+          if ($quality.mode -ne 'STATIC_PALETTE_AND_COPY_ASSURANCE' -or $quality.actualWCAGCertification -ne $false -or $quality.noExternalNetwork -ne $true -or $quality.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Design quality contract unexpectedly claims certification, networking or physical hardware readiness.' }
           $creative = Get-Content apps/syntra-desktop/creative-studio.contract.json -Raw | ConvertFrom-Json
           if ($creative.mode -ne 'LOCAL_CREATIVE_REVIEW_ONLY' -or $creative.hardwareStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Creative Studio evidence boundary changed.' }
           if (-not $creative.noAiInference -or -not $creative.noPackageInstallation -or -not $creative.noExternalNetwork -or -not $creative.noTauriCommandInvocation) { throw 'Creative Studio must not use external tools or runtime inference.' }

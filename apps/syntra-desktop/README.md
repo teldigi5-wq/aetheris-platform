@@ -104,6 +104,21 @@ Checks:
 
 The feature branch is **stacked on draft Creative Studio PR #216**, itself dependent on Plugins PR #215 and Media Studio PR #211. Its exported HTML is source for manual owner use, **not** proof of a deployed app, professional accessibility certification, actual model-generated design, or physical GPU validation. The unmerged dependency vulnerability fix PR #210 and all applicable CI/review gates remain relevant to eventual platform promotion.
 
+## Proposed flagship design quality gates (stacked draft)
+
+An additional local design assurance panel now accompanies the Creative Studio's deterministic HTML/CSS concept preview:
+
+- **Seven calculated color contrast pairs**, applying WCAG 2.2 AA numeric thresholds: 4.5:1 normal text and 3:1 required non-text cues, with the focus pair measured as one input to—not certification of—overall focus-visible compliance.
+- Pass/fail ratios for text on canvas and raised surfaces, muted content, accent eyebrow, CTA label and the sampled focus/background combination. The gate **disables source export** if an automated critical check fails.
+- Explicit warnings for long typography, lengthy call-to-action labels and decorative strokes below 3:1; thin decorative strokes are not represented as compliant essential component outlines.
+- More legible exported body text, predictable narrow-screen wrapping, touch-friendly studio device switches and 200%-zoom/320px testing requirements.
+- Exact 3 palettes × 2 layout combinations tested, with adversarial malformed color and text tests, plus all previous preview, design, plugin catalog and Media Studio regression suites.
+- **Mandatory manual review** of real browsers, semantic focus/keyboard controls, screen readers, dynamic content, zoom, reduced motion, real imagery and device performance. A static color checker cannot certify a production app as WCAG compliant.
+
+The reusable [Flagship Product Design Quality Standard](../../docs/design/FLAGSHIP_PRODUCT_QUALITY_STANDARD.md) also captures editorial visual quality, spacing/typography rhythm, authentic Earth and map accessibility, truthfully reported tool-using agents, and arrival assistance handoff rules. **Wayfarer Journey AI is a separate Vercel project; this PR does not change or install tools into it.**
+
+These gates are a separate stacked draft on offline UI preview PR #217; prior #216, #215 and #211 remain dependencies. No paid API, new packages, external network or physical owner-PC validation was used. Main stays protected until explicit review and complete CI.
+
 ## Windows development packaging
 
 ```powershell

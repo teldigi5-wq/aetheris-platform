@@ -24,7 +24,8 @@ class MockNode {
   trigger(kind){assert.equal(typeof this.events[kind],"function");return this.events[kind]();}
 }
 const names=["spec-eyebrow","spec-headline","spec-description","spec-action","spec-palette","spec-layout",
-"spec-preview","spec-export","spec-status","spec-copy","spec-reset","spec-device-desktop","spec-device-mobile"];
+"spec-preview","spec-export","spec-status","spec-copy","spec-reset","spec-device-desktop","spec-device-mobile",
+"spec-quality-status","spec-quality-list","spec-quality-warnings"];
 function setup(withClipboard=true){
   const els=Object.fromEntries(names.map(id=>[id,new MockNode(id)]));
   const clipboard={calls:[],async writeText(s){this.calls.push(s);}};
@@ -34,6 +35,7 @@ function setup(withClipboard=true){
     module:undefined
   };
   vm.runInNewContext(fs.readFileSync(path.join(ui,"creative-ui-spec-engine.js"),"utf8"),ctx);
+  vm.runInNewContext(fs.readFileSync(path.join(ui,"design-quality-gates.js"),"utf8"),ctx);
   vm.runInNewContext(fs.readFileSync(path.join(ui,"creative-ui-preview.js"),"utf8"),ctx);
   return {els,clipboard,ctx};
 }
@@ -45,6 +47,8 @@ test("loads default local preview, desktop mode, and one-file source",()=>{
   assert.match(els["spec-export"].value,/<!doctype html>/);
   assert.match(els["spec-export"].value,/default-src 'none'/);
   assert.equal(els["spec-copy"].disabled,false);
+  assert.match(els["spec-quality-status"].textContent,/7\/7 contrast pair checks passed/);
+  assert.equal(els["spec-quality-list"].children.length,7);
 });
 test("live changes affect DOM preview and exported HTML with no interpretation",()=>{
   const {els}=setup();
