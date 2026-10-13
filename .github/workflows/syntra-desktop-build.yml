@@ -18,6 +18,7 @@ on:
       - feature/syntra-plugins-skills-directory-20261013
       - feature/syntra-creative-studio-workbench-20261013
       - feature/syntra-creative-live-preview-20261013
+      - feature/syntra-design-quality-gates-20261013
       - main
     paths:
       - 'apps/syntra-desktop/**'
