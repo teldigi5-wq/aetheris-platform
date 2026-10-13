@@ -34,6 +34,38 @@
     output.palette=input.palette;output.layout=input.layout;
     return Object.freeze(output);
   }
+  // Portable data-only handoff: no scripts, URLs, API permissions or persistence.
+  const SNAPSHOT_KIND="SYNTRA_STATIC_UI_CONCEPT";
+  const SNAPSHOT_MAX_CHARS=2048;
+  const SNAPSHOT_VERSION=1;
+  function snapshotJSON(spec){
+    const normalized=normalize(spec);
+    return JSON.stringify({
+      kind:SNAPSHOT_KIND,
+      schemaVersion:SNAPSHOT_VERSION,
+      spec:normalized
+    },null,2);
+  }
+  function parseSnapshotJSON(source){
+    if(typeof source!=="string")throw new TypeError("Snapshot must be text");
+    if(source.length===0||source.length>SNAPSHOT_MAX_CHARS)
+      throw new RangeError("Snapshot length must be between 1 and "+SNAPSHOT_MAX_CHARS+" characters");
+    const data=JSON.parse(source);
+    if(!data||typeof data!=="object"||Array.isArray(data))
+      throw new TypeError("Invalid concept snapshot");
+    const keys=Object.keys(data);
+    if(keys.length!==3||keys.some(key=>!["kind","schemaVersion","spec"].includes(key)))
+      throw new TypeError("Unexpected snapshot field");
+    if(data.kind!==SNAPSHOT_KIND||data.schemaVersion!==SNAPSHOT_VERSION)
+      throw new RangeError("Unknown concept snapshot version or kind");
+    if(!data.spec||typeof data.spec!=="object"||Array.isArray(data.spec))
+      throw new TypeError("Snapshot spec must be an object");
+    const required=[...Object.keys(LIMITS),"palette","layout"];
+    if(Object.keys(data.spec).length!==required.length)
+      throw new TypeError("Incomplete or extra design fields");
+    const value=normalize(data.spec);
+    return value;
+  }
   function escapeHTML(value){
     return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;")
       .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
@@ -72,7 +104,7 @@
       "</body></html>"
     ].join("\n");
   }
-  const api=Object.freeze({PALETTES,LAYOUTS,DEFAULTS,LIMITS,normalize,escapeHTML,documentHTML});
+  const api=Object.freeze({PALETTES,LAYOUTS,DEFAULTS,LIMITS,SNAPSHOT_KIND,SNAPSHOT_VERSION,SNAPSHOT_MAX_CHARS,normalize,snapshotJSON,parseSnapshotJSON,escapeHTML,documentHTML});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   else Object.defineProperty(root,"SyntraUiSpecEngine",{value:api,writable:false,configurable:false});
 })(typeof window!=="undefined"?window:{});
