@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/syntra-creative-live-preview-20261013
+      - feature/syntra-design-quality-gates-20261013
     paths:
       - 'apps/syntra-desktop/ui/**'
       - 'apps/syntra-desktop/design-quality.contract.json'
