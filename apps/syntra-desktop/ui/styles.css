@@ -65,3 +65,59 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .media-draft p { margin:8px 0; color:#adc6d7; font-size:13px; line-height:1.5; overflow-wrap:anywhere; white-space:pre-wrap; }
 .media-draft small { display:block; color:#6b8799; font-size:10px; }
 @media(max-width:900px) { .media-readiness,.media-form { grid-template-columns:1fr; } }
+
+
+/* Review-only extension browser. Catalog data is inert text, not executable markup. */
+.extension-directory { min-height:540px; max-width:1500px; }
+.extension-titlebar { gap:32px; align-items:flex-start; }
+.extension-titlebar .lead { max-width:720px; margin-bottom:8px; }
+.extension-hero-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:24px 0 16px; }
+.extension-hero-metrics div { padding:19px; border:1px solid rgba(120,185,225,.13); border-radius:15px; background:linear-gradient(145deg,rgba(36,89,123,.14),rgba(7,18,31,.66)); }
+.extension-hero-metrics strong { display:block; color:#edf9ff; font-size:29px; font-variant-numeric:tabular-nums; font-weight:750; line-height:1; }
+.extension-hero-metrics span { color:#8facbd; font-size:11px; display:block; margin-top:10px; }
+.extension-caution { margin:0 0 22px; padding:14px 16px; border-radius:13px; border:1px solid rgba(250,197,119,.18); background:rgba(247,188,85,.045); color:#c2b49d; font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
+.extension-caution strong { color:#f4d39f; }
+.extension-caution code { color:#eed19c; font-size:11px; }
+.extension-filterbar { display:grid; grid-template-columns:minmax(160px,1.7fr) minmax(130px,.85fr) minmax(140px,1fr) auto; gap:11px; align-items:end; padding:15px; border:1px solid rgba(113,186,220,.13); border-radius:15px; background:rgba(3,15,25,.57); margin-bottom:20px; }
+.extension-filterbar label { display:grid; gap:8px; font-size:11px; color:#93acbf; font-weight:600; min-width:0; }
+.extension-filterbar input,.extension-filterbar select { width:100%; min-width:0; min-height:42px; padding:10px 12px; border:1px solid rgba(121,196,229,.15); border-radius:10px; outline:none; background:#0b1923; color:#e7f2fa; font:inherit; font-size:12px; }
+.extension-filterbar input::placeholder { color:#536a7b; }
+.extension-filterbar input:focus-visible,.extension-filterbar select:focus-visible { outline:2px solid #66d8ff; outline-offset:2px; }
+.extension-filterbar > button { min-height:42px; white-space:nowrap; }
+.extension-grid { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(310px,.95fr); align-items:start; gap:16px; }
+.extension-results-heading { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:12px; margin:4px 0 14px; }
+.extension-results-heading h3 { font-size:16px; }
+.extension-results-heading output { color:#718b9f; font-size:11px; }
+.extension-list { display:grid; gap:10px; max-height:760px; overflow:auto; padding:2px 4px 3px 0; scrollbar-color:#24465c transparent; }
+.extension-result { padding:17px; border:1px solid rgba(116,187,229,.14); border-radius:15px; background:linear-gradient(130deg,rgba(13,31,44,.96),rgba(9,23,33,.76)); transition:transform .15s ease,border-color .15s ease; }
+.extension-result:hover { transform:translateY(-1px); border-color:rgba(98,195,239,.34); }
+.extension-result-top,.extension-result-bottom,.extension-review-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.extension-result h3 { color:#e9f8ff; font-size:16px; margin:13px 0 7px; }
+.extension-result p { color:#9bb2c3; font-size:12px; line-height:1.65; margin-bottom:12px; overflow-wrap:anywhere; }
+.extension-result-bottom { border-top:1px solid rgba(255,255,255,.06); padding-top:12px; }
+.extension-result-bottom span { color:#7092a7; font-size:11px; line-height:1.5; }
+.extension-result-bottom button { font-size:11px; padding:8px 12px; }
+.extension-tag { display:inline-flex; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:#9ee7e4; border:1px solid rgba(96,218,213,.2); padding:6px 8px; border-radius:6px; background:rgba(36,188,179,.06); }
+.extension-tag.is-muted { color:#91a7b9; border-color:rgba(145,169,188,.17); background:rgba(255,255,255,.025); }
+.extension-review { border:1px solid rgba(134,204,245,.15); border-radius:16px; padding:20px; background:linear-gradient(155deg,rgba(23,52,72,.72),rgba(5,17,27,.94) 60%); min-height:270px; position:sticky; top:18px; overflow-wrap:anywhere; }
+.extension-review h3 { font-size:20px; line-height:1.25; margin:0; }
+.extension-review-desc { color:#9ab1c4; font-size:12px; line-height:1.7; margin:16px 0; }
+.extension-trust-state { display:flex; flex-wrap:wrap; gap:7px; margin:14px 0; }
+.extension-metadata { display:grid; grid-template-columns:minmax(85px,.6fr) minmax(0,1.4fr); gap:8px 12px; padding:14px 0; border-top:1px solid rgba(255,255,255,.06); border-bottom:1px solid rgba(255,255,255,.06); margin:17px 0; font-size:11px; }
+.extension-metadata dt { color:#718fa3; }
+.extension-metadata dd { margin:0; color:#d8e7f4; }
+.extension-facts { margin-top:16px; }
+.extension-facts h4 { font-size:11px; text-transform:uppercase; color:#83cce3; letter-spacing:.07em; margin:0 0 8px; }
+.extension-facts ul { margin:0; padding-left:16px; display:grid; gap:6px; font-size:11px; color:#a9bfce; line-height:1.5; }
+.extension-source { display:grid; gap:8px; margin-top:22px; padding:12px; border-radius:12px; border:1px solid rgba(92,182,220,.12); background:rgba(4,17,27,.69); }
+.extension-source > span { font-size:11px; color:#93b1c6; }
+.extension-source code { font-size:10px; white-space:pre-wrap; overflow-wrap:anywhere; color:#bde5e7; }
+.extension-copy { justify-self:start; }
+.extension-review-warning { padding-top:12px; color:#c9b18a; font-size:11px; line-height:1.65; }
+.extension-save { margin-top:4px; }
+.extension-empty { min-height:160px; display:grid; place-items:center; text-align:center; color:#899eaf; font-size:12px; border:1px dashed rgba(145,169,188,.16); border-radius:13px; padding:22px; }
+.extension-live-status { margin:16px 0 0; min-height:14px; }
+@media(max-width:1400px) { .extension-filterbar { grid-template-columns:repeat(2,minmax(0,1fr)); } .extension-grid { grid-template-columns:minmax(0,1fr) minmax(285px,.9fr); } }
+@media(max-width:1150px) { .extension-grid { grid-template-columns:1fr; }.extension-review { position:static; }.extension-hero-metrics { grid-template-columns:repeat(2,1fr); } }
+@media(max-width:900px) { .extension-filterbar { grid-template-columns:1fr; }.extension-hero-metrics { gap:8px; }.extension-hero-metrics div { padding:14px; }.extension-hero-metrics strong { font-size:23px; } }
+@media(prefers-reduced-motion:reduce) { .extension-result { transition:none; } .extension-result:hover { transform:none; } }
