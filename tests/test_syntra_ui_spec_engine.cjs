@@ -87,7 +87,7 @@ test("snapshot parser fails closed for wrong versions, structure, colors and ove
     {...base,spec:{...base.spec,script:"alert(1)"}},
     {...base,spec:{...base.spec,palette:"https://bad.invalid"}},
     {...base,spec:{...base.spec,headline:""}},
-    {...base,spec:{...base.spec,headline:"X\\nScript"}},
+    {...base,spec:{...base.spec,headline:"X"+String.fromCharCode(10)+"Script"}},
     {...base,spec:[base.spec]},
     {...base,spec:{headline:base.spec.headline}},
     {...base,spec:null},
