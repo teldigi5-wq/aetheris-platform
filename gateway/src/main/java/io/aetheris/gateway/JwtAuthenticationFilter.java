@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -25,13 +26,31 @@ import java.util.Set;
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
+    public static final String DEFAULT_ISSUER = "aetheris-identity";
+    public static final String DEFAULT_AUDIENCE = "aetheris-api";
     private final SecretKey key;
+    private final String issuer;
+    private final String audience;
 
-    public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret) {
-        if (secret.length() < 32) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 characters");
+    @Autowired
+    public JwtAuthenticationFilter(
+            @Value("${aetheris.jwt.secret}") String secret,
+            @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
+            @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalArgumentException("JWT secret must be at least 32 bytes");
+        }
+        if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
+            throw new IllegalArgumentException("JWT issuer and audience must be configured");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.issuer = issuer;
+        this.audience = audience;
+    }
+
+    // Source-compatible deterministic constructor for existing gateway unit tests.
+    public JwtAuthenticationFilter(String secret) {
+        this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
     }
 
     @Override
@@ -49,18 +68,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         String token = authorization.substring(7).trim();
         try {
-            Claims claims = Jwts.parser()
+            var verified = Jwts.parser()
                     .verifyWith(key)
+                    .requireIssuer(issuer)
+                    .requireAudience(audience)
                     .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+                    .parseSignedClaims(token);
+            if (!"HS256".equals(verified.getHeader().getAlgorithm())) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid access token algorithm");
+            }
+            Claims claims = verified.getPayload();
 
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
             Object userId = claims.get("uid");
             Set<String> scopes = readScopes(claims.get("scopes"));
 
-            if (email == null || role == null) {
+            if (email == null || email.isBlank() || role == null ||
+                    !(userId instanceof Number accountId) || accountId.longValue() <= 0L) {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
             }
 
@@ -78,9 +103,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
                         headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
-                        if (userId != null) {
-                            headers.set("X-Aetheris-User-Id", String.valueOf(userId));
-                        }
+                        headers.set("X-Aetheris-User-Id", String.valueOf(((Number) userId).longValue()));
                     }))
                     .build();
 
