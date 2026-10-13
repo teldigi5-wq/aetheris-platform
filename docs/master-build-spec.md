@@ -181,6 +181,10 @@ Never train on secrets or data the owner lacks rights to use. No silent self-mod
 
 ## 11. Voice architecture
 
+> **2026-10-13 owner directive — voice + autonomy:** See [Syntra Voice and Autonomy](ai/syntra-voice-and-autonomy.md) for mandatory “Hi Sintra”/“Syntra” wake aliases, local opt-in voice, separate full-duplex speech and task-execution loops, supervised application control, sandboxed testing, owner-controlled private learning, secretary/companion/CEO-adviser roles, signed updates, resource limits and evidence-driven reliability. These are staged requirements, not claims that hardware speech or OS execution is presently enabled.
+
+
+
 Use replaceable local-first adapters for wake word, VAD, streaming STT, turn detection, interruption and streaming TTS. Partial transcripts should appear live. Raw microphone audio is not retained by default. TTS should begin from stable chunks when appropriate rather than waiting for the whole response.
 
 ## 12. Specialist organization
