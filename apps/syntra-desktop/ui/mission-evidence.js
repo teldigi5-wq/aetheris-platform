@@ -29,7 +29,9 @@
   function normalizedTime(value) {
     if (typeof value !== "string" || value.length > 40) return null;
     const match = ISO_INSTANT.exec(value);
-    if (!match || !Number.isFinite(Date.parse(match[1] + "Z"))) return null;
+    if (!match) return null;
+    const parsed = Date.parse(match[1] + "Z");
+    if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 19) !== match[1]) return null;
     const fraction = (match[2] || "").padEnd(9, "0");
     return match[1] + "." + fraction + "Z";
   }
