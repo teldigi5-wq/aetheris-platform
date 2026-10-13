@@ -210,6 +210,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .spec-source { display:block; line-height:1.5; resize:vertical; font:13px/1.6 ui-monospace,Consolas,monospace; white-space:pre; overflow:auto; min-height:135px; background:rgba(4,15,24,.8); }
 .spec-actions { display:flex; gap:10px; flex-wrap:wrap; margin:11px 0; }
 .spec-actions button { min-height:44px; }
+.spec-actions button:disabled { cursor:not-allowed; opacity:.46; }
+.spec-actions button:disabled:hover { border-color:rgba(137,194,235,.18); background:rgba(255,255,255,.025); }
 @media(max-width:900px) { .spec-studio { padding:15px; }.spec-stage { padding:10px; }.spec-controls { grid-template-columns:1fr; }.spec-stage-head { align-items:flex-start; } }
 @media(prefers-reduced-motion:reduce) { .spec-preview { transition:none; }.spec-viewport::after { transition:none; } }
 
