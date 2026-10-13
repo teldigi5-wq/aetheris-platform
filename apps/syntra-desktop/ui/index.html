@@ -130,6 +130,19 @@
                   </div>
                 </div>
                 <div class="spec-stage"><div id="spec-preview" aria-label="Live local design concept"></div></div>
+                <section class="spec-quality-panel" aria-labelledby="spec-quality-heading">
+                  <div class="spec-quality-top">
+                    <div><p class="eyebrow">AUTOMATED DESIGN CHECKS</p><h4 id="spec-quality-heading">Quality &amp; accessibility review</h4></div>
+                    <span class="pill neutral">NOT CERTIFIED</span>
+                  </div>
+                  <p id="spec-quality-status" class="spec-quality-status" role="status" aria-live="polite">Evaluating approved palette contrast locally…</p>
+                  <ul id="spec-quality-list" class="spec-quality-list" aria-label="Static palette color contrast results"></ul>
+                  <div class="spec-quality-advisory">
+                    <strong>Human QA is still mandatory</strong>
+                    <ul id="spec-quality-warnings" class="spec-quality-warnings"></ul>
+                    <p>Check real devices, 320px reflow, 200% zoom, keyboard focus, screen readers, motion preferences, target sizes, content truth and performance. This reports static color pairs only; it does not certify WCAG compliance.</p>
+                  </div>
+                </section>
                 <label class="spec-source-label" for="spec-export">Standalone HTML source · no scripts or external assets</label>
                 <textarea id="spec-export" class="spec-source" readonly spellcheck="false" aria-label="Generated one-file static HTML and CSS" rows="7"></textarea>
                 <div class="spec-actions"><button id="spec-copy" type="button" class="primary-button">Copy HTML</button><button id="spec-reset" type="button" class="ghost-button">Reset concept</button></div>
@@ -248,6 +261,7 @@
   <script src="./creative-catalog.js"></script>
   <script src="./creative-workbench.js"></script>
   <script src="./creative-ui-spec-engine.js"></script>
+  <script src="./design-quality-gates.js"></script>
   <script src="./creative-ui-preview.js"></script>
 </body>
 </html>
