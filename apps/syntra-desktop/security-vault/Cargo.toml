@@ -1,0 +1,13 @@
+[package]
+name = "syntra-credential-vault"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Isolated Windows Credential Manager backend for Syntra; no desktop activation"
+
+[dependencies]
+zeroize = "=1.8.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security_Credentials"] }
