@@ -36,7 +36,8 @@ class UiConceptBuilderContract(unittest.TestCase):
         for element_id in ("spec-eyebrow","spec-headline","spec-description","spec-action",
                            "spec-palette","spec-layout","spec-preview","spec-export",
                            "spec-device-desktop","spec-device-mobile","spec-copy","spec-reset",
-                           "spec-undo","spec-redo","spec-status"):
+                           "spec-undo","spec-redo","spec-status",
+                           "spec-snapshot-input","spec-snapshot-copy","spec-snapshot-import","spec-handoff-status"):
             self.assertIn(f'id="{element_id}"',self.html)
         self.assertIn('aria-pressed="true"',self.html)
         self.assertIn("Live UI concept builder",self.html)
@@ -64,6 +65,23 @@ class UiConceptBuilderContract(unittest.TestCase):
         self.assertIn('refs["spec-redo"].addEventListener("click"',self.js)
         self.assertIn(".spec-controls label { display:grid; align-content:start; gap:8px; font-size:14px;",self.styles)
         self.assertIn("font-size:16px; min-height:44px; line-height:1.45;",self.styles)
+
+    def test_snapshot_handoff_remains_manually_approved_and_inert(self):
+        c=self.contract
+        self.assertEqual(1,c["portableSnapshotSchemaVersion"])
+        self.assertEqual(2048,c["portableSnapshotMaxChars"])
+        self.assertIs(c["portableSnapshotManualTransferOnly"],True)
+        for name in ("snapshotNetworkSyncEnabled","snapshotScriptExecutionEnabled","snapshotPersistenceEnabled"):
+            self.assertIs(c[name],False,name)
+        self.assertIn('maxlength="2048"',self.html)
+        self.assertIn('type="button" class="ghost-button">Copy concept JSON',self.html)
+        self.assertIn('type="button" class="ghost-button">Import pasted JSON',self.html)
+        self.assertIn('engine.parseSnapshotJSON(refs["spec-snapshot-input"].value)',self.js)
+        self.assertIn('engine.snapshotJSON(candidate)',self.js)
+        self.assertIn('snapshotJSON,parseSnapshotJSON',self.compiler)
+        self.assertIn("SNAPSHOT_MAX_CHARS=2048",self.compiler)
+        self.assertIn("Object.keys(data.spec).length!==required.length",self.compiler)
+        self.assertIn("clipboard.writeText(text)",self.js)
 
     def test_preview_never_executes_or_stores_user_content(self):
         for source in (self.js,self.compiler,self.quality):

@@ -6,6 +6,7 @@ on:
       - main
       - feature/syntra-creative-live-preview-20261013
       - feature/syntra-design-quality-gates-20261013
+      - feature/syntra-creative-ergonomics-20261013
     paths:
       - 'apps/syntra-desktop/ui/**'
       - 'apps/syntra-desktop/design-quality.contract.json'
@@ -13,6 +14,7 @@ on:
       - 'tests/test_syntra_design_quality.cjs'
       - 'tests/test_wayfarer_palette_reference.cjs'
       - 'tests/test_syntra_ui_preview.cjs'
+      - 'tests/test_syntra_ui_spec_engine.cjs'
       - 'tests/test_syntra_ui_spec_contract.py'
       - '.github/workflows/syntra-design-quality.yml'
 

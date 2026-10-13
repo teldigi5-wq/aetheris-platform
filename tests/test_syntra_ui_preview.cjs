@@ -25,7 +25,8 @@ class MockNode {
 }
 const names=["spec-eyebrow","spec-headline","spec-description","spec-action","spec-palette","spec-layout",
 "spec-preview","spec-export","spec-status","spec-copy","spec-reset","spec-device-desktop","spec-device-mobile",
-"spec-quality-status","spec-quality-list","spec-quality-warnings","spec-undo","spec-redo"];
+"spec-quality-status","spec-quality-list","spec-quality-warnings","spec-undo","spec-redo",
+"spec-snapshot-input","spec-snapshot-copy","spec-snapshot-import","spec-handoff-status"];
 function setup(withClipboard=true){
   const els=Object.fromEntries(names.map(id=>[id,new MockNode(id)]));
   const clipboard={calls:[],async writeText(s){this.calls.push(s);}};
@@ -163,4 +164,66 @@ test("Reset is reversible for a valid edited concept",()=>{
   els["spec-undo"].trigger("click");
   assert.equal(els["spec-headline"].value,"Save the design locally");
   assert.match(els["spec-preview"].textContent,/Save the design locally/);
+});
+
+test("copying portable concept JSON requires a click and can be imported without services",async()=>{
+  const {els,clipboard,ctx}=setup();
+  assert.equal(clipboard.calls.length,0);
+  els["spec-headline"].value="A considered editorial design";
+  els["spec-headline"].trigger("change");
+  await els["spec-snapshot-copy"].trigger("click");
+  assert.equal(clipboard.calls.length,1);
+  const json=clipboard.calls[0];
+  assert.equal(JSON.parse(json).schemaVersion,1);
+  assert.match(json,/A considered editorial design/);
+  assert.equal(els["spec-snapshot-input"].value,json);
+  els["spec-reset"].trigger("click");
+  els["spec-snapshot-import"].trigger("click");
+  assert.equal(els["spec-headline"].value,"A considered editorial design");
+  assert.match(els["spec-export"].value,/A considered editorial design/);
+  assert.match(els["spec-handoff-status"].textContent,/imported locally/);
+  els["spec-undo"].trigger("click");
+  assert.equal(els["spec-headline"].value,"Build something worth remembering.");
+  assert.equal(ctx.window.SyntraUiSpecEngine.SNAPSHOT_VERSION,1);
+});
+
+test("malformed and unsupported snapshots are rejected without changing editor or history",()=>{
+  const {els,ctx}=setup();
+  const before=els["spec-export"].value;
+  const samples=["{not valid",JSON.stringify({schemaVersion:2,kind:"SYNTRA_STATIC_UI_CONCEPT",spec:ctx.window.SyntraUiSpecEngine.DEFAULTS}),"x".repeat(2049)];
+  for(const sample of samples){
+    els["spec-snapshot-input"].value=sample;
+    els["spec-snapshot-import"].trigger("click");
+    assert.equal(els["spec-export"].value,before);
+    assert.equal(els["spec-undo"].disabled,true);
+    assert.match(els["spec-handoff-status"].textContent,/Import rejected/);
+  }
+});
+
+test("snapshot copy refuses invalid live fields and does not reveal stale JSON",async()=>{
+  const {els,clipboard}=setup();
+  els["spec-action"].value="";
+  els["spec-action"].trigger("input");
+  assert.equal(els["spec-snapshot-copy"].disabled,true);
+  await els["spec-snapshot-copy"].trigger("click");
+  assert.equal(clipboard.calls.length,0);
+  assert.match(els["spec-handoff-status"].textContent,/Cannot copy/);
+});
+
+test("clipboard errors select JSON for manual copying without storage",async()=>{
+  const {els}=setup(false);
+  await els["spec-snapshot-copy"].trigger("click");
+  assert.equal(els["spec-snapshot-input"].focused,true);
+  assert.equal(els["spec-snapshot-input"].selected,true);
+  assert.match(els["spec-handoff-status"].textContent,/manual copy/);
+});
+
+test("imported malicious text remains inert in generated HTML",()=>{
+  const {els,ctx}=setup();
+  const payload={...ctx.window.SyntraUiSpecEngine.DEFAULTS,headline:'<svg onload="alert(1)">'};
+  els["spec-snapshot-input"].value=ctx.window.SyntraUiSpecEngine.snapshotJSON(payload);
+  els["spec-snapshot-import"].trigger("click");
+  assert.match(els["spec-preview"].textContent,/<svg onload=/);
+  assert.match(els["spec-export"].value,/&lt;svg onload=/);
+  assert.doesNotMatch(els["spec-export"].value,/<svg\\b/);
 });

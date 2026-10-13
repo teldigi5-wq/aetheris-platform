@@ -6,14 +6,16 @@
   const ids=["spec-eyebrow","spec-headline","spec-description","spec-action","spec-palette",
     "spec-layout","spec-preview","spec-export","spec-status","spec-copy",
     "spec-reset","spec-undo","spec-redo","spec-device-desktop","spec-device-mobile",
-    "spec-quality-status","spec-quality-list","spec-quality-warnings"];
+    "spec-quality-status","spec-quality-list","spec-quality-warnings",
+    "spec-snapshot-input","spec-snapshot-copy","spec-snapshot-import","spec-handoff-status"];
   const refs=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
   if(ids.some(id=>!refs[id]))return;
   const unavailable=(message)=>{
     refs["spec-status"].textContent=message;
-    for(const id of ["spec-copy","spec-reset","spec-undo","spec-redo","spec-device-desktop","spec-device-mobile"])refs[id].disabled=true;
+    for(const id of ["spec-copy","spec-reset","spec-undo","spec-redo","spec-device-desktop","spec-device-mobile","spec-snapshot-copy","spec-snapshot-import"])refs[id].disabled=true;
   };
   if(!engine||typeof engine.documentHTML!=="function"||typeof engine.normalize!=="function"
+     ||typeof engine.snapshotJSON!=="function"||typeof engine.parseSnapshotJSON!=="function"
      ||!quality||typeof quality.audit!=="function"){
     unavailable("Offline compiler unavailable. No code generated.");
     return;
@@ -107,6 +109,7 @@
       refs["spec-quality-status"].textContent="The static audit cannot evaluate invalid inputs.";
       refs["spec-export"].value="";
       refs["spec-copy"].disabled=true;
+      refs["spec-snapshot-copy"].disabled=true;
       refs["spec-status"].textContent="Invalid fields. The preview and export have been cleared; nothing executed.";
       return;
     }
@@ -115,6 +118,7 @@
       wipe(refs["spec-preview"]);
       refs["spec-export"].value="";
       refs["spec-copy"].disabled=true;
+      refs["spec-snapshot-copy"].disabled=true;
       refs["spec-status"].textContent="Static contrast gate blocked HTML export. Review the palette and try a compliant preset.";
       return;
     }
@@ -139,6 +143,7 @@
     root.append(viewport);
     refs["spec-export"].value=code;
     refs["spec-copy"].disabled=false;
+    refs["spec-snapshot-copy"].disabled=false;
     refs["spec-status"].textContent="Live local preview updated. Source is available below; no app, site or AI model was run.";
   }
   function updateDevice(next){
@@ -199,6 +204,42 @@
       refs["spec-export"].select();
       refs["spec-status"].textContent="Clipboard unavailable. Source selected for manual copy; no files or network changed.";
     }
+  });
+  refs["spec-snapshot-copy"].addEventListener("click",async()=>{
+    let text;
+    try{
+      const candidate=engine.normalize(read());
+      if(quality.audit(candidate,engine).blockingChecks!==0)throw new Error("contrast-failure");
+      text=engine.snapshotJSON(candidate);
+    }catch(_){
+      refs["spec-handoff-status"].textContent="Cannot copy: fix invalid fields or blocked static contrast checks first.";
+      return;
+    }
+    refs["spec-snapshot-input"].value=text;
+    try{
+      if(!navigator.clipboard||typeof navigator.clipboard.writeText!=="function")throw new Error("clipboard-unavailable");
+      await navigator.clipboard.writeText(text);
+      refs["spec-handoff-status"].textContent="Version 1 concept JSON copied by request. Nothing was saved, sent or published.";
+    }catch(_){
+      refs["spec-snapshot-input"].focus();
+      refs["spec-snapshot-input"].select();
+      refs["spec-handoff-status"].textContent="Clipboard unavailable. Concept JSON selected for manual copy; nothing was sent.";
+    }
+  });
+  refs["spec-snapshot-import"].addEventListener("click",()=>{
+    let incoming;
+    try{
+      incoming=engine.parseSnapshotJSON(refs["spec-snapshot-input"].value);
+      if(quality.audit(incoming,engine).blockingChecks!==0)throw new Error("contrast-failure");
+    }catch(_){
+      refs["spec-handoff-status"].textContent="Import rejected: invalid, oversized, unsupported or noncompliant concept JSON. Current design unchanged.";
+      return;
+    }
+    // The only mutation is to the in-memory validated editor. No file/asset/script import.
+    commit(read());
+    commit(incoming);
+    restore(incoming,"Validated offline concept imported. Preview and static HTML regenerated locally.");
+    refs["spec-handoff-status"].textContent="Version 1 concept imported locally. Undo can restore the preceding valid concept.";
   });
   updateDevice("desktop");
   updateHistory();

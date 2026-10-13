@@ -61,3 +61,57 @@ test("source compilation deterministic and does not mutate input",()=>{
   assert.equal(JSON.stringify(input),snapshot);
   assert.ok(a.length>1700 && a.length<12000);
 });
+
+
+test("version 1 portable concept snapshot has deterministic validated round trip",()=>{
+  const original={...engine.DEFAULTS,headline:"An editorial experience",palette:"ivory",layout:"centered"};
+  const before=JSON.stringify(original);
+  const json=engine.snapshotJSON(original);
+  const wrapped=JSON.parse(json);
+  assert.deepEqual(Object.keys(wrapped),["kind","schemaVersion","spec"]);
+  assert.equal(wrapped.kind,"SYNTRA_STATIC_UI_CONCEPT");
+  assert.equal(wrapped.schemaVersion,1);
+  assert.deepEqual(engine.parseSnapshotJSON(json),engine.normalize(original));
+  assert.equal(engine.snapshotJSON(engine.parseSnapshotJSON(json)),json);
+  assert.equal(JSON.stringify(original),before);
+  assert.ok(Object.isFrozen(engine.parseSnapshotJSON(json)));
+  assert.ok(json.length<engine.SNAPSHOT_MAX_CHARS);
+});
+
+test("snapshot parser fails closed for wrong versions, structure, colors and oversized sources",()=>{
+  const base=JSON.parse(engine.snapshotJSON(engine.DEFAULTS));
+  const bad=[
+    {...base,kind:"OTHER"},
+    {...base,schemaVersion:2},
+    {...base,extra:"script"},
+    {...base,spec:{...base.spec,script:"alert(1)"}},
+    {...base,spec:{...base.spec,palette:"https://bad.invalid"}},
+    {...base,spec:{...base.spec,headline:""}},
+    {...base,spec:{...base.spec,headline:"X"+String.fromCharCode(10)+"Script"}},
+    {...base,spec:[base.spec]},
+    {...base,spec:{headline:base.spec.headline}},
+    {...base,spec:null},
+    [],
+    null
+  ];
+  for(const sample of bad) assert.throws(()=>engine.parseSnapshotJSON(JSON.stringify(sample)));
+  for(const text of ["", "{broken", "null", "[]", "not json", " ".repeat(2049)]){
+    assert.throws(()=>engine.parseSnapshotJSON(text));
+  }
+  assert.throws(()=>engine.parseSnapshotJSON({kind:"object"}),TypeError);
+  assert.throws(()=>engine.parseSnapshotJSON(JSON.stringify({__proto__:null,kind:base.kind,schemaVersion:1,spec:base.spec,other:1})),TypeError);
+});
+
+test("imported attacker-controlled text stays inert after safe re-export",()=>{
+  const value={...engine.DEFAULTS,headline:'<svg onload="alert(1)">',description:"<script>bad()</script>"};
+  const portable=engine.snapshotJSON(value);
+  const parsed=engine.parseSnapshotJSON(portable);
+  const html=engine.documentHTML(parsed);
+  assert.match(html,/&lt;svg onload=/);
+  assert.match(html,/&lt;script&gt;bad\(\)&lt;\/script&gt;/);
+  assert.doesNotMatch(html,/<svg\b|<script\b/i);
+  const original=JSON.parse(portable);
+  original.spec["__proto__"]="bad";
+  original.spec.constructor="bad";
+  assert.throws(()=>engine.parseSnapshotJSON(JSON.stringify(original)),TypeError);
+});
