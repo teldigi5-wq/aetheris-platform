@@ -19,6 +19,7 @@
         <button class="nav-item" data-section="devices">Devices <kbd>Ctrl+5</kbd></button>
         <button class="nav-item" data-section="approvals">Approvals <kbd>Ctrl+6</kbd></button>
         <button class="nav-item" data-section="media">Media Studio <kbd>Ctrl+9</kbd></button>
+        <button class="nav-item" data-section="plugins">Plugins &amp; Skills <kbd>Ctrl+0</kbd></button>
         <button class="nav-item" data-section="settings">Settings <kbd>Ctrl+7</kbd></button>
         <button class="nav-item" data-section="diagnostics">Diagnostics <kbd>Ctrl+8</kbd></button>
       </nav>
@@ -61,6 +62,54 @@
       <section class="view" data-view="approvals" hidden><article class="card full-card"><div class="card-header"><div><p class="eyebrow">APPROVALS</p><h2>Owner-controlled execution boundary</h2></div><span class="pill neutral">0 PENDING</span></div><div class="empty-state"><div class="orb" aria-hidden="true"></div><p>No pending approval requests.</p><span>Approve/reject controls will only become active with a verified authenticated backend approval contract.</span></div></article></section>
 
 
+      <section class="view" data-view="plugins" hidden aria-labelledby="extensions-main-title">
+        <article class="card full-card extension-directory">
+          <div class="card-header extension-titlebar">
+            <div>
+              <p class="eyebrow">AETHERIS EXTENSION INTELLIGENCE · LOCAL SNAPSHOT</p>
+              <h2 id="extensions-main-title">Discover capabilities. Keep control.</h2>
+              <p class="lead">Explore curated GitHub projects, Agent Skills and global directories. Inspect proposed permissions and license questions before considering anything for Aetheris.</p>
+            </div>
+            <span class="pill pending">REVIEW ONLY</span>
+          </div>
+          <div class="extension-hero-metrics" aria-label="Catalog facts">
+            <div><strong>14</strong><span>GitHub candidates</span></div>
+            <div><strong>5</strong><span>Read-only skill templates</span></div>
+            <div><strong>6</strong><span>Discovery directories</span></div>
+            <div><strong>0</strong><span>Installed / enabled</span></div>
+          </div>
+          <p class="extension-caution" role="note"><strong>Security boundary:</strong> This is a packaged, offline research snapshot from an unmerged runtime PR, not a live marketplace. No plugins, models, credentials, tool grants, downloads or generation operations are enabled. Hardware certification remains <code>BLOCKED_PENDING_HARDWARE</code>.</p>
+          <div class="extension-filterbar">
+            <label class="extension-search-label" for="extension-search">Search capabilities
+              <input id="extension-search" type="search" maxlength="120" placeholder="Search GitHub, browsers, LLMs, speech, memory…" autocomplete="off" spellcheck="false" />
+            </label>
+            <label for="extension-kind">Source type
+              <select id="extension-kind">
+                <option value="all">All sources</option>
+                <option value="repository">GitHub projects</option>
+                <option value="skill">Agent Skills</option>
+                <option value="directory">Directories</option>
+              </select>
+            </label>
+            <label for="extension-category">Capability
+              <select id="extension-category"><option value="all">All capabilities</option></select>
+            </label>
+            <button id="extension-clear" type="button" class="ghost-button">Reset filters</button>
+          </div>
+          <div class="extension-grid">
+            <div class="extension-results">
+              <div class="extension-results-heading"><h3>Catalog</h3><output id="extension-results-count" aria-live="polite">Loading local snapshot…</output></div>
+              <div id="extension-list" class="extension-list" aria-label="Uninstalled extension candidates"></div>
+            </div>
+            <aside id="extension-review" class="extension-review" aria-label="Selected source capability and permissions review">
+              <h3>Review a candidate</h3>
+              <p class="extension-review-desc">Select an entry to inspect its possible capabilities, proposed permissions, source, and review requirements. Inspection does not grant any permission.</p>
+            </aside>
+          </div>
+          <p id="extension-live-status" class="microcopy extension-live-status" role="status" aria-live="polite">No installations, runtime calls, or background registry updates are supported here.</p>
+        </article>
+      </section>
+
       <section class="view" data-view="media" hidden>
         <article class="card full-card media-card">
           <div class="card-header"><div><p class="eyebrow">MEDIA STUDIO · DEVELOPMENT PREVIEW</p><h2>Local creative workspace</h2></div><span class="pill pending">GENERATION NOT WIRED</span></div>
@@ -102,6 +151,8 @@
       <footer class="app-footer"><span>Syntra Desktop v0.4 diagnostics & recovery</span><span>Gateway contract: <code>/api/orchestrator</code></span><span>Runtime health: <code>127.0.0.1:8090/actuator/health</code></span><span>Installer: unsigned NSIS development artifact</span></footer>
     </main>
   </div>
+  <script src="./plugins-catalog.js"></script>
   <script src="./app.js"></script>
+  <script src="./plugins-directory.js"></script>
 </body>
 </html>
