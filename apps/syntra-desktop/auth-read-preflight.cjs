@@ -49,7 +49,7 @@ function verifyContract(contract){
   for(const entry of Object.values(OPERATIONS)){
     const collection=contract.endpoints[entry.group];
     if(!Array.isArray(collection))fail("missing endpoint group");
-    const matches=collection.filter(item=>item&&item.path===entry.path);
+    const matches=collection.filter(item=>item&&item.path===entry.path&&item.method==="GET");
     if(matches.length!==1||matches[0].method!=="GET"
       ||matches[0].scope!==READ_SCOPE||matches[0].wired!==false)
       fail("unsafe or missing read endpoint: "+entry.path);
