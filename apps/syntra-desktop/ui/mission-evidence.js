@@ -16,7 +16,20 @@
     "VERIFYING", "PAUSED", "ROLLING_BACK",
     "COMPLETED", "FAILED", "CANCELLED"
   ]);
-  const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+  // Reflect TaskService.allowedTransitions(): FAILED may still roll back.
+  const TERMINAL = new Set(["COMPLETED", "CANCELLED"]);
+  const NEXT_STATES = Object.freeze({
+    QUEUED: ["PLANNING", "CANCELLED"],
+    PLANNING: ["AWAITING_APPROVAL", "RUNNING", "FAILED", "CANCELLED"],
+    AWAITING_APPROVAL: ["RUNNING", "FAILED", "CANCELLED"],
+    RUNNING: ["AWAITING_APPROVAL", "PAUSED", "VERIFYING", "FAILED", "CANCELLED", "ROLLING_BACK"],
+    VERIFYING: ["COMPLETED", "FAILED", "CANCELLED", "ROLLING_BACK"],
+    PAUSED: ["RUNNING", "CANCELLED", "ROLLING_BACK"],
+    ROLLING_BACK: ["FAILED", "CANCELLED"],
+    FAILED: ["ROLLING_BACK"],
+    COMPLETED: [],
+    CANCELLED: []
+  });
   const MAX_TASKS = 48;
   const MAX_RECENT = 96;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -75,6 +88,11 @@
     const original = snapshot.tasks.find(t => t.taskId === clean.taskId);
     if (original && (clean.timeKey <= original.timeKey || TERMINAL.has(original.state)))
       return snapshot;
+    // The runtime journals repeat the *current* state for real progress events,
+    // even when there is no state transition; those remain eligible.
+    // A backwards or impossible transition is never promoted by an untrusted file.
+    if (original && original.state !== clean.state &&
+        !NEXT_STATES[original.state].includes(clean.state)) return snapshot;
     const next = Object.freeze({
       taskId: clean.taskId, state: clean.state, agentId: clean.agentId,
       updatedAt: clean.timestamp, timeKey: clean.timeKey
