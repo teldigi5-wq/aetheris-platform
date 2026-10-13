@@ -51,7 +51,7 @@ test("render 25 catalog entries and zero installed", () => {
   const { nodes } = createEnvironment();
   assert.equal(nodes["extension-list"].children.length, 25);
   assert.match(nodes["extension-results-count"].textContent, /25 of 25 reference entries.*0 installed/);
-  assert.equal(nodes["extension-kind"].handlers.input instanceof Function, true);
+  assert.equal(typeof nodes["extension-kind"].handlers.input, "function");
 });
 
 test("filters: five skill templates, two local-memory projects, reset to all", () => {
