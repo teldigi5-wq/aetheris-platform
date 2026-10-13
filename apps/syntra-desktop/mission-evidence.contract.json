@@ -1,0 +1,44 @@
+{
+  "name": "Syntra Offline Mission Evidence Inspector",
+  "schemaVersion": 1,
+  "status": "OFFLINE_IMPORT_UNVERIFIED_NOT_CONNECTED",
+  "sourceRepository": "teldigi5-wq/aetheris-ai-runtime",
+  "sourceCommit": "65a6262717adcd52ac8d8a16ed6f223e299fd74d",
+  "sourceFiles": [
+    "orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskEvent.java",
+    "orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskState.java",
+    "orchestrator-service/src/main/java/io/aetheris/orchestrator/task/TaskEventStreamService.java"
+  ],
+  "eventFields": [
+    "taskId",
+    "timestamp",
+    "state",
+    "agentId",
+    "message",
+    "metadata"
+  ],
+  "displayedFields": [
+    "taskId",
+    "timestamp",
+    "state",
+    "agentId"
+  ],
+  "discardedFields": [
+    "message",
+    "metadata"
+  ],
+  "streamRoute": "GET /api/orchestrator/live/events",
+  "streamEventName": "task-event",
+  "nativeAuthenticatedStreamConnected": false,
+  "backendWiringAllowed": false,
+  "ownerPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "liveTaskExecutionClaimed": false,
+  "eventsAreAuthenticated": false,
+  "fileSelectionRequired": true,
+  "maxImportBytes": 262144,
+  "maxImportEvents": 500,
+  "maxTasks": 48,
+  "maxRecentEvents": 96,
+  "noNetwork": true,
+  "noSecretStorage": true
+}
