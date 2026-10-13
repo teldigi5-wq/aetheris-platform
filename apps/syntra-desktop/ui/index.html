@@ -145,7 +145,8 @@
                 </section>
                 <label class="spec-source-label" for="spec-export">Standalone HTML source · no scripts or external assets</label>
                 <textarea id="spec-export" class="spec-source" readonly spellcheck="false" aria-label="Generated one-file static HTML and CSS" rows="7"></textarea>
-                <div class="spec-actions"><button id="spec-copy" type="button" class="primary-button">Copy HTML</button><button id="spec-reset" type="button" class="ghost-button">Reset concept</button></div>
+                <div class="spec-actions"><button id="spec-undo" type="button" class="ghost-button" disabled>Undo</button><button id="spec-redo" type="button" class="ghost-button" disabled>Redo</button><button id="spec-copy" type="button" class="primary-button">Copy HTML</button><button id="spec-reset" type="button" class="ghost-button">Reset concept</button></div>
+                <p class="microcopy">Up to 24 local edits can be restored in this session. Text field edits are recorded when you leave the field. No automatic saving, execution or publishing.</p>
                 <p class="microcopy" id="spec-status" role="status" aria-live="polite">Safe local concept generator loading. No code executed.</p>
               </section>
             </div>

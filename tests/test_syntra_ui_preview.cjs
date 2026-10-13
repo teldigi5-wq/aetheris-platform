@@ -25,7 +25,7 @@ class MockNode {
 }
 const names=["spec-eyebrow","spec-headline","spec-description","spec-action","spec-palette","spec-layout",
 "spec-preview","spec-export","spec-status","spec-copy","spec-reset","spec-device-desktop","spec-device-mobile",
-"spec-quality-status","spec-quality-list","spec-quality-warnings"];
+"spec-quality-status","spec-quality-list","spec-quality-warnings","spec-undo","spec-redo"];
 function setup(withClipboard=true){
   const els=Object.fromEntries(names.map(id=>[id,new MockNode(id)]));
   const clipboard={calls:[],async writeText(s){this.calls.push(s);}};
@@ -103,4 +103,64 @@ test("unavailable clipboard selects code for manual copy without external reques
   assert.equal(els["spec-export"].focused,true);
   assert.equal(els["spec-export"].selected,true);
   assert.match(els["spec-status"].textContent,/manual copy/);
+});
+
+test("Undo and Redo track committed local edits without networking or storage",()=>{
+  const {els}=setup();
+  assert.equal(els["spec-undo"].disabled,true);
+  assert.equal(els["spec-redo"].disabled,true);
+  els["spec-headline"].value="A purposeful design";
+  els["spec-headline"].trigger("input");
+  assert.equal(els["spec-undo"].disabled,false);
+  assert.equal(els["spec-redo"].disabled,true);
+  els["spec-headline"].trigger("change");
+  els["spec-undo"].trigger("click");
+  assert.equal(els["spec-headline"].value,"Build something worth remembering.");
+  assert.equal(els["spec-redo"].disabled,false);
+  assert.match(els["spec-export"].value,/Build something worth remembering/);
+  els["spec-redo"].trigger("click");
+  assert.equal(els["spec-headline"].value,"A purposeful design");
+  assert.match(els["spec-export"].value,/A purposeful design/);
+  assert.equal(els["spec-redo"].disabled,true);
+});
+
+test("a new committed edit invalidates the redo branch",()=>{
+  const {els}=setup();
+  els["spec-headline"].value="Original edit";
+  els["spec-headline"].trigger("change");
+  els["spec-undo"].trigger("click");
+  assert.equal(els["spec-redo"].disabled,false);
+  els["spec-headline"].value="Different direction";
+  els["spec-headline"].trigger("input");
+  assert.equal(els["spec-redo"].disabled,true);
+  els["spec-headline"].trigger("change");
+  assert.equal(els["spec-redo"].disabled,true);
+  els["spec-redo"].trigger("click");
+  assert.equal(els["spec-headline"].value,"Different direction");
+});
+
+test("Undo discards uncommitted invalid content without retaining unsafe export",()=>{
+  const {els}=setup();
+  els["spec-action"].value=" ";
+  els["spec-action"].trigger("input");
+  assert.equal(els["spec-export"].value,"");
+  assert.equal(els["spec-copy"].disabled,true);
+  assert.equal(els["spec-undo"].disabled,false);
+  els["spec-undo"].trigger("click");
+  assert.equal(els["spec-action"].value,"Explore the experience");
+  assert.match(els["spec-export"].value,/Explore the experience/);
+  assert.equal(els["spec-copy"].disabled,false);
+  assert.match(els["spec-status"].textContent,/Uncommitted local edits reverted/);
+});
+
+test("Reset is reversible for a valid edited concept",()=>{
+  const {els}=setup();
+  els["spec-headline"].value="Save the design locally";
+  els["spec-headline"].trigger("change");
+  els["spec-reset"].trigger("click");
+  assert.equal(els["spec-headline"].value,"Build something worth remembering.");
+  assert.equal(els["spec-undo"].disabled,false);
+  els["spec-undo"].trigger("click");
+  assert.equal(els["spec-headline"].value,"Save the design locally");
+  assert.match(els["spec-preview"].textContent,/Save the design locally/);
 });

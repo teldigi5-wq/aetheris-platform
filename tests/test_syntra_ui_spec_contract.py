@@ -35,7 +35,8 @@ class UiConceptBuilderContract(unittest.TestCase):
     def test_user_controls_and_semantics(self):
         for element_id in ("spec-eyebrow","spec-headline","spec-description","spec-action",
                            "spec-palette","spec-layout","spec-preview","spec-export",
-                           "spec-device-desktop","spec-device-mobile","spec-copy","spec-reset","spec-status"):
+                           "spec-device-desktop","spec-device-mobile","spec-copy","spec-reset",
+                           "spec-undo","spec-redo","spec-status"):
             self.assertIn(f'id="{element_id}"',self.html)
         self.assertIn('aria-pressed="true"',self.html)
         self.assertIn("Live UI concept builder",self.html)
@@ -55,6 +56,14 @@ class UiConceptBuilderContract(unittest.TestCase):
         self.assertIn("NOT CERTIFIED",self.html)
         self.assertIn("Human QA is still mandatory",self.html)
 
+
+
+    def test_design_history_does_not_persist_and_editor_copy_is_legible(self):
+        self.assertIn("HISTORY_LIMIT=24",self.js)
+        self.assertIn('refs["spec-undo"].addEventListener("click"',self.js)
+        self.assertIn('refs["spec-redo"].addEventListener("click"',self.js)
+        self.assertIn(".spec-controls label { display:grid; align-content:start; gap:8px; font-size:14px;",self.styles)
+        self.assertIn("font-size:16px; min-height:44px; line-height:1.45;",self.styles)
 
     def test_preview_never_executes_or_stores_user_content(self):
         for source in (self.js,self.compiler,self.quality):

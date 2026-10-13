@@ -5,13 +5,13 @@
   const quality=window.SyntraDesignQuality;
   const ids=["spec-eyebrow","spec-headline","spec-description","spec-action","spec-palette",
     "spec-layout","spec-preview","spec-export","spec-status","spec-copy",
-    "spec-reset","spec-device-desktop","spec-device-mobile",
+    "spec-reset","spec-undo","spec-redo","spec-device-desktop","spec-device-mobile",
     "spec-quality-status","spec-quality-list","spec-quality-warnings"];
   const refs=Object.fromEntries(ids.map(id=>[id,document.getElementById(id)]));
   if(ids.some(id=>!refs[id]))return;
   const unavailable=(message)=>{
     refs["spec-status"].textContent=message;
-    for(const id of ["spec-copy","spec-reset","spec-device-desktop","spec-device-mobile"])refs[id].disabled=true;
+    for(const id of ["spec-copy","spec-reset","spec-undo","spec-redo","spec-device-desktop","spec-device-mobile"])refs[id].disabled=true;
   };
   if(!engine||typeof engine.documentHTML!=="function"||typeof engine.normalize!=="function"
      ||!quality||typeof quality.audit!=="function"){
@@ -39,6 +39,42 @@
     description:refs["spec-description"].value,action:refs["spec-action"].value,
     palette:refs["spec-palette"].value,layout:refs["spec-layout"].value
   });
+  // Bounded, session-only history. Text edits become history entries on blur/change;
+  // live input stays immediately previewable, and uncommitted edits can be reverted.
+  const FIELDS=["eyebrow","headline","description","action","palette","layout"];
+  const past=[],future=[];
+  const HISTORY_LIMIT=24;
+  let committed=engine.normalize(D);
+  const equal=(a,b)=>FIELDS.every(field=>a[field]===b[field]);
+  function isDirty(){
+    // Normalization trims ordinary incidental whitespace; invalid input stays dirty
+    // so Undo remains available to recover a safe committed snapshot.
+    try{return !equal(engine.normalize(read()),committed);}
+    catch(_){return FIELDS.some(field=>refs["spec-"+field].value!==committed[field]);}
+  }
+  function updateHistory(){
+    const dirty=isDirty();
+    refs["spec-undo"].disabled=!dirty&&past.length===0;
+    refs["spec-redo"].disabled=dirty||future.length===0;
+  }
+  function commit(value){
+    let next;
+    try{next=engine.normalize(value);}catch(_){updateHistory();return false;}
+    if(!equal(next,committed)){
+      past.push(committed);
+      if(past.length>HISTORY_LIMIT)past.shift();
+      committed=next;
+      future.length=0;
+    }
+    updateHistory();
+    return true;
+  }
+  function restore(spec,notice){
+    for(const field of FIELDS)refs["spec-"+field].value=spec[field];
+    render();
+    updateHistory();
+    refs["spec-status"].textContent=notice;
+  }
   function renderQuality(result){
     const summary=refs["spec-quality-status"];
     const out=refs["spec-quality-list"];
@@ -112,14 +148,41 @@
     refs["spec-device-mobile"].setAttribute("aria-pressed",String(next==="mobile"));
     render();
   }
-  for(const field of ["eyebrow","headline","description","action","palette","layout"])
-    refs["spec-"+field].addEventListener(field==="palette"||field==="layout"?"change":"input",render);
+  for(const field of FIELDS){
+    const control=refs["spec-"+field];
+    if(field==="palette"||field==="layout"){
+      control.addEventListener("change",()=>{render();commit(read());});
+    }else{
+      control.addEventListener("input",()=>{render();updateHistory();});
+      control.addEventListener("change",()=>{render();commit(read());});
+    }
+  }
   refs["spec-device-desktop"].addEventListener("click",()=>updateDevice("desktop"));
   refs["spec-device-mobile"].addEventListener("click",()=>updateDevice("mobile"));
+  refs["spec-undo"].addEventListener("click",()=>{
+    if(isDirty()){
+      restore(committed,"Uncommitted local edits reverted. No source was published.");
+      return;
+    }
+    if(!past.length)return;
+    future.push(committed);
+    committed=past.pop();
+    restore(committed,"Previous local concept restored. No files or network changed.");
+  });
+  refs["spec-redo"].addEventListener("click",()=>{
+    if(isDirty()||!future.length)return;
+    past.push(committed);
+    if(past.length>HISTORY_LIMIT)past.shift();
+    committed=future.pop();
+    restore(committed,"Next local concept restored. No files or network changed.");
+  });
   refs["spec-reset"].addEventListener("click",()=>{
-    for(const field of ["eyebrow","headline","description","action","palette","layout"])refs["spec-"+field].value=D[field];
+    commit(read());
+    commit(D);
+    for(const field of FIELDS)refs["spec-"+field].value=D[field];
     updateDevice("desktop");
-    refs["spec-status"].textContent="Offline design restored to safe preset defaults.";
+    updateHistory();
+    refs["spec-status"].textContent="Offline design restored to safe preset defaults. Undo can restore prior valid edits.";
   });
   refs["spec-copy"].addEventListener("click",async()=>{
     // User gesture only; no fallback network or file-system permissions.
@@ -138,4 +201,5 @@
     }
   });
   updateDevice("desktop");
+  updateHistory();
 })();
