@@ -27,5 +27,11 @@
   "runtimeCommandAccessEnabled": false,
   "paidProvidersEnabled": false,
   "briefPersistenceEnabled": false,
-  "executionSuccessClaimed": false
+  "executionSuccessClaimed": false,
+  "portableSnapshotSchemaVersion": 1,
+  "portableSnapshotMaxChars": 2048,
+  "portableSnapshotManualTransferOnly": true,
+  "snapshotNetworkSyncEnabled": false,
+  "snapshotScriptExecutionEnabled": false,
+  "snapshotPersistenceEnabled": false
 }
