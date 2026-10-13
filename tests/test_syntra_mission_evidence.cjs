@@ -55,7 +55,8 @@ test("rejects duplicate timestamps, replay, state rollback after terminal and st
   const s0=reducer.applyEvent(reducer.emptySnapshot(),event("RUNNING","2026-10-13T12:00:00.001Z"));
   assert.equal(reducer.applyEvent(s0,event("FAILED","2026-10-13T12:00:00.001Z")),s0);
   assert.equal(reducer.applyEvent(s0,event("COMPLETED","2026-10-13T12:00:00Z")),s0);
-  const s1=reducer.applyEvent(s0,event("COMPLETED","2026-10-13T12:00:00.001001Z"));
+  const verifying=reducer.applyEvent(s0,event("VERIFYING","2026-10-13T12:00:00.001001Z"));
+  const s1=reducer.applyEvent(verifying,event("COMPLETED","2026-10-13T12:00:00.001002Z"));
   assert.equal(s1.tasks[0].state,"COMPLETED");
   assert.equal(reducer.applyEvent(s1,event("RUNNING","2026-10-13T12:00:05Z")),s1);
   assert.equal(reducer.applyEvent(s1,event("FAILED","2026-10-13T12:00:06Z")),s1);
@@ -78,6 +79,28 @@ test("invalid IDs, states, malformed agent names and invalid timestamp never app
   ];
   const s=reducer.emptySnapshot();
   for(const x of invalid)assert.equal(reducer.applyEvent(s,x),s,JSON.stringify(x));
+});
+test("real runtime rollback chain remains visible after a task fails",()=>{
+  let s=reducer.applyEvent(reducer.emptySnapshot(),event("RUNNING","2026-10-13T12:00:00Z"));
+  s=reducer.applyEvent(s,event("FAILED","2026-10-13T12:00:01Z"));
+  assert.equal(s.tasks[0].state,"FAILED");
+  s=reducer.applyEvent(s,event("ROLLING_BACK","2026-10-13T12:00:02Z"));
+  assert.equal(s.tasks[0].state,"ROLLING_BACK");
+  s=reducer.applyEvent(s,event("FAILED","2026-10-13T12:00:03Z"));
+  assert.equal(s.tasks[0].state,"FAILED");
+  s=reducer.applyEvent(s,event("ROLLING_BACK","2026-10-13T12:00:04Z"));
+  s=reducer.applyEvent(s,event("CANCELLED","2026-10-13T12:00:05Z"));
+  assert.equal(s.tasks[0].state,"CANCELLED");
+  assert.equal(reducer.applyEvent(s,event("RUNNING","2026-10-13T12:00:06Z")),s);
+});
+test("impossible transitions do not turn running work into fake completion",()=>{
+  const running=reducer.applyEvent(reducer.emptySnapshot(),event("RUNNING"));
+  assert.equal(reducer.applyEvent(running,event("COMPLETED","2026-10-13T12:00:01Z")),running);
+  const verifying=reducer.applyEvent(running,event("VERIFYING","2026-10-13T12:00:02Z"));
+  const done=reducer.applyEvent(verifying,event("COMPLETED","2026-10-13T12:00:03Z"));
+  assert.equal(done.tasks[0].state,"COMPLETED");
+  const requeued=reducer.applyEvent(reducer.emptySnapshot(),event("QUEUED"));
+  assert.equal(reducer.applyEvent(requeued,event("VERIFYING","2026-10-13T12:00:04Z")),requeued);
 });
 test("bounded memory prevents unbounded background event accumulation",()=>{
   let s=reducer.emptySnapshot();
