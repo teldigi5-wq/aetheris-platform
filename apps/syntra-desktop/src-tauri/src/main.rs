@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod auth_readiness;
+
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, time::{Duration, SystemTime, UNIX_EPOCH}};
 
@@ -217,9 +219,37 @@ fn export_diagnostics(payload: DiagnosticsPayload) -> Result<DiagnosticsExport, 
     })
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NativeAuthReadiness {
+    status: &'static str,
+    physical_pc_status: &'static str,
+    credential_vault_connected: bool,
+    authenticated_session_active: bool,
+    can_execute: bool,
+    proposed_read_operations: u8,
+    reason: &'static str,
+}
+
+#[tauri::command]
+fn syntra_auth_readiness() -> NativeAuthReadiness {
+    // This command has no arguments. It cannot accept UI-provided trust flags.
+    // Real Windows Credential Manager integration and identity verification are not yet wired.
+    let gate = auth_readiness::pre_pc_report();
+    NativeAuthReadiness {
+        status: gate.code(),
+        physical_pc_status: PHYSICAL_PC_STATUS,
+        credential_vault_connected: false,
+        authenticated_session_active: false,
+        can_execute: false,
+        proposed_read_operations: 4,
+        reason: "Native secret vault and authenticated session are not connected. Four read endpoints are only source-verified proposals.",
+    }
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![probe_aetheris_runtime, export_diagnostics])
+        .invoke_handler(tauri::generate_handler![probe_aetheris_runtime, export_diagnostics, syntra_auth_readiness])
         .run(tauri::generate_context!())
         .expect("failed to run Syntra desktop shell");
 }
@@ -227,6 +257,21 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_readiness_returns_no_credentials_and_no_execution_authority() {
+        let status = syntra_auth_readiness();
+        assert_eq!(status.status, "BLOCKED_NATIVE_CREDENTIAL_BOUNDARY");
+        assert_eq!(status.physical_pc_status, "BLOCKED_PENDING_HARDWARE");
+        assert!(!status.credential_vault_connected);
+        assert!(!status.authenticated_session_active);
+        assert!(!status.can_execute);
+        assert_eq!(status.proposed_read_operations, 4);
+        let safe_json = serde_json::to_string(&status).unwrap();
+        assert!(!safe_json.contains("accessToken"));
+        assert!(!safe_json.contains("refreshToken"));
+        assert!(!safe_json.contains("Authorization"));
+    }
 
     #[test]
     fn runtime_health_url_is_loopback_only_and_uses_proven_path() {
