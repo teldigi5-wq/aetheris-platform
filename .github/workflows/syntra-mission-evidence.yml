@@ -1,0 +1,42 @@
+name: Syntra Mission Evidence Safety
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-voice-autonomy-preflight-20261013
+      - main
+    paths:
+      - 'apps/syntra-desktop/ui/mission-evidence.js'
+      - 'apps/syntra-desktop/ui/mission-evidence-panel.js'
+      - 'apps/syntra-desktop/ui/index.html'
+      - 'apps/syntra-desktop/ui/styles.css'
+      - 'apps/syntra-desktop/mission-evidence.contract.json'
+      - 'tests/test_syntra_mission_evidence.cjs'
+      - 'tests/test_syntra_mission_evidence_panel.cjs'
+      - '.github/workflows/syntra-mission-evidence.yml'
+      - 'apps/syntra-desktop/README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-task-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact draft revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate JavaScript syntax and source-defined event schema
+        run: |
+          node --version
+          node --check apps/syntra-desktop/ui/mission-evidence.js
+          node --check apps/syntra-desktop/ui/mission-evidence-panel.js
+          node --check tests/test_syntra_mission_evidence.cjs
+          node --check tests/test_syntra_mission_evidence_panel.cjs
+          node -e "const c=require('./apps/syntra-desktop/mission-evidence.contract.json');const r=require('./apps/syntra-desktop/ui/mission-evidence.js');if(c.status!=='OFFLINE_IMPORT_UNVERIFIED_NOT_CONNECTED'||c.backendWiringAllowed||c.nativeAuthenticatedStreamConnected||c.maxTasks!==r.MAX_TASKS||c.maxRecentEvents!==r.MAX_RECENT)process.exit(1)"
+      - name: Run privacy, ordering, task continuity and adversarial import tests
+        run: |
+          node --test tests/test_syntra_mission_evidence.cjs
+          node --test tests/test_syntra_mission_evidence_panel.cjs
