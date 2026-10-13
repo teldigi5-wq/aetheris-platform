@@ -10,6 +10,7 @@ on:
       - 'apps/syntra-desktop/design-quality.contract.json'
       - 'docs/design/**'
       - 'tests/test_syntra_design_quality.cjs'
+      - 'tests/test_wayfarer_palette_reference.cjs'
       - 'tests/test_syntra_ui_preview.cjs'
       - 'tests/test_syntra_ui_spec_contract.py'
       - '.github/workflows/syntra-design-quality.yml'
@@ -40,9 +41,11 @@ jobs:
           node --check apps/syntra-desktop/ui/creative-ui-spec-engine.js
           node --check apps/syntra-desktop/ui/creative-ui-preview.js
           node --check tests/test_syntra_design_quality.cjs
+          node --check tests/test_wayfarer_palette_reference.cjs
       - name: Check WCAG palette thresholds, UI behavior and safe source export
         run: |
           node --test tests/test_syntra_design_quality.cjs
+          node --test tests/test_wayfarer_palette_reference.cjs
           node --test tests/test_syntra_ui_spec_engine.cjs
           node --test tests/test_syntra_ui_preview.cjs
           node --test tests/test_syntra_creative_studio.cjs
