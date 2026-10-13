@@ -53,7 +53,7 @@ class UiConceptBuilderContract(unittest.TestCase):
         self.assertLess(self.html.index('src="./design-quality-gates.js"'),
                         self.html.index('src="./creative-ui-preview.js"'))
         self.assertIn("NOT CERTIFIED",self.html)
-        self.assertIn("Manual review",self.html)
+        self.assertIn("Human QA is still mandatory",self.html)
 
 
     def test_preview_never_executes_or_stores_user_content(self):
