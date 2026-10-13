@@ -77,6 +77,19 @@ A dependency-free Rust policy module (`src-tauri/src/auth_readiness.rs`) models 
 
 Validation uses `rustc --edition=2021 --test apps/syntra-desktop/src-tauri/src/auth_readiness.rs`, `node --test tests/test_syntra_native_auth_ui.cjs`, and `python3 -m unittest discover -s tests -p 'test_syntra_native_auth_readiness.py'`, plus a dedicated fast CI workflow and a Windows NSIS shell integration check. Real native OS Credential Manager integration, secure login/refresh/logout, certificate/loopback request trust, revocation, user-consent lifecycle and physical owner-PC testing remain separately reviewed future work. This branch does not install plugins, access paid APIs or update the separate Wayfarer project.
 
+## Proposed native Windows Credential Manager module (isolated draft)
+
+`security-vault/` is an **independent, not-yet-linked Rust crate** for future native-only refresh-token storage using Microsoft's generic Windows Credential Manager APIs. It is not referenced by the Tauri shell, cannot be called through webview IPC, and does not activate login, refresh, model reads, or agents.
+
+- The backend uses `CredWriteW`, `CredReadW`, `CredDeleteW` and `CredFree` for **fixed namespaced targets**, never arbitrary caller-selected credential identifiers or secret enumeration.
+- `CRED_PERSIST_SESSION` binds stored credentials to the current Windows logon session (not enterprise roaming or across-logon persistence). Owned Rust secret byte buffers use `zeroize` on drop. Windows-owned read buffers are freed using `CredFree`.
+- Oversized, empty or missing values fail closed; errors are coarse without raw OS diagnostics or credential content.
+- The credential limit is 2,560 bytes. Only a *future approved native session manager* may use the production refresh-token target; no real bearer token is provisioned in this draft.
+- A dedicated Windows CI job builds the isolated crate and uses **synthetic test-only data** in a distinct fixed Credential Manager target, with a cleanup guard. It does not touch the owner's PC or real account.
+- The `vault-boundary.contract.json` and Python contract tests enforce nonactivation, zero new Tauri commands and separation from the renderer.
+
+The API documentation is based on Microsoft's WinCred definitions: generic credentials are OS-managed but do **not** automatically provide backend authentication or an access-token lifecycle. Additional work must cover gateway TLS/loopback trust, secret rotation, validated access and refresh responses, memory zeroization coverage, logout/revocation, consent, Windows account boundaries, identity mapping, security review, and real hardware testing. The existing `syntra_auth_readiness` command remains **BLOCKED_NATIVE_CREDENTIAL_BOUNDARY** and `BLOCKED_PENDING_HARDWARE`; this isolated crate must not be described as a successful Windows PC installation.
+
 ## Windows development packaging
 
 ```powershell
