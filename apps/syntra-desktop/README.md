@@ -120,6 +120,32 @@ Run tests: `cargo test` in `apps/syntra-desktop/mission-stream` plus `python3 -m
 
 **Activation blocker:** a separately reviewed native session manager must connect Windows OS-backed credentials, verify the JWT and gateway/owner scope, enforce loopback identity, protect against replay across reconnects, and provide secure user/project isolation before connecting a real SSE client. `syntra_auth_readiness` still reports `BLOCKED_NATIVE_CREDENTIAL_BOUNDARY` and the actual owner PC is `BLOCKED_PENDING_HARDWARE`. This decoder is tested against synthetic source-format event payloads, not live mission traffic.
 
+## Server-side ownership blocker — aggregate mission SSE is unsafe to activate
+
+The verified external runtime source has a significant trust boundary that needs a server fix **before any real authenticated mission UI is wired**. At checkpoint `aetheris-ai-runtime@65a6262717adcd52ac8d8a16ed6f223e299fd74d`:
+
+- `OperationsStreamController.events()` calls `TaskEventStreamService.subscribeAll()`, which broadcasts all published task events to every subscriber. It does not filter by authenticated owner/project.
+- `TaskEntity` has no trusted owner/project identity or source-verified access policy.
+- `TaskController.events(UUID id)` and `TaskController.history(UUID id)` look up task IDs but do not independently authorize a caller as the task owner.
+
+A valid `orchestrator:read` scope from the gateway is **not sufficient for per-owner data isolation**. Untrusted event payloads could include sensitive messages and metadata. Do not expose `/api/orchestrator/live/events` as a general owner-facing subscription or treat knowing a task UUID as access authorization.
+
+### New owner-boundary crate
+
+The standalone `mission-owner-gate/` Rust crate composes the already reviewed `mission-stream/` decoder, but its **only production constructor is blocked** with `BLOCKED_OWNER_BOUND_TASK_ISOLATION`. It is not linked to Tauri and contains no HTTP client, token or live credential handling.
+
+Tests exercise the eventual owner-binding policy with **test-compiled, synthetic, scoped grants only**: exact task ID, read-only per-task path, owner grant expiration, rejection of aggregate routes, rejection of other owners' task events, revocation/STOP and no exposure of private messages/metadata. The test grant constructor is absent from normal production builds; raw parsed frames still carry `UnauthenticatedBytes` provenance, and `allow_live_events()` always returns false.
+
+Activation prerequisites:
+
+1. Runtime task creation must bind the authoritative owner/project identity to durable task and event data.
+2. The server must validate the caller's identity independently, including when its port is reached directly; do not trust forged `X-Aetheris-User-Id` headers from an untrusted client.
+3. Each task/history/live subscription must enforce identical owner/project authorization before returning data. Aggregate events must be disabled for owner clients or scoped by that verified identity.
+4. Verify isolation with two real distinct test accounts, mismatched task IDs, stolen/replayed tokens, reconnects and direct runtime-port bypass attempts.
+5. Only then may an audited native session verifier mint a trusted mission grant from backend evidence and subscribe via Windows-secured credentials. The renderer still receives only sanitized permitted task states.
+
+Contract: `mission-owner-gate/owner-isolation.contract.json`. Tests: `cargo test` in the crate and `python3 -m unittest discover -s tests -p 'test_syntra_owner_mission_gate.py'`. Physical PC remains `BLOCKED_PENDING_HARDWARE`. This finding is not proof of an exploited data leak in a real installation, but the current code does not establish the required ownership control.
+
 ## Windows development packaging
 
 ```powershell
