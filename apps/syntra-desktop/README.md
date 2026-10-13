@@ -57,6 +57,16 @@ This is **contract discovery, not backend activation**. No authenticated desktop
 
 Memory remains explicitly blocked from desktop wiring because runtime owner-scoped memory APIs require `X-Aetheris-Owner-Id`, while the current gateway synthesizes only `X-Aetheris-User-*` identity headers. Syntra must not guess or forge an owner-ID mapping.
 
+## Source-verified authenticated read preflight (stacked draft)
+
+`auth-read-preflight.cjs` is a dependency-free, pure-data request planner intended to reduce the risk of accidentally wiring unverified API routes before the native credential lifecycle is ready. It validates the source-verified `authenticated-api.contract.json` from the separate contract PR.
+
+Exactly four static **read-only** operations are allowlisted: task list, pending approvals, local-model health, and emergency-stop status. Each descriptor declares its exact gateway-relative path, required `orchestrator:read` scope, and `BLOCKED_NATIVE_CREDENTIAL_BOUNDARY` status. It makes **zero** HTTP requests, never constructs bearer headers, never accepts arbitrary URL inputs, and never includes tokens, login data, or mutable authority flags. Any contract change to methods, scopes, identity header trust, secret storage, source-verified status, or physical-PC truth fails closed. It deliberately excludes memory, live SSE, model generation, task writes, decisions and controls.
+
+This does **not** constitute a logged-in session, successful API call, secure credential storage, agent execution, or integration with the runtime. It is a code-review and test foundation only. Before wiring real reads, implement an independently reviewed native OS-backed credential lifecycle, confirm gateway-issued scopes and response DTOs, and perform physical Windows, CORS/CSRF, expiry/refresh, revocation and failure testing. This module is not imported by the desktop renderer or native process.
+
+Run offline preflight tests with `node --test tests/test_syntra_auth_read_preflight.cjs`. Dedicated GitHub Actions CI exercises adversarial routes and contract drift.
+
 ## Windows development packaging
 
 ```powershell

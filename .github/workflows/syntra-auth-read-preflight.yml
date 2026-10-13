@@ -1,0 +1,33 @@
+name: Syntra Authenticated Read Preflight
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-authenticated-api-contract
+      - main
+    paths:
+      - 'apps/syntra-desktop/authenticated-api.contract.json'
+      - 'apps/syntra-desktop/auth-read-preflight.cjs'
+      - 'tests/test_syntra_auth_read_preflight.cjs'
+      - '.github/workflows/syntra-auth-read-preflight.yml'
+      - 'apps/syntra-desktop/README.md'
+
+permissions:
+  contents: read
+
+jobs:
+  authenticated-read-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact draft revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Check Node runtime and planner syntax
+        run: |
+          node --version
+          node --check apps/syntra-desktop/auth-read-preflight.cjs
+          node --check tests/test_syntra_auth_read_preflight.cjs
+      - name: Verify strict authenticated route allowlist and absence of credentials
+        run: node --test tests/test_syntra_auth_read_preflight.cjs
