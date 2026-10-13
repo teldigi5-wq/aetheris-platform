@@ -84,6 +84,26 @@ Security boundaries are encoded in `creative-studio.contract.json`. CI verifies 
 
 This PR must stay **stacked** on the read-only Plugins Directory PR #215, itself stacked on Media Studio PR #211. The actual creative agents, design file editing, plugin installation, image/video generation and owner-PC certification are separate later review and authorization gates. `BLOCKED_PENDING_HARDWARE` remains in force.
 
+## Offline live UI concept builder (stacked draft)
+
+The Syntra **Creative Studio** now contains a working, dependency-free **HTML/CSS concept builder** in addition to the five existing read-only planning disciplines. It produces and previews a self-contained single-page hero design. This is a deterministic tool, **not** a trained design agent or a Figma/Blender/Three.js/GSAP integration.
+
+- Editable eyebrow, headline, description and static CTA label, bounded in length and checked against control characters.
+- Three curated preset themes (Obsidian, Ivory, Ocean), editorial/centered layouts and desktop/mobile preview controls.
+- Real DOM-based in-app preview using `textContent` only. User-supplied strings are never interpreted as markup.
+- `creative-ui-spec-engine.js` exports one standalone, offline, static HTML document with inline CSS and a restrictive CSP. Content is HTML-escaped; styles are selected only from predefined palette values. It contains no JavaScript, external assets, networking, forms or active CTA navigation.
+- Generated markup appears in a read-only text area, and **Copy HTML** uses the clipboard only on an explicit click. If the clipboard API is unavailable, the generated code is selected for manual copy. No automatic file creation or deployment.
+- UI work is session-only: no localStorage, secrets, user tracking, API requests, privileged Tauri invocations, plugin installations, AI inference or GPU rendering.
+- Accessibility basics include label associations, reduced-motion styles, keyboard-usable buttons and explicit preview status/validation messages.
+
+Checks:
+- `node --test tests/test_syntra_ui_spec_engine.cjs`: deterministic generation, six palette/layout combinations, strict parameter allowlist, XSS escaping, restrictive CSP and no external calls.
+- `node --test tests/test_syntra_ui_preview.cjs`: interactive preview, mobile/desktop switching, invalid-field fail-closed behavior, clipboard user gesture, reset and text safety.
+- `python -m unittest discover -s tests -p 'test_syntra_ui_spec_contract.py'` plus parent Media Studio/Extensions/Creative Studio regression tests.
+- Windows installer CI verifies these assets are packaged with the unchanged `BLOCKED_PENDING_HARDWARE` boundary.
+
+The feature branch is **stacked on draft Creative Studio PR #216**, itself dependent on Plugins PR #215 and Media Studio PR #211. Its exported HTML is source for manual owner use, **not** proof of a deployed app, professional accessibility certification, actual model-generated design, or physical GPU validation. The unmerged dependency vulnerability fix PR #210 and all applicable CI/review gates remain relevant to eventual platform promotion.
+
 ## Windows development packaging
 
 ```powershell

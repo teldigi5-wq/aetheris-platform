@@ -16,6 +16,7 @@ on:
       - feature/syntra-aetheris-foundation-v2
       - release/syntra-media-studio-staging-20261011
       - feature/syntra-plugins-skills-directory-20261013
+      - feature/syntra-creative-studio-workbench-20261013
       - main
     paths:
       - 'apps/syntra-desktop/**'
@@ -54,6 +55,12 @@ jobs:
           if ($html -notmatch 'BLOCKED_PENDING_HARDWARE') { throw 'Physical-PC truth boundary must remain visible.' }
           if ($html -notmatch 'data-view="plugins"') { throw 'Plugins directory view missing from packaged Syntra.' }
           if ($html -notmatch 'data-view="creative"') { throw 'Creative Studio view missing from packaged Syntra.' }
+          foreach ($asset in @('creative-ui-spec-engine.js','creative-ui-preview.js')) {
+            if (-not (Test-Path ("apps/syntra-desktop/ui/" + $asset))) { throw ("Offline UI concept asset missing: " + $asset) }
+          }
+          $spec = Get-Content apps/syntra-desktop/ui-spec.contract.json -Raw | ConvertFrom-Json
+          if ($spec.mode -ne 'DETERMINISTIC_LOCAL_PREVIEW_AND_STATIC_HTML_EXPORT' -or $spec.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Offline UI preview contract drifted.' }
+          if ($spec.externalNetworkEnabled -or $spec.modelInferenceEnabled -or $spec.interactiveSiteDeploymentEnabled -or $spec.runtimeCommandAccessEnabled -or $spec.thirdPartyCodeInstallEnabled) { throw 'Creative code compiler cannot gain execution or network authority.' }
           $creative = Get-Content apps/syntra-desktop/creative-studio.contract.json -Raw | ConvertFrom-Json
           if ($creative.mode -ne 'LOCAL_CREATIVE_REVIEW_ONLY' -or $creative.hardwareStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Creative Studio evidence boundary changed.' }
           if (-not $creative.noAiInference -or -not $creative.noPackageInstallation -or -not $creative.noExternalNetwork -or -not $creative.noTauriCommandInvocation) { throw 'Creative Studio must not use external tools or runtime inference.' }

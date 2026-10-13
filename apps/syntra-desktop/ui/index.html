@@ -104,6 +104,37 @@
                 <div id="creative-plan" class="creative-plan" role="status" aria-live="polite"><p class="creative-plan-empty">Your private brief stays in this window only. Choose a skill and prepare a new checklist.</p></div>
                 <p class="microcopy" id="creative-status" role="status" aria-live="polite">This workbench creates deterministic checklists, not AI-generated designs or rendered graphics.</p>
               </div>
+              <section class="spec-studio" aria-labelledby="spec-studio-title">
+                <div class="creative-section-head">
+                  <div><p class="eyebrow">04 · INTERACTIVE INTERFACE CONCEPT</p><h3 id="spec-studio-title">Live UI concept builder</h3></div>
+                  <span class="pill neutral">OFFLINE · HTML + CSS</span>
+                </div>
+                <p class="creative-selected-summary">Compose an editable hero-section concept with safe preset palettes and responsive layouts. The preview and exported code are generated locally without any AI, Figma, GSAP or external assets.</p>
+                <div class="spec-controls">
+                  <label for="spec-eyebrow">Eyebrow <input id="spec-eyebrow" type="text" maxlength="40" required /></label>
+                  <label for="spec-palette">Palette
+                    <select id="spec-palette"><option value="obsidian">Obsidian / mint</option><option value="ivory">Ivory / slate</option><option value="ocean">Deep ocean / cyan</option></select>
+                  </label>
+                  <label class="spec-wide" for="spec-headline">Main headline <input id="spec-headline" type="text" maxlength="80" required /></label>
+                  <label class="spec-wide" for="spec-description">Description <textarea id="spec-description" maxlength="240" rows="3" required></textarea></label>
+                  <label for="spec-action">Call-to-action label <input id="spec-action" type="text" maxlength="32" required /></label>
+                  <label for="spec-layout">Layout
+                    <select id="spec-layout"><option value="editorial">Editorial / left aligned</option><option value="centered">Centered / minimal</option></select>
+                  </label>
+                </div>
+                <div class="spec-stage-head">
+                  <strong>Responsive preview</strong>
+                  <div class="spec-device-switch" role="group" aria-label="Concept device preview">
+                    <button id="spec-device-desktop" class="ghost-button" type="button" aria-pressed="true">Desktop</button>
+                    <button id="spec-device-mobile" class="ghost-button" type="button" aria-pressed="false">Mobile</button>
+                  </div>
+                </div>
+                <div class="spec-stage"><div id="spec-preview" aria-label="Live local design concept"></div></div>
+                <label class="spec-source-label" for="spec-export">Standalone HTML source · no scripts or external assets</label>
+                <textarea id="spec-export" class="spec-source" readonly spellcheck="false" aria-label="Generated one-file static HTML and CSS" rows="7"></textarea>
+                <div class="spec-actions"><button id="spec-copy" type="button" class="primary-button">Copy HTML</button><button id="spec-reset" type="button" class="ghost-button">Reset concept</button></div>
+                <p class="microcopy" id="spec-status" role="status" aria-live="polite">Safe local concept generator loading. No code executed.</p>
+              </section>
             </div>
             <aside class="creative-side-column">
               <div class="creative-source-panel">
@@ -216,5 +247,7 @@
   <script src="./plugins-directory.js"></script>
   <script src="./creative-catalog.js"></script>
   <script src="./creative-workbench.js"></script>
+  <script src="./creative-ui-spec-engine.js"></script>
+  <script src="./creative-ui-preview.js"></script>
 </body>
 </html>
