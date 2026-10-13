@@ -35,6 +35,22 @@ class JwtServiceIssuerAudienceTest {
     }
 
     @Test
+    void longSecretStillProducesExplicitHs256CompatibleWithRuntimeVerifier() {
+        IdentityAccount account = new IdentityAccount("Sample", "owner@example.test",
+                "synthetic-hash", Role.API_CONSUMER);
+        ReflectionTestUtils.setField(account, "id", 101L);
+        String longTestKey = "x".repeat(64);
+        String jwt = new JwtService(longTestKey, 3600).issue(account);
+        var jws = Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(longTestKey.getBytes(StandardCharsets.UTF_8)))
+                .requireIssuer(JwtService.DEFAULT_ISSUER)
+                .requireAudience(JwtService.DEFAULT_AUDIENCE)
+                .build().parseSignedClaims(jwt);
+        assertEquals("HS256", jws.getHeader().getAlgorithm());
+        assertEquals(101L, ((Number) jws.getPayload().get("uid")).longValue());
+    }
+
+    @Test
     void cannotIssueForUnpersistedIdentity() {
         IdentityAccount unsaved = new IdentityAccount("Sample", "owner@example.test",
                 "synthetic-hash", Role.API_CONSUMER);
