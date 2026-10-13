@@ -1,0 +1,10 @@
+[package]
+name = "syntra-owner-mission-gate"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Fail-closed owner-isolation gate before Syntra mission event exposure"
+
+[dependencies]
+syntra-native-mission-stream = { path = "../mission-stream" }
