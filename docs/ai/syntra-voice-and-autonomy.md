@@ -2,7 +2,7 @@
 
 **Owner directive:** voice-first private companion, secretary, engineering operator and CEO adviser, sharing one governed local-first Aetheris task platform. Existing master blueprint and hard owner rules remain authoritative.
 
-**Evidence state (2026-10-13):** design + offline text-to-intent parser in a stacked draft only. Microphone capture, audio wake-word detection, STT, TTS, app launching, independent business operation and continuous learning are **not** activated by this change. Physical owner PC status: `BLOCKED_PENDING_HARDWARE`.
+**Evidence state (2026-10-13):** offline text-to-intent parser plus **opt-in local-system TTS output panel** in a stacked draft. The TTS path is a real WebView speechSynthesis call gated to voices advertising `localService=true`, with explicit Speak/Stop controls; its UI behaviors are tested using stubs. Actual audio playback has **not been measured on the owner's PC**. Microphone capture, audio wake-word detection, STT, full-duplex speech, app launching, independent business operation and continuous learning are **not** activated. Physical owner PC status: `BLOCKED_PENDING_HARDWARE`.
 
 ## Desired experience
 
@@ -48,7 +48,7 @@ Example flows, once connectors and adapters are independently proven:
 | Stage | Acceptance criteria | Current evidence |
 | --- | --- | --- |
 | A — spoken-text command gateway | Six wake spelling/phrase aliases; consent and trusted-capture guard; exact application allowlist; emergency control intent; no execution | This draft; Node CI only |
-| B — local voice device adapters | Open-source license-reviewed wake model + VAD + streaming STT + TTS, privacy LEDs and explicit mute; microphone/speaker hardware tests | Not implemented |
+| B — local voice device adapters | Open-source license-reviewed wake model + VAD + streaming STT + TTS, privacy LEDs and explicit mute; microphone/speaker hardware tests | Opt-in system TTS UI with local-voice restriction and CI; wake/STT/hardware validation pending |
 | C — full-duplex and work queue | Conversation/TTS interruptible while tasks run with durable pause/resume/progress receipts and strict resource budgets | Existing runtime task infrastructure, audio bridge not wired |
 | D — desktop computer use | Win32 host app allowlist, Windows UIA/browser integration, sandboxed approvals and actual app-open evidence | Not activated |
 | E — local owner/private memory | Encrypted project isolation, retention, retrieval and reviewable day-by-day knowledge updates | Architecture exists; integrated desktop behavior not proven |
@@ -63,6 +63,12 @@ Example flows, once connectors and adapters are independently proven:
 - High-risk actions use the existing approval engine even when the person asks verbally; audio output, text output and task success state must reflect actual evidence.
 - Publicly sourced data and untrusted transcripts are not instructions capable of overriding safety policies.
 - Zero mandatory cloud fees are a **deployment requirement**, but useful quality depends on compatible local hardware and model capability. “More intelligent than humans or every AI” is not a verifiable blanket engineering claim; evaluate against real task-specific benchmarks, correctness, security, reliability, latency and owner satisfaction.
+
+## Actual local speech-output development slice
+
+The desktop now includes a **Local speech output** panel on the Overview view. It is disabled by default. An owner must check the opt-in box, enter 1–300 printable characters, and press **Speak**; a **Stop / Mute** button cancels the current utterance. Hiding the app window cancels speech. It uses the WebView `speechSynthesis` API and only uses voices that advertise `localService === true`. No network request, microphone capture, listening, secret storage, prompt persistence, synthetic task progress or model-generated output is added.
+
+`node --test tests/test_syntra_local_voice_output.cjs` covers opt-in, stop and stale callbacks, remote-voice rejection, unsupported webview, input size, error redaction and background-muting. These use a mocked speech engine and are **not a physical Windows audio quality test**. System voice installation/language availability varies by device; unsupported or nonlocal voices fail closed. The speech output cannot hear or recognize “Hi Sintra” until a separately reviewed local wake engine and STT adapter are built and certified.
 
 ## Required next build slice
 
