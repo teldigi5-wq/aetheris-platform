@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "feature": "SYNTRA_EXTENSIONS_RESEARCH_DIRECTORY",
+  "snapshotRuntimePr": "https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/18",
+  "scope": "PACKAGED_OFFLINE_RESEARCH_ONLY",
+  "entryCounts": {
+    "repositories": 14,
+    "skills": 5,
+    "directories": 6
+  },
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "pluginCodeDownloadEnabled": false,
+  "externalHttpFromExtensionView": false,
+  "runtimeSkillExecutionEnabled": false,
+  "pluginInstallEnabled": false,
+  "nativeCredentialBrokerWired": false,
+  "systemPermissionsGranted": false,
+  "ownerApprovalCanBeBypassed": false,
+  "sourceLicenseReviewed": false,
+  "catalogRefreshMode": "STATIC_SNAPSHOT_ONLY",
+  "userActions": [
+    "SEARCH_LOCAL_SNAPSHOT",
+    "FILTER_ENTRIES",
+    "REVIEW_PROPOSED_PERMISSIONS",
+    "COPY_SOURCE_URL",
+    "MARK_FOR_COMPARISON_SESSION_ONLY"
+  ],
+  "permissionReviewMode": "HYPOTHETICAL_NOT_GRANTED",
+  "modelGenerationEnabled": false,
+  "noSyntheticSuccessClaims": true
+}
