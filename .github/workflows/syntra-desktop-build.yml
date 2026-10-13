@@ -8,7 +8,6 @@ on:
       - feature/syntra-desktop-v0.3-installer-hardening
       - feature/syntra-desktop-v0.4-diagnostics-recovery
       - feature/syntra-aetheris-foundation-v2
-      - feature/syntra-plugins-skills-directory-20261013
     paths:
       - 'apps/syntra-desktop/**'
       - '.github/workflows/syntra-desktop-build.yml'
