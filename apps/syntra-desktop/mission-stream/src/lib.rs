@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn malformed_utf8_fails_closed_and_decoder_can_recover() {
         let mut d=TaskEventDecoder::new();
-        assert_eq!(d.push(&[0xFF, b'\\n']),Err(DecodeError::InvalidUtf8));
+        assert_eq!(d.push(&[0xFF, b'\n']),Err(DecodeError::InvalidUtf8));
         let good=event("QUEUED","2026-10-13T12:00:00Z");
         assert_eq!(d.push(&good).unwrap().len(),1);
     }
