@@ -1,0 +1,48 @@
+name: Syntra Native Checkpoint SSE Safety
+
+on:
+  pull_request:
+    branches:
+      - feature/syntra-owner-scoped-mission-gate-20261013
+      - main
+    paths:
+      - 'apps/syntra-desktop/checkpoint-sse/**'
+      - 'apps/syntra-desktop/src-tauri/src/main.rs'
+      - 'apps/syntra-desktop/README.md'
+      - 'tests/test_syntra_checkpoint_sse_boundary.py'
+      - '.github/workflows/syntra-native-checkpoint-sse.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  checkpoint-sse-ubuntu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact review branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Verify no production session or Tauri activation
+        run: python3 -m unittest discover -s tests -p 'test_syntra_checkpoint_sse_boundary.py' -v
+      - name: Compile and test native loopback SSE contract
+        working-directory: apps/syntra-desktop/checkpoint-sse
+        run: |
+          cargo generate-lockfile
+          cargo test --locked
+
+  checkpoint-sse-windows:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact review branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Native checkpoint SSE parser and mock HTTP tests
+        working-directory: apps/syntra-desktop/checkpoint-sse
+        shell: pwsh
+        run: |
+          cargo generate-lockfile
+          cargo test --locked
