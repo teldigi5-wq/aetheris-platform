@@ -12,6 +12,7 @@ APP = ROOT / "apps/syntra-desktop/src-tauri/src/main.rs"
 OWNER_GATE = ROOT / "apps/syntra-desktop/mission-owner-gate/src/lib.rs"
 ASYNC = ROOT / "apps/syntra-desktop/checkpoint-sse/src/async_transport.rs"
 LIFECYCLE = ROOT / "apps/syntra-desktop/checkpoint-sse/src/session_lifecycle.rs"
+REFRESH = ROOT / "apps/syntra-desktop/checkpoint-sse/src/native_refresh.rs"
 
 
 class NativeCheckpointBoundaryTest(unittest.TestCase):
@@ -22,6 +23,7 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
         cls.gate = OWNER_GATE.read_text(encoding="utf-8")
         cls.async_client = ASYNC.read_text(encoding="utf-8")
         cls.lifecycle = LIFECYCLE.read_text(encoding="utf-8")
+        cls.refresh = REFRESH.read_text(encoding="utf-8")
 
     def test_no_tauri_or_ui_network_wiring_or_javascript_token_delivery(self):
         self.assertNotIn("checkpoint_sse", self.app)
@@ -84,6 +86,30 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
         self.assertNotIn("/api/orchestrator/live/events", self.lifecycle)
         self.assertNotIn("impl NativeAccessToken", self.lifecycle)
         self.assertNotIn("impl VerifiedNativeSession", self.lifecycle)
+
+    def test_native_refresh_protocol_is_not_an_auth_grant_or_frontend_bridge(self):
+        self.assertIn("mod native_refresh;", self.client)
+        self.assertNotIn("pub mod native_refresh;", self.client)
+        self.assertIn("fn synthetic_loopback(", self.refresh)
+        self.assertIn("#[cfg(test)]", self.refresh)
+        self.assertIn("struct UntrustedRotation", self.refresh)
+        self.assertIn("UntrustedRotation([REDACTED_NOT_VERIFIED])", self.refresh)
+        self.assertIn("http://127.0.0.1:", self.refresh)
+        self.assertIn("/api/auth/refresh", self.refresh)
+        self.assertIn("/api/auth/logout", self.refresh)
+        self.assertIn(".no_proxy()", self.refresh)
+        self.assertIn(".redirect(Policy::none())", self.refresh)
+        self.assertIn("stop.subscribe()", self.refresh)
+        self.assertIn("tokio::select!", self.refresh)
+        self.assertNotIn("NativeAccessToken(", self.refresh)
+        self.assertNotIn("TrustedSessionLease {", self.refresh)
+        self.assertNotIn("syntra_credential_vault::store", self.refresh)
+        self.assertNotIn("syntra_credential_vault::load", self.refresh)
+        self.assertNotIn("tauri::", self.refresh)
+        self.assertNotIn("#[tauri::command]", self.refresh)
+        self.assertNotIn("window.emit", self.refresh)
+        self.assertNotIn("localStorage", self.refresh)
+        self.assertNotIn("impl NativeAccessToken", self.refresh)
 
     def test_old_unfiltered_global_feed_remains_inaccessible(self):
         self.assertIn("/api/orchestrator/live/events", self.client)
