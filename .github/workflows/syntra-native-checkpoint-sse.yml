@@ -3,11 +3,13 @@ name: Syntra Native Checkpoint SSE Safety
 on:
   pull_request:
     branches:
+      - feature/syntra-cancellable-checkpoint-sse-20261014
       - feature/syntra-native-checkpoint-sse-20261014
       - feature/syntra-owner-scoped-mission-gate-20261013
       - main
     paths:
       - 'apps/syntra-desktop/checkpoint-sse/**'
+      - 'apps/syntra-desktop/security-vault/**'
       - 'apps/syntra-desktop/src-tauri/src/main.rs'
       - 'apps/syntra-desktop/README.md'
       - 'tests/test_syntra_checkpoint_sse_boundary.py'
@@ -44,6 +46,15 @@ jobs:
       - name: Native checkpoint SSE parser and mock HTTP tests
         working-directory: apps/syntra-desktop/checkpoint-sse
         shell: pwsh
+        run: |
+          cargo generate-lockfile
+          cargo test --locked
+
+      - name: Validate Windows Credential Manager fixed smoke-test slot only
+        working-directory: apps/syntra-desktop/security-vault
+        shell: pwsh
+        env:
+          SYNTRA_TEST_CREDENTIAL_VAULT: '1'
         run: |
           cargo generate-lockfile
           cargo test --locked
