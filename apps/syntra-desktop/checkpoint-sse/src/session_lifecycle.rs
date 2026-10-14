@@ -195,7 +195,9 @@ mod tests {
         });
         let supervisor=NativeSessionSupervisor::new_loopback(port).unwrap();
         let lease=supervisor.synthetic_lease(Duration::from_millis(650));
-        let read=supervisor.guarded_read(&fake_session(),&fake_token(),&lease);
+        let synthetic_session=fake_session();
+        let synthetic_token=fake_token();
+        let read=supervisor.guarded_read(&synthetic_session,&synthetic_token,&lease);
         let (ready,result)=tokio::join!(
             tokio::time::timeout(Duration::from_secs(2),rx),
             tokio::time::timeout(Duration::from_secs(2),read)
