@@ -3,6 +3,7 @@ name: Syntra Native Checkpoint SSE Safety
 on:
   pull_request:
     branches:
+      - feature/syntra-native-session-revocation-20261014
       - feature/syntra-cancellable-checkpoint-sse-20261014
       - feature/syntra-native-checkpoint-sse-20261014
       - feature/syntra-owner-scoped-mission-gate-20261013
