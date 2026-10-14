@@ -10,6 +10,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CLIENT = ROOT / "apps/syntra-desktop/checkpoint-sse/src/lib.rs"
 APP = ROOT / "apps/syntra-desktop/src-tauri/src/main.rs"
 OWNER_GATE = ROOT / "apps/syntra-desktop/mission-owner-gate/src/lib.rs"
+ASYNC = ROOT / "apps/syntra-desktop/checkpoint-sse/src/async_transport.rs"
 
 
 class NativeCheckpointBoundaryTest(unittest.TestCase):
@@ -18,6 +19,7 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
         cls.client = CLIENT.read_text(encoding="utf-8")
         cls.app = APP.read_text(encoding="utf-8")
         cls.gate = OWNER_GATE.read_text(encoding="utf-8")
+        cls.async_client = ASYNC.read_text(encoding="utf-8")
 
     def test_no_tauri_or_ui_network_wiring_or_javascript_token_delivery(self):
         self.assertNotIn("checkpoint_sse", self.app)
@@ -45,6 +47,21 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
         self.assertIn("AUTHORIZATION", self.client)
         self.assertNotIn("https://example", self.client)
         self.assertNotIn("Last-Event-ID", self.client.split("#[cfg(test)]")[0])
+
+    def test_async_stop_interrupts_network_wait_without_auth_or_ui_activation(self):
+        self.assertIn("tokio::select!", self.async_client)
+        self.assertIn("stop_receiver.changed()", self.async_client)
+        self.assertIn("result = request", self.async_client)
+        self.assertIn("result = response.chunk()", self.async_client)
+        self.assertIn("NativeStopHandle", self.async_client)
+        self.assertIn("stop_interrupts_stalled_response_headers", self.async_client)
+        self.assertIn("stop_interrupts_blocked_body_read", self.async_client)
+        self.assertNotIn("#[tauri::command]", self.async_client)
+        self.assertNotIn("tauri::", self.async_client)
+        self.assertNotIn("window.emit", self.async_client)
+        self.assertNotIn("/api/orchestrator/live/events", self.async_client)
+        self.assertNotIn("impl NativeAccessToken", self.async_client)
+        self.assertNotIn("impl VerifiedNativeSession", self.async_client)
 
     def test_old_unfiltered_global_feed_remains_inaccessible(self):
         self.assertIn("/api/orchestrator/live/events", self.client)

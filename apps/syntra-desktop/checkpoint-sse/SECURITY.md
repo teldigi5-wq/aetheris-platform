@@ -74,6 +74,44 @@ never infer receipt or task completion from server send. Due to the
 checkpoint's current read/write scope separation, the future native
 session needs legitimate scoped capabilities and token renewal.
 
+## Review-only interruptible transport (next stacked slice)
+
+The new `async_transport::InterruptibleMissionClient` is an **additional**
+native Tokio/reqwest implementation using the same private
+`NativeAccessToken` and `VerifiedNativeSession` values. The earlier
+blocking `LoopbackMissionClient` remains for backwards-compatible
+synthetic contract tests, but its STOP limitation remains; **do not
+activate the blocking transport for user-facing Mission Control**.
+
+The new client offers a separate cloneable `NativeStopHandle`, without
+credentials or user/session information. STOP uses Tokio's watch signal
+and `tokio::select! { biased; ... }` to interrupt **both** waiting for
+HTTP response headers and an in-progress asynchronous SSE body chunk
+read. Dropping the pending network future/response stops delivering
+updates. No detached request loop, automatic retries, background
+execution, saved access tokens, frontend invocation, or durable ACK
+operation is introduced.
+
+Synthetic asynchronous loopback server tests intentionally stall
+before response headers and after a streamed chunk. They verify native
+STOP returns `Stopped` promptly rather than waiting for the older
+35-second timeout. A successful async test also validates the exact
+owner checkpoint route, bearer header, journal frame parsing and no
+forwarded owner headers. Unauthorized HTTP 401 fails closed. The fixed
+numeric loopback origin, no-proxy/no-redirect policy, existing size
+and event limits, zeroized secret container, provenance checks and
+private constructors are preserved.
+
+**Limitations:** Passing cancellation tests does not establish a
+system-wide emergency stop. It cancels the native transport's own
+awaited requests, not remote agent commands, tools, queued tasks or
+every desktop component. A future native session supervisor must
+coordinate logout, token invalidation, task cancellation, native UI
+notification, backend revocation and device-level approval. This
+crate still has **no production native session issuer, Tauri/JS bridge
+or real backend activation**. A synthetic localhost mock can only
+validate transport behavior, not real JWT signature verification.
+
 ## Validation and remaining blockers
 
 New CI tests on Ubuntu and Windows cover strict SSE fragmentation,
