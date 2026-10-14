@@ -10,6 +10,7 @@
 //! actual tool execution, human consent, or successful desktop receipt.
 
 pub mod async_transport;
+pub mod session_lifecycle;
 
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
@@ -42,6 +43,7 @@ pub enum NativeError {
     AccessDenied,
     Unavailable,
     Stopped,
+    SessionExpired,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
