@@ -127,6 +127,9 @@ impl NativeRefreshWire {
         if *cancel.borrow() { return Err(NativeError::Stopped); }
         let mut wire: WireRefresh = serde_json::from_slice(&bytes)
             .map_err(|_| NativeError::InvalidStream)?;
+        // Even rejected response tokens are zeroized on drop.
+        let access = Zeroizing::new(std::mem::take(&mut wire.access_token));
+        let refresh = Zeroizing::new(std::mem::take(&mut wire.refresh_token));
         if wire.token_type != "Bearer" ||
                 !(1..=3600).contains(&wire.expires_in_seconds) ||
                 !(1..=604800).contains(&wire.refresh_expires_in_seconds) ||
@@ -137,15 +140,15 @@ impl NativeRefreshWire {
                 !matches!(wire.account.role.as_str(), "ADMIN" | "DEVELOPER" | "API_CONSUMER") ||
                 wire.account.scopes.len() > 32 ||
                 !wire.account.scopes.iter().any(|x| x == "orchestrator:read") ||
-                !signed_jwt_shape(&wire.access_token) ||
-                !opaque_refresh_shape(&wire.refresh_token) ||
-                wire.refresh_token == *old_refresh
+                !signed_jwt_shape(&access) ||
+                !opaque_refresh_shape(&refresh) ||
+                refresh.as_str() == old_refresh.as_str()
         {
             return Err(NativeError::InvalidStream);
         }
         Ok(UntrustedRotation {
-            access_token: Zeroizing::new(std::mem::take(&mut wire.access_token)),
-            refresh_token: Zeroizing::new(std::mem::take(&mut wire.refresh_token)),
+            access_token: access,
+            refresh_token: refresh,
             account_id_claim: wire.account.id,
             access_lifetime_seconds: wire.expires_in_seconds,
             refresh_lifetime_seconds: wire.refresh_expires_in_seconds,
