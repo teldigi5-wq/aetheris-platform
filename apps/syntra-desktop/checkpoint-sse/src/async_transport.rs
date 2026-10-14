@@ -28,6 +28,10 @@ impl NativeStopHandle {
     pub fn is_stopped(&self) -> bool {
         *self.sender.borrow()
     }
+    /// Restricted to this native crate; never exposed to Tauri or frontend.
+    pub(crate) fn subscribe(&self) -> watch::Receiver<bool> {
+        self.sender.subscribe()
+    }
 }
 impl std::fmt::Debug for NativeStopHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

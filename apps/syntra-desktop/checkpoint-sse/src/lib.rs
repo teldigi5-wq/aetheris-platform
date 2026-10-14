@@ -11,6 +11,8 @@
 
 pub mod async_transport;
 pub mod session_lifecycle;
+// Private wire-only HTTP protocol; NOT an identity/session issuer.
+mod native_refresh;
 
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
