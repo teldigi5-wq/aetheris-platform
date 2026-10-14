@@ -375,8 +375,13 @@ mod tests {
             let (mut socket, _) = listener.accept().unwrap();
             socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
             let mut buf = [0u8; 4096];
-            let read = socket.read(&mut buf).unwrap();
-            let request = String::from_utf8(buf[..read].to_vec()).unwrap();
+            let mut request_bytes = Vec::new();
+            while !request_bytes.windows(4).any(|w| w == b"\r\n\r\n") {
+                let read = socket.read(&mut buf).unwrap();
+                if read == 0 || request_bytes.len() + read > 8192 { break; }
+                request_bytes.extend_from_slice(&buf[..read]);
+            }
+            let request = String::from_utf8(request_bytes).unwrap();
             let reply = format!("HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
             socket.write_all(reply.as_bytes()).unwrap();
             socket.write_all(&body).unwrap();
@@ -438,7 +443,7 @@ mod tests {
         assert!(request.contains(&format!("Bearer {TOKEN}")));
         assert!(!request.contains("Last-Event-ID:"));
         assert!(!request.contains("X-Aetheris-User-Id:"));
-        assert!(!format!("{client:?}").contains(TOKEN));
+        assert!(!format!("{:?}", test_token()).contains(TOKEN));
     }
     #[test]
     fn failed_auth_and_wrong_content_type_are_never_promoted() {
