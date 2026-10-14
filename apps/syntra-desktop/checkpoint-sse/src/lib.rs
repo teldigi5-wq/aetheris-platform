@@ -9,6 +9,8 @@
 //! An event is a persisted journal claim, not evidence of an AI action,
 //! actual tool execution, human consent, or successful desktop receipt.
 
+pub mod async_transport;
+
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderValue, ACCEPT, AUTHORIZATION, CONTENT_TYPE};
 use reqwest::redirect::Policy;
