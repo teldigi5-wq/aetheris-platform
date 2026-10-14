@@ -170,6 +170,64 @@ async client remains the only candidate for a future user-facing
 connection. No production service/feature flag, Tauri command, WinCred
 real-user slot, remote account, merge or owner-PC execution is enabled.
 
+## Native identity refresh/logout wire contract (review-only)
+
+The private `native_refresh` module adds real, cancellation-aware
+**HTTP wire-code** for the existing identity-service endpoints
+`POST /api/auth/refresh` and `POST /api/auth/logout`.
+Its only endpoint constructor is `#[cfg(test)]`, pinned to a numeric
+`127.0.0.1` loopback port with redirects and proxies disabled. The
+code is not accessible from Tauri/JavaScript, and it cannot make a
+production request because **there is no production connector or
+authenticated service-origin issuer**.
+
+The synthetic refresh request transmits exactly
+`{"refreshToken":"..."}`; the identity service currently implements
+one-time refresh-token rotation. The native contract expects
+`AuthResponse` with `accessToken`, rotated `refreshToken`,
+`tokenType=Bearer`, bounded access/refresh lifetimes, and
+`account{id,name,email,role,scopes}`. It strictly bounds response bytes
+(16 KiB), refuses malformed/non-JSON, 401/403, unsupported fields,
+impossible account ID/lifetimes, non-canonical refresh tokens, a
+refreshed token identical to the original, and wrong recipient/type
+shapes. Native STOP cancels pending HTTP reads/headers, and error types
+never reveal credentials or arbitrary server error messages.
+
+**Critical trust boundary:** JWT shape and HTTP 200 **do not
+cryptographically verify identity**. The parsed result is named
+`UntrustedRotation`, owns zeroizing strings and a redacted Debug
+implementation, and cannot mint `NativeAccessToken`,
+`VerifiedNativeSession`, or `TrustedSessionLease`. No result is
+committed to real Windows Credential Manager, no identity state is
+marked authenticated, and no stream is automatically opened. The
+`/api/auth/logout` wire probe records only a **204 HTTP observation,
+not remote revocation evidence**. In particular, local WinCred deletion
+alone does not revoke an already stolen server refresh token.
+
+The current platform JWT is **HS256** using a shared issuer/gateway
+signing secret. Never ship that shared HMAC signing secret inside a
+desktop app to verify JWT signatures; doing so would enable local
+clients to mint arbitrary server-accepted tokens. Before adding a
+production native session issuer, adopt a reviewed asymmetric verifier
+(e.g. signed issuer access token + pinned verification keys) or a
+server-attested session binding, with issuer/audience/account and
+scope/expiry claims verified against an authorized backend. Also
+resolve refresh-token recovery when the remote one-time rotation
+succeeds but a local vault write fails (the old token may already be
+spent). Consider encrypted atomic storage, slot fencing, manual
+reauthentication and server-side revoke-on-error before activating.
+
+### Synthetic test scope
+
+The Windows and Ubuntu CI tests use synthetic fixed tokens and
+disposable localhost HTTP servers to verify refresh JSON content,
+response validation, non-attesting logout `204`, cancellation of a
+stalled refresh and strict failure on identity/permission confusion.
+No real Windows `Slot::RefreshToken` is loaded or altered. Windows CI
+also preserves the existing separate fixed synthetic smoke-slot WinCred
+roundtrip. All production feature flags remain off, no Tauri/UI wiring,
+no protected-branch merge and no physical owner-PC test is performed.
+
 ## Validation and remaining blockers
 
 New CI tests on Ubuntu and Windows cover strict SSE fragmentation,
