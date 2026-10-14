@@ -11,6 +11,7 @@ CLIENT = ROOT / "apps/syntra-desktop/checkpoint-sse/src/lib.rs"
 APP = ROOT / "apps/syntra-desktop/src-tauri/src/main.rs"
 OWNER_GATE = ROOT / "apps/syntra-desktop/mission-owner-gate/src/lib.rs"
 ASYNC = ROOT / "apps/syntra-desktop/checkpoint-sse/src/async_transport.rs"
+LIFECYCLE = ROOT / "apps/syntra-desktop/checkpoint-sse/src/session_lifecycle.rs"
 
 
 class NativeCheckpointBoundaryTest(unittest.TestCase):
@@ -20,6 +21,7 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
         cls.app = APP.read_text(encoding="utf-8")
         cls.gate = OWNER_GATE.read_text(encoding="utf-8")
         cls.async_client = ASYNC.read_text(encoding="utf-8")
+        cls.lifecycle = LIFECYCLE.read_text(encoding="utf-8")
 
     def test_no_tauri_or_ui_network_wiring_or_javascript_token_delivery(self):
         self.assertNotIn("checkpoint_sse", self.app)
@@ -62,6 +64,26 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
         self.assertNotIn("/api/orchestrator/live/events", self.async_client)
         self.assertNotIn("impl NativeAccessToken", self.async_client)
         self.assertNotIn("impl VerifiedNativeSession", self.async_client)
+
+    def test_session_expiry_logout_and_fixed_wincred_slot_never_activate_live_js(self):
+        self.assertIn("pub struct TrustedSessionLease {", self.lifecycle)
+        self.assertIn("fn synthetic_lease(", self.lifecycle)
+        self.assertIn("#[cfg(test)]", self.lifecycle)
+        self.assertNotIn("pub fn issue_trusted_lease", self.lifecycle)
+        self.assertNotIn("impl TrustedSessionLease {", self.lifecycle)
+        self.assertIn("stop.stop();", self.lifecycle)
+        self.assertIn("syntra_credential_vault::{delete, Slot, VaultError}", self.lifecycle)
+        self.assertIn("delete(Slot::RefreshToken)", self.lifecycle)
+        self.assertIn("SessionExpired", self.lifecycle)
+        self.assertIn("logout_cancels_stalled_body", self.lifecycle)
+        self.assertIn("failed_os_vault_delete_still_invalidates", self.lifecycle)
+        self.assertNotIn("tauri::", self.lifecycle)
+        self.assertNotIn("#[tauri::command]", self.lifecycle)
+        self.assertNotIn("window.emit", self.lifecycle)
+        self.assertNotIn("localStorage", self.lifecycle)
+        self.assertNotIn("/api/orchestrator/live/events", self.lifecycle)
+        self.assertNotIn("impl NativeAccessToken", self.lifecycle)
+        self.assertNotIn("impl VerifiedNativeSession", self.lifecycle)
 
     def test_old_unfiltered_global_feed_remains_inaccessible(self):
         self.assertIn("/api/orchestrator/live/events", self.client)

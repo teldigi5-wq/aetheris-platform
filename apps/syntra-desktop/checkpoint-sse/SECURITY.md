@@ -112,6 +112,64 @@ crate still has **no production native session issuer, Tauri/JS bridge
 or real backend activation**. A synthetic localhost mock can only
 validate transport behavior, not real JWT signature verification.
 
+## Native session expiry and logout supervisor (review-only)
+
+The new `session_lifecycle::NativeSessionSupervisor` ties the async owner
+stream to a **short-lived, monotonic session deadline** and a single-use
+terminal cancellation state. It holds a native `InterruptibleMissionClient`
+and internal STOP handle. `guarded_read` races the native SSE future
+against the lease deadline: expiry drops the request, invalidates the
+session epoch, stops the network transport and returns `SessionExpired`.
+Explicit logout stops the transport first, **even if local credential
+cleanup fails**. Neither path advances the durable backend ACK.
+
+`TrustedSessionLease` has only private fields, **no production minting
+API** and no public constructor. `synthetic_lease()` exists only in
+`#[cfg(test)]`. No JWT claim, UI flag, user-supplied timestamp, untrusted
+gateway header or vault value is accepted as signed session evidence.
+No app can call `guarded_read` with a real authenticated lease until a
+separate issuer-verification and workstation review is completed.
+
+`WindowsRefreshSlotRevoker` calls the existing isolated WinCred vault
+`delete(Slot::RefreshToken)` fixed target
+`com.aetheris.syntra.auth.refresh.v1`. No arbitrary credential names,
+enumeration or unrelated Windows secrets are used. Logout results are
+strictly `LocalRefreshSlotCleared` or `LocalRefreshSlotClearFailed`,
+never "server logged out". **Deleting a locally saved refresh token
+does not invalidate one already held by an attacker or a remote server**.
+The identity service has a distinct `POST /api/auth/logout` revocation
+contract, and its authenticated native client has NOT been implemented
+yet. No live refresh token is read/stored by current Tauri.
+
+CI tests use synthetic leases and credentials to prove: expiration
+while waiting for HTTP headers; logout while a body read is blocked;
+failed OS slot deletion still causing terminal native revocation;
+replayed/old expiry not reactivating a session; no credential leakage or
+new frontend access. The Windows job separately tests real WinCred read,
+write and delete **only** in its dedicated disposable
+`Slot::SmokeTest` when `SYNTRA_TEST_CREDENTIAL_VAULT=1`, never the
+real `Slot::RefreshToken`.
+
+### Authentication and emergency STOP still blocked
+
+The platform's draft issuer/gateway PR #229 adds signed `iss/aud/uid`
+contract, while identity `POST /api/auth/refresh` rotates refresh tokens.
+Neither a trusted native token-refresh exchange nor independent
+issuer verification and signed checkpoint ownership proof exists on the
+desktop. Do **not** allow this crate to issue `TrustedSessionLease` from
+an unverified access token payload, a native-only timer, a frontend claim
+or an HTTP success status alone. The backend must revalidate its own
+signed identity and owner/project permissions.
+
+The supervisor currently revokes only its own native stream, not remote
+AI agents, external tool invocations, other machines, or server-side
+refresh tokens. Full emergency STOP requires coordinated backend task
+cancellation, revocation propagation and verified UI acknowledgement.
+The blocking transport's older STOP limitation is unchanged; the
+async client remains the only candidate for a future user-facing
+connection. No production service/feature flag, Tauri command, WinCred
+real-user slot, remote account, merge or owner-PC execution is enabled.
+
 ## Validation and remaining blockers
 
 New CI tests on Ubuntu and Windows cover strict SSE fragmentation,
