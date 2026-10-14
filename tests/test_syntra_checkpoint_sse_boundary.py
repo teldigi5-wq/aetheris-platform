@@ -31,7 +31,8 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
     def test_token_and_verified_session_have_no_public_constructors(self):
         self.assertIn("pub struct NativeAccessToken(Zeroizing<String>);", self.client)
         self.assertIn("pub struct VerifiedNativeSession {", self.client)
-        self.assertNotRegex(self.client, r"pub fn (?:new|issue|mint|from_js|from_token)\s*\(")
+        self.assertNotIn("impl NativeAccessToken {", self.client)
+        self.assertNotIn("impl VerifiedNativeSession {", self.client)
         self.assertIn("fn test_token()", self.client)
         self.assertIn("fn test_session()", self.client)
         self.assertIn("#[cfg(test)]", self.client)
@@ -41,7 +42,7 @@ class NativeCheckpointBoundaryTest(unittest.TestCase):
         self.assertIn("http://127.0.0.1:", self.client)
         self.assertIn(".no_proxy()", self.client)
         self.assertIn(".redirect(Policy::none())", self.client)
-        self.assertIn("Authorization", self.client) if "Authorization" in self.client else self.assertIn("AUTHORIZATION", self.client)
+        self.assertIn("AUTHORIZATION", self.client)
         self.assertNotIn("https://example", self.client)
         self.assertNotIn("Last-Event-ID", self.client.split("#[cfg(test)]")[0])
 
