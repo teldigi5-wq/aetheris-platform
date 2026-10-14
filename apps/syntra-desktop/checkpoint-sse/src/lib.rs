@@ -371,6 +371,8 @@ mod tests {
     fn server(status: &str, content_type: &str, body: Vec<u8>) -> (u16, thread::JoinHandle<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
+        let status = status.to_owned();
+        let content_type = content_type.to_owned();
         let h = thread::spawn(move || {
             let (mut socket, _) = listener.accept().unwrap();
             socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
@@ -447,16 +449,16 @@ mod tests {
     }
     #[test]
     fn failed_auth_and_wrong_content_type_are_never_promoted() {
-        let (port, server)=server("403 Forbidden","application/json",b"{}".to_vec());
+        let (port, forbidden_server)=server("403 Forbidden","application/json",b"{}".to_vec());
         let client=LoopbackMissionClient::new_loopback(port).unwrap();
         assert_eq!(client.read_once(&test_session(),&test_token()).unwrap_err(),
             NativeError::AccessDenied);
-        server.join().unwrap();
-        let (port, server)=server("200 OK","application/json",frame(TASK,1));
+        forbidden_server.join().unwrap();
+        let (port, json_server)=server("200 OK","application/json",frame(TASK,1));
         let client=LoopbackMissionClient::new_loopback(port).unwrap();
         assert_eq!(client.read_once(&test_session(),&test_token()).unwrap_err(),
             NativeError::InvalidStream);
-        server.join().unwrap();
+        json_server.join().unwrap();
     }
     #[test]
     fn stop_and_retry_bounds_are_fail_closed() {
