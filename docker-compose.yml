@@ -15,7 +15,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      # redis-cli inherits REDISCLI_AUTH for maintenance and health probes.
+      REDISCLI_AUTH: ${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}"]
     volumes:
       - aetheris_redis:/data
     healthcheck:
@@ -46,6 +49,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
@@ -120,6 +124,7 @@ services:
       AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       redis:

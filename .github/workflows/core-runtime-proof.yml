@@ -90,6 +90,18 @@ jobs:
             user-service identity-service audit-service orchestrator-service gateway
           docker compose ps
 
+      - name: Verify unauthenticated Redis access is refused, authenticated probe works
+        shell: bash
+        run: |
+          set -euo pipefail
+          unauth="$(docker compose exec -T -e REDISCLI_AUTH= redis redis-cli ping 2>&1 || true)"
+          if ! grep -q 'NOAUTH Authentication required' <<< "$unauth"; then
+            echo "Redis did not reject an unauthenticated PING" >&2
+            exit 1
+          fi
+          docker compose exec -T redis redis-cli ping | grep -Fxq PONG
+          echo "REDIS_AUTH_REJECTED_ANONYMOUS_AND_ACCEPTED_CI_SECRET"
+
       - name: Run core runtime proof
         run: |
           python tools/core_runtime_smoke.py \

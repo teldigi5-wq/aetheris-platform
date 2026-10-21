@@ -40,3 +40,30 @@ These environment changes **do not change an existing PostgreSQL role password o
 CI evidence certifies only exact-head source configuration and the GitHub runner environment. It does NOT prove physical host firewall state, remote port closure in an already-running stack, no secret compromise, absence of vulnerabilities in dependencies/branch history, or production compliance. A separate follow-up must address observability Docker socket and remaining service-to-service security boundaries.
 
 **No forced merges, branch deletion, production changes, or physical-PC changes in this remediation.**
+
+## Next security slice: Redis password and rate-limiter/cache boundary
+
+The Redis database (gateway rate-limit state and user-service cache) now requires
+authentication in the proposed Compose configuration. Operators must provide a
+**new independent** `AETHERIS_REDIS_PASSWORD` (do not reuse JWT, PostgreSQL,
+RabbitMQ, or Grafana secrets). The same value is injected into the Redis server,
+Redis health/maintenance client through `REDISCLI_AUTH`, and Spring clients through
+`SPRING_DATA_REDIS_PASSWORD`. Missing or empty password fails Compose config.
+
+This is **not** a production rollout or credential rotation. Redis data in named
+volumes is preserved. Before upgrading an existing installation, back up and
+validate recovery, identify direct Redis users, coordinate all clients, and
+apply the new credential in a reviewed maintenance window. An unauthenticated
+client will intentionally stop working; do not weaken authentication.
+Never use `docker compose down -v` on an existing environment.
+
+For local Compose, `REDISCLI_AUTH` is inherited by `docker compose exec redis redis-cli`
+so diagnostic commands remain authenticated. CI proves anonymous `redis-cli ping`
+receives NOAUTH. Do not print unredacted `docker compose config`, Docker process
+arguments, or secret values. Docker administrators can view container environment
+and launch arguments; use dedicated secret facilities and TLS/ACL/workload
+isolation beyond trusted local development.
+
+**Scope:** Three Docker Compose variants only. Legacy Helm chart values, historical
+branch drift, service-to-service authorization, and Redis network segmentation
+need separate review. CI cannot certify an existing workstation or deployment.
