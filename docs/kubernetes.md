@@ -5,7 +5,7 @@ Stage 7 packages the Aetheris core platform as a Helm chart for a local Kubernet
 ## What the chart deploys
 
 - PostgreSQL with a PersistentVolumeClaim
-- Redis with append-only persistence
+- Redis with append-only persistence and a required strong authentication credential
 - RabbitMQ with durable storage and management port
 - User Service
 - Identity Service
@@ -61,13 +61,35 @@ docker build -t aetheris-platform-dashboard:latest .\dashboard
 
 The local values file keeps `imagePullPolicy: IfNotPresent`, which allows Docker Desktop Kubernetes to use locally built images. For kind or minikube, load these images into that cluster explicitly before installation.
 
+## Set up a private Redis secret for Helm (required even for local demo)
+
+The Helm chart never supplies a known Redis password. Generate an independent
+random value and write it to the private, Git-ignored
+`deploy/helm/aetheris/secrets.local.yaml` before installing. For example, in
+PowerShell at the repository root:
+
+```powershell
+$privateRedisPassword = python -c "import secrets; print(secrets.token_hex(32))"
+@"
+secrets:
+  redisPassword: "$privateRedisPassword"
+"@ | Set-Content -Path .\deploy\helm\aetheris\secrets.local.yaml -Encoding utf8
+Remove-Variable privateRedisPassword
+```
+
+Do not screenshot, paste, log, publish, or reuse this private password.
+Keep a protected backup and restrict local file access. Existing Redis volumes
+and clients need a coordinated migration; changing Helm values alone is not
+credential rotation on already-running systems. Helm values can be stored in
+release history, so this demo mechanism is **not** a production secret-management design.
+
 ## Validate the Helm chart locally
 
 The plain/default chart intentionally fails when it sees the bundled demo credentials or mutable image tags. Use the explicit local-development values file for the Stage 7 demo validation:
 
 ```powershell
-helm lint .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml
-helm template aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml --namespace aetheris > $null
+helm lint .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\secrets.local.yaml
+helm template aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\secrets.local.yaml --namespace aetheris > $null
 ```
 
 Both local-demo commands should complete without errors. A non-local render must instead supply strong credentials and digest-pinned images while leaving `global.allowInsecureLocalDefaults=false`.
@@ -77,6 +99,7 @@ Both local-demo commands should complete without errors. A non-local render must
 ```powershell
 helm upgrade --install aetheris .\deploy\helm\aetheris `
   -f .\deploy\helm\aetheris\values-local.yaml `
+  -f .\deploy\helm\aetheris\secrets.local.yaml `
   --namespace aetheris `
   --create-namespace `
   --wait `
@@ -156,13 +179,14 @@ The Deployment controller creates a replacement pod automatically.
 After changing chart values or templates in the local demo:
 
 ```powershell
-helm upgrade aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -n aetheris --wait --timeout 8m
+helm upgrade aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -n aetheris --wait --timeout 8m -f .\deploy\helm\aetheris\secrets.local.yaml
 ```
 
 Example replica override:
 
 ```powershell
 helm upgrade aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -n aetheris `
+  -f .\deploy\helm\aetheris\secrets.local.yaml `
   --set replicas.gateway=2 `
   --set replicas.userService=2 `
   --wait
