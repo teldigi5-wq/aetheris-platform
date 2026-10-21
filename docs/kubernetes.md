@@ -89,7 +89,7 @@ The plain/default chart intentionally fails when it sees the bundled demo creden
 
 ```powershell
 helm lint .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\secrets.local.yaml
-helm template aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml --namespace aetheris > $null -f .\deploy\helm\aetheris\secrets.local.yaml
+helm template aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\secrets.local.yaml --namespace aetheris > $null
 ```
 
 Both local-demo commands should complete without errors. A non-local render must instead supply strong credentials and digest-pinned images while leaving `global.allowInsecureLocalDefaults=false`.
