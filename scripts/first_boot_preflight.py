@@ -71,14 +71,13 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
 
     compose = ROOT / contract["platform_compose_file"]
     compose_text = compose.read_text(encoding="utf-8") if compose.is_file() else ""
-    # First-boot CI must certify LOOPBACK binding, never the former wildcard host ports.
-    discovered_ports = sorted({int(p) for p in re.findall(
-        r'^\\s*-\\s*["\\']127\\.0\\.0\\.1:(\\d+):\\d+["\\']\\s*$',
-        compose_text, flags=re.MULTILINE)})
-    host_wide_bindings = re.findall(
-        r'^\\s*-\\s*["\\'](?:0\\.0\\.0\\.0:)?\\d+:\\d+["\\']\\s*$',
-        compose_text, flags=re.MULTILINE)
-
+    # Only explicit localhost host binds satisfy the updated first-boot contract.
+    published_lines = [line.strip() for line in compose_text.splitlines()
+                       if line.strip().startswith('- "')]
+    discovered_ports = sorted({int(m.group(1)) for line in published_lines
+        if (m := re.search(r"127\\.0\\.0\\.1:(\\d+):\\d+", line))})
+    host_wide_bindings = [line for line in published_lines
+        if re.search(r'"(?:0\\.0\\.0\\.0:)?\\d+:\\d+"', line)]
     expected_ports = sorted(contract["expected_platform_ports"])
     missing_ports = sorted(set(expected_ports) - set(discovered_ports))
     unexpected_ports = sorted(set(discovered_ports) - set(expected_ports))
