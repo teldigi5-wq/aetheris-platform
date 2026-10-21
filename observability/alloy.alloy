@@ -1,26 +1,19 @@
-discovery.docker "aetheris" {
-  host = "unix:///var/run/docker.sock"
-}
-
-discovery.relabel "aetheris_logs" {
-  targets = discovery.docker.aetheris.targets
-
-  rule {
-    source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
-    target_label  = "container"
-  }
-
-  rule {
-    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    target_label  = "service"
-  }
-}
-
-loki.source.docker "aetheris" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = discovery.relabel.aetheris_logs.output
+// Files are exported by a trusted host-side operator, not Docker API access.
+// Alloy cannot control the Docker daemon or enumerate container secrets.
+loki.source.file "aetheris" {
+  targets = [
+    { __path__ = "/var/log/aetheris/gateway.log", service = "gateway" },
+    { __path__ = "/var/log/aetheris/user-service.log", service = "user-service" },
+    { __path__ = "/var/log/aetheris/identity-service.log", service = "identity-service" },
+    { __path__ = "/var/log/aetheris/audit-service.log", service = "audit-service" },
+    { __path__ = "/var/log/aetheris/orchestrator-service.log", service = "orchestrator-service" },
+  ]
   forward_to = [loki.write.local.receiver]
+  tail_from_end = false
+  file_match {
+    enabled = true
+    sync_period = "5s"
+  }
 }
 
 loki.write "local" {

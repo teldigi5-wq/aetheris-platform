@@ -135,5 +135,18 @@ class DockerComposeSecurityBoundary(unittest.TestCase):
         self.assertIn('os.environ.get("AETHERIS_POSTGRES_PASSWORD", "")', boundary)
         self.assertNotIn('f"SPRING_DATASOURCE_PASSWORD={RUNTIME_DATASOURCE_PASSWORD}"', boundary)
 
+    def test_observability_has_no_docker_control_socket(self):
+        for name in ("docker-compose.yml", "docker-compose.integration-external.yml"):
+            content = (ROOT/name).read_text("utf-8")
+            self.assertNotIn("/var/run/docker.sock", content)
+            self.assertIn("./observability/logs:/var/log/aetheris:ro", content)
+        alloy = (ROOT/"observability/alloy.alloy").read_text("utf-8")
+        self.assertNotIn("/var/run/docker.sock", alloy)
+        self.assertNotIn("discovery.docker", alloy)
+        self.assertIn('loki.source.file "aetheris"', alloy)
+        self.assertIn("/var/log/aetheris/gateway.log", alloy)
+        self.assertIn("observability/logs/", (ROOT/".gitignore").read_text("utf-8"))
+
+
 if __name__=="__main__":
     unittest.main()
