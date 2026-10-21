@@ -49,7 +49,6 @@ jobs:
     name: observability-runtime-proof
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    env:
     steps:
       - name: Create ephemeral random Compose secrets (CI only)
         shell: bash
