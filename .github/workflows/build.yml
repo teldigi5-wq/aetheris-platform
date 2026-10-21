@@ -113,6 +113,11 @@ jobs:
         run: python -m unittest tests.test_actuator_health_boundary -v
       - name: Helm deployment safety boundary
         run: python -m unittest tests.test_helm_deployment_safety -v
+      - name: Validate rendered Helm Redis security contract
+        shell: bash
+        run: |
+          helm version
+          python -m unittest tests.test_helm_redis_render -v
       - name: Secret and sensitive-file gate
         run: python scripts/stage22/release_gate.py
       - name: Persistence schema guard

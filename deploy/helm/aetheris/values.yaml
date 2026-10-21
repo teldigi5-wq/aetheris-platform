@@ -11,6 +11,8 @@ secrets:
   postgresPassword: aetheris
   rabbitmqUsername: aetheris
   rabbitmqPassword: aetheris
+  # Mandatory even for local demo. Never commit a real Redis credential.
+  redisPassword: ""
 
 images:
   gateway: aetheris-platform-gateway:latest
