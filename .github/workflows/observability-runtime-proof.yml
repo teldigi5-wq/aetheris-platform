@@ -83,6 +83,8 @@ jobs:
 
       - name: Start core and observability stack
         run: |
+          # Create file-bridge directory before Docker can create it as root.
+          mkdir -p observability/logs
           docker compose --profile observability up -d --build
           docker compose --profile observability ps
 
