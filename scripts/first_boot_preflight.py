@@ -71,11 +71,18 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
 
     compose = ROOT / contract["platform_compose_file"]
     compose_text = compose.read_text(encoding="utf-8") if compose.is_file() else ""
-    discovered_ports = sorted({int(p) for p in re.findall(r'[- ]+["\']?(\d+):\d+', compose_text)})
+    # First-boot CI must certify LOOPBACK binding, never the former wildcard host ports.
+    discovered_ports = sorted({int(p) for p in re.findall(
+        r'^\\s*-\\s*["\\']127\\.0\\.0\\.1:(\\d+):\\d+["\\']\\s*$',
+        compose_text, flags=re.MULTILINE)})
+    host_wide_bindings = re.findall(
+        r'^\\s*-\\s*["\\'](?:0\\.0\\.0\\.0:)?\\d+:\\d+["\\']\\s*$',
+        compose_text, flags=re.MULTILINE)
+
     expected_ports = sorted(contract["expected_platform_ports"])
     missing_ports = sorted(set(expected_ports) - set(discovered_ports))
     unexpected_ports = sorted(set(discovered_ports) - set(expected_ports))
-    checks.append(result("platform-compose-port-contract", "PASS" if not missing_ports and not unexpected_ports else "FAIL", f"expected={expected_ports}; discovered={discovered_ports}; missing={missing_ports}; unexpected={unexpected_ports}", category="compose"))
+    checks.append(result("platform-compose-port-contract", "PASS" if not missing_ports and not unexpected_ports and not host_wide_bindings else "FAIL", f"expected={expected_ports}; discovered={discovered_ports}; missing={missing_ports}; unexpected={unexpected_ports}", category="compose"))
 
     compose_services = set(re.findall(r"^  ([A-Za-z0-9_-]+):\s*$", compose_text, flags=re.MULTILINE))
     missing_services = sorted(set(contract["required_platform_services"]) - compose_services)
@@ -88,7 +95,7 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
         "orchestrator-service:",
         f"image: {runtime['required_image_expression']}",
         "AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}",
-        '"8090:8090"',
+        '"127.0.0.1:8090:8090"',
     ]
     missing_external = [marker for marker in external_markers if marker not in external_text]
     forbidden_external = [token for token in (
