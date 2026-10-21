@@ -53,7 +53,7 @@ class DockerComposeSecurityBoundary(unittest.TestCase):
                 self.assertNotEqual(result.returncode,0,
                     "MISSING_SECRET_MUST_FAIL_COMPOSE_INTERPOLATION: "+filename)
                 self.assertRegex(result.stderr+r"\n"+result.stdout,
-                    "AETHERIS_(POSTGRES_PASSWORD|RABBITMQ_PASSWORD|JWT_SECRET)")
+                    "AETHERIS_(POSTGRES_PASSWORD|RABBITMQ_PASSWORD|JWT_SECRET|GRAFANA_ADMIN_PASSWORD)")
         for missing in REQUIRED[:3]:
             env=strong_env()
             env.pop(missing)
