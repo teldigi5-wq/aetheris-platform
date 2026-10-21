@@ -29,7 +29,6 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: aetheris
       RABBITMQ_DEFAULT_PASS: ${AETHERIS_RABBITMQ_PASSWORD:?Set AETHERIS_RABBITMQ_PASSWORD to a unique local secret}
-      - "15672:15672"
     volumes:
       - aetheris_rabbitmq:/var/lib/rabbitmq
     healthcheck:
