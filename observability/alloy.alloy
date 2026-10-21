@@ -10,10 +10,6 @@ loki.source.file "aetheris" {
   ]
   forward_to = [loki.write.local.receiver]
   tail_from_end = false
-  file_match {
-    enabled = true
-    sync_period = "5s"
-  }
 }
 
 loki.write "local" {
