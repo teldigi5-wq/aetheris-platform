@@ -1,0 +1,51 @@
+name: Dashboard dependency remediation candidate (read-only evidence)
+on:
+  pull_request:
+    branches: [feature/syntra-aetheris-foundation-v2]
+    paths:
+      - '.github/workflows/dashboard-security-lock-probe.yml'
+      - 'dashboard/package.json'
+      - 'dashboard/package-lock.json'
+permissions:
+  contents: read
+jobs:
+  generate-audited-candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22.23.2'
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - name: Construct and test a candidate without pushing any changes
+        shell: bash
+        run: |
+          set -u
+          cd dashboard
+          npm install --package-lock-only --ignore-scripts --no-fund --save-dev vite@8.3.5
+          a=$?
+          if [ "$a" -eq 0 ]; then
+            npm audit fix --package-lock-only --ignore-scripts --no-fund
+            a=$?
+          fi
+          if [ "$a" -eq 0 ]; then
+            npm ci --ignore-scripts --no-fund
+            a=$?
+          fi
+          if [ "$a" -eq 0 ]; then
+            npm audit --audit-level=high
+            a=$?
+          fi
+          if [ "$a" -eq 0 ]; then
+            npm run build
+            a=$?
+          fi
+          cd ..
+          echo "AETHERIS_REVIEWED_NPM_PATCH_BEGIN"
+          git diff -- dashboard/package.json dashboard/package-lock.json
+          echo "AETHERIS_REVIEWED_NPM_PATCH_END"
+          exit "$a"
