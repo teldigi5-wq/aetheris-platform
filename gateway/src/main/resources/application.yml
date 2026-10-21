@@ -121,7 +121,7 @@ spring:
 
 aetheris:
   jwt:
-    secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
+    secret: ${AETHERIS_JWT_SECRET}
 
 resilience4j:
   circuitbreaker:
