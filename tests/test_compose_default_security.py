@@ -118,5 +118,22 @@ class DockerComposeSecurityBoundary(unittest.TestCase):
                 self.assertEqual(port.get("host_ip"),"127.0.0.1",name)
 
 
+    def test_legacy_proof_overrides_share_database_password(self):
+        # Prevent CI-only overrides from undoing hardened service credentials.
+        overrides = (
+            "connector-live-providers-phase3-compose.override.yml",
+            "connector-provider-sync-phase4-compose.override.yml",
+            "connector-live-write-phase7-compose.override.yml",
+            "connector-live-write-phase8-compose.override.yml",
+        )
+        for name in overrides:
+            with self.subTest(override=name):
+                data = (ROOT/"build-evidence/runtime"/name).read_text("utf-8")
+                self.assertIn("SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?", data)
+                self.assertNotIn("SPRING_DATASOURCE_PASSWORD: aetheris", data)
+        boundary = (ROOT/"tools/core_deployment_boundary_smoke.py").read_text("utf-8")
+        self.assertIn('os.environ.get("AETHERIS_POSTGRES_PASSWORD", "")', boundary)
+        self.assertNotIn('f"SPRING_DATASOURCE_PASSWORD={RUNTIME_DATASOURCE_PASSWORD}"', boundary)
+
 if __name__=="__main__":
     unittest.main()

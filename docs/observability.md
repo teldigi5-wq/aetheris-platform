@@ -46,7 +46,7 @@ Local endpoints:
 - Tempo: http://localhost:3200
 - Alloy: http://localhost:12345
 
-Grafana local credentials are `aetheris` / `aetheris`.
+Grafana local username is `aetheris`; its password must be set privately via `AETHERIS_GRAFANA_ADMIN_PASSWORD` (no default).
 
 ## Production hardening
 

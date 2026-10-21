@@ -15,6 +15,6 @@ curl http://localhost:3100/ready
 curl http://localhost:3200/ready
 ```
 
-Open Grafana at `http://localhost:3001` with local credentials `aetheris` / `aetheris`.
+Open Grafana at `http://localhost:3001` with user `aetheris` and the distinct secret supplied in your private `.env` as `AETHERIS_GRAFANA_ADMIN_PASSWORD`. Never use or commit the previous default password.
 
 In Grafana, the provisioned datasources are Prometheus, Loki, and Tempo. The provisioned dashboard is **Aetheris Platform Overview**.
