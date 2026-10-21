@@ -46,8 +46,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      AETHERIS_JWT_SECRET: data-recovery-proof-local-ci-secret-change-me-42chars
     steps:
+      - name: Create ephemeral random Compose secrets (CI only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_POSTGRES_PASSWORD AETHERIS_RABBITMQ_PASSWORD AETHERIS_JWT_SECRET AETHERIS_GRAFANA_ADMIN_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
