@@ -1,0 +1,76 @@
+name: Aetheris isolated PostgreSQL schema rehearsal
+
+on:
+  pull_request:
+    paths:
+      - 'docs/database/**'
+      - 'tests/test_schema_rehearsal.py'
+      - 'identity-service/src/main/java/io/aetheris/identity/IdentityAccount.java'
+      - 'identity-service/src/main/java/io/aetheris/identity/RefreshToken.java'
+      - 'user-service/src/main/java/io/aetheris/users/User.java'
+      - 'docker-compose*.yml'
+      - '.github/workflows/schema-rehearsal.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fresh-postgres-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate rehearsal source and known remaining issue
+        run: python -m unittest tests.test_schema_rehearsal -v
+      - name: Apply rehearsal SQL to isolated, disposable PostgreSQL 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No host port, external network, repository secrets or persistent volume.
+          # The image tag matches the current platform Compose major family.
+          name="aetheris-schema-rehearsal-${GITHUB_RUN_ID}"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+          docker run -d --rm --name "$name" --network none \
+            -e POSTGRES_PASSWORD="$(openssl rand -hex 32)" postgres:16-alpine > /dev/null
+          ready=0
+          for i in $(seq 1 40); do
+            if docker exec "$name" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1 || { echo "Isolated PostgreSQL did not start" >&2; exit 1; }
+
+          docker exec -i "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < docs/database/rehearsal/V1__identity_schema.sql > /dev/null
+          docker exec -i "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < docs/database/rehearsal/V1__users_schema.sql > /dev/null
+
+          tables="$(docker exec "$name" psql -U postgres -d postgres -At \
+            -c "SELECT count(*) FROM pg_class WHERE relkind='r' AND relname IN ('identity_accounts','identity_refresh_tokens','users');")"
+          test "$tables" = 3 || { echo "Expected three isolated tables" >&2; exit 1; }
+
+          fks="$(docker exec "$name" psql -U postgres -d postgres -At \
+            -c "SELECT count(*) FROM pg_constraint WHERE contype='f' AND conrelid='identity_refresh_tokens'::regclass;")"
+          test "$fks" = 1 || { echo "Expected refresh-token account FK" >&2; exit 1; }
+
+          docker exec "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "INSERT INTO identity_accounts (name,email,password_hash,role) VALUES ('Synthetic','synthetic@example.invalid','not-a-real-password-hash','API_CONSUMER');" > /dev/null
+          if docker exec "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "INSERT INTO identity_accounts (name,email,password_hash,role) VALUES ('Repeat','synthetic@example.invalid','dummy','API_CONSUMER');" >/dev/null 2>&1; then
+            echo "Identity duplicate-email constraint unexpectedly missing" >&2
+            exit 1
+          fi
+          if docker exec "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "INSERT INTO identity_refresh_tokens (account_id,token_hash,expires_at,revoked,created_at) VALUES (999999,'synthetic',NOW(),false,NOW());" >/dev/null 2>&1; then
+            echo "Refresh-token foreign key constraint unexpectedly missing" >&2
+            exit 1
+          fi
+          docker exec "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "INSERT INTO users (name,email) VALUES ('Synthetic','test@example.invalid');" > /dev/null
+          echo "PASS: isolated PostgreSQL fresh-schema rehearsal; no live data touched"
