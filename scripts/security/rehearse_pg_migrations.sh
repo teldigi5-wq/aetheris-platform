@@ -13,10 +13,10 @@ docker run --detach --rm --name "$container" -e POSTGRES_PASSWORD="$secret" -p 1
 test_password="$secret"
 unset secret
 for n in {1..45}; do
-  if docker exec "$container" pg_isready -q -U postgres -d postgres; then break; fi
+  if docker exec "$container" pg_isready -q -h 127.0.0.1 -U postgres -d postgres; then break; fi
   sleep 1
 done
-docker exec "$container" pg_isready -q -U postgres -d postgres
+docker exec "$container" pg_isready -q -h 127.0.0.1 -U postgres -d postgres
 db_psql() { docker exec -i "$container" psql -X -q -v ON_ERROR_STOP=1 -U postgres -d "$1" "${@:2}"; }
 docker exec "$container" createdb -U postgres aetheris_fresh
 db_psql aetheris_fresh < database/migration-candidates/V1__identity_schema.sql
