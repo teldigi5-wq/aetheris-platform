@@ -19,7 +19,7 @@ class SchemaRehearsalSafetyTests(unittest.TestCase):
             data = path.read_text(encoding="utf-8")
             self.assertIn("SYNTHETIC FRESH DATABASE REHEARSAL ONLY", data)
             self.assertNotRegex(
-                data, r"(?im)^\\s*(?:DROP|TRUNCATE|DELETE|ALTER\\s+TABLE)\\b"
+                data, r"(?im)^\s*(?:DROP|TRUNCATE|DELETE|ALTER\s+TABLE)\b"
             )
         for service in ("identity-service", "user-service"):
             migration = ROOT / service / "src" / "main" / "resources" / "db" / "migration"
