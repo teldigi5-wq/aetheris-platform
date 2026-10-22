@@ -60,6 +60,6 @@ export SPRING_DATASOURCE_PASSWORD="$test_password"
 export SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
 export SPRING_JPA_HIBERNATE_DDL_AUTO=validate
 unset test_password
-./mvnw -B -ntp -pl identity-service -Dtest=SchemaCandidateValidationTest test
-./mvnw -B -ntp -pl user-service -Dtest=SchemaCandidateValidationTest test
+./mvnw -B -ntp -pl identity-service -Daetheris.schema.rehearsal=true -Dtest=SchemaCandidateValidationTest test
+./mvnw -B -ntp -pl user-service -Daetheris.schema.rehearsal=true -Dtest=SchemaCandidateValidationTest test
 echo "PASS: Hibernate validated both service mappings against candidate PostgreSQL schema"
