@@ -32,7 +32,7 @@ class SchemaMigrationCandidateTests(unittest.TestCase):
                 sql = path.read_text(encoding="utf-8")
                 self.assertIn("CREATE TABLE", sql)
                 self.assertNotIn("IF NOT EXISTS", sql.upper().split("CREATE TABLE", 1)[1])
-                self.assertIsNone(re.search(r"\\b(DROP|TRUNCATE|DELETE|ALTER|UPDATE)\\b", sql.upper()))
+                self.assertIsNone(re.search(r"\b(DROP|TRUNCATE|DELETE|ALTER|UPDATE)\b", sql.upper()))
                 self.assertNotIn("CASCADE", sql.upper())
 
     def test_candidate_tables_match_entity_name_contract(self):
