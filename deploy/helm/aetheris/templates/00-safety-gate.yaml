@@ -3,9 +3,13 @@ Fail closed unless the installer explicitly opts into the repository's local
 learning/demo defaults. Non-local renders must replace every bundled demo
 credential and use digest-pinned images.
 */ -}}
-{{- /* Redis is never allowed to start unauthenticated, including local demos. */ -}}
-{{- if not .Values.secrets.redisPassword -}}
-  {{- fail "unsafe Helm Redis configuration: set secrets.redisPassword to an independent random secret via a protected local values file or approved secret-management process" -}}
+{{- /* Redis must use an independent, nontrivial credential in EVERY mode. */ -}}
+{{- $redisSecret := .Values.secrets.redisPassword | default "" | toString -}}
+{{- if lt (len (trim $redisSecret)) 32 -}}
+  {{- fail "unsafe Helm Redis configuration: secrets.redisPassword requires 32+ non-whitespace characters from a protected secret source" -}}
+{{- end -}}
+{{- if or (eq $redisSecret (.Values.secrets.jwtSecret | toString)) (eq $redisSecret (.Values.secrets.postgresPassword | toString)) (eq $redisSecret (.Values.secrets.rabbitmqPassword | toString)) -}}
+  {{- fail "unsafe Helm Redis configuration: secrets.redisPassword must be independent of JWT, PostgreSQL and RabbitMQ credentials" -}}
 {{- end -}}
 {{- if not .Values.global.allowInsecureLocalDefaults -}}
   {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
