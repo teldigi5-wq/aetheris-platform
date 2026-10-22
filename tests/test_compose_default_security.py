@@ -18,7 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 COMPOSES = ("docker-compose.yml", "docker-compose.core.yml",
             "docker-compose.integration-external.yml")
 REQUIRED = ("AETHERIS_POSTGRES_PASSWORD", "AETHERIS_RABBITMQ_PASSWORD",
-            "AETHERIS_JWT_SECRET", "AETHERIS_GRAFANA_ADMIN_PASSWORD")
+            "AETHERIS_JWT_SECRET", "AETHERIS_GRAFANA_ADMIN_PASSWORD",
+            "AETHERIS_REDIS_PASSWORD")
 SENSITIVE = {"postgres", "redis", "rabbitmq"}
 HOST_BOUND = {"gateway", "dashboard", "user-service", "identity-service",
               "audit-service", "orchestrator-service", "prometheus", "tempo",
@@ -53,8 +54,8 @@ class DockerComposeSecurityBoundary(unittest.TestCase):
                 self.assertNotEqual(result.returncode,0,
                     "MISSING_SECRET_MUST_FAIL_COMPOSE_INTERPOLATION: "+filename)
                 self.assertRegex(result.stderr+r"\n"+result.stdout,
-                    "AETHERIS_(POSTGRES_PASSWORD|RABBITMQ_PASSWORD|JWT_SECRET|GRAFANA_ADMIN_PASSWORD)")
-        for missing in REQUIRED[:3]:
+                    "AETHERIS_(POSTGRES_PASSWORD|RABBITMQ_PASSWORD|JWT_SECRET|GRAFANA_ADMIN_PASSWORD|REDIS_PASSWORD)")
+        for missing in REQUIRED:
             env=strong_env()
             env.pop(missing)
             result=run_config("docker-compose.yml",env)
@@ -104,6 +105,27 @@ class DockerComposeSecurityBoundary(unittest.TestCase):
         self.assertNotIn("change-me-local-development",example)
         for key in REQUIRED:
             self.assertRegex(example,r"(?m)^"+re.escape(key)+r"=$")
+
+    def test_redis_requires_authentication_and_matching_clients(self):
+        for filename in COMPOSES:
+            with self.subTest(file=filename):
+                env=strong_env()
+                result=run_config(filename, env)
+                self.assertEqual(result.returncode, 0, "Compose rejected: "+filename)
+                svc=json.loads(result.stdout)["services"]
+                redis=svc["redis"]
+                command=redis["command"]
+                self.assertIn("--requirepass", command)
+                self.assertEqual(command[command.index("--requirepass")+1], env["AETHERIS_REDIS_PASSWORD"])
+                self.assertEqual(redis["environment"]["REDISCLI_AUTH"], env["AETHERIS_REDIS_PASSWORD"])
+                self.assertFalse(redis.get("ports"), "Redis must not be host-published")
+                for client in ("gateway", "user-service"):
+                    self.assertEqual(svc[client]["environment"]["SPRING_DATA_REDIS_PASSWORD"],
+                                     env["AETHERIS_REDIS_PASSWORD"])
+        for service in ("gateway", "user-service"):
+            yaml=(ROOT/service/"src/main/resources/application.yml").read_text("utf-8")
+            self.assertIn("password: ${SPRING_DATA_REDIS_PASSWORD}", yaml)
+            self.assertNotIn("password: ${SPRING_DATA_REDIS_PASSWORD:}", yaml)
 
     def test_untrusted_override_does_not_republish_ports(self):
         env=strong_env()
