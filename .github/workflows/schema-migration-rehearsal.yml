@@ -2,7 +2,7 @@ name: Aetheris PostgreSQL schema migration rehearsal
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, release/aetheris-unified-security-20261022]
     paths:
       - 'database/migration-candidates/**'
       - 'scripts/security/rehearse_pg_migrations.sh'
