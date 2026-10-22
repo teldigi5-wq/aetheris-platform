@@ -8,7 +8,9 @@ cleanup() { docker rm -f "$container" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 secret="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then echo "::add-mask::$secret"; fi
-docker run --detach --rm --name "$container" -e POSTGRES_PASSWORD="$secret" postgres:16-alpine >/dev/null
+docker run --detach --rm --name "$container" -e POSTGRES_PASSWORD="$secret" -p 127.0.0.1:55432:5432 postgres:16-alpine >/dev/null
+# Keep the randomly generated test password in memory only; never log it.
+test_password="$secret"
 unset secret
 for n in {1..45}; do
   if docker exec "$container" pg_isready -q -U postgres -d postgres; then break; fi
@@ -49,3 +51,15 @@ fi
 retained="$(db_psql aetheris_legacy -Atc "SELECT legacy_marker FROM users WHERE id=1")"
 [[ "$retained" == "preserve" ]] || { echo "Legacy data was not preserved" >&2; exit 1; }
 echo "PASS: fresh schema, FK/unique constraints, synthetic rows and legacy fail-closed checks"
+
+# Run actual ORM validation against the freshly created PostgreSQL schema.
+# This is an isolated GitHub Actions host; DB is bound to loopback only.
+export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:55432/aetheris_fresh"
+export SPRING_DATASOURCE_USERNAME=postgres
+export SPRING_DATASOURCE_PASSWORD="$test_password"
+export SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+export SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+unset test_password
+./mvnw -B -ntp -pl identity-service -Dtest=SchemaCandidateValidationTest test
+./mvnw -B -ntp -pl user-service -Dtest=SchemaCandidateValidationTest test
+echo "PASS: Hibernate validated both service mappings against candidate PostgreSQL schema"

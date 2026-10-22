@@ -26,5 +26,11 @@ jobs:
           persist-credentials: false
       - name: Verify candidates are not executed in production
         run: python -m unittest tests.test_schema_migration_candidate -v
+      - name: Set up Java 21 for Hibernate schema validation
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
       - name: Rehearse clean and legacy schemas on disposable PostgreSQL
         run: bash scripts/security/rehearse_pg_migrations.sh
