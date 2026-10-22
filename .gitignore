@@ -10,3 +10,5 @@ coverage/
 
 # Operator-exported container logs; may contain private application data.
 observability/logs/
+# Locally generated Kubernetes Redis credential, never commit.
+deploy/helm/aetheris/values-local-private.yaml

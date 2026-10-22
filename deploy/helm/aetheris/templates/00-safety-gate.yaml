@@ -3,6 +3,10 @@ Fail closed unless the installer explicitly opts into the repository's local
 learning/demo defaults. Non-local renders must replace every bundled demo
 credential and use digest-pinned images.
 */ -}}
+{{- /* Redis is never allowed to start unauthenticated, including local demos. */ -}}
+{{- if not .Values.secrets.redisPassword -}}
+  {{- fail "unsafe Helm Redis configuration: set secrets.redisPassword to an independent random secret via a protected local values file or approved secret-management process" -}}
+{{- end -}}
 {{- if not .Values.global.allowInsecureLocalDefaults -}}
   {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
     {{- fail "unsafe Helm default: replace secrets.jwtSecret or explicitly opt into values-local.yaml for local development" -}}
