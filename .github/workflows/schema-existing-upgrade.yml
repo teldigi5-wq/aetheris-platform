@@ -1,0 +1,93 @@
+name: Aetheris synthetic existing-database upgrade and restore
+
+on:
+  pull_request:
+    paths:
+      - 'docs/database/**'
+      - 'tests/test_synthetic_schema_upgrade.py'
+      - '.github/workflows/schema-existing-upgrade.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  existing-schema-rehearsal:
+    name: Nonproduction legacy, drift and restore tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Confirm no automatic production migration wiring
+        run: python -m unittest tests.test_schema_rehearsal tests.test_synthetic_schema_upgrade -v
+      - name: Rehearse an existing synthetic schema using isolated PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="aetheris-existing-schema-${GITHUB_RUN_ID}"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+          password="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          docker run -d --rm --name "$name" --network none -e POSTGRES_PASSWORD="$password" postgres:16-alpine > /dev/null
+          ready=0
+          for i in $(seq 1 40); do
+            if docker exec "$name" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1 || { echo "Isolated PostgreSQL failed" >&2; exit 1; }
+
+          docker exec "$name" createdb -U postgres legacy_compatible
+          docker exec "$name" createdb -U postgres legacy_drifted
+          docker exec "$name" createdb -U postgres unmarked
+          docker exec -i "$name" psql -U postgres -d legacy_compatible -v ON_ERROR_STOP=1 < docs/database/rehearsal/legacy_existing_synthetic.sql > /dev/null
+          docker exec -i "$name" psql -U postgres -d legacy_drifted -v ON_ERROR_STOP=1 < docs/database/rehearsal/legacy_existing_synthetic.sql > /dev/null
+          docker exec -i "$name" psql -U postgres -d unmarked -v ON_ERROR_STOP=1 < docs/database/rehearsal/V1__identity_schema.sql > /dev/null
+          docker exec -i "$name" psql -U postgres -d unmarked -v ON_ERROR_STOP=1 < docs/database/rehearsal/V1__users_schema.sql > /dev/null
+
+          # A fingerprint of synthetic rows; no user/private data in this job.
+          fingerprint="SELECT md5(
+            (SELECT string_agg(id::text || email || role, ',' ORDER BY id) FROM identity_accounts) || ':' ||
+            (SELECT string_agg(id::text || account_id::text || token_hash, ',' ORDER BY id) FROM identity_refresh_tokens) || ':' ||
+            (SELECT string_agg(id::text || email, ',' ORDER BY id) FROM users)
+          );"
+          before="$(docker exec "$name" psql -U postgres -d legacy_compatible -At -c "$fingerprint")"
+          test "${#before}" -eq 32
+          docker exec -i "$name" psql -U postgres -d legacy_compatible -v ON_ERROR_STOP=1 --single-transaction < docs/database/rehearsal/V2__synthetic_index_upgrade.sql > /dev/null
+          after="$(docker exec "$name" psql -U postgres -d legacy_compatible -At -c "$fingerprint")"
+          test "$before" = "$after" || { echo "Synthetic records changed unexpectedly" >&2; exit 1; }
+          idx="$(docker exec "$name" psql -U postgres -d legacy_compatible -At -c "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND tablename='identity_refresh_tokens' AND indexname='idx_refresh_token_hash';")"
+          test "$idx" = 1 || { echo "Candidate index absent" >&2; exit 1; }
+          # Repeat in the same disposable DB: expected to be a no-op.
+          docker exec -i "$name" psql -U postgres -d legacy_compatible -v ON_ERROR_STOP=1 --single-transaction < docs/database/rehearsal/V2__synthetic_index_upgrade.sql > /dev/null
+          test "$before" = "$(docker exec "$name" psql -U postgres -d legacy_compatible -At -c "$fingerprint")"
+
+          # Verify a backup made from the synthetic upgraded database restores.
+          docker exec "$name" pg_dump -U postgres -Fc -d legacy_compatible -f /tmp/ci_synthetic.backup
+          docker exec "$name" createdb -U postgres restored
+          docker exec "$name" pg_restore -U postgres --exit-on-error --no-owner -d restored /tmp/ci_synthetic.backup
+          test "$before" = "$(docker exec "$name" psql -U postgres -d restored -At -c "$fingerprint")"
+          idx="$(docker exec "$name" psql -U postgres -d restored -At -c "SELECT count(*) FROM pg_indexes WHERE indexname='idx_refresh_token_hash';")"
+          test "$idx" = 1 || { echo "Restored index absent" >&2; exit 1; }
+
+          # Drift must refuse migration *before* touching the legacy data.
+          docker exec "$name" psql -U postgres -d legacy_drifted -v ON_ERROR_STOP=1 -c 'ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(180);' > /dev/null
+          drift_before="$(docker exec "$name" psql -U postgres -d legacy_drifted -At -c "$fingerprint")"
+          if docker exec -i "$name" psql -U postgres -d legacy_drifted -v ON_ERROR_STOP=1 --single-transaction < docs/database/rehearsal/V2__synthetic_index_upgrade.sql > /dev/null 2>&1; then
+            echo "Candidate accepted an incompatible synthetic schema" >&2
+            exit 1
+          fi
+          test "$drift_before" = "$(docker exec "$name" psql -U postgres -d legacy_drifted -At -c "$fingerprint")"
+          idx="$(docker exec "$name" psql -U postgres -d legacy_drifted -At -c "SELECT count(*) FROM pg_indexes WHERE indexname='idx_refresh_token_hash';")"
+          test "$idx" = 0 || { echo "Index unexpectedly applied despite drift" >&2; exit 1; }
+
+          # Even fresh real-shaped tables fail closed without the CI marker.
+          if docker exec -i "$name" psql -U postgres -d unmarked -v ON_ERROR_STOP=1 --single-transaction < docs/database/rehearsal/V2__synthetic_index_upgrade.sql > /dev/null 2>&1; then
+            echo "Candidate ran without synthetic-only marker" >&2
+            exit 1
+          fi
+          echo "PASS: synthetic existing data preserved, drift rejected, restore verified"

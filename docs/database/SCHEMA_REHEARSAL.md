@@ -58,3 +58,28 @@ table/index names may differ.
 Never run these candidate scripts against an existing volume or use
 `docker compose down -v`; it deletes persisted data. This is a proof
 of the *proposed schema shape*, not a claim that issue #242 is fixed.
+
+## Second stage: synthetic existing-database upgrade and restore
+
+A new, **test-only** CI workflow now seeds three disposable databases:
+a compatible *invented* Hibernate-like baseline with identity/user records,
+a baseline with a deliberately altered User email-column type, and tables
+without an experiment authorization marker. The migration-like delta merely
+adds the extra unique refresh-token index. It is **not a production Flyway
+migration** and is not enabled for any running application.
+
+The candidate SQL requires the `CI_ONLY_SYNTHETIC` marker and checks the
+expected table names, column widths and refresh-token foreign key before
+indexing. It fails closed on a drifted schema or absent marker. Hosted CI
+rehearses repeat execution, compares data fingerprints before/after,
+creates and restores a PostgreSQL archive and checks the synthetic records
+and index survive recovery. The test uses an ephemeral container without a
+published port or external network. No real user data or existing backups
+are accessed.
+
+**Remaining gaps:** an invented baseline is not the owner's historical
+Hibernate-generated database. A passing experiment cannot establish a
+correct Flyway baseline, DDL concurrency, real rollout performance, actual
+credential rotation, or production recovery. Existing database migration
+remains **UNRESOLVED** until an operator-approved, redacted schema inspection
+and rehearsed restore of representative existing data is performed.
