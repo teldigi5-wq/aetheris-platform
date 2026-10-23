@@ -23,7 +23,8 @@ class SyntheticUpgradeTests(unittest.TestCase):
     def test_migration_does_not_look_like_prod_readiness(self):
         doc = (ROOT / "docs/database/SCHEMA_REHEARSAL.md").read_text()
         self.assertIn("UNRESOLVED", doc)
-        self.assertIn("not a production Flyway migration", doc)
+        self.assertIn("synthetic existing-database upgrade and restore", doc)
+        self.assertIn("not enabled for any running application", doc)
         workflow = (ROOT / ".github/workflows/schema-existing-upgrade.yml").read_text()
         self.assertIn("--network none", workflow)
         self.assertIn("--single-transaction", workflow)
