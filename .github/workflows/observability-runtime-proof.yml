@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/syntra-aetheris-foundation-v2
+      - release/aetheris-spring4-security-candidate-20261023
     paths:
       - 'gateway/**'
       - 'identity-service/**'
