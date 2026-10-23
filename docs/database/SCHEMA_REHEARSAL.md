@@ -124,3 +124,32 @@ and **no external network connection**, proving expected metadata approval,
 a missing-index rejection and column-width drift refusal. Real schema drift
 may be different, and this stage still does not authorize actual Flyway
 baselining or `ddl-auto: update` removal. Migration remains **UNRESOLVED**.
+
+## Stage 4: real Flyway API with a test-only history table
+
+The migration scripts under `docs/database/flyway-lab/` are **CI experiments,
+not deployment artifacts**. They are not in a Spring application classpath.
+The lab uses the audited service's already-declared Flyway/PostgreSQL libraries
+and an explicit `flyway_identity_user_ci_history` table to rehearse version
+ordering, checksums, baseline safety and re-execution.
+
+- Fresh disposable PostgreSQL: Java Flyway applies V1 tables and V2 index;
+  a second migrate applies zero changes.
+- Populated synthetic legacy database: the Java preflight checks the
+  `CI_ONLY_SYNTHETIC` marker, expected field widths and refresh-token FK.
+  Only after the preflight passes does the lab explicitly call
+  `baseline()` at version 1, then apply V2 without removing test rows.
+- Altered legacy schema: preflight fails **before** any Flyway history or
+  migration is applied.
+- Unmarked schema: the Java lab refuses to baseline it.
+
+The Java lab additionally enforces an exact loopback-only JDBC prefix, four
+whitelisted disposable database names and an explicit runner-only mode, and
+disables Flyway's destructive `clean` operation.
+
+**Not a production design:** real installations may have divergent histories,
+constraints, data or locks, and the current Audit service already has its
+own `flyway_audit_schema_history` table. The lab's single shared history table
+is not a final owner-approved multi-service migration mechanism. No actual
+historical schema was inspected, no real backup was recovered, and the six
+Compose overrides enabling Hibernate schema updates remain unchanged.
