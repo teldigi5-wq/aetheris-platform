@@ -91,6 +91,10 @@ jobs:
                 after=line.split(marker,1)[1].split(':')
                 if len(after)<4 or after[1]!='jar':
                   continue
+                if group=='com.fasterxml.jackson.core' and after[0]=='jackson-annotations':
+                  # Jackson 3 LTS intentionally continues using the 2.21 annotation API.
+                  assert after[2]=='2.21', 'Jackson annotations alignment drift'
+                  continue
                 component=group+':'+after[0]
                 assert after[2]==version, f"{mod}: {component} resolved unexpected version {after[2]}"
                 seen.add((mod,component))
