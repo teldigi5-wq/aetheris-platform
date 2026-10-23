@@ -1,0 +1,72 @@
+name: Aetheris synthetic Flyway history and baseline proof
+
+on:
+  pull_request:
+    paths:
+      - 'docs/database/**'
+      - 'tests/test_flyway_lab_isolation.py'
+      - 'audit-service/src/test/java/io/aetheris/audit/FlywaySchemaLabTest.java'
+      - '.github/workflows/schema-flyway-lab.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flyway-synthetic-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Set up Java 21 toolchain
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Confirm CI-only Flyway isolation guards
+        run: python -m unittest tests.test_flyway_lab_isolation -v
+      - name: Execute actual Flyway Java API against loopback-only temporary PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="aetheris-flyway-lab-${GITHUB_RUN_ID}"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+          password="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          # No persistent volume or external database. Host binding is loopback-only.
+          docker run -d --rm --name "$name" -p 127.0.0.1:15435:5432 \
+            -e POSTGRES_PASSWORD="$password" postgres:16-alpine >/dev/null
+          ready=0
+          for i in $(seq 1 50); do
+            if docker exec "$name" pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1 || { echo "Disposable PostgreSQL did not start" >&2; exit 1; }
+
+          for db in lab_fresh lab_existing lab_drift lab_unmarked; do
+            docker exec "$name" createdb -U postgres "$db"
+          done
+          for db in lab_existing lab_drift; do
+            docker exec -i "$name" psql -X -q -U postgres -d "$db" -v ON_ERROR_STOP=1 \
+              < docs/database/rehearsal/legacy_existing_synthetic.sql >/dev/null
+          done
+          docker exec "$name" psql -X -q -U postgres -d lab_drift -v ON_ERROR_STOP=1 \
+            -c 'ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(180);' >/dev/null
+          docker exec -i "$name" psql -X -q -U postgres -d lab_unmarked -v ON_ERROR_STOP=1 \
+            < docs/database/rehearsal/V1__identity_schema.sql >/dev/null
+          docker exec -i "$name" psql -X -q -U postgres -d lab_unmarked -v ON_ERROR_STOP=1 \
+            < docs/database/rehearsal/V1__users_schema.sql >/dev/null
+
+          export AETHERIS_SCHEMA_LAB_MODE=CI_ONLY_SYNTHETIC
+          export AETHERIS_SCHEMA_LAB_JDBC_PREFIX='jdbc:postgresql://127.0.0.1:15435/'
+          export AETHERIS_SCHEMA_LAB_PASSWORD="$password"
+          ./mvnw -f audit-service/pom.xml \
+            -Dtest=FlywaySchemaLabTest test --batch-mode -q
+
+          echo "PASS: explicit Flyway history, existing-schema baseline, drift refusal"
