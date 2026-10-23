@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'docs/database/**'
+      - 'tests/test_flyway_lab_isolation.py'
       - 'audit-service/src/test/java/io/aetheris/audit/FlywaySchemaLabTest.java'
       - '.github/workflows/schema-flyway-lab.yml'
   workflow_dispatch:
@@ -25,6 +26,8 @@ jobs:
           distribution: temurin
           java-version: '21.0.12'
           cache: maven
+      - name: Confirm CI-only Flyway isolation guards
+        run: python -m unittest tests.test_flyway_lab_isolation -v
       - name: Execute actual Flyway Java API against loopback-only temporary PostgreSQL
         shell: bash
         run: |
