@@ -1,0 +1,45 @@
+name: Gateway Trusted Rate-Limit Proof
+
+on:
+  push:
+    branches: [security/gateway-verified-rate-limit-20261023]
+    paths:
+      - 'gateway/**'
+      - '.github/workflows/gateway-trusted-rate-limit-proof.yml'
+  pull_request:
+    branches: [main, release/aetheris-unified-security-20261022]
+    paths:
+      - 'gateway/**'
+      - '.github/workflows/gateway-trusted-rate-limit-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gateway-trusted-rate-limit-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gateway-junit:
+    name: verified-identity-rate-limit-regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Generate ephemeral test-only secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET SPRING_DATA_REDIS_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Run all gateway unit tests
+        run: ./mvnw -B -pl gateway test

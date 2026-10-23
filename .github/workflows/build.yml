@@ -11,7 +11,7 @@ permissions:
 
 env:
   JAVA_VERSION: '21.0.12'
-  NODE_VERSION: '22.23.2'
+  NODE_VERSION: '22.23.4'
   POLICY_PYTHON_VERSION: '3.12.11'
 
 jobs:
@@ -24,6 +24,16 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
+      - name: Generate ephemeral core-Java test configuration secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET SPRING_DATASOURCE_PASSWORD SPRING_RABBITMQ_PASSWORD SPRING_DATA_REDIS_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+
       - name: Test core reactor
         run: ./mvnw test
 
@@ -68,6 +78,16 @@ jobs:
           for source_dir in orchestrator-service aetheris-quant aetheris-reasoning workstation-agent; do
             test ! -e "$source_dir" || { echo "runtime-owned source leaked into platform: $source_dir" >&2; exit 1; }
           done
+      - name: Generate ephemeral core-Java test configuration secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET SPRING_DATASOURCE_PASSWORD SPRING_RABBITMQ_PASSWORD SPRING_DATA_REDIS_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+
       - name: Test core reactor with AI source absent
         run: ./mvnw test
       - name: Build dashboard with AI source absent
