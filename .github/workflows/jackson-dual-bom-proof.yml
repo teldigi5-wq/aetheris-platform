@@ -103,3 +103,21 @@ jobs:
           print('JACKSON_DUAL_BOM_PATCHED_DEPENDENCIES_PASS: four modules; Jackson2 2.21.8; Jackson3 3.1.8')
           PY
           # Do not print/upload dependency trees or secrets.
+
+      - name: Regenerate and archive release Maven lock evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in gateway user-service identity-service audit-service; do
+            ./mvnw -B -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree \
+              -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/$module.txt"
+          done
+          # Review this output manually before committing snapshots; no automatic locks.
+          git diff --stat -- build-evidence/maven/
+      - name: Publish dependency evidence for exact-SHA review
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: jackson-core-reconciled-dependency-trees
+          path: build-evidence/maven/*.txt
+          if-no-files-found: error
+          retention-days: 7
