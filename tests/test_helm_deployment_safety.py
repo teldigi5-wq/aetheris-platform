@@ -48,6 +48,23 @@ class HelmDeploymentSafetyTest(unittest.TestCase):
         self.assertIn("values-local-private.yaml", docs)
         self.assertIn("deploy/helm/aetheris/values-local-private.yaml", gitignore)
 
+    def test_non_local_ingress_is_restricted_to_named_same_namespace_clients(self) -> None:
+        policy = (CHART / "templates" / "10-ingress-network-policies.yaml").read_text("utf-8")
+        self.assertIn("if not .Values.global.allowInsecureLocalDefaults", policy)
+        self.assertIn('policyTypes: ["Ingress"]', policy)
+        self.assertNotIn("namespaceSelector:", policy)
+        for name, port in (
+            ("postgres", 5432), ("redis", 6379), ("rabbitmq", 5672),
+            ("user-service", 8081), ("identity-service", 8082), ("audit-service", 8083)
+        ):
+            self.assertIn(f'"name" "{name}" "port" {port}', policy)
+        self.assertIn('(list "user-service" "identity-service" "audit-service")', policy)
+        self.assertIn('(list "user-service" "gateway")', policy)
+        self.assertIn('(list "user-service" "audit-service")', policy)
+        self.assertIn('"clients" (list "gateway")', policy)
+        self.assertNotIn("0.0.0.0/0", policy)
+        self.assertNotIn("ipBlock:", policy)
+
     def test_runbook_requires_local_values_file_for_demo_commands(self) -> None:
         docs = (ROOT / "docs" / "kubernetes.md").read_text(encoding="utf-8")
 
