@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/syntra-aetheris-foundation-v2
+      - security/spring4-gateway-isolated-20261023
     paths:
       - 'gateway/**'
       - 'identity-service/**'
