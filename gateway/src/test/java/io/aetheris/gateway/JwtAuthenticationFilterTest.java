@@ -49,6 +49,7 @@ class JwtAuthenticationFilterTest {
         assertEquals("user@example.com", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Email"));
         assertEquals("API_CONSUMER", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
         assertEquals("users:read", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-Scopes"));
+        assertEquals("42", authenticated.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
     }
 
     @Test
@@ -114,6 +115,7 @@ class JwtAuthenticationFilterTest {
         }).block();
 
         assertNull(forwarded.get());
+        assertNull(exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
         assertEquals(expectedStatus, exchange.getResponse().getStatusCode());
     }
 

@@ -7,16 +7,17 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
-    password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:aetheris}
-    password: ${SPRING_RABBITMQ_PASSWORD:aetheris}
+    password: ${SPRING_RABBITMQ_PASSWORD}
   cache:
     type: redis
     redis:
@@ -45,9 +46,11 @@ management:
   tracing:
     sampling:
       probability: 1.0
-  otlp:
+  opentelemetry:
     tracing:
-      endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 info:
   app:

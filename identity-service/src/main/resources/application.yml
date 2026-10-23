@@ -7,7 +7,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
-    password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -17,7 +17,7 @@ aetheris:
   browser-auth:
     secure-cookie: ${AETHERIS_BROWSER_REFRESH_COOKIE_SECURE:true}
   jwt:
-    secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
+    secret: ${AETHERIS_JWT_SECRET}
     expiration-seconds: ${AETHERIS_JWT_EXPIRATION_SECONDS:3600}
     refresh-expiration-seconds: ${AETHERIS_REFRESH_EXPIRATION_SECONDS:604800}
 
@@ -35,9 +35,11 @@ management:
   tracing:
     sampling:
       probability: 1.0
-  otlp:
+  opentelemetry:
     tracing:
-      endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 info:
   app:

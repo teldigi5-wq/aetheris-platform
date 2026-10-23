@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import subprocess
 import time
 import urllib.error
@@ -160,7 +161,10 @@ def wait_loki_service_label(timeout: int = 120) -> list[str]:
 
 
 def grafana_headers() -> dict[str, str]:
-    token = base64.b64encode(b"aetheris:aetheris").decode("ascii")
+    password = os.environ.get("AETHERIS_GRAFANA_ADMIN_PASSWORD", "")
+    if not password:
+        raise AssertionError("AETHERIS_GRAFANA_ADMIN_PASSWORD is required for Grafana proof")
+    token = base64.b64encode(f"aetheris:{password}".encode("utf-8")).decode("ascii")
     return {"Authorization": f"Basic {token}"}
 
 
