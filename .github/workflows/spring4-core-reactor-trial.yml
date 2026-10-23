@@ -1,0 +1,79 @@
+name: Spring 4 Full Core Reactor Trial
+
+on:
+  push:
+    branches: [security/spring4-core-reactor-trial-20261023]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'pom.xml'
+      - '.github/workflows/spring4-core-reactor-trial.yml'
+  pull_request:
+    branches: [security/spring4-gateway-isolated-20261023]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - '.github/workflows/spring4-core-reactor-trial.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spring4-reactor-trial-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  java-reactor:
+    name: supported-Spring-core-reactor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact tested source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Generate ephemeral keys for local tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET SPRING_DATASOURCE_PASSWORD SPRING_RABBITMQ_PASSWORD SPRING_DATA_REDIS_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Verify Maven project stack versions before compilation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+          ns={"m":"http://maven.apache.org/POM/4.0.0"}
+          for module in ("gateway","identity-service","user-service","audit-service"):
+              root=ElementTree.parse(Path(module)/"pom.xml").getroot()
+              version=root.find("m:parent/m:version",ns)
+              assert version is not None and version.text=="4.1.1", module+" PARENT_VERSION_DRIFT"
+              print("SUPPORTED_SPRING_PARENT_CONFIRMED:",module)
+          gateway=Path("gateway/pom.xml").read_text()
+          assert "<spring-cloud.version>2025.1.3</spring-cloud.version>" in gateway
+          assert "<artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>" in gateway
+          user=Path("user-service/pom.xml").read_text()
+          assert "<version>3.1.1</version>" in user and "<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>" in user
+          PY
+      - name: Compile and test entire Java reactor
+        run: ./mvnw -B clean verify
+      - name: Check Maven resolved User OpenAPI support dependency
+        run: |
+          ./mvnw -B -pl user-service dependency:tree -DoutputFile=/tmp/aetheris-spring4-user-tree.txt
+          grep -F 'org.springdoc:springdoc-openapi-starter-webmvc-ui:jar:3.1.1:' /tmp/aetheris-spring4-user-tree.txt
+          echo "SPRING4_USER_SERVICE_DEPENDENCY_PROOF_PASS"
+          # No database, production environment or cluster accessed.
