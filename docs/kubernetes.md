@@ -29,6 +29,33 @@ For a non-local/shared/staging render, leave `global.allowInsecureLocalDefaults=
 
 This chart still creates a Kubernetes Secret from Helm values. That is acceptable for the documented local demo, but it is **not** a claim of production-grade secret management. Before any real staging/production use, integrate an approved external secret-management path and keep secret material out of source control, shell history, CI logs, and reusable values files.
 
+## Non-local ingress isolation (defense in depth)
+
+When `global.allowInsecureLocalDefaults=false`, this chart also renders six
+same-namespace `NetworkPolicy` ingress restrictions: PostgreSQL accepts
+Identity/User/Audit, Redis accepts Gateway/User, RabbitMQ accepts User/Audit,
+and Identity/User/Audit HTTP endpoints accept only the Gateway Pod label.
+RabbitMQ management port 15672 is **not** in the allowlist. The dashboard
+and Gateway ingress topology is left unchanged to avoid inventing an ingress
+controller/namespace dependency; this is **not** a complete zero-trust service
+authorization solution.
+
+NetworkPolicy works **only if** the actual Kubernetes CNI enforces it.
+Before promotion, test authorized requests, denied cross-Pod requests,
+DNS/service resolution, observability scraping, administrative operations and
+backup/restore paths against the real CNI and namespaces. Non-chart Prometheus,
+operators, connectors or maintenance Jobs will be blocked from these six
+targets unless operators add reviewed policies for their exact service
+accounts/Pod labels. This chart does not install monitoring access exceptions
+automatically. Direct HTTP access from the gateway remains mediated by JWT
+only at the gateway; retain service-level authorization as a separate
+production release gate.
+
+The `values-local.yaml` demo opts out of these non-local policies to avoid
+breaking existing local development paths. **Never use that opt-out on a
+shared or production cluster.** No real cluster CNI verification is claimed by
+the Helm template and CI tests.
+
 ## Recommended local cluster: Docker Desktop Kubernetes
 
 On Windows with Docker Desktop:
