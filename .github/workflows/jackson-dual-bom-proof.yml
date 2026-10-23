@@ -89,10 +89,10 @@ jobs:
                   continue
                 # Match only resolved artifact coordinate lines, not metadata or text.
                 after=line.split(marker,1)[1].split(':')
-                if len(after)<4 or after[2]!='jar':
+                if len(after)<4 or after[1]!='jar':
                   continue
                 component=group+':'+after[0]
-                assert after[3]==version, f"{mod}: {component} resolved unexpected version {after[3]}"
+                assert after[2]==version, f"{mod}: {component} resolved unexpected version {after[2]}"
                 seen.add((mod,component))
           assert any(name.endswith('jackson-databind') and mod=='user-service' and name.startswith('com.fasterxml') for mod,name in seen)
           assert all(any(mod==actual_mod and name=='tools.jackson.core:jackson-databind' for actual_mod,name in seen) for mod in mods)
