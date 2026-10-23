@@ -89,7 +89,12 @@ SELECT jsonb_build_object(
     'named_token_index', EXISTS (
       SELECT 1 FROM pg_index ix
       JOIN pg_class index_rel ON index_rel.oid = ix.indexrelid
-      WHERE ix.indrelid = r.oid AND ix.indisunique
+      JOIN pg_attribute indexed_col ON indexed_col.attrelid = r.oid
+           AND indexed_col.attname = 'token_hash'
+      WHERE ix.indrelid = r.oid
+        AND ix.indisunique AND ix.indisvalid AND ix.indisready
+        AND ix.indnkeyatts = 1 AND ix.indkey[0] = indexed_col.attnum
+        AND ix.indpred IS NULL
         AND index_rel.relname = 'idx_refresh_token_hash'
     )
   ) ORDER BY r.relname), '[]'::jsonb)

@@ -92,4 +92,17 @@ jobs:
             exit 1
           fi
           grep -Fq 'users.email: type or nullability drift' "$work/drift.err"
-          echo "PASS: metadata-only catalog check, missing index and drift detection"
+          # Negative control: index name matches, but it covers the WRONG
+          # column. The metadata inspector must not confuse its name with
+          # actual token-hash protection.
+          docker exec "$name" psql -X -q -U postgres -d compatible \
+            -v ON_ERROR_STOP=1 \
+            -c 'DROP INDEX idx_refresh_token_hash; CREATE UNIQUE INDEX idx_refresh_token_hash ON identity_refresh_tokens (expires_at);' > /dev/null
+          docker exec -i "$name" psql -X -qAt -U postgres -d compatible \
+            -v ON_ERROR_STOP=1 < "$query" > "$work/wrong-index.json"
+          if python scripts/schema_inventory.py "$work/wrong-index.json" > "$work/wrong-index.err" 2>&1; then
+            echo "Catalog checker accepted a unique index on the wrong column" >&2
+            exit 1
+          fi
+          grep -Fq 'missing named_token_index' "$work/wrong-index.err"
+          echo "PASS: metadata-only catalog check, missing/wrong index and drift detection"

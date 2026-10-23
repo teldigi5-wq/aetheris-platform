@@ -77,6 +77,8 @@ class CatalogInventoryTests(unittest.TestCase):
         self.assertIn("FROM pg_class r", sql)
         self.assertIn("FROM pg_attribute", sql)
         self.assertIn("COMMIT;", sql)
+        self.assertIn("ix.indkey[0] = indexed_col.attnum", sql)
+        self.assertIn("ix.indpred IS NULL", sql)
         self.assertNotIn("FROM identity_accounts", sql)
         self.assertNotIn("FROM identity_refresh_tokens", sql)
         self.assertNotIn("FROM users", sql)
