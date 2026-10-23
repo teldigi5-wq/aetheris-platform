@@ -21,8 +21,8 @@ io.aetheris:gateway:jar:0.1.0-SNAPSHOT
 |  \- org.springframework.boot:spring-boot-starter-webflux:jar:4.1.1:compile
 |     +- org.springframework.boot:spring-boot-starter-jackson:jar:4.1.1:compile
 |     |  \- org.springframework.boot:spring-boot-jackson:jar:4.1.1:compile
-|     |     \- tools.jackson.core:jackson-databind:jar:3.1.5:compile
-|     |        \- tools.jackson.core:jackson-core:jar:3.1.5:compile
+|     |     \- tools.jackson.core:jackson-databind:jar:3.1.8:compile
+|     |        \- tools.jackson.core:jackson-core:jar:3.1.8:compile
 |     +- org.springframework.boot:spring-boot-starter-reactor-netty:jar:4.1.1:compile
 |     |  \- org.springframework.boot:spring-boot-reactor-netty:jar:4.1.1:compile
 |     |     \- io.projectreactor.netty:reactor-netty-http:jar:1.3.7:compile
@@ -50,7 +50,7 @@ io.aetheris:gateway:jar:0.1.0-SNAPSHOT
 |        \- org.springframework.boot:spring-boot-web-server:jar:4.1.1:compile
 +- org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j:jar:5.0.3:compile
 |  +- org.springframework.cloud:spring-cloud-circuitbreaker-resilience4j:jar:5.0.3:compile
-|  |  +- com.fasterxml.jackson.core:jackson-core:jar:2.21.5:compile
+|  |  +- com.fasterxml.jackson.core:jackson-core:jar:2.21.8:compile
 |  |  \- io.github.resilience4j:resilience4j-spring-boot3:jar:2.3.0:compile
 |  |     \- io.github.resilience4j:resilience4j-spring6:jar:2.3.0:compile
 |  |        +- io.github.resilience4j:resilience4j-annotations:jar:2.3.0:compile
@@ -153,6 +153,37 @@ io.aetheris:gateway:jar:0.1.0-SNAPSHOT
 |  \- io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:jar:1.62.0:runtime
 +- io.jsonwebtoken:jjwt-api:jar:0.12.6:compile
 +- io.jsonwebtoken:jjwt-impl:jar:0.12.6:runtime
-\- io.jsonwebtoken:jjwt-jackson:jar:0.12.6:runtime
-   \- com.fasterxml.jackson.core:jackson-databind:jar:2.21.5:compile
-      \- com.fasterxml.jackson.core:jackson-annotations:jar:2.21:compile
++- io.jsonwebtoken:jjwt-jackson:jar:0.12.6:runtime
+|  \- com.fasterxml.jackson.core:jackson-databind:jar:2.21.8:compile
+|     \- com.fasterxml.jackson.core:jackson-annotations:jar:2.21:compile
+\- org.springframework.boot:spring-boot-starter-test:jar:4.1.1:test
+   +- org.springframework.boot:spring-boot-test:jar:4.1.1:test
+   +- org.springframework.boot:spring-boot-test-autoconfigure:jar:4.1.1:test
+   +- com.jayway.jsonpath:json-path:jar:2.10.0:test
+   +- jakarta.xml.bind:jakarta.xml.bind-api:jar:4.0.5:runtime
+   |  \- jakarta.activation:jakarta.activation-api:jar:2.1.4:runtime
+   +- net.minidev:json-smart:jar:2.6.0:test
+   |  \- net.minidev:accessors-smart:jar:2.6.0:test
+   |     \- org.ow2.asm:asm:jar:9.7.1:test
+   +- org.assertj:assertj-core:jar:3.27.7:test
+   |  \- net.bytebuddy:byte-buddy:jar:1.18.11:test
+   +- org.awaitility:awaitility:jar:4.3.0:test
+   +- org.hamcrest:hamcrest:jar:3.0:test
+   +- org.junit.jupiter:junit-jupiter:jar:6.0.3:test
+   |  +- org.junit.jupiter:junit-jupiter-api:jar:6.0.3:test
+   |  |  +- org.opentest4j:opentest4j:jar:1.3.0:test
+   |  |  +- org.junit.platform:junit-platform-commons:jar:6.0.3:test
+   |  |  \- org.apiguardian:apiguardian-api:jar:1.1.2:test
+   |  +- org.junit.jupiter:junit-jupiter-params:jar:6.0.3:test
+   |  \- org.junit.jupiter:junit-jupiter-engine:jar:6.0.3:test
+   |     \- org.junit.platform:junit-platform-engine:jar:6.0.3:test
+   +- org.mockito:mockito-core:jar:5.23.0:test
+   |  +- net.bytebuddy:byte-buddy-agent:jar:1.18.11:test
+   |  \- org.objenesis:objenesis:jar:3.3:test
+   +- org.mockito:mockito-junit-jupiter:jar:5.23.0:test
+   +- org.skyscreamer:jsonassert:jar:1.5.3:test
+   |  \- com.vaadin.external.google:android-json:jar:0.0.20131108.vaadin1:test
+   +- org.springframework:spring-core:jar:7.0.9:compile
+   |  \- commons-logging:commons-logging:jar:1.3.6:compile
+   +- org.springframework:spring-test:jar:7.0.9:test
+   \- org.xmlunit:xmlunit-core:jar:2.11.0:test

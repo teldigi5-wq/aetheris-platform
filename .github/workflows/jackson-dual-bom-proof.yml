@@ -1,0 +1,123 @@
+name: Jackson Dual BOM Security Patch Proof
+
+on:
+  push:
+    branches: [security/jackson-boms-20261023]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - '.github/workflows/jackson-dual-bom-proof.yml'
+  pull_request:
+    branches: [release/aetheris-security-runtime-reconciled-20261023]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - '.github/workflows/jackson-dual-bom-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jackson-dual-bom-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jackson-dependency-security:
+    name: supported-dual-bom-dependency-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Generate ephemeral test-only secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET SPRING_DATASOURCE_PASSWORD SPRING_DATA_REDIS_PASSWORD SPRING_RABBITMQ_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Full Java reactor regression
+        run: ./mvnw -B clean verify
+      - name: Generate actual resolved dependency trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in gateway identity-service user-service audit-service; do
+            ./mvnw -B -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -DoutputFile="/tmp/aetheris-$module-tree.txt"
+          done
+      - name: Require patched Jackson 2 and Jackson 3 modules
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree
+          mods=('gateway','identity-service','user-service','audit-service')
+          groups={
+            'com.fasterxml.jackson.core': '2.21.8',
+            'com.fasterxml.jackson.dataformat': '2.21.8',
+            'com.fasterxml.jackson.datatype': '2.21.8',
+            'tools.jackson.core': '3.1.8',
+            'tools.jackson.dataformat': '3.1.8',
+            'tools.jackson.datatype': '3.1.8'
+          }
+          seen=set()
+          ns={'m':'http://maven.apache.org/POM/4.0.0'}
+          for mod in mods:
+            xml=ElementTree.parse(Path(mod)/'pom.xml').getroot()
+            props=xml.find('m:properties',ns)
+            assert props is not None
+            assert props.find('m:jackson-bom.version',ns).text=='3.1.8'
+            assert props.find('m:jackson-2-bom.version',ns).text=='2.21.8'
+            tree=Path('/tmp/aetheris-'+mod+'-tree.txt').read_text()
+            for line in tree.splitlines():
+              for group,version in groups.items():
+                marker=group+':'
+                if marker not in line:
+                  continue
+                # Match only resolved artifact coordinate lines, not metadata or text.
+                after=line.split(marker,1)[1].split(':')
+                if len(after)<4 or after[1]!='jar':
+                  continue
+                if group=='com.fasterxml.jackson.core' and after[0]=='jackson-annotations':
+                  # Jackson 3 LTS intentionally continues using the 2.21 annotation API.
+                  assert after[2]=='2.21', 'Jackson annotations alignment drift'
+                  continue
+                component=group+':'+after[0]
+                assert after[2]==version, f"{mod}: {component} resolved unexpected version {after[2]}"
+                seen.add((mod,component))
+          assert any(name.endswith('jackson-databind') and mod=='user-service' and name.startswith('com.fasterxml') for mod,name in seen)
+          assert all(any(mod==actual_mod and name=='tools.jackson.core:jackson-databind' for actual_mod,name in seen) for mod in mods)
+          print('JACKSON_DUAL_BOM_PATCHED_DEPENDENCIES_PASS: four modules; Jackson2 2.21.8; Jackson3 3.1.8')
+          PY
+          # Do not print/upload dependency trees or secrets.
+
+      - name: Regenerate and archive release Maven lock evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in gateway user-service identity-service audit-service; do
+            ./mvnw -B -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree \
+              -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/$module.txt"
+          done
+          # Review this output manually before committing snapshots; no automatic locks.
+          git diff --no-ext-diff -- build-evidence/maven/
+      - name: Publish dependency evidence for exact-SHA review
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: jackson-core-reconciled-dependency-trees
+          path: build-evidence/maven/*.txt
+          if-no-files-found: error
+          retention-days: 7
