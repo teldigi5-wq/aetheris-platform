@@ -46,7 +46,7 @@ jobs:
             -e POSTGRES_PASSWORD="$password" postgres:16-alpine > /dev/null
           ready=0
           for i in $(seq 1 50); do
-            if docker exec "$name" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
+            if docker exec "$name" pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; then
               ready=1
               break
             fi
