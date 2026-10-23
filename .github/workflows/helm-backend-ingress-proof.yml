@@ -9,7 +9,7 @@ on:
       - 'docs/kubernetes.md'
       - '.github/workflows/helm-backend-ingress-proof.yml'
   pull_request:
-    branches: [release/aetheris-unified-security-20261022]
+    branches: [main, release/aetheris-unified-security-20261022]
     paths:
       - 'deploy/helm/aetheris/**'
       - 'tests/test_helm_deployment_safety.py'
