@@ -11,7 +11,7 @@ on:
       - 'pom.xml'
       - '.github/workflows/spring4-core-reactor-trial.yml'
   pull_request:
-    branches: [security/spring4-gateway-isolated-20261023, release/aetheris-spring4-security-candidate-20261023]
+    branches: [main, security/spring4-gateway-isolated-20261023, release/aetheris-spring4-security-candidate-20261023]
     paths:
       - 'gateway/**'
       - 'identity-service/**'
