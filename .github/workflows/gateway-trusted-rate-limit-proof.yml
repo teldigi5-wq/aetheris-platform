@@ -7,7 +7,7 @@ on:
       - 'gateway/**'
       - '.github/workflows/gateway-trusted-rate-limit-proof.yml'
   pull_request:
-    branches: [main, release/aetheris-unified-security-20261022]
+    branches: [main, release/aetheris-unified-security-20261022, release/aetheris-spring4-security-candidate-20261023]
     paths:
       - 'gateway/**'
       - '.github/workflows/gateway-trusted-rate-limit-proof.yml'
