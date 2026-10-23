@@ -1,0 +1,95 @@
+name: Aetheris read-only catalog schema inventory proof
+
+on:
+  pull_request:
+    paths:
+      - 'docs/database/**'
+      - 'scripts/schema_inventory.py'
+      - 'tests/test_schema_inventory.py'
+      - '.github/workflows/schema-catalog-inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-catalog-drift:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Test fail-closed catalog comparator and privacy boundaries
+        run: python -m unittest tests.test_schema_inventory -v
+      - name: Verify catalog inventory on disposable PostgreSQL 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="aetheris-catalog-inventory-${GITHUB_RUN_ID}"
+          work="$(mktemp -d)"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+          password="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          docker run -d --rm --name "$name" --network none \
+            -e POSTGRES_PASSWORD="$password" postgres:16-alpine > /dev/null
+          ready=0
+          for i in $(seq 1 45); do
+            if docker exec "$name" pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1 || { echo "Temporary PostgreSQL did not start" >&2; exit 1; }
+
+          query=docs/database/rehearsal/catalog_inventory_readonly.sql
+          create=docs/database/rehearsal/legacy_existing_synthetic.sql
+          delta=docs/database/rehearsal/V2__synthetic_index_upgrade.sql
+
+          docker exec "$name" createdb -U postgres compatible
+          docker exec "$name" createdb -U postgres drifted
+          docker exec -i "$name" psql -X -q -U postgres -d compatible -v ON_ERROR_STOP=1 < "$create" >/dev/null
+          docker exec -i "$name" psql -X -q -U postgres -d drifted -v ON_ERROR_STOP=1 < "$create" >/dev/null
+
+          # Missing named index must be identified before the guarded upgrade.
+          docker exec -i "$name" psql -X -qAt -U postgres -d compatible \
+            -v ON_ERROR_STOP=1 < "$query" > "$work/before.json"
+          if python scripts/schema_inventory.py "$work/before.json" > "$work/before.err" 2>&1; then
+            echo "Catalog audit incorrectly accepted missing index" >&2
+            exit 1
+          fi
+          grep -Fq 'missing named_token_index' "$work/before.err"
+
+          docker exec -i "$name" psql -X -q -U postgres -d compatible \
+            -v ON_ERROR_STOP=1 --single-transaction < "$delta" > /dev/null
+          docker exec -i "$name" psql -X -qAt -U postgres -d compatible \
+            -v ON_ERROR_STOP=1 < "$query" > "$work/after.json"
+          python scripts/schema_inventory.py "$work/after.json"
+
+          # Inventory is metadata-only: synthetic email, token hash and row data
+          # must never be present in JSON or the CI output.
+          if grep -Fq 'synthetic@example.invalid' "$work/after.json"; then
+            echo "Metadata-only inventory unexpectedly contained row data" >&2
+            exit 1
+          fi
+          if grep -Fq 'synthetic-inert-hash' "$work/after.json"; then
+            echo "Metadata-only inventory unexpectedly contained row data" >&2
+            exit 1
+          fi
+
+          docker exec "$name" psql -X -q -U postgres -d drifted -v ON_ERROR_STOP=1 \
+            -c 'ALTER TABLE users ALTER COLUMN email TYPE VARCHAR(180);' > /dev/null
+          docker exec -i "$name" psql -X -q -U postgres -d drifted \
+            -v ON_ERROR_STOP=1 --single-transaction < "$delta" >/dev/null 2>&1 && {
+              echo "Incompatible schema unexpectedly accepted index migration" >&2
+              exit 1
+            }
+          docker exec -i "$name" psql -X -qAt -U postgres -d drifted \
+            -v ON_ERROR_STOP=1 < "$query" > "$work/drift.json"
+          if python scripts/schema_inventory.py "$work/drift.json" > "$work/drift.err" 2>&1; then
+            echo "Catalog comparator failed to detect column drift" >&2
+            exit 1
+          fi
+          grep -Fq 'users.email: type or nullability drift' "$work/drift.err"
+          echo "PASS: metadata-only catalog check, missing index and drift detection"
