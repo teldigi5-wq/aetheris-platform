@@ -1,0 +1,92 @@
+name: Aetheris Spring JPA schema validation rehearsal
+
+on:
+  pull_request:
+    paths:
+      - 'docs/database/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - '.github/workflows/schema-hibernate-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-jpa-validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact PR revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Set up exact Java version
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Build Java services without running non-schema tests
+        run: ./mvnw -pl identity-service,user-service -am -DskipTests package --batch-mode -q
+      - name: Validate Hibernate mapping against fresh candidate tables
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="aetheris-jpa-rehearsal-${GITHUB_RUN_ID}"
+          work="$(mktemp -d)"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+          # Loopback-only publishing is necessary for the Java processes on the
+          # hosted runner. Do not connect to an external or persistent database.
+          password="$(openssl rand -hex 32)"
+          jwt="$(openssl rand -hex 32)"
+          echo "::add-mask::$password"
+          echo "::add-mask::$jwt"
+          docker run -d --rm --name "$name" -p 127.0.0.1:15432:5432 \
+            -e POSTGRES_PASSWORD="$password" postgres:16-alpine > /dev/null
+          ready=0
+          for i in $(seq 1 50); do
+            if docker exec "$name" pg_isready -h 127.0.0.1 -U postgres -d postgres >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1 || { echo "Disposable database startup failed" >&2; exit 1; }
+          docker exec -i "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < docs/database/rehearsal/V1__identity_schema.sql > /dev/null
+          docker exec -i "$name" psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            < docs/database/rehearsal/V1__users_schema.sql > /dev/null
+
+          export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:15432/postgres"
+          export SPRING_DATASOURCE_USERNAME="postgres"
+          export SPRING_DATASOURCE_PASSWORD="$password"
+          export AETHERIS_JWT_SECRET="$jwt"
+          export SPRING_DATA_REDIS_PASSWORD="$(openssl rand -hex 32)"
+          export SPRING_RABBITMQ_PASSWORD="$(openssl rand -hex 32)"
+          export MANAGEMENT_TRACING_ENABLED=false
+
+          for app in \
+            identity-service/target/aetheris-identity-service-0.2.0-SNAPSHOT.jar \
+            user-service/target/user-service-0.1.0-SNAPSHOT.jar; do
+            test -f "$app" || { echo "Missing compiled Spring app $app" >&2; exit 1; }
+            logfile="$work/$(basename "$app").log"
+            if ! timeout 90s java -jar "$app" \
+                --spring.main.web-application-type=none \
+                --spring.jpa.hibernate.ddl-auto=validate \
+                --spring.sql.init.mode=never \
+                --spring.rabbitmq.dynamic=false \
+                --spring.rabbitmq.listener.simple.auto-startup=false \
+                > "$logfile" 2>&1; then
+              echo "Spring failed Hibernate validate (see safe, redacted diagnostics)" >&2
+              grep -Ei "Schema-validation|SchemaManagement|missing table|wrong column|ERROR|Exception" "$logfile" \
+                | sed -E 's/(password|secret|token|credential)[= :]+[^[:space:]]+/\\1=[REDACTED]/Ig' \
+                | tail -25 >&2 || true
+              exit 1
+            fi
+            if ! grep -Eq 'Started (AetherisIdentityServiceApplication|AetherisUserServiceApplication)' "$logfile"; then
+              echo "Spring did not report a completed boot: $(basename "$app")" >&2
+              exit 1
+            fi
+          done
+          echo "PASS: both actual Java applications validated synthetic PostgreSQL schema"
