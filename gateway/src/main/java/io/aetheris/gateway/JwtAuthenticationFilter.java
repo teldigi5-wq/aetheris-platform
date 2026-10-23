@@ -24,6 +24,7 @@ import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+    static final String VERIFIED_USER_ID_ATTRIBUTE = "aetheris.gateway.verifiedUserId";
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
     private final SecretKey key;
 
@@ -67,6 +68,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             String requiredScope = requiredScope(path, exchange.getRequest().getMethod());
             if (requiredScope != null && !scopes.contains(requiredScope)) {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
+            }
+
+            // This attribute is never copied from request headers. Only signed,
+            // in-scope tokens are permitted to select a per-user limiter bucket.
+            if (userId instanceof Number numericId && numericId.longValue() > 0) {
+                exchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE, Long.toString(numericId.longValue()));
             }
 
             ServerWebExchange authenticatedExchange = exchange.mutate()
