@@ -11,7 +11,7 @@ on:
       - 'tests/test_spring4_otel_contract.py'
       - '.github/workflows/spring4-otel-contract.yml'
   pull_request:
-    branches: [release/aetheris-security-core-certified-20261023]
+    branches: [main, release/aetheris-security-core-certified-20261023]
     paths:
       - 'gateway/**'
       - 'identity-service/**'
