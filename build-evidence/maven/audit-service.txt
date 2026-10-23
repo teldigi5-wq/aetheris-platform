@@ -54,6 +54,7 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 |  |  +- org.springframework.boot:spring-boot-sql:jar:4.1.1:compile
 |  |  \- org.springframework:spring-jdbc:jar:7.0.9:compile
 |  \- com.zaxxer:HikariCP:jar:7.0.2:compile
+|     \- org.slf4j:slf4j-api:jar:2.0.18:compile
 +- org.postgresql:postgresql:jar:42.7.13:runtime
 |  \- org.checkerframework:checker-qual:jar:3.55.1:runtime
 +- org.springframework.boot:spring-boot-starter-flyway:jar:4.1.1:compile
@@ -66,7 +67,6 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 +- org.springframework.boot:spring-boot-starter-actuator:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-starter-micrometer-metrics:jar:4.1.1:compile
 |  |  \- org.springframework.boot:spring-boot-micrometer-metrics:jar:4.1.1:compile
-|  |     \- org.springframework.boot:spring-boot-micrometer-observation:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-actuator-autoconfigure:jar:4.1.1:compile
 |  |  \- org.springframework.boot:spring-boot-actuator:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-health:jar:4.1.1:compile
@@ -83,27 +83,33 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 |  +- io.prometheus:prometheus-metrics-tracer-common:jar:1.7.0:compile
 |  \- io.prometheus:prometheus-metrics-exposition-formats:jar:1.7.0:runtime
 |     \- io.prometheus:prometheus-metrics-exposition-textformats:jar:1.7.0:runtime
-+- io.micrometer:micrometer-tracing-bridge-otel:jar:1.7.1:compile
-|  +- io.micrometer:micrometer-tracing:jar:1.7.1:compile
-|  |  +- io.micrometer:context-propagation:jar:1.2.1:compile
-|  |  \- aopalliance:aopalliance:jar:1.0:compile
-|  +- org.slf4j:slf4j-api:jar:2.0.18:compile
-|  +- io.opentelemetry:opentelemetry-api:jar:1.62.0:compile
-|  |  \- io.opentelemetry:opentelemetry-context:jar:1.62.0:compile
-|  |     \- io.opentelemetry:opentelemetry-common:jar:1.62.0:compile
-|  +- io.opentelemetry.semconv:opentelemetry-semconv:jar:1.41.1:compile
-|  +- io.opentelemetry:opentelemetry-sdk-common:jar:1.62.0:compile
-|  +- io.opentelemetry:opentelemetry-sdk-trace:jar:1.62.0:compile
-|  +- io.opentelemetry:opentelemetry-sdk:jar:1.62.0:compile
-|  \- io.opentelemetry:opentelemetry-extension-trace-propagators:jar:1.62.0:compile
-\- io.opentelemetry:opentelemetry-exporter-otlp:jar:1.62.0:compile
-   +- io.opentelemetry:opentelemetry-sdk-metrics:jar:1.62.0:compile
-   +- io.opentelemetry:opentelemetry-sdk-logs:jar:1.62.0:compile
-   +- io.opentelemetry:opentelemetry-exporter-otlp-common:jar:1.62.0:runtime
-   |  \- io.opentelemetry:opentelemetry-exporter-common:jar:1.62.0:runtime
-   +- io.opentelemetry:opentelemetry-exporter-sender-okhttp:jar:1.62.0:runtime
-   |  \- com.squareup.okhttp3:okhttp-jvm:jar:5.3.2:runtime
-   |     +- com.squareup.okio:okio-jvm:jar:3.16.4:runtime
-   |     \- org.jetbrains.kotlin:kotlin-stdlib:jar:2.3.21:runtime
-   |        \- org.jetbrains:annotations:jar:13.0:runtime
-   \- io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:jar:1.62.0:runtime
+\- org.springframework.boot:spring-boot-starter-opentelemetry:jar:4.1.1:compile
+   +- org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry:jar:4.1.1:compile
+   |  +- org.springframework.boot:spring-boot-micrometer-observation:jar:4.1.1:compile
+   |  +- org.springframework.boot:spring-boot-micrometer-tracing:jar:4.1.1:compile
+   |  \- io.micrometer:micrometer-tracing:jar:1.7.1:compile
+   |     \- io.micrometer:context-propagation:jar:1.2.1:compile
+   +- org.springframework.boot:spring-boot-opentelemetry:jar:4.1.1:compile
+   |  +- io.opentelemetry:opentelemetry-api:jar:1.62.0:compile
+   |  |  \- io.opentelemetry:opentelemetry-context:jar:1.62.0:compile
+   |  |     \- io.opentelemetry:opentelemetry-common:jar:1.62.0:compile
+   |  \- io.opentelemetry:opentelemetry-sdk:jar:1.62.0:compile
+   +- io.micrometer:micrometer-registry-otlp:jar:1.17.1:runtime
+   |  \- io.opentelemetry.proto:opentelemetry-proto:jar:1.10.0-alpha:runtime
+   |     \- com.google.protobuf:protobuf-java:jar:4.35.1:runtime
+   +- io.micrometer:micrometer-tracing-bridge-otel:jar:1.7.1:runtime
+   |  +- io.opentelemetry.semconv:opentelemetry-semconv:jar:1.41.1:runtime
+   |  +- io.opentelemetry:opentelemetry-sdk-common:jar:1.62.0:compile
+   |  +- io.opentelemetry:opentelemetry-sdk-trace:jar:1.62.0:compile
+   |  \- io.opentelemetry:opentelemetry-extension-trace-propagators:jar:1.62.0:runtime
+   \- io.opentelemetry:opentelemetry-exporter-otlp:jar:1.62.0:runtime
+      +- io.opentelemetry:opentelemetry-sdk-metrics:jar:1.62.0:compile
+      +- io.opentelemetry:opentelemetry-sdk-logs:jar:1.62.0:compile
+      +- io.opentelemetry:opentelemetry-exporter-otlp-common:jar:1.62.0:runtime
+      |  \- io.opentelemetry:opentelemetry-exporter-common:jar:1.62.0:runtime
+      +- io.opentelemetry:opentelemetry-exporter-sender-okhttp:jar:1.62.0:runtime
+      |  \- com.squareup.okhttp3:okhttp-jvm:jar:5.3.2:runtime
+      |     +- com.squareup.okio:okio-jvm:jar:3.16.4:runtime
+      |     \- org.jetbrains.kotlin:kotlin-stdlib:jar:2.3.21:runtime
+      |        \- org.jetbrains:annotations:jar:13.0:runtime
+      \- io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:jar:1.62.0:runtime
