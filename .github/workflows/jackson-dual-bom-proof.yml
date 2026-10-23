@@ -113,7 +113,7 @@ jobs:
               -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/$module.txt"
           done
           # Review this output manually before committing snapshots; no automatic locks.
-          git diff --stat -- build-evidence/maven/
+          git diff --no-ext-diff -- build-evidence/maven/
       - name: Publish dependency evidence for exact-SHA review
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
