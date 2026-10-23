@@ -1,0 +1,119 @@
+name: Helm Security Render Proof
+
+on:
+  pull_request:
+    branches: [main, feature/syntra-aetheris-foundation-v2]
+    paths:
+      - 'deploy/helm/aetheris/**'
+      - 'tests/test_helm_deployment_safety.py'
+      - 'docs/kubernetes.md'
+      - '.github/workflows/helm-security-render.yml'
+  push:
+    branches: [main, feature/syntra-aetheris-foundation-v2]
+    paths:
+      - 'deploy/helm/aetheris/**'
+      - 'tests/test_helm_deployment_safety.py'
+      - '.github/workflows/helm-security-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-helm-auth:
+    name: Helm missing-secret rejection and local render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Run chart source safety tests
+        run: python -m unittest tests.test_helm_deployment_safety -v
+      - name: Render actual Helm chart with temporary test-only secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm version --short
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          python - "$temp_dir/private-values.yaml" <<'PY'
+          import os
+          import secrets
+          import sys
+          file = sys.argv[1]
+          with open(file, "w", encoding="utf-8") as handle:
+              handle.write("secrets:\n  redisPassword: " + secrets.token_hex(32) + "\n")
+          os.chmod(file, 0o600)
+          PY
+
+          chart=deploy/helm/aetheris
+          local_values="$chart/values-local.yaml"
+
+          # Explicit local-demo opt-in alone must NOT permit anonymous Redis.
+          if helm template aetheris "$chart" -f "$local_values" \
+              --namespace aetheris > "$temp_dir/no-redis.yaml" 2> "$temp_dir/no-redis.err"; then
+            echo "SECURITY REGRESSION: Helm accepted empty Redis credentials" >&2
+            exit 1
+          fi
+          if ! grep -Fq 'secrets.redisPassword' "$temp_dir/no-redis.err"; then
+            echo "Unexpected default Helm rejection reason" >&2
+            exit 1
+          fi
+
+          # Reject a weak Redis password, including explicit local-only installs.
+          printf 'secrets:\n  redisPassword: weak\n' > "$temp_dir/weak-values.yaml"
+          if helm template aetheris "$chart" -f "$local_values" \
+              -f "$temp_dir/weak-values.yaml" --namespace aetheris \
+              > "$temp_dir/weak.yaml" 2> "$temp_dir/weak.err"; then
+            echo "SECURITY REGRESSION: short Redis password accepted" >&2
+            exit 1
+          fi
+          if ! grep -Fq '32+ non-whitespace characters' "$temp_dir/weak.err"; then
+            echo "Unexpected weak Redis password rejection reason" >&2
+            exit 1
+          fi
+
+          # A Redis password must never reuse the bundled JWT secret.
+          printf 'secrets:\n  redisPassword: change-me-local-development-secret-32chars\n' \
+              > "$temp_dir/reused-values.yaml"
+          if helm template aetheris "$chart" -f "$local_values" \
+              -f "$temp_dir/reused-values.yaml" --namespace aetheris \
+              > "$temp_dir/reused.yaml" 2> "$temp_dir/reused.err"; then
+            echo "SECURITY REGRESSION: duplicated JWT / Redis password accepted" >&2
+            exit 1
+          fi
+          if ! grep -Fq 'must be independent of JWT' "$temp_dir/reused.err"; then
+            echo "Unexpected reused Redis password rejection reason" >&2
+            exit 1
+          fi
+
+          # A Redis credential must not bypass non-local JWT and image gates.
+          if helm template aetheris "$chart" -f "$temp_dir/private-values.yaml" \
+              --namespace aetheris > "$temp_dir/nonlocal.yaml" 2> "$temp_dir/nonlocal.err"; then
+            echo "SECURITY REGRESSION: non-local chart accepted demo defaults" >&2
+            exit 1
+          fi
+          if ! grep -Fq 'unsafe Helm default' "$temp_dir/nonlocal.err"; then
+            echo "Unexpected non-local Helm rejection reason" >&2
+            exit 1
+          fi
+
+          # Syntactically valid local chart using a private generated credential.
+          helm lint "$chart" -f "$local_values" \
+              -f "$temp_dir/private-values.yaml" --quiet
+          helm template aetheris "$chart" -f "$local_values" \
+              -f "$temp_dir/private-values.yaml" --namespace aetheris \
+              > "$temp_dir/local-render.yaml"
+
+          grep -Fq 'name: REDISCLI_AUTH' "$temp_dir/local-render.yaml"
+          grep -Fq 'exec redis-server --appendonly yes --requirepass' "$temp_dir/local-render.yaml"
+          grep -Fq 'REDIS_PASSWORD:' "$temp_dir/local-render.yaml"
+          count="$(grep -Fc 'name: SPRING_DATA_REDIS_PASSWORD' "$temp_dir/local-render.yaml")"
+          if [ "$count" -ne 2 ]; then
+            echo "Expected two Spring Redis clients; found $count" >&2
+            exit 1
+          fi
+          echo "Helm security rendering: PASS (default denied, non-local denied, local auth rendered)"
+          # Rendered manifests contain synthetic Secret values: never print or upload them.
