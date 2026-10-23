@@ -83,3 +83,44 @@ correct Flyway baseline, DDL concurrency, real rollout performance, actual
 credential rotation, or production recovery. Existing database migration
 remains **UNRESOLVED** until an operator-approved, redacted schema inspection
 and rehearsed restore of representative existing data is performed.
+
+## Third stage: private, read-only schema catalog inventory
+
+The standalone `docs/database/rehearsal/catalog_inventory_readonly.sql`
+query reads **PostgreSQL catalog metadata only**, restricted to the expected
+Identity/User table names, known column names and constraint checks. It
+never selects account rows, passwords, password hashes, refresh tokens or
+user emails, and runs in a read-only transaction.
+
+`scripts/schema_inventory.py` compares the resulting small JSON document
+to the known entity schema and fails closed on missing tables, column width/
+nullability drift, missing primary/unique/foreign-key constraints or the
+expected refresh-token index. The checker prints only fixed diagnostic codes
+and never raw input. It does **not** connect to any database itself.
+
+For an operator-approved nonproduction schema review, run the SQL using an
+**independent, least-privilege read-only PostgreSQL account** on the selected
+private system, save output into a local private folder, then run the
+checker against that JSON file. For example (do not paste real connection
+strings, environment values or metadata into GitHub):
+
+```bash
+# On an approved host, with private PGHOST/PGPORT/PGDATABASE/PGUSER and
+# local protected credential handling configured outside the repository:
+umask 077
+psql -X -qAt -v ON_ERROR_STOP=1 \
+  -f docs/database/rehearsal/catalog_inventory_readonly.sql \
+  > /private/operator-folder/schema-inventory.json
+python3 scripts/schema_inventory.py /private/operator-folder/schema-inventory.json
+```
+
+Review the JSON privately and delete it in line with local data-handling
+policy. Do not upload this output as a CI artifact or commit it into Git;
+database structures can themselves be sensitive. No actual operator system
+has been connected to, inventoried or approved by this CI stage.
+
+Hosted tests use a disposable PostgreSQL 16 instance with synthetic rows
+and **no external network connection**, proving expected metadata approval,
+a missing-index rejection and column-width drift refusal. Real schema drift
+may be different, and this stage still does not authorize actual Flyway
+baselining or `ddl-auto: update` removal. Migration remains **UNRESOLVED**.
