@@ -8,120 +8,123 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
   cloud:
     gateway:
-      httpclient:
-        connect-timeout: 2000
-        response-timeout: 5s
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOrigins:
-              - "http://localhost:3000"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-      routes:
-        - id: identity-service
-          uri: http://identity-service:8082
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 5
-                redis-rate-limiter.burstCapacity: 10
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@aetherisKeyResolver}"
-            - name: CircuitBreaker
-              args:
-                name: identityCircuit
-                fallbackUri: forward:/fallback/identity
-        - id: user-service-read
-          uri: http://user-service:8081
-          predicates:
-            - Path=/api/users/**
-            - Method=GET,HEAD
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@aetherisKeyResolver}"
-            - name: Retry
-              args:
-                retries: 2
-                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
-                methods: GET,HEAD
-                backoff:
-                  firstBackoff: 100ms
-                  maxBackoff: 500ms
-                  factor: 2
-                  basedOnPreviousValue: false
-            - name: CircuitBreaker
-              args:
-                name: userReadCircuit
-                fallbackUri: forward:/fallback/users
-        - id: user-service-write
-          uri: http://user-service:8081
-          predicates:
-            - Path=/api/users/**
-            - Method=POST,PUT,PATCH,DELETE
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@aetherisKeyResolver}"
-            - name: CircuitBreaker
-              args:
-                name: userWriteCircuit
-                fallbackUri: forward:/fallback/users
-        - id: audit-service
-          uri: http://audit-service:8083
-          predicates:
-            - Path=/api/events/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@aetherisKeyResolver}"
-            - name: Retry
-              args:
-                retries: 2
-                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
-                methods: GET,HEAD
-                backoff:
-                  firstBackoff: 100ms
-                  maxBackoff: 500ms
-                  factor: 2
-                  basedOnPreviousValue: false
-            - name: CircuitBreaker
-              args:
-                name: auditCircuit
-                fallbackUri: forward:/fallback/events
-        - id: orchestrator-service
-          uri: ${AETHERIS_ORCHESTRATOR_URI:http://orchestrator-service:8090}
-          predicates:
-            - Path=/api/orchestrator/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@aetherisKeyResolver}"
-            - name: CircuitBreaker
-              args:
-                name: orchestratorCircuit
-                fallbackUri: forward:/fallback/orchestrator
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 5s
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                allowedOrigins:
+                  - "http://localhost:3000"
+                allowedMethods: "*"
+                allowedHeaders: "*"
+          routes:
+            - id: identity-service
+              uri: http://identity-service:8082
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@aetherisKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: identityCircuit
+                    fallbackUri: forward:/fallback/identity
+            - id: user-service-read
+              uri: http://user-service:8081
+              predicates:
+                - Path=/api/users/**
+                - Method=GET,HEAD
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 20
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@aetherisKeyResolver}"
+                - name: Retry
+                  args:
+                    retries: 2
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET,HEAD
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+                - name: CircuitBreaker
+                  args:
+                    name: userReadCircuit
+                    fallbackUri: forward:/fallback/users
+            - id: user-service-write
+              uri: http://user-service:8081
+              predicates:
+                - Path=/api/users/**
+                - Method=POST,PUT,PATCH,DELETE
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 20
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@aetherisKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: userWriteCircuit
+                    fallbackUri: forward:/fallback/users
+            - id: audit-service
+              uri: http://audit-service:8083
+              predicates:
+                - Path=/api/events/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 20
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@aetherisKeyResolver}"
+                - name: Retry
+                  args:
+                    retries: 2
+                    statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                    methods: GET,HEAD
+                    backoff:
+                      firstBackoff: 100ms
+                      maxBackoff: 500ms
+                      factor: 2
+                      basedOnPreviousValue: false
+                - name: CircuitBreaker
+                  args:
+                    name: auditCircuit
+                    fallbackUri: forward:/fallback/events
+            - id: orchestrator-service
+              uri: ${AETHERIS_ORCHESTRATOR_URI:http://orchestrator-service:8090}
+              predicates:
+                - Path=/api/orchestrator/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@aetherisKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: orchestratorCircuit
+                    fallbackUri: forward:/fallback/orchestrator
 
 aetheris:
   jwt:
-    secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
+    secret: ${AETHERIS_JWT_SECRET}
 
 resilience4j:
   circuitbreaker:
@@ -157,9 +160,11 @@ management:
   tracing:
     sampling:
       probability: 1.0
-  otlp:
+  opentelemetry:
     tracing:
-      endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 info:
   app:

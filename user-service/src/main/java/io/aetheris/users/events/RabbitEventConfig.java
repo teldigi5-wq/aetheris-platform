@@ -1,7 +1,7 @@
 package io.aetheris.users.events;
 
 import org.springframework.amqp.core.TopicExchange;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -13,7 +13,7 @@ public class RabbitEventConfig {
     }
 
     @Bean
-    Jackson2JsonMessageConverter rabbitMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+    JacksonJsonMessageConverter rabbitMessageConverter() {
+        return new JacksonJsonMessageConverter();
     }
 }

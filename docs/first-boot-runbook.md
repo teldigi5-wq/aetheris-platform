@@ -53,7 +53,7 @@ python --version
 git --version
 ```
 
-Expected platform pins are Java `21.0.12`, Maven `3.9.11` through the committed wrapper, Node `22.23.2`, and Python `3.13.15`.
+Expected platform pins are Java `21.0.12`, Maven `3.9.11` through the committed wrapper, Node `22.23.4`, and Python `3.13.15`.
 
 ## 5. Run Stage 25 host preflight
 
