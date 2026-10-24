@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           for module in gateway identity-service user-service audit-service; do
-            ./mvnw -B -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -DoutputFile="/tmp/aetheris-$module-tree.txt"
+            ./mvnw -B -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree -Dscope=runtime -DoutputFile="/tmp/aetheris-$module-tree.txt"
           done
       - name: Require patched Jackson 2 and Jackson 3 modules
         shell: bash
@@ -110,6 +110,7 @@ jobs:
           set -euo pipefail
           for module in gateway user-service identity-service audit-service; do
             ./mvnw -B -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree \
+              -Dscope=runtime \
               -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/$module.txt"
           done
           # Review this output manually before committing snapshots; no automatic locks.
