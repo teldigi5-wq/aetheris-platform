@@ -6,6 +6,7 @@ on:
       - main
       - feature/syntra-aetheris-foundation-v2
       - release/aetheris-spring4-security-candidate-20261023
+      - release/aetheris-security-core-certified-20261023
     paths:
       - 'gateway/**'
       - 'identity-service/**'
