@@ -10,7 +10,7 @@ on:
       - 'audit-service/**'
       - '.github/workflows/jackson-dual-bom-proof.yml'
   pull_request:
-    branches: [main, release/aetheris-security-runtime-reconciled-20261023]
+    branches: [main, release/aetheris-security-core-certified-20261023, release/aetheris-security-runtime-reconciled-20261023]
     paths:
       - 'gateway/**'
       - 'identity-service/**'
