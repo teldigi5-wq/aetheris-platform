@@ -43,6 +43,7 @@ services:
   user-service:
     build: ./user-service
     environment:
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique 32+ byte signing key}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}
@@ -84,6 +85,7 @@ services:
   audit-service:
     build: ./audit-service
     environment:
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique 32+ byte signing key}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}

@@ -1,3 +1,7 @@
+aetheris:
+  jwt:
+    secret: ${AETHERIS_JWT_SECRET}
+
 server:
   port: 8083
 
