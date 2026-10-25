@@ -54,7 +54,7 @@ jobs:
       - name: Start only fresh disposable Postgres and RabbitMQ
         run: |
           set -euo pipefail
-          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml up --no-build -d postgres rabbitmq
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml up --no-build --wait -d postgres rabbitmq
       - name: Create empty Audit-owned database and separate nonempty candidate Identity/User schema
         run: |
           set -euo pipefail
@@ -78,7 +78,7 @@ jobs:
             sleep 2
           done
           test "$found" -eq 1 || { echo B4T_FIRST_AUDIT_MIGRATION_FAILED; exit 1; }
-          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT version || '|' || type || '|' || success FROM public.flyway_audit_schema_history WHERE type='SQL'" | grep -qx '1|SQL|t'
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT (version='1' AND type='SQL' AND success) FROM public.flyway_audit_schema_history WHERE type='SQL'" | grep -qx t
           $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE type='BASELINE'" | grep -qx 0
           $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename IN ('identity_accounts','identity_refresh_tokens','users')" | grep -qx 0
           echo B4T_REAL_AUDIT_FLYWAY_V1_SINGLE_SUCCESS_NO_SILENT_BASELINE
