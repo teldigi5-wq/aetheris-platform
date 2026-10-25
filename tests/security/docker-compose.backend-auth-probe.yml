@@ -1,0 +1,117 @@
+# E3/Stage45 security experiment ONLY: NEVER use as production Compose.
+# All services are on one disposable internal network; NO host ports or volumes.
+# Fixed literal secrets are synthetic CI fixtures, not operational credentials.
+name: aetheris-backend-auth-probe
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aetheris_probe
+      POSTGRES_USER: probe
+      POSTGRES_PASSWORD: test-only-ephemeral-postgres-password
+    tmpfs:
+      - /var/lib/postgresql/data:size=268435456
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U probe -d aetheris_probe"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    networks: [probe]
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "test-only-ephemeral-redis-password"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "test-only-ephemeral-redis-password", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [probe]
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: probe
+      RABBITMQ_DEFAULT_PASS: test-only-ephemeral-rabbitmq-password
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [probe]
+
+  user-service:
+    build:
+      context: ../../user-service
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_probe
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      # Only ever enabled against the fresh disposable tmpfs PostgreSQL.
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: test-only-ephemeral-redis-password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: probe
+      SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    networks: [probe]
+
+  audit-service:
+    build:
+      context: ../../audit-service
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_probe
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: probe
+      SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      SPRING_RABBITMQ_LISTENER_DIRECT_AUTO_STARTUP: "false"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    networks: [probe]
+
+  gateway:
+    build:
+      context: ../../gateway
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: test-only-ephemeral-redis-password
+      AETHERIS_ORCHESTRATOR_URI: http://127.0.0.1:65535
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      redis: {condition: service_healthy}
+      user-service: {condition: service_started}
+      audit-service: {condition: service_started}
+    networks: [probe]
+
+  # Unprivileged attacker/authorized-user simulator, NO Docker socket.
+  # Its only connection is the internal Docker bridge.
+  probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/probe.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_backend_auth.py:/opt/probe.py:ro
+      - ../../identity-service/target/identity-jwt-contract:/opt/tokens:ro
+    networks: [probe]
+
+networks:
+  probe:
+    internal: true
