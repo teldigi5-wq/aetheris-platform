@@ -112,6 +112,20 @@ services:
       - ../../identity-service/target/identity-jwt-contract:/opt/tokens:ro
     networks: [probe]
 
+  # Separate disposable resource-boundary probe, same restricted network.
+  # It creates and deletes only synthetic rows in the tmpfs database.
+  resource-probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/probe.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_user_row_id_collision.py:/opt/probe.py:ro
+      - ../../identity-service/target/identity-jwt-contract:/opt/tokens:ro
+    networks: [probe]
+
 networks:
   probe:
     internal: true
