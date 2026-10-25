@@ -201,6 +201,38 @@ class JwtAuthenticationFilterTest {
         assertNull(forwarded.get().getRequest().getHeaders().getFirst("X-Aetheris-User-Id"));
     }
 
+    @Test
+    void auditMutationNeverUsesReadScopeAtTheGateway() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        for (org.springframework.http.HttpMethod method : List.of(
+                org.springframework.http.HttpMethod.POST,
+                org.springframework.http.HttpMethod.PUT,
+                org.springframework.http.HttpMethod.PATCH,
+                org.springframework.http.HttpMethod.DELETE)) {
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.method(method, "/api/events")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " +
+                        token(List.of("services:read"), Instant.now().plusSeconds(120))).build());
+            AtomicReference<ServerWebExchange> routed = new AtomicReference<>();
+            filter.filter(exchange, e -> { routed.set(e); return Mono.empty(); }).block();
+            assertNull(routed.get(), method.toString());
+            assertEquals(HttpStatus.FORBIDDEN, exchange.getResponse().getStatusCode());
+        }
+    }
+
+    @Test
+    void auditReadStillPermitsAnAuthenticatedAdmin() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+            MockServerHttpRequest.get("/api/events")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " +
+                    token(List.of("services:read"), Instant.now().plusSeconds(120))).build());
+        AtomicReference<ServerWebExchange> next = new AtomicReference<>();
+        filter.filter(exchange, e -> { next.set(e); return Mono.empty(); }).block();
+        assertNotNull(next.get());
+        assertEquals("ADMIN", next.get().getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
+    }
+
     private static String tokenWithClaims(String role, Object uid, List<String> scopes,
                                           Instant issued, Instant expires) {
         var builder = Jwts.builder()

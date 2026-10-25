@@ -154,7 +154,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private String requiredScope(String path, HttpMethod method) {
         if (path.equals("/api/events") || path.startsWith("/api/events/")) {
-            return "services:read";
+            // Keep the independent Audit filter's HTTP-method scope contract.
+            // Identity currently grants no services:write; never treat a
+            // read-only ADMIN token as authority to modify audit evidence.
+            return method != null && WRITE_METHODS.contains(method)
+                    ? "services:write" : "services:read";
         }
         if (path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/")) {
             return method != null && WRITE_METHODS.contains(method) ? "orchestrator:write" : "orchestrator:read";
