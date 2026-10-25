@@ -1,5 +1,5 @@
 # B4T — ONLY on disposable internal Compose test network, never production.
-# Actual Audit Spring Flyway starter and existing V1 migration, NO new DDL in src/main.
+# Real Audit shipped Flyway defaults and bundled V1; NO environment baseline override.
 services:
   audit-fresh:
     image: aetheris-b4t-audit-test-only:local
@@ -10,8 +10,6 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_audit_fresh
       SPRING_DATASOURCE_USERNAME: probe
       SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
-      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "false"
-      SPRING_FLYWAY_TABLE: flyway_audit_schema_history
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_USERNAME: probe
       SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
@@ -30,8 +28,6 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_audit_fresh
       SPRING_DATASOURCE_USERNAME: probe
       SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
-      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "false"
-      SPRING_FLYWAY_TABLE: flyway_audit_schema_history
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_USERNAME: probe
       SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
@@ -50,8 +46,6 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_audit_nonempty
       SPRING_DATASOURCE_USERNAME: probe
       SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
-      SPRING_FLYWAY_BASELINE_ON_MIGRATE: "false"
-      SPRING_FLYWAY_TABLE: flyway_audit_schema_history
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_USERNAME: probe
       SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password

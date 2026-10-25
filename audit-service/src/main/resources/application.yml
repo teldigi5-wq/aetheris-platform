@@ -15,7 +15,9 @@ spring:
   flyway:
     enabled: true
     table: flyway_audit_schema_history
-    baseline-on-migrate: true
+    # Fail closed on nonempty databases without approved Flyway history.
+    # Existing installations require reviewed migration ownership/baseline approval.
+    baseline-on-migrate: false
     baseline-version: "0"
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
