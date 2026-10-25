@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Real filter invoked by MockMvc; no network, JWT secret in test code only. */
@@ -75,6 +76,59 @@ class DirectApiJwtFilterTest {
         mvc.perform(get("/api/users").header("Authorization","Bearer "+
             token("ADMIN",List.of("users:read"),Instant.now().plusSeconds(120))))
             .andExpect(status().isOk());
+    }
+
+    private String tokenWithUid(Object uid) {
+        return Jwts.builder()
+            .subject("authenticated@example.invalid")
+            .claim("uid", uid)
+            .claim("role", "ADMIN")
+            .claim("scopes", List.of("users:read"))
+            .issuedAt(Date.from(Instant.now().minusSeconds(5)))
+            .expiration(Date.from(Instant.now().plusSeconds(120)))
+            .signWith(key)
+            .compact();
+    }
+
+    @Test
+    void rejectsFractionalOrNonpositiveUidWithoutTruncatingIdentity() throws Exception {
+        for (Object uid : List.of(42.5d, 0, -1L)) {
+            mvc.perform(get("/api/users").header("Authorization",
+                "Bearer " + tokenWithUid(uid)))
+                .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(get("/api/users").header("Authorization",
+            "Bearer " + tokenWithUid(42L)))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void rejectsDuplicatedAuthorizationHeadersEvenWhenBothTokensAreValid() throws Exception {
+        String bearer = "Bearer " + tokenWithUid(42L);
+        mvc.perform(get("/api/users")
+                .header("Authorization", bearer, bearer))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void directUserDeletionNeedsSignedAdministrativeWriteScope() throws Exception {
+        mvc.perform(delete("/api/users/7"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/users/7")
+                .header("X-Aetheris-User-Role", "ADMIN"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/users/7")
+                .header("Authorization", "Bearer " +
+                    token("ADMIN", List.of("users:read"), Instant.now().plusSeconds(120))))
+            .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/users/7")
+                .header("Authorization", "Bearer " +
+                    token("API_CONSUMER", List.of("users:write"), Instant.now().plusSeconds(120))))
+            .andExpect(status().isForbidden());
+        mvc.perform(delete("/api/users/7")
+                .header("Authorization", "Bearer " +
+                    token("ADMIN", List.of("users:write"), Instant.now().plusSeconds(120))))
+            .andExpect(status().isNoContent());
     }
 
     @Test
