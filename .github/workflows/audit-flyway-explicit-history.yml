@@ -46,12 +46,17 @@ jobs:
           assert p['read_only'] is True and 'ALL' in p['cap_drop']
           assert any('postgresql/data' in str(x) for x in c['services']['postgres']['tmpfs'])
           print('B4T_FRESH_AND_NONEMPTY_DB_ON_PRIVATE_BRIDGE_NO_AUTO_BASELINE')
-          # Check the actual shipped app property, plus all operational Compose
-          # entrypoints, so a future config reversion cannot pass via test overrides.
+          # Check shipped defaults, not test-injected environment values.
           from pathlib import Path
-          import re
           cfg=Path('audit-service/src/main/resources/application.yml').read_text()
-          matches=re.findall(r'(?m)^    baseline-on-migrate: (true|false)\\s*
+          baseline=[line.strip() for line in cfg.splitlines() if 'baseline-on-migrate:' in line and not line.lstrip().startswith('#')]
+          assert baseline == ['baseline-on-migrate: false'], 'B4U_SHIPPED_BASELINE_DEFAULT_NOT_DENIED'
+          history=[line.strip() for line in cfg.splitlines() if line.strip().startswith('table:')]
+          assert history == ['table: flyway_audit_schema_history'], 'B4U_AUDIT_HISTORY_TABLE_DRIFT'
+          for name in ('docker-compose.yml','docker-compose.core.yml','docker-compose.integration-external.yml'):
+              txt=Path(name).read_text()
+              assert 'SPRING_FLYWAY_BASELINE_ON_MIGRATE' not in txt, 'B4U_OPERATIONAL_OVERRIDE_REVIEW_REQUIRED:'+name
+          print('B4U_SHIPPED_DEFAULT_DENY_NO_TEST_OR_OPERATIONAL_OVERRIDE')
           PY
           python3 -m py_compile tests/security/probe_audit_flyway_history.py
           test "$(git hash-object tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql)" = 8150f49ad8a3bb66fd3b1f96803119e435260c85
