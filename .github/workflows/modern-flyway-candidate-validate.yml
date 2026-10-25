@@ -103,7 +103,7 @@ jobs:
             pg_dump -U probe -d aetheris_flyway_candidate -a --no-owner --no-privileges -f /tmp/b4s-after.data
             for t in schema data; do
               for s in before after; do
-                grep -Ev "^\\(restrict|unrestrict) " "/tmp/b4s-$s.$t" > "/tmp/b4s-$s.$t.normalized"
+                grep -Ev "^\\\\(restrict|unrestrict) " "/tmp/b4s-$s.$t" > "/tmp/b4s-$s.$t.normalized"
               done
               cmp "/tmp/b4s-before.$t.normalized" "/tmp/b4s-after.$t.normalized"
             done
