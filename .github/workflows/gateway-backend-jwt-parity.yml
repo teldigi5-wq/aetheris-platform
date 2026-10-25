@@ -1,0 +1,38 @@
+name: Gateway Direct-Service JWT Boundary Parity
+on:
+  pull_request:
+    branches:
+      - test/direct-service-live-http-boundary-20261025
+    paths:
+      - 'gateway/**'
+      - 'user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/DirectApiJwtFilter.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/**'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/**'
+      - 'docs/security/gateway-direct-backend-jwt-parity-20261025.md'
+      - '.github/workflows/gateway-backend-jwt-parity.yml'
+permissions:
+  contents: read
+jobs:
+  gateway-administrative-security-parity:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with: {python-version: '3.12'}
+      - name: Gateway JWT, rate limiting, routing and application regression tests
+        run: ./mvnw -B -ntp -f gateway/pom.xml test
+      - name: Independent backend real HTTP and source JWT parity
+        run: |
+          ./mvnw -B -ntp -f user-service/pom.xml test
+          ./mvnw -B -ntp -f audit-service/pom.xml test
+      - name: Backend secret-wiring and no-trust forwarded header invariant
+        run: python tests/test_backend_jwt_wiring.py
