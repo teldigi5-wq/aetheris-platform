@@ -48,7 +48,11 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
+        // URI minus the container context path works for standalone MockMvc, root
+        // Servlet mappings, and non-root deployments. Never trust forwarded URI headers.
+        String uri = request.getRequestURI();
+        String context = request.getContextPath();
+        String path = uri.startsWith(context) ? uri.substring(context.length()) : uri;
         return !(ROOT.equals(path) || path.startsWith(ROOT + "/"));
     }
 
