@@ -258,6 +258,18 @@ It also makes **no production-activation, registry-publication or live-money exe
 
 ---
 
+## Current engineering status (25 October 2026)
+
+**Release state: DRAFT / NOT RELEASE-CERTIFIED. Physical PC: `BLOCKED_PENDING_HARDWARE`.** The original Stage 34 / 34 master roadmap is a completed repository blueprint, not the assertion that the production agent system works on a real Windows workstation. There is no Stage 35.
+
+- **Platform security:** [PR #262](https://github.com/teldigi5-wq/aetheris-platform/pull/262) passed 29/29 workflow runs. Newer reconciled [PR #264](https://github.com/teldigi5-wq/aetheris-platform/pull/264) initially passed 29/30; its data recovery build failed on Maven Central HTTP 502 downloading `objenesis` before recovery assertions were run. Do not treat a dependency-fetch failure as a proved application failure or a successful recovery check. Reverification remains required.
+- **Remaining security release blockers:** persistent DB migration [#242](https://github.com/teldigi5-wq/aetheris-platform/issues/242), direct backend authorization [#251](https://github.com/teldigi5-wq/aetheris-platform/issues/251), Java runtime image patching [#255](https://github.com/teldigi5-wq/aetheris-platform/issues/255), final advisory/SBOM evidence [#259](https://github.com/teldigi5-wq/aetheris-platform/issues/259), credential/backup/network/rollback verification.
+- **Runtime and Syntra:** latest draft reference skills [runtime PR #186](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/186) passed 3/3 CI jobs; skill advice remains default-off and does not certify a website-generating autonomous agent. Runtime security [PR #185](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/185) is independently unmerged.
+- **Next work:** validate a single security release candidate; reconcile strict runtime security ancestry; complete independent E3.9 model/browser evaluations; progress the proposed E4–E9 capability roadmap and owner-PC [Execution Phase A](https://github.com/teldigi5-wq/aetheris-platform/issues/49). No live-money or unrestricted host action authority.
+
+See the [current release and development gates](docs/current-release-roadmap-20261025.md) for the detailed issue/PR ledger and safe continuation order. This status section reports evidence, not an automated release decision.
+
+---
 ## Roadmap history and why Stage 34 / 34 still appears
 
 The repository contains two historical tracks:
