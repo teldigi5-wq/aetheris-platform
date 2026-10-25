@@ -50,8 +50,8 @@ class RoadmapIntegrity(unittest.TestCase):
         for marker in ("E3.9G-12B4D","E3.9H","E4","E5","E6","E7","E8","E9",
                        "nine runtime release gates","Execution Phase A","Stage45"):
             self.assertIn(marker,c)
-        self.assertIn("docs/current-release-roadmap-20261025.md",README.read_text())
-        self.assertIn("current-release-roadmap-20261025.md",MASTER.read_text())
+        self.assertIn("docs/current-release-roadmap-20261025.md",README.read_text(encoding='utf-8'))
+        self.assertIn("current-release-roadmap-20261025.md",MASTER.read_text(encoding='utf-8'))
 
 if __name__ == "__main__":
     unittest.main()
