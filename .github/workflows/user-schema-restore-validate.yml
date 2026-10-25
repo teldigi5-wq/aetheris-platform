@@ -1,0 +1,131 @@
+name: Disposable PostgreSQL Restore And Hibernate Validate
+on:
+  pull_request:
+    branches: [test/signed-uid-user-row-collision-boundary-20261025]
+    paths:
+      - 'tests/security/docker-compose.pg-recovery-overlay.yml'
+      - 'tests/security/probe_user_restore.py'
+      - '.github/workflows/user-schema-restore-validate.yml'
+      - 'docs/database/DISPOSABLE_USER_RESTORE_VALIDATE_20261025.md'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  synthetic-backup-restore-and-validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Verify disposable topology and strict schema validation overrides
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml config --format json > "$RUNNER_TEMP/b4r.json"
+          python3 - "$RUNNER_TEMP/b4r.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          c=json.loads(Path(sys.argv[1]).read_text())
+          expected={'postgres','redis','rabbitmq','user-service','audit-service','gateway',
+                    'probe','resource-probe','user-validated','user-drift','recovery-probe'}
+          assert set(c['services'])==expected
+          assert len(c['networks'])==1 and all(x.get('internal') for x in c['networks'].values())
+          assert not c.get('volumes')
+          for name,x in c['services'].items():
+              assert not x.get('ports') and not x.get('privileged')
+              assert not x.get('network_mode') and not x.get('devices')
+          for name in ('user-validated','user-drift'):
+              x=c['services'][name]
+              assert x['environment']['SPRING_JPA_HIBERNATE_DDL_AUTO']=='validate'
+              assert x['environment']['SPRING_DATASOURCE_URL'].startswith(
+                  'jdbc:postgresql://postgres:5432/aetheris_')
+              assert x['image']=='aetheris-b4r-test-only-user:local'
+          assert c['services']['user-service']['environment']['SPRING_JPA_HIBERNATE_DDL_AUTO']=='create'
+          assert c['services']['user-service']['image']=='aetheris-b4r-test-only-user:local'
+          assert any('postgresql/data' in str(t) for t in c['services']['postgres']['tmpfs'])
+          for name in ('probe','resource-probe','recovery-probe'):
+              assert c['services'][name]['read_only']
+              assert 'ALL' in c['services'][name]['cap_drop']
+          print('B4R_ONLY_DISPOSABLE_NETWORK_AND_VALIDATE_REPLICA')
+          PY
+          python3 -m py_compile tests/security/probe_user_restore.py
+      - name: Build current actual Gateway User and Audit application Docker images
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml build gateway user-service audit-service
+      - name: Start source services and ephemeral infrastructure
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml up --no-build -d postgres redis rabbitmq user-service audit-service gateway
+      - name: Issue real Identity signed CI JWTs and prove pre-recovery authorization controls
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=NonOwnerNumericCollisionJwtIT test
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml run --rm --no-deps probe
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml run --rm --no-deps resource-probe
+      - name: Create one synthetic User row through the real secured HTTP API
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml run --rm --no-deps recovery-probe seed
+      - name: Back up actual disposable PostgreSQL to local archive and restore into fresh databases
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml exec -T postgres sh -ec '
+            pg_dump -U probe -d aetheris_probe -Fc --no-owner --no-privileges -f /tmp/b4r-source.dump
+            test -s /tmp/b4r-source.dump
+            createdb -U probe aetheris_restored
+            pg_restore --exit-on-error -U probe -d aetheris_restored --no-owner --no-privileges /tmp/b4r-source.dump
+            createdb -U probe aetheris_drift
+            pg_restore --exit-on-error -U probe -d aetheris_drift --no-owner --no-privileges /tmp/b4r-source.dump
+            psql -X -q -U probe -d aetheris_drift -v ON_ERROR_STOP=1 -c "ALTER TABLE users DROP COLUMN email;"
+            pg_dump -U probe -d aetheris_restored -s --no-owner --no-privileges -f /tmp/b4r-before.schema
+            pg_dump -U probe -d aetheris_restored -a --no-owner --no-privileges -f /tmp/b4r-before.data
+            echo B4R_BACKUP_RESTORED_AND_INTENTIONAL_DRIFT_ISOLATED
+          '
+      - name: Start restored production-image User service with ddl-auto validate (never update)
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml up --no-build -d user-validated
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml run --rm --no-deps recovery-probe verify
+      - name: Verify restore schema and data hashes unchanged after real validated startup
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml exec -T postgres sh -ec '
+            pg_dump -U probe -d aetheris_restored -s --no-owner --no-privileges -f /tmp/b4r-after.schema
+            pg_dump -U probe -d aetheris_restored -a --no-owner --no-privileges -f /tmp/b4r-after.data
+            cmp /tmp/b4r-before.schema /tmp/b4r-after.schema
+            cmp /tmp/b4r-before.data /tmp/b4r-after.data
+            echo B4R_RESTORED_SCHEMA_AND_DATA_UNCHANGED_BY_HIBERNATE_VALIDATE
+          '
+      - name: Deliberately drift only second cloned schema and prove validate fails to start
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml up --no-build -d user-drift
+          cid=$(docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml ps -aq user-drift)
+          test -n "$cid"
+          stopped=0
+          for i in $(seq 1 45); do
+            state=$(docker inspect -f '{{.State.Status}}' "$cid")
+            if [ "$state" = exited ]; then stopped=1; break; fi
+            sleep 2
+          done
+          test "$stopped" -eq 1 || { echo "B4R_DRIFTED_SCHEMA_WRONGLY_ALLOWED_STARTUP"; exit 1; }
+          exit_code=$(docker inspect -f '{{.State.ExitCode}}' "$cid")
+          test "$exit_code" -ne 0 || { echo "B4R_DRIFTED_SCHEMA_EXITED_WITH_SUCCESS"; exit 1; }
+          docker logs "$cid" 2>&1 > "$RUNNER_TEMP/b4r-drift.log"
+          grep -Eiq 'missing column.*email|Schema-validation: missing column' "$RUNNER_TEMP/b4r-drift.log" || {
+            echo "B4R_STARTUP_FAILED_BUT_SCHEMA_DRIFT_CAUSE_NOT_PROVEN"
+            exit 1
+          }
+          echo B4R_INTENTIONAL_MISSING_EMAIL_COLUMN_FAILS_HIBERNATE_VALIDATE
+      - name: Bounded service diagnostics if recovery or tests fail
+        if: failure()
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml logs --no-color --tail=45 postgres user-service user-validated user-drift || true
+      - name: Always remove disposable databases containers networks and test archives
+        if: always()
+        run: docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml down --volumes --remove-orphans --timeout 10 || true
