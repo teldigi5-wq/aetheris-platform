@@ -1,0 +1,139 @@
+name: Current Identity User vs PR247 Flyway candidate SQL
+on:
+  pull_request:
+    branches: [test/disposable-user-pg-restore-validate-20261025]
+    paths:
+      - 'tests/security/flyway-candidate-247/**'
+      - 'tests/security/docker-compose.flyway-parity-overlay.yml'
+      - 'tests/security/probe_flyway_candidate_parity.py'
+      - 'tests/security/compare_pr247_user_catalog.sql'
+      - '.github/workflows/modern-flyway-candidate-validate.yml'
+      - 'docs/database/MODERN_PR247_SCHEMA_PARITY_20261025.md'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  candidate-sql-modern-service-validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Verify exactly matching immutable PR247 CI-only SQL blob snapshots
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql)" = 8150f49ad8a3bb66fd3b1f96803119e435260c85
+          test "$(git hash-object tests/security/flyway-candidate-247/V2__ci_only_token_index.sql)" = 79b19609516da1ce94d85e12e13d31ccb28f1757
+          python3 -m py_compile tests/security/probe_flyway_candidate_parity.py
+          echo B4S_EXACT_PR247_LAB_SQL_SNAPSHOTS_PROVEN
+      - name: Enforce private Docker topology and no schema-writing candidate startup
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml config --format json > "$RUNNER_TEMP/b4s.json"
+          python3 - "$RUNNER_TEMP/b4s.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          c=json.loads(Path(sys.argv[1]).read_text())
+          assert len(c['networks'])==1 and all(v.get('internal') for v in c['networks'].values())
+          assert not c.get('volumes')
+          for name,svc in c['services'].items():
+              assert not svc.get('ports') and not svc.get('network_mode')
+              assert not svc.get('privileged') and not svc.get('devices')
+          for name in ('identity-validated','user-flyway-validated','identity-candidate-drift'):
+              s=c['services'][name]
+              assert s['environment']['SPRING_JPA_HIBERNATE_DDL_AUTO']=='validate'
+              assert s['environment']['SPRING_DATASOURCE_URL'].startswith('jdbc:postgresql://postgres:5432/aetheris_flyway_')
+          assert c['services']['flyway-parity-probe']['read_only']
+          assert 'ALL' in c['services']['flyway-parity-probe']['cap_drop']
+          assert any('postgresql/data' in str(x) for x in c['services']['postgres']['tmpfs'])
+          print('B4S_DISPOSABLE_NO_HOST_PORTS_OR_PERSISTENT_DATA')
+          PY
+      - name: Build actual current Identity and User Docker images
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml build user-service identity-validated
+      - name: Start disposable dependencies and modern User Hibernate-generated schema
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml up --no-build -d postgres redis rabbitmq user-service
+          ready=0
+          for i in $(seq 1 75); do
+            if docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml exec -T postgres psql -XqAt -U probe -d aetheris_probe -c "SELECT to_regclass('public.users') IS NOT NULL" 2>/dev/null | grep -qx t; then ready=1; break; fi
+            sleep 2
+          done
+          test "$ready" -eq 1 || { echo B4S_CURRENT_USER_SCHEMA_UNAVAILABLE; exit 1; }
+      - name: Apply reviewed PR247 SQL only to empty synthetic lab database and drift clone
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml'
+          $C exec -T postgres createdb -U probe aetheris_flyway_candidate
+          $C exec -T postgres psql -Xq -U probe -d aetheris_flyway_candidate -v ON_ERROR_STOP=1 < tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql
+          $C exec -T postgres psql -Xq -U probe -d aetheris_flyway_candidate -v ON_ERROR_STOP=1 < tests/security/flyway-candidate-247/V2__ci_only_token_index.sql
+          $C exec -T postgres createdb -U probe -T aetheris_flyway_candidate aetheris_flyway_drift
+          $C exec -T postgres psql -Xq -U probe -d aetheris_flyway_drift -v ON_ERROR_STOP=1 -c 'ALTER TABLE identity_accounts DROP COLUMN email'
+          $C exec -T postgres sh -ec '
+            pg_dump -U probe -d aetheris_flyway_candidate -s --no-owner --no-privileges -f /tmp/b4s-before.schema
+            pg_dump -U probe -d aetheris_flyway_candidate -a --no-owner --no-privileges -f /tmp/b4s-before.data
+            echo B4S_CANDIDATE_APPLIED_ONLY_TO_NEW_MARKED_SYNTHETIC_DATABASE
+          '
+      - name: Compare physical User column types and logical constraint definitions to modern Hibernate
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml'
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_probe -v ON_ERROR_STOP=1 < tests/security/compare_pr247_user_catalog.sql > "$RUNNER_TEMP/hibernate.catalog"
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_flyway_candidate -v ON_ERROR_STOP=1 < tests/security/compare_pr247_user_catalog.sql > "$RUNNER_TEMP/flyway.catalog"
+          test "$(wc -l < "$RUNNER_TEMP/hibernate.catalog")" -ge 5
+          cmp "$RUNNER_TEMP/hibernate.catalog" "$RUNNER_TEMP/flyway.catalog"
+          echo B4S_USER_COLUMN_TYPES_AND_PK_UNIQUE_SEMANTICS_MATCH
+      - name: Real Identity-issued tokens validated against both actual modern Spring application images
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml'
+          $C up --no-build -d identity-validated user-flyway-validated
+          $C run --rm --no-deps flyway-parity-probe
+      - name: Prove validate-mode applications did not rewrite candidate schema or rows
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml exec -T postgres sh -ec '
+            pg_dump -U probe -d aetheris_flyway_candidate -s --no-owner --no-privileges -f /tmp/b4s-after.schema
+            pg_dump -U probe -d aetheris_flyway_candidate -a --no-owner --no-privileges -f /tmp/b4s-after.data
+            for t in schema data; do
+              for s in before after; do
+                grep -Ev "^\\(restrict|unrestrict) " "/tmp/b4s-$s.$t" > "/tmp/b4s-$s.$t.normalized"
+              done
+              cmp "/tmp/b4s-before.$t.normalized" "/tmp/b4s-after.$t.normalized"
+            done
+            echo B4S_VALIDATE_APPS_CHANGED_NO_SCHEMA_OR_DATA
+          '
+      - name: Confirm missing Identity email column is rejected for proven Hibernate reason
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml'
+          $C up --no-build -d identity-candidate-drift
+          cid=$($C ps -aq identity-candidate-drift)
+          test -n "$cid"
+          stopped=0
+          for i in $(seq 1 55); do
+            if [ "$(docker inspect -f '{{.State.Status}}' "$cid")" = exited ]; then stopped=1; break; fi
+            sleep 2
+          done
+          test "$stopped" -eq 1 || { echo B4S_IDENTITY_DRIFT_WRONGLY_ALLOWED; exit 1; }
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$cid")" -ne 0
+          docker logs "$cid" > "$RUNNER_TEMP/b4s-drift.log" 2>&1
+          grep -Eiq 'missing column.*email|Schema-validation: missing column' "$RUNNER_TEMP/b4s-drift.log" || {
+            echo B4S_IDENTITY_EXIT_UNRELATED_TO_PROVEN_SCHEMA_MISMATCH
+            exit 1
+          }
+          echo B4S_MISSING_IDENTITY_ACCOUNT_EMAIL_FAILS_HIBERNATE_VALIDATE
+      - name: Bounded logs on failure
+        if: failure()
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml logs --no-color --tail=35 postgres user-service identity-validated user-flyway-validated identity-candidate-drift || true
+      - name: Always destroy all synthetic databases containers and network
+        if: always()
+        run: docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.pg-recovery-overlay.yml -f tests/security/docker-compose.flyway-parity-overlay.yml down --volumes --remove-orphans --timeout 10 || true
