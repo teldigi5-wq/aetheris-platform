@@ -42,6 +42,12 @@ The tested current Platform branch now compares SHA-pinned CI-only SQL from Flyw
 
 **This does not execute Flyway's history engine on the modern application boot path**: immutable prior lab SQL was deliberately applied to a fresh temporary PostgreSQL using `psql`; old #247 remains separate approved-for-testing Flyway history research. Real historical operator schemas, legitimate baseline versions, audit migration ownership, backup/restore proof, service startup ordering and six production-style Hibernate `update` overrides still block issue #242. All research PRs remain draft and unmerged. A documentation-head CI rerun is required before final checkpoint.
 
+### New actual Audit Flyway history / fail-closed automatic-baseline experiment (draft PR #277)
+
+[PR #277](https://github.com/teldigi5-wq/aetheris-platform/pull/277) passed [initial Ubuntu Docker CI #40187951448](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40187951448) using the modern **real Audit Spring Boot + bundled Flyway V1** against fresh ephemeral PostgreSQL. With CI-only `SPRING_FLYWAY_BASELINE_ON_MIGRATE=false`, the empty Audit-owned database recorded **exactly one successful SQL V1**, zero baseline rows and no User/Identity tables; an independent second Audit process reused the unchanged history and both Audit instances passed **12/12 signed JWT HTTP accept/deny checks**. The exact PR #247 synthetic Identity/User V1/V2 SQL also created a *different* nonempty database; Audit startup with auto-baseline disabled **failed for a specific missing-history/nonempty-schema Flyway reason**, leaving Audit tables/history absent. [Evidence boundaries](database/AUDIT_FLYWAY_OWNERSHIP_NO_AUTO_BASELINE_20261025.md).
+
+**Critical unsolved release risk:** The **shipped Audit application still configures `baseline-on-migrate: true`**; this test overrides it only in disposable CI. This is not a safe real legacy baseline design, a per-service shared-schema ownership approval, or evidence that it is safe to disable Audit baselining in existing production. Real historic schema inventory, migration ownership, Flyway history transfer, backup/rollback and six Compose `ddl-auto:update` overrides remain blocked by #242. Stage45 NO_GO. A documentation-head CI rerun remains required.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.
