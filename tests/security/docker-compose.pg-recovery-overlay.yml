@@ -1,0 +1,59 @@
+# B4R: only used WITH tests/security/docker-compose.backend-auth-probe.yml.
+# No production volumes, credentials, ports or operational Compose changed.
+services:
+  user-service:
+    image: aetheris-b4r-test-only-user:local
+
+  user-validated:
+    image: aetheris-b4r-test-only-user:local
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_restored
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: test-only-ephemeral-redis-password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: probe
+      SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    networks: [probe]
+
+  user-drift:
+    image: aetheris-b4r-test-only-user:local
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_drift
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: test-only-ephemeral-redis-password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: probe
+      SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    networks: [probe]
+
+  recovery-probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/recovery.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_user_restore.py:/opt/recovery.py:ro
+      - ../../identity-service/target/identity-jwt-contract:/opt/tokens:ro
+    networks: [probe]
