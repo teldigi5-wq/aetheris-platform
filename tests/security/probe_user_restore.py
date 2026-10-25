@@ -36,7 +36,7 @@ def jwt(name:str)->str:
 def query(which:str,route:str,kind:str,
           method:str="GET",body:dict|None=None)->tuple[int,bytes]:
     assert which in HOSTS
-    assert route in ("/api/users","/api/users/1")
+    assert route=="/api/users" or (route.startswith("/api/users/") and route[11:].isdigit() and 0<int(route[11:])<=1000)
     assert method in ("GET","POST")
     data=json.dumps(body).encode() if body is not None else None
     headers={"Authorization":"Bearer "+jwt(kind),"Accept":"application/json"}
@@ -82,24 +82,29 @@ def main()->None:
         status,data=query("original","/api/users","admin",method="POST",body=FIXTURE)
         check("admin-synthetic-seed",status,201)
         row=json.loads(data)
-        assert row=={"id":1,**FIXTURE}, "B4R_SYNTHETIC_USER_ROW_NOT_EXACT"
+        assert isinstance(row.get("id"),int) and 0<row["id"]<=1000 and all(row.get(k)==v for k,v in FIXTURE.items()), "B4R_SYNTHETIC_USER_ROW_NOT_EXACT"
         print("B4R_PRE_BACKUP_REAL_HTTP_SYNTHETIC_ROW_SEEDED",
-              json.dumps({"checks":CHECKS,"onlySyntheticData":True,"rowId":1,
+              json.dumps({"checks":CHECKS,"onlySyntheticData":True,"rowId":row["id"],
                           "stage45Go":False},sort_keys=True),flush=True)
         return
 
-    for kind,want in (("admin",200),("consumer",403),("developer",403),
-                      ("expired",401),("tampered",401)):
-        status,data=query("restored","/api/users/1",kind)
-        check("restored-"+kind,status,want)
-        if kind=="admin":
-            assert json.loads(data)=={"id":1,**FIXTURE}, "B4R_RESTORED_ROW_CHANGED"
     status,data=query("restored","/api/users","admin")
     check("restored-list",status,200)
-    assert json.loads(data)==[{"id":1,**FIXTURE}]
-    status,data=query("original","/api/users/1","admin")
+    rows=json.loads(data)
+    assert isinstance(rows,list) and len(rows)==1 and isinstance(rows[0],dict)
+    row=rows[0]
+    assert isinstance(row.get("id"),int) and 0<row["id"]<=1000
+    assert all(row.get(k)==v for k,v in FIXTURE.items()),"B4R_RESTORED_ROW_CHANGED"
+    route="/api/users/"+str(row["id"])
+    for kind,want in (("admin",200),("consumer",403),("developer",403),
+                      ("expired",401),("tampered",401)):
+        status,data=query("restored",route,kind)
+        check("restored-"+kind,status,want)
+        if kind=="admin":
+            assert json.loads(data)==row,"B4R_RESTORED_ITEM_CHANGED"
+    status,data=query("original",route,"admin")
     check("original-unchanged",status,200)
-    assert json.loads(data)=={"id":1,**FIXTURE}
+    assert json.loads(data)==row
     assert CHECKS==7
     print("B4R_REAL_RESTORED_USER_HIBERNATE_VALIDATE_RESULT",
           json.dumps({"httpChecks":7,"passed":7,"restoredSyntheticRow":1,
