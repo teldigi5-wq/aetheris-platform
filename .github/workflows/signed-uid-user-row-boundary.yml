@@ -1,0 +1,84 @@
+name: Disposable Signed UID Not User-Row Ownership
+on:
+  pull_request:
+    branches: [test/disposable-backend-container-boundary-20261025]
+    paths:
+      - 'identity-service/src/test/java/io/aetheris/identity/NonOwnerNumericCollisionJwtIT.java'
+      - 'tests/security/docker-compose.backend-auth-probe.yml'
+      - 'tests/security/probe_user_row_id_collision.py'
+      - 'tests/security/probe_backend_auth.py'
+      - '.github/workflows/signed-uid-user-row-boundary.yml'
+      - 'docs/security/signed-uid-not-resource-owner-20261025.md'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  real-container-numeric-identity-collision:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Verify isolated eight-service topology with no host ports, privileged containers or named data volumes
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml config --format json > "$RUNNER_TEMP/b4q.json"
+          python3 - "$RUNNER_TEMP/b4q.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          c=json.loads(Path(sys.argv[1]).read_text())
+          expected={'postgres','redis','rabbitmq','user-service','audit-service','gateway','probe','resource-probe'}
+          assert set(c['services'])==expected
+          assert len(c['networks'])==1 and all(x.get('internal') is True for x in c['networks'].values())
+          assert not c.get('volumes')
+          for name,service in c['services'].items():
+              assert not service.get('ports'), f'PUBLIC_HOST_PORT_{name}'
+              assert not service.get('privileged'), f'PRIVILEGED_{name}'
+              assert not service.get('network_mode'), f'HOST_NETWORK_{name}'
+              assert not service.get('devices'), f'HOST_DEVICE_{name}'
+              assert not service.get('pid'), f'HOST_PID_{name}'
+          for name in ('probe','resource-probe'):
+              service=c['services'][name]
+              assert service['read_only'] is True
+              assert 'ALL' in service['cap_drop']
+              assert any('/opt/tokens' in str(x) and ('read_only' in str(x) or ':ro' in str(x)) for x in service['volumes'])
+          assert any('postgresql/data' in str(x) for x in c['services']['postgres']['tmpfs'])
+          print('B4Q_STATIC_ISOLATION_NO_HOST_PORT_OR_PERSISTENT_DATA')
+          PY
+          python3 -m py_compile tests/security/probe_user_row_id_collision.py
+      - name: Build real Gateway User Audit images from exact PR source
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml build gateway user-service audit-service
+      - name: Launch real isolated application and disposable dependency containers
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml up --no-build -d postgres redis rabbitmq user-service audit-service gateway
+          for svc in postgres redis rabbitmq gateway user-service audit-service; do
+            cid=$(docker compose -f tests/security/docker-compose.backend-auth-probe.yml ps -q "$svc")
+            test -n "$cid"
+            docker inspect "$cid" | python3 -c "import json,sys; h=json.load(sys.stdin)[0]['HostConfig']; assert h['PortBindings'] in ({},None); assert h['NetworkMode']!='host'; print('B4Q_VERIFIED_NO_PUBLISHED_PORT')"
+          done
+      - name: Mint real Identity JWTs including synthetic nonadmin uid one
+        run: |
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=NonOwnerNumericCollisionJwtIT test
+      - name: Preserve prior real Docker authentication result 26 of 26
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps probe
+      - name: Prove identical signed Identity uid and User row ID never confer ownership
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps resource-probe
+      - name: Bounded non-token diagnostics only if a stage fails
+        if: failure()
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml logs --no-color --tail=50 gateway user-service audit-service postgres redis rabbitmq || true
+      - name: Destroy disposable data services containers and network even after failure
+        if: always()
+        run: docker compose -f tests/security/docker-compose.backend-auth-probe.yml down --volumes --remove-orphans --timeout 10 || true
