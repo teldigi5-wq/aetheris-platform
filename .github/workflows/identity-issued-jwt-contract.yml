@@ -1,0 +1,43 @@
+name: Identity Issued JWT Contract Across Gateway User and Audit
+on:
+  pull_request:
+    branches: [security/gateway-backend-jwt-parity-20261025]
+    paths:
+      - 'identity-service/src/test/java/io/aetheris/identity/IdentityIssuedJwtContractIT.java'
+      - 'identity-service/src/main/java/io/aetheris/identity/JwtService.java'
+      - 'identity-service/src/main/java/io/aetheris/identity/Role.java'
+      - 'gateway/src/test/java/io/aetheris/gateway/IdentityIssuedJwtContractIT.java'
+      - 'gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/IdentityIssuedJwtContractIT.java'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/IdentityIssuedJwtContractIT.java'
+      - 'docs/security/identity-jwt-cross-service-issuer-contract-20261025.md'
+      - '.github/workflows/identity-issued-jwt-contract.yml'
+permissions:
+  contents: read
+jobs:
+  identity-issued-jwt-consumer-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 42
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Mint synthetic role and negative JWT fixtures with ACTUAL Identity JwtService
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+      - name: Verify ephemeral issuer outputs exist, without printing sensitive token bytes
+        run: |
+          python -c "from pathlib import Path; p=Path('identity-service/target/identity-jwt-contract'); names=['admin','developer','consumer','expired','tampered']; assert (p/'test-only.marker').read_text().strip()=='IDENTITY_ISSUER_DIRECT_JWT_CONTRACT_V1'; assert all((p/(n+'.jwt')).is_file() and len((p/(n+'.jwt')).read_text().strip().split('.'))==3 for n in names); print('IDENTITY_REAL_ISSUER_FIVE_SYNTHETIC_TOKENS_READY_NO_LOGGED_TOKENS')"
+      - name: Consume actual Identity tokens in real Gateway filter and check Orchestrator
+        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+      - name: Consume actual Identity tokens over real User loopback HTTP server
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+      - name: Consume actual Identity tokens over real Audit loopback HTTP server
+        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+      - name: Prevent any checked-in JWT artifacts or credential files
+        run: |
+          python -c "from pathlib import Path; import subprocess; tracked=subprocess.check_output(['git','ls-files'],text=True).splitlines(); assert not any(x.endswith('.jwt') or '/target/identity-jwt-contract/' in x for x in tracked); print('NO_TRACKED_TEST_TOKEN_FILES')"
