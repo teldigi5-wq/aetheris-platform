@@ -108,8 +108,8 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
      * for small JSON integers and Long for large ones.
      */
     private static boolean isPositiveIntegralUid(Object uid) {
-        return (uid instanceof Integer value && value > 0)
-            || (uid instanceof Long value && value > 0L);
+        return (uid instanceof Integer integerId && integerId > 0)
+            || (uid instanceof Long longId && longId > 0L);
     }
 
     private String requiredScope(HttpServletRequest request) {
