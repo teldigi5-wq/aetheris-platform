@@ -32,7 +32,7 @@ jobs:
         run: ./mvnw -B -ntp -f gateway/pom.xml test
       - name: Independent backend real HTTP and source JWT parity
         run: |
-          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=DirectApiJwtFilterTest,DirectApiLiveHttpTest test
-          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest,DirectApiLiveHttpTest test
+          ./mvnw -B -ntp -f user-service/pom.xml test
+          ./mvnw -B -ntp -f audit-service/pom.xml test
       - name: Backend secret-wiring and no-trust forwarded header invariant
         run: python tests/test_backend_jwt_wiring.py
