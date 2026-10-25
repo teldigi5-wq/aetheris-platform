@@ -1,0 +1,71 @@
+name: Audit Operator Metadata Inventory - No Release Approval
+on:
+  pull_request:
+    branches: [security/audit-flyway-default-deny-baseline-20261025]
+    paths:
+      - '.github/workflows/audit-ownership-readonly-preflight.yml'
+      - 'scripts/audit_ownership_preflight.py'
+      - 'tests/test_audit_ownership_preflight.py'
+      - 'docs/database/rehearsal/audit_ownership_inventory_readonly.sql'
+      - 'docs/database/AUDIT_OPERATOR_INVENTORY_GATE_20261025.md'
+permissions:
+  contents: read
+jobs:
+  audit-ownership-negative-controls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate Python static and adversarial triage tests
+        run: python3 -m unittest discover -s tests -p 'test_audit_ownership_preflight.py' -v
+      - name: Prove catalog query and classifier against disposable local-only PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          db="aetheris-audit-inventory-${GITHUB_RUN_ID}"
+          trap 'docker rm -fv "$db" >/dev/null 2>&1 || true' EXIT
+          docker run -d --rm --name "$db" --network none \
+            --tmpfs /var/lib/postgresql/data:rw,size=128m \
+            -e POSTGRES_USER=probe -e POSTGRES_DB=probe \
+            -e POSTGRES_PASSWORD=CI-ONLY-DISPOSABLE-PASSWORD \
+            postgres:16-alpine >/dev/null
+          test "$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$db")" = none
+          test "$(docker inspect -f '{{len .HostConfig.PortBindings}}' "$db")" = 0
+          ready=0
+          for i in $(seq 1 60); do
+            if docker exec "$db" pg_isready -U probe -d probe >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
+          sql=docs/database/rehearsal/audit_ownership_inventory_readonly.sql
+          inventory="$RUNNER_TEMP/b4v-inventory.json"
+          verdict="$RUNNER_TEMP/b4v-verdict.txt"
+          classify() {
+            docker exec -i "$db" psql -X -qAt -U probe -d probe -v ON_ERROR_STOP=1 < "$sql" > "$inventory"
+            set +e
+            python3 scripts/audit_ownership_preflight.py "$inventory" > "$verdict"
+            outcome=$?
+            set -e
+            test "$outcome" -eq 1
+            grep -qx "$1" "$verdict"
+          }
+          classify AUDIT_INVENTORY_REVIEW_FRESH_DATABASE_AND_SERVICE_OWNERSHIP
+          docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
+            -c 'CREATE TABLE identity_accounts (id bigint);'
+          classify AUDIT_INVENTORY_NO_GO_UNREVIEWED_SHARED_SCHEMA
+          docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
+            -c 'DROP TABLE identity_accounts;'
+          docker exec -i "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 < \
+            audit-service/src/main/resources/db/migration/V1__create_audit_events.sql
+          classify AUDIT_INVENTORY_NO_GO_AUDIT_HISTORY_ABSENT
+          # Deliberately forged presence proves the preflight NEVER treats mere
+          # history TABLE existence as approved Flyway V1/checksum ownership.
+          docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
+            -c 'CREATE TABLE flyway_audit_schema_history (installed_rank integer);'
+          classify AUDIT_INVENTORY_REVIEW_HISTORY_CONTENT_AND_OWNERSHIP
+          echo B4V_ALL_SYNTHETIC_METADATA_STATES_STILL_REQUIRE_OPERATOR_REVIEW
