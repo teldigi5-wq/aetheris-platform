@@ -1,0 +1,79 @@
+name: Disposable Real Backend Container Authorization Probe
+on:
+  pull_request:
+    branches: [test/gateway-http-proxy-audit-write-scope-20261025]
+    paths:
+      - 'tests/security/docker-compose.backend-auth-probe.yml'
+      - 'tests/security/probe_backend_auth.py'
+      - '.github/workflows/direct-backend-container-auth-probe.yml'
+      - 'docs/security/direct-backend-container-probe-20261025.md'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+      - 'gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java'
+      - 'user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/DirectApiJwtFilter.java'
+permissions:
+  contents: read
+jobs:
+  real-backend-docker-network-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Validate test-only Docker topology, absent host ports, and internal-only network
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml config --format json > "$RUNNER_TEMP/b4p-compose.json"
+          python3 - "$RUNNER_TEMP/b4p-compose.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          config=json.loads(Path(sys.argv[1]).read_text())
+          required={'postgres','redis','rabbitmq','user-service','audit-service','gateway','probe'}
+          assert set(config['services'])==required
+          assert len(config['networks'])==1
+          assert all(net['internal'] is True for net in config['networks'].values())
+          for name, service in config['services'].items():
+              assert not service.get('ports'), f'B4P_PUBLIC_PORT_{name}'
+              assert not service.get('privileged'), f'B4P_PRIVILEGED_{name}'
+              assert not service.get('network_mode'), f'B4P_HOST_NETWORK_{name}'
+              assert not service.get('pid'), f'B4P_HOST_PID_{name}'
+              assert not service.get('devices'), f'B4P_HOST_DEVICE_{name}'
+          db=config['services']['postgres']
+          assert any('postgresql/data' in str(x) for x in db.get('tmpfs',[]))
+          assert config['services']['probe']['read_only'] is True
+          assert 'ALL' in config['services']['probe']['cap_drop']
+          assert not config.get('volumes'), 'B4P_PERSISTENT_DATABASE_VOLUME'
+          for p in ('gateway','user-service','audit-service'):
+              assert 'build' in config['services'][p]
+          print('B4P_NETWORK_ISOLATED_NO_HOST_PORT_NO_PERSISTENT_DB')
+          PY
+      - name: Build exact current repository's real Gateway User and Audit runtime images
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml build gateway user-service audit-service
+      - name: Launch fresh disposable infrastructure and real service containers
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml up --no-build -d postgres redis rabbitmq user-service audit-service gateway
+          for service in postgres redis rabbitmq user-service audit-service gateway; do
+            id=$(docker compose -f tests/security/docker-compose.backend-auth-probe.yml ps -q "$service")
+            test -n "$id"
+            docker inspect "$id" | python3 -c "import json,sys; c=json.load(sys.stdin)[0]; assert c['HostConfig']['PortBindings'] in ({}, None),c['Name']; assert c['HostConfig']['NetworkMode']!='host'; print('B4P_UNPUBLISHED_REAL_CONTAINER',c['Name'])"
+          done
+      - name: Mint fresh synthetic JWTs with actual Identity production issuer AFTER image builds
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+      - name: Probe real User Audit and Gateway from a separate unprivileged container
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps probe
+      - name: Collect bounded diagnostic logs ONLY on failure
+        if: failure()
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml logs --no-color --tail=60 gateway user-service audit-service postgres redis rabbitmq || true
+      - name: Destroy all disposable containers, network and ephemeral data
+        if: always()
+        run: docker compose -f tests/security/docker-compose.backend-auth-probe.yml down --volumes --remove-orphans --timeout 10 || true
