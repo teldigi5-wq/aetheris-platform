@@ -11,6 +11,8 @@ on:
       - 'user-service/src/test/java/io/aetheris/users/security/IdentityIssuedJwtContractIT.java'
       - 'audit-service/src/test/java/io/aetheris/audit/security/IdentityIssuedJwtContractIT.java'
       - 'docs/security/identity-jwt-cross-service-issuer-contract-20261025.md'
+      - 'docs/current-release-roadmap-20261025.md'
+      - 'README.md'
       - '.github/workflows/identity-issued-jwt-contract.yml'
 permissions:
   contents: read
