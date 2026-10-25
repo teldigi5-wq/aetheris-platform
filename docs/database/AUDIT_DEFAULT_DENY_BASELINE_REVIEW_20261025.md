@@ -29,6 +29,10 @@ Switching this default can make an **existing deployment using an unreviewed pop
 
 User/Identity `SPRING_JPA_HIBERNATE_DDL_AUTO: update` in the three operational Compose variants remains a separate unresolved risk. Issue #242 remains open, release Stage45 stays NO_GO and nine certification gates remain unapproved.
 
+## First measured implementation results
+
+The complete [Ubuntu Docker job #40189654039](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40189654039) passed against the **actual changed Audit `application.yml`**, with no Flyway environment overrides in its three synthetic Audit containers. Five static regression tests passed, and the real application created exactly one successful V1 history row with no baseline, reused it through an independent second service, passed **12/12 actual signed-JWT HTTP tests**, and rejected startup on a deliberately nonempty unrelated Identity/User database without Audit Flyway history, leaving no Audit tables/history. The first experimental workflow revision contained an invalid CI preflight and GitHub did not run test jobs; this was corrected by preserving parent PR #277's known-good workflow unchanged and adding a separate validated PR-specific workflow plus a five-test source guard. CI passes on that proper PR-triggered workflow. **The source change is a draft remediation, not a real operator-data compatibility verification or production deployment approval.**
+
 ## Exact tests
 
 The B4U workflow branches from #277 and reruns its **actual real Docker Flyway test** against a fresh disposable PostgreSQL with no host ports or persistent volume. It reuses the known synthetic V1/V2 candidate in a separate nonempty database and the real current Audit images.
