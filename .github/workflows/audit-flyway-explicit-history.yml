@@ -1,8 +1,9 @@
-name: Audit Flyway Explicit History And No Auto Baseline
+name: Audit Flyway Shipped Default-Deny Baseline Regression
 on:
   pull_request:
-    branches: [test/modern-identity-user-flyway-schema-parity-20261025]
+    branches: [test/audit-flyway-explicit-history-boundary-20261025]
     paths:
+      - 'audit-service/src/main/resources/application.yml'
       - 'tests/security/docker-compose.audit-history-overlay.yml'
       - 'tests/security/probe_audit_flyway_history.py'
       - '.github/workflows/audit-flyway-explicit-history.yml'
@@ -35,14 +36,186 @@ jobs:
               assert not svc.get('privileged') and not svc.get('devices')
           for name in ('audit-fresh','audit-second','audit-shared-refusal'):
               e=c['services'][name]['environment']
-              assert e['SPRING_FLYWAY_BASELINE_ON_MIGRATE']=='false'
-              assert e['SPRING_FLYWAY_TABLE']=='flyway_audit_schema_history'
+              # No CI env override: the Docker images must use the exact shipped
+              # application.yml Flyway defaults, including no auto-baseline.
+              assert 'SPRING_FLYWAY_BASELINE_ON_MIGRATE' not in e
+              assert 'SPRING_FLYWAY_TABLE' not in e
               assert e['SPRING_DATASOURCE_URL'].startswith('jdbc:postgresql://postgres:5432/aetheris_audit_')
               assert c['services'][name]['image']=='aetheris-b4t-audit-test-only:local'
           p=c['services']['audit-history-probe']
           assert p['read_only'] is True and 'ALL' in p['cap_drop']
           assert any('postgresql/data' in str(x) for x in c['services']['postgres']['tmpfs'])
           print('B4T_FRESH_AND_NONEMPTY_DB_ON_PRIVATE_BRIDGE_NO_AUTO_BASELINE')
+          # Check the actual shipped app property, plus all operational Compose
+          # entrypoints, so a future config reversion cannot pass via test overrides.
+          from pathlib import Path
+          import re
+          cfg=Path('audit-service/src/main/resources/application.yml').read_text()
+          matches=re.findall(r'(?m)^    baseline-on-migrate: (true|false)\\s*
+          PY
+          python3 -m py_compile tests/security/probe_audit_flyway_history.py
+          test "$(git hash-object tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql)" = 8150f49ad8a3bb66fd3b1f96803119e435260c85
+          test "$(git hash-object tests/security/flyway-candidate-247/V2__ci_only_token_index.sql)" = 79b19609516da1ce94d85e12e13d31ccb28f1757
+      - name: Build actual modern Audit Docker image with bundled Flyway starter and PostgreSQL integration
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml build audit-fresh
+      - name: Start only fresh disposable Postgres and RabbitMQ
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml up --no-build --wait -d postgres rabbitmq
+      - name: Create empty Audit-owned database and separate nonempty candidate Identity/User schema
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C exec -T postgres createdb -U probe aetheris_audit_fresh
+          $C exec -T postgres createdb -U probe aetheris_audit_nonempty
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_nonempty -v ON_ERROR_STOP=1 < tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_nonempty -v ON_ERROR_STOP=1 < tests/security/flyway-candidate-247/V2__ci_only_token_index.sql
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname='public'" | grep -qx 0
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_nonempty -c "SELECT (to_regclass('public.identity_accounts') IS NOT NULL AND to_regclass('public.flyway_audit_schema_history') IS NULL)" | grep -qx t
+          echo B4T_ISOLATED_EMPTY_AND_GUARDED_SHARED_SCHEMAS_PREPARED
+      - name: First real Audit app startup must record exact V1 migration without any baseline row
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build -d audit-fresh
+          found=0
+          for i in $(seq 1 65); do
+            x=$($C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT (to_regclass('public.flyway_audit_schema_history') IS NOT NULL AND to_regclass('public.audit_events') IS NOT NULL)" 2>/dev/null || true)
+            if [ "$x" = t ]; then found=1; break; fi
+            sleep 2
+          done
+          test "$found" -eq 1 || { echo B4T_FIRST_AUDIT_MIGRATION_FAILED; exit 1; }
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT (version='1' AND type='SQL' AND success) FROM public.flyway_audit_schema_history WHERE type='SQL'" | grep -qx t
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE type='BASELINE'" | grep -qx 0
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename IN ('identity_accounts','identity_refresh_tokens','users')" | grep -qx 0
+          echo B4T_REAL_AUDIT_FLYWAY_V1_SINGLE_SUCCESS_NO_SILENT_BASELINE
+      - name: Second independent Audit app startup must reuse existing history not rerun V1
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build -d audit-second
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          $C run --rm --no-deps audit-history-probe
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE version='1' AND type='SQL' AND success" | grep -qx 1
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM public.flyway_audit_schema_history" | grep -qx 1
+          echo B4T_SECOND_STARTUP_REUSED_SINGLE_APPROVED_AUDIT_HISTORY
+      - name: Nonempty shared Identity/User schema with baseline disabled MUST refuse Audit auto-baseline
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build -d audit-shared-refusal
+          cid=$($C ps -aq audit-shared-refusal)
+          test -n "$cid"
+          stopped=0
+          for i in $(seq 1 65); do
+            if [ "$(docker inspect -f '{{.State.Status}}' "$cid")" = exited ]; then stopped=1; break; fi
+            sleep 2
+          done
+          test "$stopped" -eq 1 || { echo B4T_SHARED_SCHEMA_WRONGLY_BOOTED; exit 1; }
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$cid")" -ne 0
+          docker logs "$cid" > "$RUNNER_TEMP/b4t-shared-refusal.log" 2>&1
+          grep -Eiq 'non-empty schema|non-empty schema\(s\)|no schema history table|baselineOnMigrate' "$RUNNER_TEMP/b4t-shared-refusal.log" || {
+            echo B4T_FAILURE_NOT_PROVEN_TO_BE_FLYWAY_BASELINE_SAFETY
+            exit 1
+          }
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_nonempty -c "SELECT (to_regclass('public.flyway_audit_schema_history') IS NULL AND to_regclass('public.audit_events') IS NULL AND to_regclass('public.identity_accounts') IS NOT NULL)" | grep -qx t
+          echo B4T_NONEMPTY_SHARED_SCHEMA_FAILS_CLOSED_NO_AUDIT_HISTORY_OR_TABLE
+      - name: Only bounded diagnostic logs on failure
+        if: failure()
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml logs --no-color --tail=50 postgres audit-fresh audit-second audit-shared-refusal || true
+      - name: Destroy all disposable databases, containers and internal network
+        if: always()
+        run: docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml down --volumes --remove-orphans --timeout 10 || true
+,cfg)
+          assert matches==['false'], 'B4U_AUDIT_SHIPPED_FLYWAY_AUTO_BASELINE_NOT_DENIED'
+          assert re.search(r'(?m)^    table: flyway_audit_schema_history\\s*
+          PY
+          python3 -m py_compile tests/security/probe_audit_flyway_history.py
+          test "$(git hash-object tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql)" = 8150f49ad8a3bb66fd3b1f96803119e435260c85
+          test "$(git hash-object tests/security/flyway-candidate-247/V2__ci_only_token_index.sql)" = 79b19609516da1ce94d85e12e13d31ccb28f1757
+      - name: Build actual modern Audit Docker image with bundled Flyway starter and PostgreSQL integration
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml build audit-fresh
+      - name: Start only fresh disposable Postgres and RabbitMQ
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml up --no-build --wait -d postgres rabbitmq
+      - name: Create empty Audit-owned database and separate nonempty candidate Identity/User schema
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C exec -T postgres createdb -U probe aetheris_audit_fresh
+          $C exec -T postgres createdb -U probe aetheris_audit_nonempty
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_nonempty -v ON_ERROR_STOP=1 < tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_nonempty -v ON_ERROR_STOP=1 < tests/security/flyway-candidate-247/V2__ci_only_token_index.sql
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname='public'" | grep -qx 0
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_nonempty -c "SELECT (to_regclass('public.identity_accounts') IS NOT NULL AND to_regclass('public.flyway_audit_schema_history') IS NULL)" | grep -qx t
+          echo B4T_ISOLATED_EMPTY_AND_GUARDED_SHARED_SCHEMAS_PREPARED
+      - name: First real Audit app startup must record exact V1 migration without any baseline row
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build -d audit-fresh
+          found=0
+          for i in $(seq 1 65); do
+            x=$($C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT (to_regclass('public.flyway_audit_schema_history') IS NOT NULL AND to_regclass('public.audit_events') IS NOT NULL)" 2>/dev/null || true)
+            if [ "$x" = t ]; then found=1; break; fi
+            sleep 2
+          done
+          test "$found" -eq 1 || { echo B4T_FIRST_AUDIT_MIGRATION_FAILED; exit 1; }
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT (version='1' AND type='SQL' AND success) FROM public.flyway_audit_schema_history WHERE type='SQL'" | grep -qx t
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE type='BASELINE'" | grep -qx 0
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname='public' AND tablename IN ('identity_accounts','identity_refresh_tokens','users')" | grep -qx 0
+          echo B4T_REAL_AUDIT_FLYWAY_V1_SINGLE_SUCCESS_NO_SILENT_BASELINE
+      - name: Second independent Audit app startup must reuse existing history not rerun V1
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build -d audit-second
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          $C run --rm --no-deps audit-history-probe
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE version='1' AND type='SQL' AND success" | grep -qx 1
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT count(*) FROM public.flyway_audit_schema_history" | grep -qx 1
+          echo B4T_SECOND_STARTUP_REUSED_SINGLE_APPROVED_AUDIT_HISTORY
+      - name: Nonempty shared Identity/User schema with baseline disabled MUST refuse Audit auto-baseline
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build -d audit-shared-refusal
+          cid=$($C ps -aq audit-shared-refusal)
+          test -n "$cid"
+          stopped=0
+          for i in $(seq 1 65); do
+            if [ "$(docker inspect -f '{{.State.Status}}' "$cid")" = exited ]; then stopped=1; break; fi
+            sleep 2
+          done
+          test "$stopped" -eq 1 || { echo B4T_SHARED_SCHEMA_WRONGLY_BOOTED; exit 1; }
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$cid")" -ne 0
+          docker logs "$cid" > "$RUNNER_TEMP/b4t-shared-refusal.log" 2>&1
+          grep -Eiq 'non-empty schema|non-empty schema\(s\)|no schema history table|baselineOnMigrate' "$RUNNER_TEMP/b4t-shared-refusal.log" || {
+            echo B4T_FAILURE_NOT_PROVEN_TO_BE_FLYWAY_BASELINE_SAFETY
+            exit 1
+          }
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_nonempty -c "SELECT (to_regclass('public.flyway_audit_schema_history') IS NULL AND to_regclass('public.audit_events') IS NULL AND to_regclass('public.identity_accounts') IS NOT NULL)" | grep -qx t
+          echo B4T_NONEMPTY_SHARED_SCHEMA_FAILS_CLOSED_NO_AUDIT_HISTORY_OR_TABLE
+      - name: Only bounded diagnostic logs on failure
+        if: failure()
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml logs --no-color --tail=50 postgres audit-fresh audit-second audit-shared-refusal || true
+      - name: Destroy all disposable databases, containers and internal network
+        if: always()
+        run: docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml down --volumes --remove-orphans --timeout 10 || true
+,cfg)
+          for name in ('docker-compose.yml','docker-compose.core.yml','docker-compose.integration-external.yml'):
+              compose=Path(name).read_text()
+              assert 'SPRING_FLYWAY_BASELINE_ON_MIGRATE' not in compose, 'B4U_PRODUCTION_OVERRIDE_REVIEW_REQUIRED:'+name
+          print('B4U_NO_CI_OR_OPERATIONAL_COMPOSE_OVERRIDE_SHIPPED_DEFAULT_DENY')
           PY
           python3 -m py_compile tests/security/probe_audit_flyway_history.py
           test "$(git hash-object tests/security/flyway-candidate-247/V1__ci_only_identity_user_tables.sql)" = 8150f49ad8a3bb66fd3b1f96803119e435260c85
