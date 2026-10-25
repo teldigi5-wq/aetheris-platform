@@ -18,6 +18,9 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
+import java.util.List;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -29,7 +32,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private final SecretKey key;
 
     public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret) {
-        if (secret.length() < 32) {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
@@ -43,12 +46,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
-            return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Missing bearer token");
+        List<String> authorizationHeaders = exchange.getRequest().getHeaders().get(HttpHeaders.AUTHORIZATION);
+        if (authorizationHeaders == null || authorizationHeaders.size() != 1
+                || authorizationHeaders.get(0) == null
+                || authorizationHeaders.get(0).length() > 4096
+                || !authorizationHeaders.get(0).startsWith("Bearer ")) {
+            return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Exactly one bearer token required");
         }
 
-        String token = authorization.substring(7).trim();
+        String token = authorizationHeaders.get(0).substring(7);
+        if (token.isBlank() || token.contains(" ") || token.contains("\t")) {
+            return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Malformed bearer token");
+        }
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(key)
@@ -61,8 +70,26 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             Object userId = claims.get("uid");
             Set<String> scopes = readScopes(claims.get("scopes"));
 
-            if (email == null || role == null) {
+            if (email == null || email.isBlank() || role == null || role.isBlank()) {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
+            }
+
+            // User and Audit are currently single-domain ADMIN-only APIs.
+            // Mirror their own direct-service checks at the gateway, while
+            // leaving Orchestrator's distinct role/scopes policy unchanged.
+            if (isAdministrativeApi(path)) {
+                Date issuedAt = claims.getIssuedAt();
+                Date expiration = claims.getExpiration();
+                if (!isPositiveIntegralUid(userId) || issuedAt == null
+                        || issuedAt.toInstant().isAfter(Instant.now().plusSeconds(30))
+                        || expiration == null || !expiration.toInstant().isAfter(Instant.now())) {
+                    return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                            "Invalid administrative token identity or lifetime");
+                }
+                if (!"ADMIN".equals(role)) {
+                    return error(exchange, HttpStatus.FORBIDDEN, "Forbidden",
+                            "Administrative role required");
+                }
             }
 
             String requiredScope = requiredScope(path, exchange.getRequest().getMethod());
@@ -72,8 +99,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
             // This attribute is never copied from request headers. Only signed,
             // in-scope tokens are permitted to select a per-user limiter bucket.
-            if (userId instanceof Number numericId && numericId.longValue() > 0) {
-                exchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE, Long.toString(numericId.longValue()));
+            if (isPositiveIntegralUid(userId)) {
+                exchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE, String.valueOf(userId));
             }
 
             ServerWebExchange authenticatedExchange = exchange.mutate()
@@ -85,7 +112,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
                         headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
-                        if (userId != null) {
+                        if (isPositiveIntegralUid(userId)) {
                             headers.set("X-Aetheris-User-Id", String.valueOf(userId));
                         }
                     }))
@@ -95,6 +122,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         } catch (Exception exception) {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid or expired access token");
         }
+    }
+
+    private static boolean isPositiveIntegralUid(Object uid) {
+        return (uid instanceof Integer integerId && integerId > 0)
+                || (uid instanceof Long longId && longId > 0L);
+    }
+
+    private static boolean isAdministrativeApi(String path) {
+        return path.equals("/api/users") || path.startsWith("/api/users/")
+                || path.equals("/api/events") || path.startsWith("/api/events/");
     }
 
     private Set<String> readScopes(Object claim) {
