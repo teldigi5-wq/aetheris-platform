@@ -3,6 +3,7 @@ on:
   pull_request:
     branches:
       - docs/aetheris-security-roadmap-sync-20261025
+      - security/backend-direct-jwt-scope-20261025
     paths:
       - 'user-service/**'
       - 'audit-service/**'

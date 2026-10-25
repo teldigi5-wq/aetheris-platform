@@ -77,6 +77,38 @@ class DirectApiJwtFilterTest {
             .andExpect(status().isOk());
     }
 
+    private String tokenWithUid(Object uid) {
+        return Jwts.builder()
+            .subject("authenticated@example.invalid")
+            .claim("uid", uid)
+            .claim("role", "ADMIN")
+            .claim("scopes", List.of("services:read"))
+            .issuedAt(Date.from(Instant.now().minusSeconds(5)))
+            .expiration(Date.from(Instant.now().plusSeconds(120)))
+            .signWith(key)
+            .compact();
+    }
+
+    @Test
+    void rejectsFractionalOrNonpositiveUidWithoutTruncatingIdentity() throws Exception {
+        for (Object uid : List.of(42.5d, 0, -1L)) {
+            mvc.perform(get("/api/events").header("Authorization",
+                "Bearer " + tokenWithUid(uid)))
+                .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(get("/api/events").header("Authorization",
+            "Bearer " + tokenWithUid(42L)))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void rejectsDuplicatedAuthorizationHeadersEvenWhenBothTokensAreValid() throws Exception {
+        String bearer = "Bearer " + tokenWithUid(42L);
+        mvc.perform(get("/api/events")
+                .header("Authorization", bearer, bearer))
+            .andExpect(status().isUnauthorized());
+    }
+
     @Test
     void rejectsShortSecretAtConstruction() {
         assertThrows(IllegalArgumentException.class,()->new DirectApiJwtFilter("not-long-enough"));

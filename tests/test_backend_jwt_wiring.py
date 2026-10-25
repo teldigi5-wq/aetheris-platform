@@ -15,6 +15,12 @@ class BackendJwtWiring(unittest.TestCase):
                            f'"/api/{route}"',f'"{scope}:read"'):
                 self.assertIn(marker,t)
             self.assertNotIn('getHeader("X-Aetheris-',t)
+            # Identity issuer uses integer IDs; do not coerce fractional
+            # signed JSON numbers into a different principal.
+            self.assertIn('isPositiveIntegralUid(uid)',t)
+            self.assertIn('uid instanceof Integer integerId && integerId > 0',t)
+            self.assertIn('uid instanceof Long longId && longId > 0L',t)
+            self.assertNotIn('num.longValue() <= 0',t)
             pom=(ROOT/svc/'pom.xml').read_text(encoding="utf-8")
             self.assertIn('<artifactId>jjwt-api</artifactId>',pom)
             self.assertIn('<artifactId>jjwt-impl</artifactId>',pom)

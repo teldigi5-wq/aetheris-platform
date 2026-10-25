@@ -23,3 +23,13 @@ Remaining blockers for #251: issuer/audience and key rotation/trust store, signe
 ## Release rules
 
 Keep #264 and #266 ancestry intact. This proposed branch requires independent API compatibility review before any protected-main promotion; do not weaken 401/403 assertions, reuse dev JWTs as production credentials or bypass authorization to make integration tests pass. Preserve rollback by reverting just this stacked PR. Stage45 and nine release gates remain NO_GO.
+
+## Follow-up hardening — positive *integral* JWT user IDs (draft)
+
+Stacked on PR #267 without replacing its verified ADMIN-only User/Audit authentication. Both JWT filters previously evaluated `uid instanceof Number num && num.longValue() > 0`. That turns a signed fractional JSON number such as `42.5` into `42` and risks overflow for other numeric shapes. Actual Identity Account IDs are emitted as Java `Long` values and parsed as either `Integer` or `Long` for JSON whole-number inputs. This follow-up rejects all other numeric types, zero and negatives **before** checking signed role/scopes. It does not accept or compare an Identity Account ID to a User row ID; object ownership and tenancy remain unresolved.
+
+Focused MockMvc regressions in **both** services now check: signed positive Long ID succeeds; signed fractional, zero and negative IDs produce **401**; duplicated `Authorization` headers produce **401** even if the tokens themselves are valid. User service additionally asserts direct `DELETE /api/users/7` returns **401** when anonymous or when sending unsigned Gateway-style role hints, **403** without a signed ADMIN + `users:write` permission, and **204** for an authorized signed ADMIN with the write scope. The preexisting filter policy, scope identifiers, token issuer, expected client compatibility and deployment secrets are otherwise unchanged.
+
+This is a narrow token-claim correctness improvement, **not** a claim of JWT signer compromise or externally exploitable data breach. Do not pin HS256 in a service alone: the current Identity `JwtService.signWith(key)` chooses an HMAC algorithm based on key strength; any future issuer algorithm constraint must be coordinated with Identity, Gateway, both services and key rotation, rather than breaking accepted legitimate tokens.
+
+**Remaining NO_GO:** independently signed issuer/audience, signed service workload identities, resource ownership/tenant isolation, direct-container/Pod probes, compatibility acceptance and full backend deployment rollouts. This stacked PR does not close issue #251, Stage45 or production certification. Check its **exact-head CI run** before asserting tests passed.

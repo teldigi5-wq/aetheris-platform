@@ -80,7 +80,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             if (expires == null || !expires.toInstant().isAfter(Instant.now())
                 || issued == null || issued.toInstant().isAfter(Instant.now().plusSeconds(30))
                 || subject == null || subject.isBlank()
-                || !(uid instanceof Number num) || num.longValue() <= 0) {
+                || !isPositiveIntegralUid(uid)) {
                 throw new IllegalArgumentException("Required verified JWT claims missing");
             }
         } catch (Exception exception) {
@@ -99,6 +99,17 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             return;
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * JSON numbers are not interchangeable identities. Parsing uid=42.5 by
+     * longValue() silently authenticates it as 42; very large numbers can
+     * overflow. The Identity issuer writes a Java Long, decoded as Integer
+     * for small JSON integers and Long for large ones.
+     */
+    private static boolean isPositiveIntegralUid(Object uid) {
+        return (uid instanceof Integer integerId && integerId > 0)
+            || (uid instanceof Long longId && longId > 0L);
     }
 
     private String requiredScope(HttpServletRequest request) {
