@@ -28,6 +28,10 @@ Stacked [#267](https://github.com/teldigi5-wq/aetheris-platform/pull/267) → [#
 
 **Limited claim:** this is not a deployed four-service proxy+Identity-login end-to-end, not a production secret rotation, not an actual Docker/Kubernetes network-policy attack replay and not tenant/row ownership enforcement. All PRs remain draft/unmerged; direct-backend issue #251 and Stage45 release NO_GO remain open.
 
+### Next negative object-boundary test (B4Q — draft, pending CI)
+
+[Draft PR #274](https://github.com/teldigi5-wq/aetheris-platform/pull/274) extends #273's actual disposable container network test. Its exact planned acceptance adds two signed, genuine Identity-issued non-admin `uid=1` tokens, creates one fake User row whose unrelated table ID is also `1`, and asserts **30 HTTP status and resource-integrity checks** over direct User and real Gateway container routes. DEVELOPER has a signed `users:write` scope but still must be denied because both services remain **ADMIN-only**, and forged Gateway headers must never confer permission. Synthetic ADMIN operations create/delete the only row on disposable Postgres tmpfs; all data is destroyed by CI cleanup. [Trust-boundary and limitations](security/signed-uid-not-resource-owner-20261025.md). **Pending CI evidence.** This is only an explicit *negative* ID-collision regression, not tenant/row ownership implementation, production compatibility or closure of #251. E3/E4–E9, nine release gates and Stage45 NO_GO unchanged.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.
