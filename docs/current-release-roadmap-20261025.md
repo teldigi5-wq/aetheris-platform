@@ -18,6 +18,12 @@ Two independent repositories own separate sources: [aetheris-platform](https://g
 
 An HTTP 502 downloading a dependency is not proof of a data-loss defect or proof of successful recovery. **Never mark the gate passed until the exact CI job runs and verifies the original assertions**. Preserve tests and dependencies. If the upstream artifact host remains unstable, diagnose separately; do not disable integration tests, substitute unofficial binaries, or claim all-green based on different SHAs. Never merge the older candidate and its reconciled descendant as separate main-targeted features.
 
+## Subsequent direct-backend authentication research — draft, NO_GO
+
+Stacked [#267](https://github.com/teldigi5-wq/aetheris-platform/pull/267) → [#268](https://github.com/teldigi5-wq/aetheris-platform/pull/268) → [#269](https://github.com/teldigi5-wq/aetheris-platform/pull/269) → [#270](https://github.com/teldigi5-wq/aetheris-platform/pull/270) → [#271](https://github.com/teldigi5-wq/aetheris-platform/pull/271) incrementally add direct User/Audit JWT enforcement, strict numeric user-ID handling, real disposable HTTP checks, Gateway role-policy parity, and **production Identity `JwtService.issue` ↔ Gateway + User/Audit JWT consumer acceptance** on synthetic data. PR #271 first CI [40177905787](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40177905787) passed **2/2 jobs** on Ubuntu/Windows: a real issuer minted five test JWTs, Gateway filter consumed them, and live isolated User/Audit HTTP servers accepted/rejected the original bytes as specified. No issuer key or tokens were uploaded as artifacts. [Test contract](security/identity-jwt-cross-service-issuer-contract-20261025.md).
+
+**Limited claim:** this is not a deployed four-service proxy+Identity-login end-to-end, not a production secret rotation, not an actual Docker/Kubernetes network-policy attack replay and not tenant/row ownership enforcement. All PRs remain draft/unmerged; direct-backend issue #251 and Stage45 release NO_GO remain open.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.
