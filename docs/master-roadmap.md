@@ -51,6 +51,16 @@ The final Stage 34 PR must pass:
 
 Only then may the canonical development line report Stage 34 merged.
 
+## Continued engineering work (not Stage 35)
+
+The original **34 / 34** is a closed *repository specification* history. It does not close production engineering, Enterprise E0–E9 capability evaluation, the runtime's proposed nine release gates, or real owner-PC tests. Do not edit the canonical historical stage count to suggest otherwise.
+
+**As of 25 October 2026:** platform candidate [#262](https://github.com/teldigi5-wq/aetheris-platform/pull/262) is exact-head 29/29 CI successful but still draft; newer reconciled [#264](https://github.com/teldigi5-wq/aetheris-platform/pull/264) initially 29/30 (one external Maven Central 502 during recovery stack build); the failed job passed on an unchanged rerun, and exact candidate SHA now reports **30/30 successful workflows**. Release blockers [#242](https://github.com/teldigi5-wq/aetheris-platform/issues/242), [#251](https://github.com/teldigi5-wq/aetheris-platform/issues/251), [#255](https://github.com/teldigi5-wq/aetheris-platform/issues/255), [#259](https://github.com/teldigi5-wq/aetheris-platform/issues/259) plus credentials/backup/rollback and cross-repo owner authentication remain open. No main merge, production activation or physical evidence is claimed.
+
+The AI-runtime Enterprise track is independently in **E3.9G**; **E3.9G-12B4D** genuine model repair comparison is next, **E3.9H** cinematic browser/3D evidence is uncompleted, and **E4–E9** remain unclosed macro-stages. Stage46.6 speech research, Stage46.26 organization catalog and Stage46.34 PAPER recovery research are separate unmerged workstreams, not one complete executable assistant. Stage45 retains 13 NO_GO blockers.
+
+The runtime release team tracks nine separate acceptance gates; this does **not** add nine new numbered roadmap stages. Hardware work remains [Execution Phase A](https://github.com/teldigi5-wq/aetheris-platform/issues/49), **BLOCKED_PENDING_HARDWARE**. Full current evidence and remediation order: [current-release-roadmap-20261025.md](current-release-roadmap-20261025.md).
+
 ## Repository governance note
 
 CI workflows, tests, security analysis and review conventions live in the repository. GitHub-hosted rulesets/branch protection are a separate repository-administration control and are not emulated in application code.
