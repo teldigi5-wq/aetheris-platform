@@ -84,6 +84,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     .parseSignedClaims(token)
                     .getPayload();
 
+            // An audience collection that also names another workload is NOT an API credential.
+            if (!Set.of(audience).equals(claims.getAudience())) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid access token audience");
+            }
+
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
             Object userId = claims.get("uid");
