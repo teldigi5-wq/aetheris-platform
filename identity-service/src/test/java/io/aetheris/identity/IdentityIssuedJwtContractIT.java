@@ -1,6 +1,10 @@
 package io.aetheris.identity;
 
 import org.junit.jupiter.api.Test;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.time.Instant;
+import java.util.Date;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -50,9 +54,27 @@ class IdentityIssuedJwtContractIT {
         String tampered = signedPayload + wrongSignature;
         assertNotEquals(admin, tampered);
 
+        // These are real JJWT-signed CI-only negative fixtures, NOT workload credentials.
+        String workload = new JwtService(TEST_SECRET, 300, JwtService.DEFAULT_ISSUER,
+            "aetheris-runtime").issue(account(Role.ADMIN, 42));
+        String foreign = new JwtService(TEST_SECRET, 300, "untrusted-issuer",
+            JwtService.DEFAULT_AUDIENCE).issue(account(Role.ADMIN, 42));
+        Instant now = Instant.now();
+        // Attack fixture: an otherwise valid ADMIN bearer with multiple audiences.
+        String dual = Jwts.builder().issuer(JwtService.DEFAULT_ISSUER)
+            .audience().add(JwtService.DEFAULT_AUDIENCE).add("aetheris-runtime").and()
+            .subject("synthetic-dual@example.invalid")
+            .claim("uid", 42L)
+            .claim("role", "ADMIN")
+            .claim("scopes", Role.ADMIN.scopes().stream().sorted().toList())
+            .issuedAt(Date.from(now))
+            .expiration(Date.from(now.plusSeconds(300)))
+            .signWith(Keys.hmacShaKeyFor(TEST_SECRET.getBytes(StandardCharsets.UTF_8)))
+            .compact();
         Map<String, String> cases = Map.of(
             "admin", admin, "developer", developer, "consumer", consumer,
-            "expired", expired, "tampered", tampered);
+            "expired", expired, "tampered", tampered,
+            "workload", workload, "foreign", foreign, "dual", dual);
         for (var entry : cases.entrySet()) {
             String token = entry.getValue();
             assertFalse(token.contains("\n"));
