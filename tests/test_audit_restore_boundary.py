@@ -2,9 +2,9 @@
 import unittest
 from pathlib import Path
 
-from tests.security.probe_audit_restored import health_is_up, read
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tests/security"))
+from probe_audit_restored import health_is_up, read
 OVERLAY = ROOT / "tests/security/docker-compose.audit-restore-overlay.yml"
 WORKFLOW = ROOT / ".github/workflows/audit-disposable-restore-replay.yml"
 AUDIT = ROOT / "audit-service/src/main/resources/application.yml"
