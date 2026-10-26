@@ -1,0 +1,32 @@
+# B60 CI ONLY: pinned current+previous PUBLIC verifier keys, never private signing key.
+# Compose on top of backend-auth-probe.yml and b59-rsa-overlay.yml.
+services:
+  gateway:
+    environment:
+      AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64: ${B60_CI_CURRENT_PUBLIC:?required-public-current}
+      AETHERIS_JWT_KID: b60-current
+      AETHERIS_JWT_PREVIOUS_KID: b60-previous
+      AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64: ${B60_CI_PREVIOUS_PUBLIC:?required-public-previous}
+  user-service:
+    environment:
+      AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64: ${B60_CI_CURRENT_PUBLIC:?required-public-current}
+      AETHERIS_JWT_KID: b60-current
+      AETHERIS_JWT_PREVIOUS_KID: b60-previous
+      AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64: ${B60_CI_PREVIOUS_PUBLIC:?required-public-previous}
+  audit-service:
+    environment:
+      AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64: ${B60_CI_CURRENT_PUBLIC:?required-public-current}
+      AETHERIS_JWT_KID: b60-current
+      AETHERIS_JWT_PREVIOUS_KID: b60-previous
+      AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64: ${B60_CI_PREVIOUS_PUBLIC:?required-public-previous}
+  rotation-probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/probe.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_b60_rsa_rotation.py:/opt/probe.py:ro
+      - ../../identity-service/target/b60-rotation:/opt/rotation:ro
+    networks: [probe]
