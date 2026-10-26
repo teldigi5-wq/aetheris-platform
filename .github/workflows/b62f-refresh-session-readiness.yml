@@ -1,0 +1,49 @@
+name: B62-F Refresh Session Lifecycle and Emergency Readiness
+on:
+  pull_request:
+    branches: [security/b62e-disposable-docker-jwt-http-cert-20261026]
+    paths:
+      - '.github/workflows/b62f-refresh-session-readiness.yml'
+      - 'tests/test_b62f_refresh_session_readiness.py'
+      - 'identity-service/**'
+      - 'docs/security/B62F_SESSION_ROLLOVER_REVOCATION_READINESS_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  synthetic-session-lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify exact checkout and inherited temporal security boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          for suite in test_b62f_refresh_session_readiness.py test_b62e_real_docker_jwt_policy.py test_b62d_issuer_lifetime_policy.py test_b62c_jjwt_parser_clock.py test_b62b_max_access_token_ttl.py test_b62_temporal_clock_contract.py test_b61_previous_key_deadline_contract.py; do
+            python3 -m unittest discover -s tests -p "$suite" -v
+          done
+      - name: Four-module Java regression and synthetic refresh lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=RefreshTokenServiceTest,RefreshSessionRolloverB62FTest,JwtServiceLifetimeB62DTest test
+      - name: Real Identity-issued test JWT verifies unchanged signing semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          test "$(cat identity-service/target/identity-jwt-contract/test-only.marker)" = "IDENTITY_ISSUER_DIRECT_JWT_CONTRACT_V1"
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          test "$(cat identity-service/target/b60-rotation/test-only.marker)" = "B60_EPHEMERAL_PUBLIC_ROLLOVER_V1"
+          echo B62F_TEST_ONLY_SESSION_LIFECYCLE_AND_JWT_SIGNATURE_CONTRACT_VERIFIED
