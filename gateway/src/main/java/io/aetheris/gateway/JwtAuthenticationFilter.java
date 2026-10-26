@@ -174,13 +174,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         this(secret, issuer, audience, mode, publicKey, kid, previousPublicKey, previousKid, "");
     }
 
-    public JwtAuthenticationFilter(String secret, String issuer, String audience,
-                     String mode, String publicKey, String kid,
-                     String previousPublicKey, String previousKid, String previousNotAfter) {
-        this(secret, issuer, audience, mode, publicKey, kid,
-             previousPublicKey, previousKid, previousNotAfter, Clock.systemUTC());
-    }
-
     public JwtAuthenticationFilter(String secret, String issuer, String audience) {
         this(secret, issuer, audience, "hmac", "", "", "", "", "");
     }
