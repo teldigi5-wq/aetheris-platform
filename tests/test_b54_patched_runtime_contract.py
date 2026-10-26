@@ -43,7 +43,9 @@ class B54PatchContract(unittest.TestCase):
             dockerfile = (ROOT / svc / "Dockerfile").read_text()
             stages = dockerfile.split("\nFROM ")
             self.assertEqual(len(stages), 2)
-            self.assertIn("RUN dnf -y upgrade && dnf -y install shadow-utils && dnf clean all", stages[1])
+            self.assertIn("RUN dnf -y --releasever=2023.12.20261026 upgrade", stages[1])
+            self.assertIn("dnf -y --releasever=2023.12.20261026 install shadow-utils", stages[1])
+            self.assertNotIn("--releasever=latest", stages[1])
             self.assertIn("USER 10001:10001", stages[1])
             self.assertNotIn("USER root", stages[1])
 
