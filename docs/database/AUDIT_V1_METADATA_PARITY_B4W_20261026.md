@@ -18,6 +18,10 @@ Previous [PR #279](https://github.com/teldigi5-wq/aetheris-platform/pull/279) pr
 - Add Python malformed/stale-contract and negative-drift tests. Extend the dedicated **network-none, tmpfs PostgreSQL** workflow to create the actual Audit V1 migration's table/index, verify both indicators, remove and restore the timestamp default, switch the index to ASC then back to DESC, and confirm that fake history presence **never** produces a release GO.
 - Keep the CI test databases isolated and disposable; the operator's real inventory never leaves the approved local environment. No remote services, secrets, production schema edits or Flyway baseline setting changes.
 
+## Initial hosted verification
+
+The initial [Ubuntu GitHub Actions run #40265335775](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40265335775) **succeeded** with 11/11 Python unit tests and the real isolated PostgreSQL 16 container preflight. It verified the actual V1 `DEFAULT CURRENT_TIMESTAMP` and `DESC NULLS FIRST` catalog flags, rejected missing default and same-name ASC-index mutations, restored each defect before the next case, and retained NO_GO/manual review on forged Flyway-history table presence. This is CI evidence for a synthetic test fixture, not a review of operator data.
+
 ## Important evidence limits
 
 This is a **bounded V1 metadata predicate**, not a complete Postgres schema-equivalence proof. It does not enumerate all triggers, grants, owners, indexes, database search_path, extensions, Flyway migration rows or checksums. `CURRENT_TIMESTAMP` semantics can be expressed through other SQL spellings and could trigger an intentional manual-review false negative. PostgreSQL generated catalog output must be verified on the actual supported engine. Even a perfectly matching predicate yields only `REVIEW_HISTORY_CONTENT_AND_OWNERSHIP`, not release approval.
