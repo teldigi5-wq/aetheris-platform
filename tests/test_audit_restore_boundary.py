@@ -1,5 +1,6 @@
 """B4Y offline regression: preserve test-only Audit recovery and private auth."""
 import unittest
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
