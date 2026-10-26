@@ -84,6 +84,10 @@ No actual operator history was read, no persistent database was touched, and not
 
 **Not a representative historical restore:** actual DBA schema, checksum provenance, permissions, backup/rollback and coordinated Identity/User versioned migration remain unverified. Issue #242 OPEN, Stage45 NO_GO and all nine runtime certification gates unapproved. Initial [Ubuntu CI #40277664769](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40277664769) passed **7/7 inherited B4Y plus 10/10 new B4Z offline tests**, modified-archive rejection, drift-with-valid-history denial, real restored-image HTTP/data-preservation checks and separate Flyway checksum-refusal. Keep as stacked DRAFT; final documentation-head CI must pass before recording the final SHA.
 
+### B50: actual Maven dependency resolution safety gate — draft, not a release claim
+
+The latest branch already pins Jackson 2 **2.21.8** and Jackson 3 **3.1.8** across all four Java module POMs. The checked-in Maven tree reports `jackson-databind:2.21.8` from SpringDoc/Swagger, so #259's original `2.21.5` finding appears superseded in this **unmerged development branch**, not yet reconciled on protected main. B50 adds strict actual Maven `dependency:tree` checks for all modules, a fail-closed legacy Jackson 2 vs Boot Jackson 3 parser, negative tests for vulnerable and misaligned versions, and the full four-module Maven reactor tests. A successful CI run cannot substitute for complete SBOM/advisory scanning, production runtime verification or #255's Java security image upgrade. [Technical detail](security/JACKSON_RESOLUTION_SECURITY_B50_20261026.md). #259, #255, #242, #251 and all operational certification gates remain open pending evidence/review.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.
