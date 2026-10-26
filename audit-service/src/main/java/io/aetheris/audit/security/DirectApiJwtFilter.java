@@ -31,8 +31,8 @@ import java.util.Objects;
  * Administrative APIs are single-domain, not tenant-aware: until a real
  * owner/tenant model exists, they are ADMIN-only.
  *
- * Does not replace identity issuer/audience/key rotation and token revocation
- * review (#251 / #229); this is a separately tested review candidate.
+ * Signed issuer/audience claims are independently verified in this draft.
+ * Shared-key rotation, revocation and workload identity remain open (#251 / #229).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
