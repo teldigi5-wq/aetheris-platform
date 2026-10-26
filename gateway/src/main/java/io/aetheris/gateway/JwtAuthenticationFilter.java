@@ -39,6 +39,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
     private final SecretKey key;
     private final PublicKey rsaPublicKey;
+    private final PublicKey rsaPreviousPublicKey;
+    private final String rsaPreviousKid;
     private final String rsaKid;
     private final String mode;
     private final String issuer;
@@ -50,7 +52,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             @Value("${aetheris.jwt.audience:aetheris-api}") String audience,
             @Value("${aetheris.jwt.mode:hmac}") String mode,
             @Value("${aetheris.jwt.rsa-public-key-x509-base64:}") String publicKey,
-            @Value("${aetheris.jwt.kid:}") String kid) {
+            @Value("${aetheris.jwt.kid:}") String kid,
+            @Value("${aetheris.jwt.rsa-previous-public-key-x509-base64:}") String previousPublicKey,
+            @Value("${aetheris.jwt.previous-kid:}") String previousKid) {
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
         }
@@ -60,16 +64,22 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         if ("hmac".equals(mode)) {
             if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32
                     || (publicKey != null && !publicKey.isBlank())
-                    || (kid != null && !kid.isBlank())) {
+                    || (kid != null && !kid.isBlank())
+                    || (previousPublicKey != null && !previousPublicKey.isBlank())
+                    || (previousKid != null && !previousKid.isBlank())) {
                 throw new IllegalArgumentException("Invalid HMAC JWT verifier configuration");
             }
             this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
             this.rsaPublicKey = null;
             this.rsaKid = null;
+            this.rsaPreviousPublicKey = null;
+            this.rsaPreviousKid = null;
         } else if ("rs256".equals(mode)) {
             if ((secret != null && !secret.isBlank()) || publicKey == null
                     || publicKey.isBlank() || publicKey.length() > 16384
-                    || kid == null || !kid.matches("[a-z][a-z0-9-]{0,30}")) {
+                    || kid == null || !kid.matches("[a-z][a-z0-9-]{0,30}")
+                    || ((previousPublicKey == null || previousPublicKey.isBlank())
+                          != (previousKid == null || previousKid.isBlank()))) {
                 throw new IllegalArgumentException("Invalid RS256 JWT verifier configuration");
             }
             try {
@@ -84,6 +94,29 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 throw new IllegalArgumentException("Invalid RSA public verification key");
             }
             this.rsaKid = kid;
+            if (previousKid != null && !previousKid.isBlank()) {
+                if (!previousKid.matches("[a-z][a-z0-9-]{0,30}") || previousKid.equals(kid)
+                        || previousPublicKey.length() > 16384) {
+                    throw new IllegalArgumentException("Invalid RS256 previous-key configuration");
+                }
+                try {
+                    byte[] previousDer = Base64.getDecoder().decode(previousPublicKey);
+                    PublicKey candidate = KeyFactory.getInstance("RSA")
+                        .generatePublic(new X509EncodedKeySpec(previousDer));
+                    if (!(candidate instanceof RSAPublicKey previousRsa)
+                            || previousRsa.getModulus().bitLength() < 3072
+                            || java.util.Arrays.equals(candidate.getEncoded(), this.rsaPublicKey.getEncoded())) {
+                        throw new IllegalArgumentException("Previous RSA verification key invalid or duplicated");
+                    }
+                    this.rsaPreviousPublicKey = candidate;
+                } catch (Exception invalidPreviousKey) {
+                    throw new IllegalArgumentException("Invalid previous RSA verification key");
+                }
+                this.rsaPreviousKid = previousKid;
+            } else {
+                this.rsaPreviousPublicKey = null;
+                this.rsaPreviousKid = null;
+            }
             this.key = null;
         } else {
             throw new IllegalArgumentException("Unsupported JWT verification mode");
@@ -91,8 +124,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     // Existing HMAC contracts are preserved until reviewed coordinated rollout.
+    // B59 constructor retained for explicit single-key verification and existing contract tests.
+    public JwtAuthenticationFilter(String secret, String issuer, String audience,
+                     String mode, String publicKey, String kid) {
+        this(secret, issuer, audience, mode, publicKey, kid, "", "");
+    }
+
     public JwtAuthenticationFilter(String secret, String issuer, String audience) {
-        this(secret, issuer, audience, "hmac", "", "");
+        this(secret, issuer, audience, "hmac", "", "", "", "");
     }
 
     public JwtAuthenticationFilter(String secret) {
@@ -120,13 +159,29 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Malformed bearer token");
         }
         try {
-            var parser = "rs256".equals(mode)
-                    ? Jwts.parser().verifyWith(rsaPublicKey)
-                    : Jwts.parser().verifyWith(key);
-            var signed = parser.requireIssuer(issuer).requireAudience(audience)
-                    .build().parseSignedClaims(token);
+            io.jsonwebtoken.Jws<Claims> signed;
+            boolean previousKeyVerified = false;
+            if ("rs256".equals(mode)) {
+                // Never trust an unverified kid to load a key/URL. Try only the two
+                // explicit, strong allowlisted public keys, then bind the signed kid.
+                try {
+                    signed = Jwts.parser().verifyWith(rsaPublicKey)
+                        .requireIssuer(issuer).requireAudience(audience)
+                        .build().parseSignedClaims(token);
+                } catch (io.jsonwebtoken.JwtException invalidCurrent) {
+                    if (rsaPreviousPublicKey == null) throw invalidCurrent;
+                    signed = Jwts.parser().verifyWith(rsaPreviousPublicKey)
+                        .requireIssuer(issuer).requireAudience(audience)
+                        .build().parseSignedClaims(token);
+                    previousKeyVerified = true;
+                }
+            } else {
+                signed = Jwts.parser().verifyWith(key).requireIssuer(issuer)
+                    .requireAudience(audience).build().parseSignedClaims(token);
+            }
             if ("rs256".equals(mode) && (!"RS256".equals(signed.getHeader().getAlgorithm())
-                    || !rsaKid.equals(signed.getHeader().getKeyId()))) {
+                    || (previousKeyVerified ? !rsaPreviousKid.equals(signed.getHeader().getKeyId())
+                                            : !rsaKid.equals(signed.getHeader().getKeyId())))) {
                 throw new SecurityException("Rejected JWT signing key identity");
             }
             Claims claims = signed.getPayload();
