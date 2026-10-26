@@ -68,7 +68,7 @@ class CoordinatedIssuerAudienceTests(unittest.TestCase):
                 s=(ROOT/path).read_text()
                 self.assertIn("wrong",s.lower())
                 self.assertIn("null",s)
-                self.assertIn("isUnauthorized()",s if service!="gateway" else "isUnauthorized()"+s)
+                self.assertIn("HttpStatus.UNAUTHORIZED" if service=="gateway" else "isUnauthorized()",s)
         identity=(ROOT/"identity-service/src/test/java/io/aetheris/identity/JwtIssuerAudienceB57Test.java").read_text()
         self.assertIn("mismatchedIssuerAndAudienceMustNotValidate",identity)
 
