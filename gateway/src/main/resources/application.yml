@@ -130,6 +130,8 @@ aetheris:
     kid: ${AETHERIS_JWT_KID:}
     # Optional, explicitly bounded two-public-key overlap; remove both to retire old key.
     previous-kid: ${AETHERIS_JWT_PREVIOUS_KID:}
+    # Required with any previous public key; UTC epoch seconds. Runtime cutoff is absolute.
+    previous-key-not-after-epoch-seconds: ${AETHERIS_JWT_PREVIOUS_KEY_NOT_AFTER_EPOCH_SECONDS:}
     rsa-previous-public-key-x509-base64: ${AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64:}
     rsa-public-key-x509-base64: ${AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64:}
     issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
