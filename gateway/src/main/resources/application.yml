@@ -124,7 +124,11 @@ spring:
 
 aetheris:
   jwt:
-    secret: ${AETHERIS_JWT_SECRET}
+    # HMAC remains the default until a coordinated, approved deployment migration.
+    mode: ${AETHERIS_JWT_MODE:hmac}
+    secret: ${AETHERIS_JWT_SECRET:}
+    kid: ${AETHERIS_JWT_KID:}
+    rsa-public-key-x509-base64: ${AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64:}
     issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
     audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
 
