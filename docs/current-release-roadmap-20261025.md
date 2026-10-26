@@ -66,6 +66,12 @@ The tested current Platform branch now compares SHA-pinned CI-only SQL from Flyw
 
 This is synthetic metadata checking ONLY: no operator history rows/checksums or live production schema, historical restore, backup/rollback, Flyway baseline or Identity/User migration cutover. All real release requirements remain NO_GO. A final exact-head CI rerun is required if documentation or workflows are updated after the initial test.
 
+### B4X: real Audit Flyway history row and checksum refusal — synthetic CI passed, review only
+
+[Draft PR #281](https://github.com/teldigi5-wq/aetheris-platform/pull/281) stacks on #280 and adds a tightly bounded **read-only Flyway history metadata summary** plus offline Python NO_GO/manual-review classifier. Its first real-image [hosted CI #40266060328](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40266060328) succeeded: **10/10 offline tests**, disposable PostgreSQL real Audit V1 migration, denial of missing checksum/failed entry/forged script, and rejection of a non-NULL **tampered checksum by an independent real Audit process**. It explicitly demonstrates that a non-NULL metadata checksum is insufficient to prove the actual SQL checksum; the real Flyway engine must validate it on an operator-approved representative historic restore. [B4X operator procedure and evidence limits](database/AUDIT_HISTORY_CONTENT_B4X_20261026.md).
+
+No actual operator history was read, no persistent database was touched, and nothing was merged to `main`. Six Identity/User Compose `ddl-auto:update` overrides, backup/restore, ownership and checksum provenance, #242, Stage45 and nine certification gates remain unresolved. Any final documentation revision requires new exact-head CI verification.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.
