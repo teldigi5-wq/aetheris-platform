@@ -78,6 +78,12 @@ No actual operator history was read, no persistent database was touched, and not
 
 **Important:** This is a synthetic CI archive restored on a test runner, NOT a representative owner backup or a production rollback drill. No historical operator database was accessed, and no persistent database or protected `main` was modified. Identity/User operational Compose `ddl-auto:update` overrides, release-critical issues #242/#251/#255/#259, Stage45 and all nine release gates remain unresolved. Do not merge/deploy until independently authorized DBA recovery and migration history have been tested. Final documentation-head CI must be rerun before recording the final PR SHA as verified.
 
+### B4Z: composite historical-looking schema/history readiness refusal — review-only draft
+
+[Draft PR #283](https://github.com/teldigi5-wq/aetheris-platform/pull/283) extends #282's disposable Audit backup/restore CI with a **strict offline composite B4W schema v2 + B4X Flyway history v1 checker**. It denies stale or malformed evidence (including duplicate JSON keys), a missing V1 timestamp default, reversed ASC index and invalid history entry on a separate **invented, CI-owned restored clone**, even when the other evidence channel remains valid. A deliberately modified copy of the backup archive must fail its original SHA-256 before reuse. The untouched good restored copy must still boot under the real Audit Docker image and retain its original Flyway history and canonical schema/data. The status never becomes release GO. [B4Z operator procedure and limits](database/AUDIT_HISTORIC_COMPATIBILITY_B4Z_20261026.md).
+
+**Not a representative historical restore:** actual DBA schema, checksum provenance, permissions, backup/rollback and coordinated Identity/User versioned migration remain unverified. Issue #242 OPEN, Stage45 NO_GO and all nine runtime certification gates unapproved. Initial [Ubuntu CI #40277664769](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40277664769) passed **7/7 inherited B4Y plus 10/10 new B4Z offline tests**, modified-archive rejection, drift-with-valid-history denial, real restored-image HTTP/data-preservation checks and separate Flyway checksum-refusal. Keep as stacked DRAFT; final documentation-head CI must pass before recording the final SHA.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.

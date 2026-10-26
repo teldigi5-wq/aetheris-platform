@@ -1,11 +1,14 @@
 name: B4Y Audit Disposable Backup Restore And Flyway Recovery
 on:
   pull_request:
-    branches: [test/audit-flyway-history-content-preflight-20261026]
+    branches: [test/audit-flyway-disposable-restore-20261026]
     paths:
       - 'tests/security/docker-compose.audit-restore-overlay.yml'
       - 'tests/security/probe_audit_restored.py'
       - 'tests/test_audit_restore_boundary.py'
+      - 'tests/test_audit_historic_compatibility.py'
+      - 'scripts/audit_historic_compatibility_preflight.py'
+      - 'docs/database/AUDIT_HISTORIC_COMPATIBILITY_B4Z_20261026.md'
       - '.github/workflows/audit-disposable-restore-replay.yml'
       - 'docs/database/AUDIT_RESTORE_REHEARSAL_B4Y_20261026.md'
       - 'README.md'
@@ -27,6 +30,7 @@ jobs:
           test "${GITHUB_ACTIONS:-}" = true
           test "$GITHUB_REPOSITORY" = teldigi5-wq/aetheris-platform
           python3 -m unittest discover -s tests -p 'test_audit_restore_boundary.py' -v
+          python3 -m unittest discover -s tests -p 'test_audit_historic_compatibility.py' -v
           test "$(git hash-object audit-service/src/main/resources/db/migration/V1__create_audit_events.sql)" = 727fe44f369d7ff1e8d0db2dddf850215cdf13f1
           docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml -f tests/security/docker-compose.audit-restore-overlay.yml config --format json > "$RUNNER_TEMP/b4y-topology.json"
           python3 - "$RUNNER_TEMP/b4y-topology.json" <<'PY'
@@ -100,6 +104,22 @@ jobs:
             cmp /tmp/b4y-aetheris_audit_fresh.data.canonical /tmp/b4y-aetheris_audit_restored.data.canonical
             echo B4Y_RECOVERY_BACKUP_ARCHIVE_VERIFIED_TWO_RESTORES_EQUAL_SOURCE
           '
+      - name: B4Z reject a changed archive before recovery (never touch the valid archive)
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml -f tests/security/docker-compose.audit-restore-overlay.yml'
+          $C exec -T postgres sh -ec '
+            cp /tmp/b4y-audit.dump /tmp/b4z-tampered-copy.dump
+            printf "CORRUPTED_ARCHIVE_TEST_ONLY" >> /tmp/b4z-tampered-copy.dump
+            digest="$(cut -d " " -f 1 /tmp/b4y-audit.sha256)"
+            if printf "%s  /tmp/b4z-tampered-copy.dump\\n" "$digest" | sha256sum -c - >/dev/null 2>&1; then
+              echo B4Z_CORRUPT_ARCHIVE_HASH_WRONGLY_ACCEPTED
+              exit 1
+            fi
+            sha256sum -c /tmp/b4y-audit.sha256
+            echo B4Z_CORRUPTED_ARCHIVE_HASH_REJECTED_CLEAN_ARCHIVE_VERIFIED
+          '
       - name: Run both B4W schema and B4X Flyway history preflights on restored DB
         shell: bash
         run: |
@@ -118,6 +138,46 @@ jobs:
           grep -qx AUDIT_INVENTORY_REVIEW_HISTORY_CONTENT_AND_OWNERSHIP "$RUNNER_TEMP/b4y-schema-verdict"
           grep -qx AUDIT_HISTORY_REVIEW_FLYWAY_VALIDATE_CHECKSUM_AND_OWNERSHIP "$RUNNER_TEMP/b4y-history-verdict"
           echo B4Y_RECOVERY_B4W_B4X_PREFLIGHT_REVIEW_NEVER_RELEASE_GO
+      - name: B4Z reject historical-looking schema drift despite unchanged valid V1 Flyway history
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml -f tests/security/docker-compose.audit-restore-overlay.yml'
+          catalog=docs/database/rehearsal/audit_ownership_inventory_readonly.sql
+          history=docs/database/rehearsal/audit_flyway_history_readonly.sql
+          schema_flags="$RUNNER_TEMP/b4z-catalog-flags.json"
+          history_flags="$RUNNER_TEMP/b4z-history-flags.json"
+          verdict="$RUNNER_TEMP/b4z-verdict.txt"
+          check() {
+            db="$1"
+            expected="$2"
+            $C exec -T postgres psql -XqAt -U probe -d "$db" -v ON_ERROR_STOP=1 < "$catalog" > "$schema_flags"
+            $C exec -T postgres psql -XqAt -U probe -d "$db" -v ON_ERROR_STOP=1 < "$history" > "$history_flags"
+            set +e
+            python3 -m scripts.audit_historic_compatibility_preflight "$schema_flags" "$history_flags" > "$verdict"
+            code=$?
+            set -e
+            test "$code" -eq 1
+            grep -qx "$expected" "$verdict"
+          }
+          check aetheris_audit_restored AUDIT_COMPAT_REVIEW_PRIVATE_HISTORIC_RESTORE_AND_REAL_FLYWAY_VALIDATION
+          check aetheris_audit_corrupted AUDIT_COMPAT_REVIEW_PRIVATE_HISTORIC_RESTORE_AND_REAL_FLYWAY_VALIDATION
+          # This is an invented historic drift fixture, NOT owner data.
+          # Flyway history is left untouched; schema shape alone must trigger NO_GO.
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_corrupted -v ON_ERROR_STOP=1 -c "ALTER TABLE audit_events ALTER COLUMN recorded_at DROP DEFAULT"
+          check aetheris_audit_corrupted AUDIT_COMPAT_NO_GO_SCHEMA_OR_OWNERSHIP
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_corrupted -v ON_ERROR_STOP=1 -c "ALTER TABLE audit_events ALTER COLUMN recorded_at SET DEFAULT CURRENT_TIMESTAMP"
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_corrupted -v ON_ERROR_STOP=1 -c "DROP INDEX idx_audit_events_occurred_at; CREATE INDEX idx_audit_events_occurred_at ON audit_events (occurred_at ASC)"
+          check aetheris_audit_corrupted AUDIT_COMPAT_NO_GO_SCHEMA_OR_OWNERSHIP
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_corrupted -v ON_ERROR_STOP=1 -c "DROP INDEX idx_audit_events_occurred_at; CREATE INDEX idx_audit_events_occurred_at ON audit_events (occurred_at DESC)"
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_corrupted -v ON_ERROR_STOP=1 -c "UPDATE flyway_audit_schema_history SET success=false WHERE version='1'"
+          check aetheris_audit_corrupted AUDIT_COMPAT_NO_GO_HISTORY_CONTENT
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_corrupted -v ON_ERROR_STOP=1 -c "UPDATE flyway_audit_schema_history SET success=true WHERE version='1'"
+          check aetheris_audit_corrupted AUDIT_COMPAT_REVIEW_PRIVATE_HISTORIC_RESTORE_AND_REAL_FLYWAY_VALIDATION
+          # Source restore remains pristine and startup/recovery proceeds as B4Y.
+          check aetheris_audit_restored AUDIT_COMPAT_REVIEW_PRIVATE_HISTORIC_RESTORE_AND_REAL_FLYWAY_VALIDATION
+          echo B4Z_COMPOSITE_PREFLIGHT_DENIES_HISTORIC_SHAPE_DRIFT_WITH_VALID_FLYWAY_HISTORY
+
       - name: Real Audit image starts on restored DB and HTTP access controls remain active
         shell: bash
         run: |
