@@ -1,0 +1,64 @@
+name: B62-D Identity JWT Signer Lifetime Boundaries
+on:
+  pull_request:
+    branches: [security/b62c-jjwt-parser-clock-consistency-20261026]
+    paths:
+      - '.github/workflows/b62d-identity-signer-lifetime.yml'
+      - 'tests/test_b62d_issuer_lifetime_policy.py'
+      - 'identity-service/**'
+      - 'gateway/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'docs/security/B62D_IDENTITY_SIGNER_LIFETIME_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  issuer-expiration-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact source HEAD and B61-B62 security guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          for suite in test_b62d_issuer_lifetime_policy.py test_b62c_jjwt_parser_clock.py test_b62b_max_access_token_ttl.py test_b62_temporal_clock_contract.py test_b61_previous_key_deadline_contract.py; do
+            python3 -m unittest discover -s tests -p "$suite" -v
+          done
+      - name: Full Java reactor and issuer lifetime unit verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=JwtServiceLifetimeB62DTest test
+      - name: Preserve real signed HMAC negative JWT fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          test "$(cat identity-service/target/identity-jwt-contract/test-only.marker)" = "IDENTITY_ISSUER_DIRECT_JWT_CONTRACT_V1"
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+      - name: Preserve real signed RSA invalid and rollover JWT fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B59ContractIT test
+          test "$(cat identity-service/target/b59-rsa-contract/test-only.marker)" = "B59_EPHEMERAL_IDENTITY_RSA_V1"
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          test "$(cat identity-service/target/b60-rotation/test-only.marker)" = "B60_EPHEMERAL_PUBLIC_ROLLOVER_V1"
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          echo B62D_SIGNER_BOUNDARIES_AND_NEGATIVE_FIXTURES_VERIFIED

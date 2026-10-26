@@ -42,6 +42,20 @@ class IdentityRs256B59ContractIT {
     }
 
     private static String issuer(KeyPair key, String kid, String iss, String aud, long expiry) {
+        if (expiry < 1 || expiry > JwtService.MAX_ACCESS_TOKEN_LIFETIME_SECONDS) {
+            // Negative credential is deliberately created ONLY inside the
+            // isolated test signer; production JwtService denies this expiry.
+            IdentityAccount account = syntheticAccount();
+            Instant now = Instant.now();
+            return Jwts.builder().issuer(iss).audience().add(aud).and()
+                .subject(account.getEmail()).claim("uid", account.getId())
+                .claim("name", account.getName())
+                .claim("role", account.getRole().name())
+                .claim("scopes", account.getRole().scopes().stream().sorted().toList())
+                .issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(expiry)))
+                .header().keyId(kid).and()
+                .signWith(key.getPrivate(), Jwts.SIG.RS256).compact();
+        }
         return new JwtService("", expiry, iss, aud, "rs256",
             Base64.getEncoder().encodeToString(key.getPrivate().getEncoded()), kid)
             .issue(syntheticAccount());
