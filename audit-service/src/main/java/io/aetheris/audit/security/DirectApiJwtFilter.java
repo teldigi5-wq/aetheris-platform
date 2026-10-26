@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
@@ -30,20 +31,37 @@ import java.util.Objects;
  * Administrative APIs are single-domain, not tenant-aware: until a real
  * owner/tenant model exists, they are ADMIN-only.
  *
- * Does not replace identity issuer/audience/key rotation and token revocation
- * review (#251 / #229); this is a separately tested review candidate.
+ * Signed issuer/audience claims are independently verified in this draft.
+ * Shared-key rotation, revocation and workload identity remain open (#251 / #229).
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public final class DirectApiJwtFilter extends OncePerRequestFilter {
+    public static final String DEFAULT_ISSUER = "aetheris-identity";
+    public static final String DEFAULT_AUDIENCE = "aetheris-api";
     private final SecretKey key;
+    private final String issuer;
+    private final String audience;
     private static final String ROOT = "/api/events";
 
-    public DirectApiJwtFilter(@Value("${aetheris.jwt.secret}") String secret) {
+    @Autowired
+    public DirectApiJwtFilter(@Value("${aetheris.jwt.secret}") String secret,
+            @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
+            @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException("Backend JWT secret must be at least 32 UTF-8 bytes");
         }
+        if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
+            throw new IllegalArgumentException("JWT issuer and audience must be configured");
+        }
+        this.issuer = issuer;
+        this.audience = audience;
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    // Existing MockMvc constructor; enforces the same strict defaults as production DI.
+    public DirectApiJwtFilter(String secret) {
+        this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
     }
 
     @Override
@@ -72,7 +90,8 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             if (token.isBlank() || token.contains(" ") || token.contains("\t")) {
                 throw new IllegalArgumentException("Malformed bearer token");
             }
-            claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            claims = Jwts.parser().verifyWith(key).requireIssuer(issuer)
+                .requireAudience(audience).build().parseSignedClaims(token).getPayload();
             Date expires = claims.getExpiration();
             Date issued = claims.getIssuedAt();
             String subject = claims.getSubject();
