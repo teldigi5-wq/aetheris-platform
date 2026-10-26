@@ -109,6 +109,7 @@ services:
     tmpfs: ["/tmp:size=16777216"]
     volumes:
       - ./probe_backend_auth.py:/opt/probe.py:ro
+      - ./probe_b58_workload_audience.py:/opt/workload-probe.py:ro
       - ../../identity-service/target/identity-jwt-contract:/opt/tokens:ro
     networks: [probe]
 
