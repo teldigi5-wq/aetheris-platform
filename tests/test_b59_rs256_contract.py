@@ -40,7 +40,8 @@ class B59AsymmetricBoundary(unittest.TestCase):
             with self.subTest(file=p):
                 s=(ROOT/p).read_text()
                 for expected in ("X509EncodedKeySpec","RSAPublicKey","getModulus().bitLength() < 3072",
-                    "Jwts.parser().verifyWith(rsaPublicKey)",'!"RS256".equals',
+                    "Jwts.parser().clock(() -> Date.from(clock.instant()))",
+                    ".clockSkewSeconds(0).verifyWith(rsaPublicKey)",'!"RS256".equals',
                     "rsaKid.equals(signed.getHeader().getKeyId())"):
                     self.assertIn(expected,s)
                 self.assertNotIn("PKCS8EncodedKeySpec",s)
