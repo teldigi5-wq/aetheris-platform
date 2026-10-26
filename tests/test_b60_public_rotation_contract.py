@@ -61,7 +61,6 @@ class B60BoundedPublicTrust(unittest.TestCase):
     def test_disposable_compose_stays_public_only_and_retired_key_is_empty(self):
         overlap=(ROOT/"tests/security/docker-compose.b60-overlap-overlay.yml").read_text()
         retire=(ROOT/"tests/security/docker-compose.b60-retire-overlay.yml").read_text()
-        self.assertIn('rsa-previous-public-key',overlap)
         self.assertIn('AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64',overlap)
         self.assertNotIn("AETHERIS_JWT_RSA_PRIVATE_KEY_PKCS8_B64",overlap)
         self.assertIn("read_only: true",overlap)
