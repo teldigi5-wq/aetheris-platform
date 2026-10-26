@@ -1,0 +1,50 @@
+# B4Y — strictly disposable audit backup/restore rehearsal, stacked on B4X.
+# Combine ONLY with backend-auth-probe.yml + audit-history-overlay.yml.
+# No host ports, retained volumes, production secrets or auto-baseline overrides.
+services:
+  audit-restored:
+    image: aetheris-b4t-audit-test-only:local
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_audit_restored
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: probe
+      SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      SPRING_RABBITMQ_LISTENER_DIRECT_AUTO_STARTUP: "false"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    networks: [probe]
+
+  audit-restore-corrupted:
+    image: aetheris-b4t-audit-test-only:local
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_audit_corrupted
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: probe
+      SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      SPRING_RABBITMQ_LISTENER_DIRECT_AUTO_STARTUP: "false"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    networks: [probe]
+
+  audit-restore-probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/probe.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_audit_restored.py:/opt/probe.py:ro
+    networks: [probe]
