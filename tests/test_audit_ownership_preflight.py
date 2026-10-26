@@ -1,4 +1,4 @@
-"""B4V pure/offline negative controls: no data, Docker or credentials."""
+"""B4W pure/offline negative controls: no data, Docker or credentials."""
 import copy
 import json
 import subprocess
@@ -14,7 +14,7 @@ SQL = ROOT / "docs/database/rehearsal/audit_ownership_inventory_readonly.sql"
 SCRIPT = ROOT / "scripts/audit_ownership_preflight.py"
 
 def fixture(**changes):
-    result = {"contract_version": 1, **{k: False for k in BOOL_FIELDS}}
+    result = {"contract_version": 2, **{k: False for k in BOOL_FIELDS}}
     result.update(changes)
     return result
 
@@ -28,7 +28,8 @@ class AuditOwnershipPreflightTests(unittest.TestCase):
     def test_existing_audit_without_history_is_no_go(self):
         self.assertEqual(classify(fixture(audit_events_exists=True, audit_column_shape_ok=True,
                                           audit_primary_key_ok=True,
-                                          audit_occurred_at_index_ok=True)), "NO_GO_AUDIT_HISTORY_ABSENT")
+                                          audit_occurred_at_index_ok=True,
+                                          audit_recorded_at_default_ok=True)), "NO_GO_AUDIT_HISTORY_ABSENT")
 
     def test_orphan_history_is_no_go(self):
         self.assertEqual(classify(fixture(audit_history_exists=True)), "NO_GO_ORPHAN_AUDIT_HISTORY")
@@ -41,7 +42,25 @@ class AuditOwnershipPreflightTests(unittest.TestCase):
     def test_existing_audit_and_history_still_requires_manual_review(self):
         self.assertEqual(classify(fixture(audit_events_exists=True, audit_history_exists=True,
                                           audit_column_shape_ok=True, audit_primary_key_ok=True,
-                                          audit_occurred_at_index_ok=True)), "REVIEW_HISTORY_CONTENT_AND_OWNERSHIP")
+                                          audit_occurred_at_index_ok=True,
+                                          audit_recorded_at_default_ok=True)), "REVIEW_HISTORY_CONTENT_AND_OWNERSHIP")
+
+    def test_missing_recorded_at_default_is_drift(self):
+        good = fixture(audit_events_exists=True, audit_history_exists=True,
+                       audit_column_shape_ok=True, audit_primary_key_ok=True,
+                       audit_occurred_at_index_ok=True,
+                       audit_recorded_at_default_ok=True)
+        self.assertEqual(classify(good), "REVIEW_HISTORY_CONTENT_AND_OWNERSHIP")
+        good["audit_recorded_at_default_ok"] = False
+        self.assertEqual(classify(good), "NO_GO_AUDIT_SCHEMA_DRIFT")
+
+    def test_wrong_index_direction_is_drift(self):
+        good = fixture(audit_events_exists=True, audit_history_exists=True,
+                       audit_column_shape_ok=True, audit_primary_key_ok=True,
+                       audit_occurred_at_index_ok=True,
+                       audit_recorded_at_default_ok=True)
+        good["audit_occurred_at_index_ok"] = False
+        self.assertEqual(classify(good), "NO_GO_AUDIT_SCHEMA_DRIFT")
 
     def test_rejects_extra_customer_data_and_malformed_input(self):
         for mutated in (
@@ -49,6 +68,7 @@ class AuditOwnershipPreflightTests(unittest.TestCase):
             {**fixture(), "contract_version": True},
             {**fixture(), "audit_history_exists": "true"},
             {"contract_version": 1},
+            {**fixture(), "contract_version": 1},
             [],
         ):
             with self.subTest(value=type(mutated).__name__):
@@ -76,6 +96,9 @@ class AuditOwnershipPreflightTests(unittest.TestCase):
         self.assertIn("pg_catalog.pg_attribute", sql)
         self.assertIn("pg_catalog.pg_constraint", sql)
         self.assertIn("pg_catalog.pg_index", sql)
+        self.assertIn("pg_catalog.pg_attrdef", sql)
+        self.assertIn("ix.indoption[0]", sql)
+        self.assertIn("am.amname = 'btree'", sql)
         self.assertNotIn("FROM public.audit_events", sql)
         self.assertNotIn("FROM public.flyway_audit_schema_history", sql)
         self.assertNotIn("SELECT *", sql)
