@@ -15,10 +15,16 @@ The actual report showed **22 unique advisory/package combinations** (some repea
 
 ## Narrow remediation in this stacked draft
 
-1. The existing exact JDK and runtime OCI SHA256 FROM pins for official Corretto 21.0.13 remain unchanged. Each of the four **headless runtime stages** now invokes `dnf -y upgrade` before creating the `10001:10001` service account, to apply AL2023 repository fixes to inherited packages. This is a **moving signed repository input** despite the pinned base image, and reproducibility requires capturing the full tested SBOM and rebuilt image digest; production promotion must use the exact reviewed binary.
+1. The existing exact JDK and runtime OCI SHA256 FROM pins for official Corretto 21.0.13 remain unchanged. Each of the four **headless runtime stages** now invokes `dnf -y --releasever=2023.12.20261026 upgrade` before creating the `10001:10001` service account, to apply AL2023 repository fixes to inherited packages. This is a **moving signed repository input** despite the pinned base image, and reproducibility requires capturing the full tested SBOM and rebuilt image digest; production promotion must use the exact reviewed binary.
 2. `identity-service`, `user-service` and `audit-service` explicitly override Spring Boot's Tomcat family property to `11.0.27`. Maven resolved dependency trees must prove the property actually aligns `tomcat-embed-core` and sibling components; a POM property alone is not accepted as evidence.
 3. `user-service` and `audit-service` explicitly declare direct `com.rabbitmq:amqp-client:5.37.0` to override their older transitively pulled AMQP client. Real Maven trees and tests must confirm the override works without changing RabbitMQ message semantics.
 4. The B53 SHA256-verified full four-image Syft/Grype workflow is retargeted to run for B54's stacked PR. **It continues to FAIL on any High/Critical/Unknown advisory or malformed/stale scan**, retains full reports on failure and never deploys anything. B54 adds five source-invariant tests and executes all four Maven test suites plus exact resolved-version checks **inside the patched Corretto builders**.
+
+## First B54 scan: dependency remediation verified; OS still pinned to older repository
+
+The initial [B54 hosted scan #40290590420](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40290590420) **correctly failed its security policy**, even though 10/10 B53 tests, 5/5 B52 source tests, 5/5 B54 tests and the real patched Corretto Maven dependency checks passed. Grype's final images had no remaining Tomcat 11.0.24 or RabbitMQ client 5.30.0 advisory matches; all four images still reported the same eight HIGH AL2023 package advisory matches and one MEDIUM package match (9 matches per service). The data showed **unchanged RPM versions** after the previous `dnf -y upgrade`.
+
+AWS documents why: AL2023 repository versions are deliberately pinned to the installed `system-release`, and a bare `dnf upgrade` only sees the old snapshot. The affected advisory pages for [ALAS2023-2026-3334](https://alas.aws.amazon.com/AL2023/ALAS2023-2026-3334.html) and [ALAS2023-2026-3267](https://alas.aws.amazon.com/AL2023/ALAS2023-2026-3267.html) explicitly cite **`--releasever=2023.12.20261026`**. Therefore, this branch now uses the fixed **dated repository** for BOTH runtime upgrade and the `shadow-utils` install, not the mutable `latest`. This source adjustment has to be re-tested with an exact-head full image build/scan; until then **NO_GO** remains.
 
 ## Verification and limits
 
