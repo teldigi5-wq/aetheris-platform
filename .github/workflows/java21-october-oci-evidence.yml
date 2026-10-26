@@ -113,6 +113,58 @@ jobs:
               echo "Existing Dockerfiles are unchanged, and issue #255 remains open."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Independently probe patched Corretto 21.0.13 as a separate reviewed vendor candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Amazon Corretto is a different official OpenJDK distribution and
+          # different AL2023 base OS: discovery NEVER automatically switches FROM.
+          repository="docker.io/library/amazoncorretto"
+          for tag in 21.0.13-al2023 21.0.13-al2023-headless; do
+            ref="$repository:$tag"
+            if ! docker buildx imagetools inspect --raw "$ref" > "$RUNNER_TEMP/b51/corretto-raw.json" 2>/dev/null; then
+              echo "B51_CORRETTO_TAG_NOT_VERIFIED:$tag"
+              continue
+            fi
+            if ! jq -e '
+              (.manifests | type == "array") and
+              ([.manifests[] | select(.platform.os == "linux" and .platform.architecture == "amd64")] | length >= 1) and
+              ([.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64")] | length >= 1)
+            ' "$RUNNER_TEMP/b51/corretto-raw.json" >/dev/null; then
+              echo "B51_CORRETTO_ARCHITECTURE_UNVERIFIED:$tag"
+              continue
+            fi
+            if ! docker buildx imagetools inspect "$ref" > "$RUNNER_TEMP/b51/corretto-inspect.txt" 2>/dev/null; then
+              echo "B51_CORRETTO_INDEX_INSPECTION_UNVERIFIED:$tag"
+              continue
+            fi
+            digest="$(awk '$1 == "Digest:" {print $2; exit}' "$RUNNER_TEMP/b51/corretto-inspect.txt")"
+            if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "B51_CORRETTO_DIGEST_UNVERIFIED:$tag"
+              continue
+            fi
+            pinned="$ref@$digest"
+            if ! docker pull --platform linux/amd64 "$pinned" >/dev/null 2>&1; then
+              echo "B51_CORRETTO_PINNED_IMAGE_PULL_FAILED:$tag"
+              continue
+            fi
+            if ! version="$(docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" java -version 2>&1)"; then
+              echo "B51_CORRETTO_OFFLINE_RUNTIME_FAILED:$tag"
+              continue
+            fi
+            if ! grep -Eq '^openjdk version "21\.0\.13"' <<< "$version"; then
+              echo "B51_CORRETTO_RUNNING_PATCH_MISMATCH:$tag"
+              continue
+            fi
+            if [ "$tag" = "21.0.13-al2023" ]; then
+              if ! docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" javac -version 2>&1 | grep -Eq '^javac 21\.0\.13'; then
+                echo "B51_CORRETTO_JAVAC_UNVERIFIED:$tag"
+                continue
+              fi
+            fi
+            echo "B51_CORRETTO_PATCHED_CANDIDATE_FOR_SEPARATE_VENDOR_REVIEW:$pinned"
+            echo "Corretto alternative candidate: $pinned. New distro and OS compatibility must still be tested." >> "$GITHUB_STEP_SUMMARY"
+          done
       - name: Reconfirm no application Dockerfiles were changed in this discovery
         shell: bash
         run: |
