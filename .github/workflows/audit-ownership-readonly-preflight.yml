@@ -8,6 +8,9 @@ on:
       - 'tests/test_audit_ownership_preflight.py'
       - 'docs/database/rehearsal/audit_ownership_inventory_readonly.sql'
       - 'docs/database/AUDIT_OPERATOR_INVENTORY_GATE_20261025.md'
+      - 'docs/database/AUDIT_V1_METADATA_PARITY_B4W_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+      - 'README.md'
 permissions:
   contents: read
 jobs:
