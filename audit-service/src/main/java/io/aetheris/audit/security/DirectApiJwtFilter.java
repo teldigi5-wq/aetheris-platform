@@ -92,6 +92,10 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             }
             claims = Jwts.parser().verifyWith(key).requireIssuer(issuer)
                 .requireAudience(audience).build().parseSignedClaims(token).getPayload();
+            // requireAudience() checks membership; reject cross-workload multi-audience tokens.
+            if (!java.util.Set.of(audience).equals(claims.getAudience())) {
+                throw new IllegalArgumentException("Ambiguous bearer token audience");
+            }
             Date expires = claims.getExpiration();
             Date issued = claims.getIssuedAt();
             String subject = claims.getSubject();
