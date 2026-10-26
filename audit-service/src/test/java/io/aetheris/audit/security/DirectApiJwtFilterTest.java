@@ -117,4 +117,40 @@ class DirectApiJwtFilterTest {
     void rejectsShortSecretAtConstruction() {
         assertThrows(IllegalArgumentException.class,()->new DirectApiJwtFilter("not-long-enough"));
     }
+
+    private String tokenForBoundary(String issuer, String audience) {
+        var builder = Jwts.builder()
+            .subject("auth-boundary@example.invalid")
+            .claim("uid", 42L)
+            .claim("role", "ADMIN")
+            .claim("scopes", List.of("services:read"))
+            .issuedAt(Date.from(Instant.now().minusSeconds(5)))
+            .expiration(Date.from(Instant.now().plusSeconds(120)));
+        if (issuer != null) builder.issuer(issuer);
+        if (audience != null) builder.audience().add(audience).and();
+        return builder.signWith(key).compact();
+    }
+
+    @Test
+    void rejectsAuthenticallySignedWrongOrAbsentIssuerAudienceBeforeBackend() throws Exception {
+        for (String token : List.of(
+                tokenForBoundary("unrelated-issuer", DirectApiJwtFilter.DEFAULT_AUDIENCE),
+                tokenForBoundary(DirectApiJwtFilter.DEFAULT_ISSUER, "unrelated-target"),
+                tokenForBoundary(null, DirectApiJwtFilter.DEFAULT_AUDIENCE),
+                tokenForBoundary(DirectApiJwtFilter.DEFAULT_ISSUER, null))) {
+            mvc.perform(get("/api/events").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(get("/api/events").header("Authorization", "Bearer " +
+            tokenForBoundary(DirectApiJwtFilter.DEFAULT_ISSUER, DirectApiJwtFilter.DEFAULT_AUDIENCE)))
+            .andExpect(status().isOk());
+    }
+
+    @Test
+    void rejectsEmptyExpectedIssuerAudienceConfiguration() {
+        assertThrows(IllegalArgumentException.class, () ->
+            new DirectApiJwtFilter(TEST_ONLY_SECRET, "", DirectApiJwtFilter.DEFAULT_AUDIENCE));
+        assertThrows(IllegalArgumentException.class, () ->
+            new DirectApiJwtFilter(TEST_ONLY_SECRET, DirectApiJwtFilter.DEFAULT_ISSUER, ""));
+    }
 }
