@@ -18,6 +18,11 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
@@ -33,22 +38,61 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public static final String DEFAULT_ISSUER = "aetheris-identity";
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
     private final SecretKey key;
+    private final PublicKey rsaPublicKey;
+    private final String rsaKid;
+    private final String mode;
     private final String issuer;
     private final String audience;
 
     @Autowired
-    public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret,
+    public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret:}") String secret,
             @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
-            @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 characters");
-        }
+            @Value("${aetheris.jwt.audience:aetheris-api}") String audience,
+            @Value("${aetheris.jwt.mode:hmac}") String mode,
+            @Value("${aetheris.jwt.rsa-public-key-x509-base64:}") String publicKey,
+            @Value("${aetheris.jwt.kid:}") String kid) {
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
         }
         this.issuer = issuer;
         this.audience = audience;
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.mode = mode;
+        if ("hmac".equals(mode)) {
+            if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32
+                    || (publicKey != null && !publicKey.isBlank())
+                    || (kid != null && !kid.isBlank())) {
+                throw new IllegalArgumentException("Invalid HMAC JWT verifier configuration");
+            }
+            this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+            this.rsaPublicKey = null;
+            this.rsaKid = null;
+        } else if ("rs256".equals(mode)) {
+            if ((secret != null && !secret.isBlank()) || publicKey == null
+                    || publicKey.isBlank() || publicKey.length() > 16384
+                    || kid == null || !kid.matches("[a-z][a-z0-9-]{0,30}")) {
+                throw new IllegalArgumentException("Invalid RS256 JWT verifier configuration");
+            }
+            try {
+                byte[] der = Base64.getDecoder().decode(publicKey);
+                PublicKey parsed = KeyFactory.getInstance("RSA")
+                        .generatePublic(new X509EncodedKeySpec(der));
+                if (!(parsed instanceof RSAPublicKey rsa) || rsa.getModulus().bitLength() < 3072) {
+                    throw new IllegalArgumentException("RSA verifier key too weak");
+                }
+                this.rsaPublicKey = parsed;
+            } catch (Exception invalidKey) {
+                throw new IllegalArgumentException("Invalid RSA public verification key");
+            }
+            this.rsaKid = kid;
+            this.key = null;
+        } else {
+            throw new IllegalArgumentException("Unsupported JWT verification mode");
+        }
+    }
+
+    // Existing HMAC contracts are preserved until reviewed coordinated rollout.
+    public JwtAuthenticationFilter(String secret, String issuer, String audience) {
+        this(secret, issuer, audience, "hmac", "", "");
     }
 
     public JwtAuthenticationFilter(String secret) {
@@ -76,13 +120,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Malformed bearer token");
         }
         try {
-            Claims claims = Jwts.parser()
-                    .verifyWith(key)
-                    .requireIssuer(issuer)
-                    .requireAudience(audience)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+            var parser = "rs256".equals(mode)
+                    ? Jwts.parser().verifyWith(rsaPublicKey)
+                    : Jwts.parser().verifyWith(key);
+            var signed = parser.requireIssuer(issuer).requireAudience(audience)
+                    .build().parseSignedClaims(token);
+            if ("rs256".equals(mode) && (!"RS256".equals(signed.getHeader().getAlgorithm())
+                    || !rsaKid.equals(signed.getHeader().getKeyId()))) {
+                throw new SecurityException("Rejected JWT signing key identity");
+            }
+            Claims claims = signed.getPayload();
 
             // An audience collection that also names another workload is NOT an API credential.
             if (!Set.of(audience).equals(claims.getAudience())) {
