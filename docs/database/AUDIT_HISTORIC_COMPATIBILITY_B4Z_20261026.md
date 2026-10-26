@@ -27,6 +27,12 @@ python3 -m scripts.audit_historic_compatibility_preflight \
 
 No status authorizes production. An operator must separately validate the actual Flyway checksum through the **real exact-version Flyway application**, inspect historic migration lineage and owners, verify backup integrity and recovery, document change windows, and explicitly approve migration and rollback. Never upload private inventory files, credentials, customer rows, backup archives or raw logs to GitHub or ChatGPT.
 
+## Initial measured implementation CI
+
+The first B4Z [hosted Actions run #40277664769](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40277664769) **succeeded on its implementation head**. GitHub logs show **7/7 inherited B4Y tests plus 10/10 B4Z Python unit tests passed**. The real Audit Docker build, disposable PostgreSQL V1 seed, custom-format archive and two restores all succeeded. A copied and modified archive failed the trusted SHA-256 digest check without altering the clean archive. An invented restored clone with the V1 timestamp default removed, the index changed to ASC, or a failed history record was denied by the composite preflight, while the untouched restored DB remained REVIEW-only. Real Audit startup against the good restore preserved canonical schema/data and denied anonymous HTTP access; the other clone's deliberate later checksum alteration caused real Flyway startup refusal. CI cleanup succeeded.
+
+**This is synthetic test evidence only; no historic customer/operator data was inspected.** The resulting documentation commit requires another **exact-final-head CI** before recording a verified final SHA.
+
 ## Safety and scope limits
 
 The catalog checks cover only **known V1 columns, index properties and defaults**, not every possible PostgreSQL semantic difference (triggers, grants, RLS, ownership, search paths, incompatible extensions, unexpected neighboring tables, data content, or other migrations). The Flyway-history boolean summary does not compare actual checksum values against V1 SQL. Even successful composite checks therefore **cannot independently approve a schema**.
