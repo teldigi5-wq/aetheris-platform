@@ -211,19 +211,22 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 // Never trust an unverified kid to load a key/URL. Try only the two
                 // explicit, strong allowlisted public keys, then bind the signed kid.
                 try {
-                    signed = Jwts.parser().verifyWith(rsaPublicKey)
+                    signed = Jwts.parser().clock(() -> Date.from(clock.instant()))
+                        .clockSkewSeconds(0).verifyWith(rsaPublicKey)
                         .requireIssuer(issuer).requireAudience(audience)
                         .build().parseSignedClaims(token);
                 } catch (io.jsonwebtoken.JwtException invalidCurrent) {
                     if (rsaPreviousPublicKey == null
                             || !clock.instant().isBefore(previousKeyNotAfter)) throw invalidCurrent;
-                    signed = Jwts.parser().verifyWith(rsaPreviousPublicKey)
+                    signed = Jwts.parser().clock(() -> Date.from(clock.instant()))
+                        .clockSkewSeconds(0).verifyWith(rsaPreviousPublicKey)
                         .requireIssuer(issuer).requireAudience(audience)
                         .build().parseSignedClaims(token);
                     previousKeyVerified = true;
                 }
             } else {
-                signed = Jwts.parser().verifyWith(key).requireIssuer(issuer)
+                signed = Jwts.parser().clock(() -> Date.from(clock.instant()))
+                        .clockSkewSeconds(0).verifyWith(key).requireIssuer(issuer)
                     .requireAudience(audience).build().parseSignedClaims(token);
             }
             if ("rs256".equals(mode) && (!"RS256".equals(signed.getHeader().getAlgorithm())

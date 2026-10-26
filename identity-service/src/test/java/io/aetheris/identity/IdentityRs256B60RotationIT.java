@@ -1,6 +1,7 @@
 package io.aetheris.identity;
 
 import org.junit.jupiter.api.Test;
+import io.jsonwebtoken.Jwts;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,6 +10,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Date;
 import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -54,7 +56,21 @@ class IdentityRs256B60RotationIT {
         assertNotEquals(currentPublic,previousPublic);
         Files.writeString(out.resolve("current-public-x509.b64"),currentPublic,StandardCharsets.US_ASCII);
         Files.writeString(out.resolve("previous-public-x509.b64"),previousPublic,StandardCharsets.US_ASCII);
-        var tokens=Map.of(
+        // Deliberate JJWT-signed nbf credential: parser's clock, not a
+        // request-controlled clock or unsigned payload, decides validity.
+        Instant signedAt = Instant.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        Instant notBefore = signedAt.plusSeconds(300);
+        String futureNotBefore = Jwts.builder()
+            .issuer("aetheris-identity").audience().add("aetheris-api").and()
+            .subject("b60-admin@example.invalid")
+            .claim("uid", 42L).claim("role", "ADMIN")
+            .claim("scopes", Role.ADMIN.scopes().stream().sorted().toList())
+            .issuedAt(Date.from(signedAt))
+            .notBefore(Date.from(notBefore))
+            .expiration(Date.from(signedAt.plusSeconds(1200)))
+            .header().keyId(CURRENT).and()
+            .signWith(current.getPrivate(), Jwts.SIG.RS256).compact();
+        var tokens=new java.util.HashMap<String,String>(Map.of(
             "current",issue(current,CURRENT,"aetheris-identity","aetheris-api"),
             "previous",issue(previous,PREVIOUS,"aetheris-identity","aetheris-api"),
             // Signed with OLD actual key, labeled NEW kid: must fail.
@@ -67,7 +83,10 @@ class IdentityRs256B60RotationIT {
             "max-lifetime",issueWithLifetime(current,CURRENT,"aetheris-identity","aetheris-api",3600),
             "overlong-lifetime",issueWithLifetime(current,CURRENT,"aetheris-identity","aetheris-api",3601),
             "zero-lifetime",issueWithLifetime(current,CURRENT,"aetheris-identity","aetheris-api",0)
-        );
+        ));
+        tokens.put("future-nbf", futureNotBefore);
+        Files.writeString(out.resolve("future-nbf.epoch"),
+            Long.toString(notBefore.getEpochSecond()), StandardCharsets.US_ASCII);
         for(var entry:tokens.entrySet()){
             assertEquals(3,entry.getValue().split("\\.").length);
             Files.writeString(out.resolve(entry.getKey()+".jwt"),entry.getValue(),StandardCharsets.US_ASCII);

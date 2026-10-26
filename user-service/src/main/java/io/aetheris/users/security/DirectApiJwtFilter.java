@@ -224,19 +224,22 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                 // Never consult kid-selected URLs. Verify only pinned public keys,
                 // then enforce the signed kid matches the key that actually verified.
                 try {
-                    signed = Jwts.parser().verifyWith(rsaPublicKey)
+                    signed = Jwts.parser().clock(() -> Date.from(clock.instant()))
+                        .clockSkewSeconds(0).verifyWith(rsaPublicKey)
                         .requireIssuer(issuer).requireAudience(audience)
                         .build().parseSignedClaims(token);
                 } catch (io.jsonwebtoken.JwtException invalidCurrent) {
                     if (rsaPreviousPublicKey == null
                             || !clock.instant().isBefore(previousKeyNotAfter)) throw invalidCurrent;
-                    signed = Jwts.parser().verifyWith(rsaPreviousPublicKey)
+                    signed = Jwts.parser().clock(() -> Date.from(clock.instant()))
+                        .clockSkewSeconds(0).verifyWith(rsaPreviousPublicKey)
                         .requireIssuer(issuer).requireAudience(audience)
                         .build().parseSignedClaims(token);
                     previousKeyVerified = true;
                 }
             } else {
-                signed = Jwts.parser().verifyWith(key).requireIssuer(issuer)
+                signed = Jwts.parser().clock(() -> Date.from(clock.instant()))
+                        .clockSkewSeconds(0).verifyWith(key).requireIssuer(issuer)
                     .requireAudience(audience).build().parseSignedClaims(token);
             }
             if ("rs256".equals(mode) && (!"RS256".equals(signed.getHeader().getAlgorithm())

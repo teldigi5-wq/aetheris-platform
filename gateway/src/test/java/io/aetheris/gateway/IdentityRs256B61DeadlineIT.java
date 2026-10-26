@@ -120,4 +120,24 @@ class IdentityRs256B61DeadlineIT {
         check(same, "overlong-lifetime", false); // signed 3601-second validity
         check(same, "zero-lifetime", false);     // exp equals iat
     }
+
+    @Test
+    void jwtParserUsesVerifierClockForExactNotBeforeAndExpiredBoundaries() throws Exception {
+        // Exact time comes from the ephemeral Identity-signed fixture, not
+        // test-machine wall-clock progress or any untrusted request header.
+        Instant nbf = Instant.ofEpochSecond(Long.parseLong(read("future-nbf.epoch")));
+        AdjustableClock clock = new AdjustableClock(nbf.minusSeconds(1));
+        JwtAuthenticationFilter same = verifier(clock,
+            Long.toString(nbf.plusSeconds(600).getEpochSecond()));
+
+        // Strict zero JJWT parser skew: 1s early is denied.
+        check(same, "future-nbf", false);
+        clock.advanceTo(nbf);
+        check(same, "future-nbf", true);
+
+        // Fixture expiry is nbf - 300s + 1200s. Past it, deny in
+        // the SAME verifier regardless of actual CI host wall time.
+        clock.advanceTo(nbf.plusSeconds(901));
+        check(same, "future-nbf", false);
+    }
 }
