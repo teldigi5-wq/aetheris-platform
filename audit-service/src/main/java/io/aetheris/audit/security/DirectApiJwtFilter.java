@@ -252,10 +252,12 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             }
             Date expires = claims.getExpiration();
             Date issued = claims.getIssuedAt();
+            // B62-A: evaluate claim times using the same clock as key retirement.
+            Instant requestNow = clock.instant();
             String subject = claims.getSubject();
             Object uid = claims.get("uid");
-            if (expires == null || !expires.toInstant().isAfter(Instant.now())
-                || issued == null || issued.toInstant().isAfter(Instant.now().plusSeconds(30))
+            if (expires == null || !expires.toInstant().isAfter(requestNow)
+                || issued == null || issued.toInstant().isAfter(requestNow.plusSeconds(30))
                 || subject == null || subject.isBlank()
                 || !isPositiveIntegralUid(uid)) {
                 throw new IllegalArgumentException("Required verified JWT claims missing");
