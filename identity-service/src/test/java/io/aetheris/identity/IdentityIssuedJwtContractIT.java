@@ -42,7 +42,22 @@ class IdentityIssuedJwtContractIT {
         String admin = regularIssuer.issue(account(Role.ADMIN, 42));
         String developer = regularIssuer.issue(account(Role.DEVELOPER, 43));
         String consumer = regularIssuer.issue(account(Role.API_CONSUMER, 44));
-        String expired = new JwtService(TEST_SECRET, -120).issue(account(Role.ADMIN, 42));
+        // Preserve a genuine, cryptographically signed *expired* test JWT
+        // without bypassing the production JwtService expiry configuration cap.
+        IdentityAccount expiredAccount = account(Role.ADMIN, 42);
+        Instant expiredAt = Instant.now();
+        String expired = Jwts.builder()
+            .issuer(JwtService.DEFAULT_ISSUER)
+            .audience().add(JwtService.DEFAULT_AUDIENCE).and()
+            .subject(expiredAccount.getEmail())
+            .claim("uid", expiredAccount.getId())
+            .claim("name", expiredAccount.getName())
+            .claim("role", expiredAccount.getRole().name())
+            .claim("scopes", expiredAccount.getRole().scopes().stream().sorted().toList())
+            .issuedAt(Date.from(expiredAt))
+            .expiration(Date.from(expiredAt.minusSeconds(120)))
+            .signWith(Keys.hmacShaKeyFor(TEST_SECRET.getBytes(StandardCharsets.UTF_8)))
+            .compact();
 
         String[] segments = admin.split("\\.");
         assertEquals(3, segments.length);

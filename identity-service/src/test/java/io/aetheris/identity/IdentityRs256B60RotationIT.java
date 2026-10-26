@@ -2,6 +2,7 @@ package io.aetheris.identity;
 
 import org.junit.jupiter.api.Test;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.Jwts;
 import org.springframework.test.util.ReflectionTestUtils;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -10,6 +11,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Date;
 import java.util.Date;
 import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
@@ -40,6 +42,22 @@ class IdentityRs256B60RotationIT {
         // B61 CI runs full HMAC/RSA and a real UTC deadline wait before
         // post-cutoff assertions. This TEST-ONLY JWT must outlast that run;
         // it is never sent to production or a real account.
+        // Invalid signer-validity examples are intentionally signed by a
+        // TEST-ONLY JJWT builder; production JwtService rejects these settings.
+        if (lifetimeSeconds < 1 || lifetimeSeconds > JwtService.MAX_ACCESS_TOKEN_LIFETIME_SECONDS) {
+            Instant now = Instant.now();
+            return Jwts.builder()
+                .issuer(iss).audience().add(aud).and()
+                .subject(account.getEmail())
+                .claim("uid", account.getId())
+                .claim("name", account.getName())
+                .claim("role", account.getRole().name())
+                .claim("scopes", account.getRole().scopes().stream().sorted().toList())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(lifetimeSeconds)))
+                .header().keyId(kid).and()
+                .signWith(key.getPrivate(), Jwts.SIG.RS256).compact();
+        }
         return new JwtService("", lifetimeSeconds, iss, aud, "rs256",
             Base64.getEncoder().encodeToString(key.getPrivate().getEncoded()), kid)
             .issue(account);

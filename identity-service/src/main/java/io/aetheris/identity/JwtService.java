@@ -25,6 +25,8 @@ import java.util.Date;
 public class JwtService {
     public static final String DEFAULT_ISSUER = "aetheris-identity";
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
+    // Match all API verifiers: issuer configuration cannot create overlong JWTs.
+    public static final long MAX_ACCESS_TOKEN_LIFETIME_SECONDS = 3600L;
     private final SecretKey key;
     private final PrivateKey rsaPrivateKey;
     private final String rsaKid;
@@ -43,6 +45,11 @@ public class JwtService {
                       @Value("${aetheris.jwt.kid:}") String kid) {
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
+        }
+        // Fail on misconfiguration before accepting a signing key or issuing tokens.
+        // No production override: negative JWTs belong in isolated test fixtures.
+        if (expirationSeconds < 1 || expirationSeconds > MAX_ACCESS_TOKEN_LIFETIME_SECONDS) {
+            throw new IllegalArgumentException("JWT access-token lifetime must be 1..3600 seconds");
         }
         this.issuer = issuer;
         this.audience = audience;
