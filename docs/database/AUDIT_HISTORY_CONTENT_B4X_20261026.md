@@ -25,6 +25,10 @@ The dedicated B4X GitHub Actions workflow is designed to build the **real Audit 
 
 A passing run proves only these isolated assertions. It does not verify real operator databases, legacy schemas, restore integrity, cross-service migrations, rollback or production availability.
 
+## Initial hosted evidence
+
+[Actions run #40266060328](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40266060328) completed **successfully** on the initial B4X implementation commit. All **10 Python tests** passed. The real Audit Docker build, actual V1 history creation, fixed-boolean SQL inventory, missing-checksum/failed-row/wrong-script negative controls, and **real second Audit startup refusal on an altered non-NULL checksum** passed. Workflow cleanup ran successfully. This is only evidence from CI-owned synthetic infrastructure. A final CI rerun is required after documentation updates.
+
 ## Release gates unchanged
 
 Issue #242 remains OPEN. Identity/User Compose overrides using ddl-auto:update (six in three Compose files), real operator schema/history inventory, backup/restore rehearsal, migration ownership/rollback, issues #251/#255/#259, Stage45 NO_GO and nine unapproved certification gates remain unresolved. **Do not merge, baseline, deploy or alter persistent databases.**
