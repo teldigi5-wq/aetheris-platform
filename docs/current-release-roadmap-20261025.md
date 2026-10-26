@@ -60,6 +60,12 @@ The tested current Platform branch now compares SHA-pinned CI-only SQL from Flyw
 
 **Remains blocked:** the authorized owner/DBA must review actual installed migration history, schema ownership, a representative historical restore, rollback/restart planning and six Identity/User Compose `ddl-auto:update` overrides. Issue #242 OPEN; Stage45 NO_GO, nine gates unapproved.
 
+### B4W: Audit V1 metadata shape false-positive denial — draft, not deployment approval
+
+[Draft PR #280](https://github.com/teldigi5-wq/aetheris-platform/pull/280), stacked on #279, strengthens the offline catalog classifier by **matching the actual Audit V1 `recorded_at DEFAULT CURRENT_TIMESTAMP`** and **btree, non-unique, single-column `occurred_at DESC NULLS FIRST` index**, not merely index name and column membership. The isolated [initial GitHub Actions CI #40265335775](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40265335775) passed **11/11 Python tests** and a disposable network-none PostgreSQL test of V1 plus deliberate missing-default and wrong-ASC-index negative controls. The catalog JSON contract bumps to v2; stale v1 input fails closed. [Scope and residual hazards](database/AUDIT_V1_METADATA_PARITY_B4W_20261026.md).
+
+This is synthetic metadata checking ONLY: no operator history rows/checksums or live production schema, historical restore, backup/rollback, Flyway baseline or Identity/User migration cutover. All real release requirements remain NO_GO. A final exact-head CI rerun is required if documentation or workflows are updated after the initial test.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.

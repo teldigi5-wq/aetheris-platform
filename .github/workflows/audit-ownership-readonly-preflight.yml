@@ -1,13 +1,16 @@
 name: Audit Operator Metadata Inventory - No Release Approval
 on:
   pull_request:
-    branches: [security/audit-flyway-default-deny-baseline-20261025]
+    branches: [security/audit-flyway-default-deny-baseline-20261025, test/audit-operator-readonly-inventory-gate-20261025]
     paths:
       - '.github/workflows/audit-ownership-readonly-preflight.yml'
       - 'scripts/audit_ownership_preflight.py'
       - 'tests/test_audit_ownership_preflight.py'
       - 'docs/database/rehearsal/audit_ownership_inventory_readonly.sql'
       - 'docs/database/AUDIT_OPERATOR_INVENTORY_GATE_20261025.md'
+      - 'docs/database/AUDIT_V1_METADATA_PARITY_B4W_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+      - 'README.md'
 permissions:
   contents: read
 jobs:
@@ -63,9 +66,34 @@ jobs:
           docker exec -i "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 < \
             audit-service/src/main/resources/db/migration/V1__create_audit_events.sql
           classify AUDIT_INVENTORY_NO_GO_AUDIT_HISTORY_ABSENT
+          # The real unchanged Audit V1 schema must pass both strengthened flags.
+          python3 - "$inventory" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding='utf-8') as handle:
+              d = json.load(handle)
+          assert d['contract_version'] == 2
+          assert d['audit_events_exists']
+          assert d['audit_column_shape_ok']
+          assert d['audit_primary_key_ok']
+          assert d['audit_recorded_at_default_ok']
+          assert d['audit_occurred_at_index_ok']
+          PY
+          # False positive 1: losing the V1 recorded_at default must fail closed.
+          docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
+            -c 'ALTER TABLE audit_events ALTER COLUMN recorded_at DROP DEFAULT;'
+          classify AUDIT_INVENTORY_NO_GO_AUDIT_SCHEMA_DRIFT
+          docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
+            -c 'ALTER TABLE audit_events ALTER COLUMN recorded_at SET DEFAULT CURRENT_TIMESTAMP;'
+          # False positive 2: identical index name and column, wrong ASC direction.
+          docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
+            -c 'DROP INDEX idx_audit_events_occurred_at; CREATE INDEX idx_audit_events_occurred_at ON audit_events (occurred_at ASC);'
+          classify AUDIT_INVENTORY_NO_GO_AUDIT_SCHEMA_DRIFT
+          docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
+            -c 'DROP INDEX idx_audit_events_occurred_at; CREATE INDEX idx_audit_events_occurred_at ON audit_events (occurred_at DESC);'
+          classify AUDIT_INVENTORY_NO_GO_AUDIT_HISTORY_ABSENT
           # Deliberately forged presence proves the preflight NEVER treats mere
           # history TABLE existence as approved Flyway V1/checksum ownership.
           docker exec "$db" psql -X -q -U probe -d probe -v ON_ERROR_STOP=1 \
             -c 'CREATE TABLE flyway_audit_schema_history (installed_rank integer);'
           classify AUDIT_INVENTORY_REVIEW_HISTORY_CONTENT_AND_OWNERSHIP
-          echo B4V_ALL_SYNTHETIC_METADATA_STATES_STILL_REQUIRE_OPERATOR_REVIEW
+          echo B4W_INDEX_AND_DEFAULT_DRIFT_DENIED_ALL_STATES_REVIEW_ONLY
