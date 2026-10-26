@@ -6,6 +6,7 @@ read-only synthetic probe. Never read untrusted URLs or a caller-supplied path.
 """
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -62,6 +63,19 @@ def main():
         raise AssertionError("B60_UNKNOWN_ROLLOVER_PHASE")
     if (ROOT/"test-only.marker").read_text(encoding="ascii").strip()!="B60_EPHEMERAL_PUBLIC_ROLLOVER_V1":
         raise AssertionError("B60_FIXTURE_MISSING")
+    # Recreated real containers have bounded startup time; do not treat not-yet-
+    # ready HTTP listeners as a security decision. After readiness, each case
+    # must return its exact status; failures never get retried or hidden.
+    deadline=time.monotonic()+180
+    while True:
+        try:
+            if all(request(url,read("current"))==200 for url in ENDPOINTS.values()):
+                break
+        except (OSError, TimeoutError):
+            pass
+        if time.monotonic()>=deadline:
+            raise AssertionError("B60_DISPOSABLE_RSA_SERVICES_NOT_READY")
+        time.sleep(3)
     tests=0
     for target,url in ENDPOINTS.items():
         for case,expected in PHASES[phase].items():
