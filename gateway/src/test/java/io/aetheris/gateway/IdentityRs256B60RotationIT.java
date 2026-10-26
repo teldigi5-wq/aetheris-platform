@@ -24,7 +24,8 @@ class IdentityRs256B60RotationIT {
     }
     private static JwtAuthenticationFilter verifier(String priorPublic, String priorKid) throws Exception {
         return new JwtAuthenticationFilter("",ISSUER,AUDIENCE,"rs256",
-            read("current-public-x509.b64"),"b60-current",priorPublic,priorKid);
+            read("current-public-x509.b64"),"b60-current",priorPublic,priorKid,
+            priorKid.isBlank() ? "" : Long.toString(java.time.Instant.now().plusSeconds(600).getEpochSecond()));
     }
     private static void check(JwtAuthenticationFilter filter, String jwt, boolean accepted) {
         var exchange=MockServerWebExchange.from(MockServerHttpRequest.get("/api/users")
