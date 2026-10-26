@@ -35,6 +35,19 @@ Amazon Linux 2023 uses RPM/dnf rather than Ubuntu apt. Real Docker builds must p
 
 This change does NOT silently migrate existing service processes or volumes. No production host or customer database is accessed and no live credentials are rotated.
 
+## Initial real-image CI verification
+
+[Hosted Ubuntu Actions #40286517419](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40286517419) **completed successfully** on the implementation head `b2819f1d7461158ad835845899eeda52ae696c91`.
+
+- **5/5** Python Dockerfile policy tests passed.
+- **All four real patched Corretto JDK builders and AL2023 headless application runtime images built successfully**. The actual builder `java`/`javac` and runtime `java` output confirmed 21.0.13 for each service, and all four final images ran as non-root `10001:10001`.
+- **79/79 real Maven tests** passed **inside the patched Corretto builder containers** (Gateway 23, Identity 14, User 25, Audit 17), with zero failures/errors/skips. These were not a repeat using the old 21.0.12 JDK.
+- The dedicated test-only Compose topology had an internal-only bridge, no published host ports, a PostgreSQL tmpfs and no persisted database. The actual patched Audit app applied Flyway V1 and produced **exactly one successful version-1 SQL history row, zero BASELINE rows**. CI cleanup succeeded.
+
+The first exploratory run #40286068208 failed because the AL2023 builder omitted `tar`. The next run #40286178888 exposed missing `gzip`; #40286342963 exposed missing `groupadd`/`useradd` in the minimal runtime. These are real vendor-switch compatibility findings, not security exploits. The final implementation adds **only `tar` and `gzip` to the JDK builder stage** plus `shadow-utils` for the named non-root runtime account. Existing Maven SHA-512 verification, UID/GID restrictions and source logic are unchanged.
+
+This is **initial CI evidence only**: subsequent documentation changes require exact-final-head revalidation, and deployment/merge still require a separate operator/security release decision.
+
 ## Approval / NO_GO
 
 A passing CI run will prove the **specific patched Java 21.0.13 Dockerfile source and tested container behavior**, not a full application release. Before merging/production, review final image SBOM/signature/provenance and OS vulnerabilities, the auth/core runtime and browser flow, service-to-service integration, architecture-specific tests, rollback plan and staging smoke. Issues #242 (historical database), #251 (ownership/security), #255 (release-image patch), and #259 (full dependency/SBOM) remain open pending signoff. Stage45 NO_GO and nine runtime certification gates remain unapproved.
