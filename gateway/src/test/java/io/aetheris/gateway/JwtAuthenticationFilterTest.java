@@ -263,4 +263,32 @@ class JwtAuthenticationFilterTest {
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();
     }
+
+    private static String tokenForIssuerAudience(String issuer, String audience) {
+        var builder = Jwts.builder()
+            .subject("issuer-boundary@example.invalid")
+            .claim("uid", 42L)
+            .claim("role", "ADMIN")
+            .claim("scopes", List.of("users:read"))
+            .issuedAt(Date.from(Instant.now().minusSeconds(5)))
+            .expiration(Date.from(Instant.now().plusSeconds(120)));
+        if (issuer != null) builder.issuer(issuer);
+        if (audience != null) builder.audience().add(audience).and();
+        return builder.signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8))).compact();
+    }
+
+    @Test
+    void gatewayRejectsSignedWrongOrAbsentIssuerAudienceWithoutRouting() {
+        for (String jwt : List.of(
+                tokenForIssuerAudience("wrong-issuer", JwtAuthenticationFilter.DEFAULT_AUDIENCE),
+                tokenForIssuerAudience(JwtAuthenticationFilter.DEFAULT_ISSUER, "wrong-audience"),
+                tokenForIssuerAudience(null, JwtAuthenticationFilter.DEFAULT_AUDIENCE),
+                tokenForIssuerAudience(JwtAuthenticationFilter.DEFAULT_ISSUER, null))) {
+            assertRejected("Bearer " + jwt, HttpStatus.UNAUTHORIZED);
+        }
+        assertThrows(IllegalArgumentException.class, () ->
+            new JwtAuthenticationFilter(SECRET, "", JwtAuthenticationFilter.DEFAULT_AUDIENCE));
+        assertThrows(IllegalArgumentException.class, () ->
+            new JwtAuthenticationFilter(SECRET, JwtAuthenticationFilter.DEFAULT_ISSUER, ""));
+    }
 }
