@@ -45,6 +45,8 @@ class DirectApiLiveHttpTest {
 
   private String bearer(String role, List<String> scopes, Object uid, Instant expiry) {
     return "Bearer " + Jwts.builder()
+      .issuer(DirectApiJwtFilter.DEFAULT_ISSUER)
+      .audience().add(DirectApiJwtFilter.DEFAULT_AUDIENCE).and()
       .subject("http-check@example.invalid").claim("uid",uid)
       .claim("role",role).claim("scopes",scopes)
       .issuedAt(Date.from(Instant.now().minusSeconds(5)))
