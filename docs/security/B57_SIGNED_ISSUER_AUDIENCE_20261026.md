@@ -20,6 +20,17 @@ All four Java components accept the same configured issuer/audience (via `AETHER
 
 The standalone B57 GitHub Actions job checks out the exact stacked PR head, runs the full four-module Java test reactor (including these new signed claim regressions), builds real Gateway/User/Audit images on the previously verified Corretto 21.0.13, runs genuine Identity token fixtures through actual Gateway/User/Audit consumer tests, and reruns the **26 direct-container/Gateway** plus **30 numeric UID User-row nonowner** real HTTP assertions using disposable tmpfs PostgreSQL, synthetic accounts, no host ports or persistent volumes. CI must pass on the **final exact HEAD**, not just an earlier implementation SHA.
 
+## Initial hosted exact-implementation security evidence
+
+[GitHub Actions #40301483259](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40301483259) **completed SUCCESS** on the initial B57 implementation head `7728167e014d3da492460b352c164007426e75fa`:
+- **8/8** B57 offline source and strict-verifier regression checks plus **10/10** pre-existing B56 offline checks.
+- Real four-module Maven reactor: **Gateway 24/24, User 27/27, Identity 17/17, Audit 19/19 = 87/87 tests passed** with zero failures/errors/skips. The new Java behavioral tests deny *wrong and absent* signed issuer/audience claims.
+- Real `IdentityIssuedJwtContractIT` synthetic issuer/consumer tests: **Gateway 4/4, User 3/3, Audit 3/3 = 10/10 passed** with the actual Identity-issued tokens, not hand-written substitutes.
+- Real Gateway/User/Audit patched Corretto 21.0.13 containers built and ran as `10001:10001` on one internal-only network, zero published host ports, PostgreSQL tmpfs.
+- Independent probe containers returned **26/26** backend/Gateway JWT route checks and **30/30** nonowner signed Identity UID/User-row collision checks, including authorized ADMIN create/read/delete and prohibited nonadmin same-numeric-ID access. CI cleanup succeeded.
+
+The implementation commit is verified, but document-only follow-up changes require a final exact-head rerun before the final B57 checkpoint can be marked complete. This is **not** a release GO, production JWT migration or key rotation.
+
 ## Intentional compatibility break — production rollout blocker
 
 Previously issued tokens contain **no** `iss`/`aud` and will be denied by the strict verifier. Do **not** deploy the Gateway, User or Audit changes without the Identity issuer at the same time. Preflight every existing desktop/browser/mobile/agent consumer that stores JWTs or connects directly; coordinate sign-in/session renewal and refresh-cookie continuity. Never enable indefinite dual-format acceptance to hide migration failures. Test staged rollback of the entire coordinated source change; rolling back only one verifier will produce inconsistent auth across the fleet.
