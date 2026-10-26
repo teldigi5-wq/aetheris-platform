@@ -52,6 +52,8 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private final Instant previousKeyNotAfter;
     private final Clock clock;
     private static final long MAX_PREVIOUS_KEY_GRACE_SECONDS = 3600L;
+    // Fixed cap applies equally to HMAC and RS256.
+    private static final long MAX_ACCESS_TOKEN_LIFETIME_SECONDS = 3600L;
     private final String rsaKid;
     private final String mode;
     private final String issuer;
@@ -256,8 +258,12 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             Instant requestNow = clock.instant();
             String subject = claims.getSubject();
             Object uid = claims.get("uid");
-            if (expires == null || !expires.toInstant().isAfter(requestNow)
-                || issued == null || issued.toInstant().isAfter(requestNow.plusSeconds(30))
+            if (expires == null || issued == null
+                || !expires.toInstant().isAfter(issued.toInstant())
+                || java.time.Duration.between(issued.toInstant(), expires.toInstant())
+                     .compareTo(java.time.Duration.ofSeconds(MAX_ACCESS_TOKEN_LIFETIME_SECONDS)) > 0
+                || !expires.toInstant().isAfter(requestNow)
+                || issued.toInstant().isAfter(requestNow.plusSeconds(30))
                 || subject == null || subject.isBlank()
                 || !isPositiveIntegralUid(uid)) {
                 throw new IllegalArgumentException("Required verified JWT claims missing");

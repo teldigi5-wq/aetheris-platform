@@ -1,0 +1,54 @@
+name: B62-B Signed Access Token Maximum TTL
+on:
+  pull_request:
+    branches: [security/b62-jwt-temporal-clock-consistency-20261026]
+    paths:
+      - '.github/workflows/b62b-jwt-max-ttl.yml'
+      - 'tests/test_b62b_max_access_token_ttl.py'
+      - 'tests/test_b62_temporal_clock_contract.py'
+      - 'tests/test_b61_previous_key_deadline_contract.py'
+      - 'gateway/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'identity-service/**'
+      - 'docs/security/B62B_MAX_SIGNED_ACCESS_TOKEN_TTL_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  signed-max-ttl:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact head and source-policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62b_max_access_token_ttl.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62_temporal_clock_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b61_previous_key_deadline_contract.py' -v
+      - name: Full Java reactor regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Identity-signed real RSA JWT max TTL integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          test "$(cat identity-service/target/b60-rotation/test-only.marker)" = "B60_EPHEMERAL_PUBLIC_ROLLOVER_V1"
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          echo B62B_SIGNED_RSA_MAX_TTL_BOUNDARIES_PASSED

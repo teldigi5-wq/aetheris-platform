@@ -45,6 +45,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private final Instant previousKeyNotAfter;
     private final Clock clock;
     private static final long MAX_PREVIOUS_KEY_GRACE_SECONDS = 3600L;
+    // B62-B: fixed maximum signed access-token validity window.
+    private static final long MAX_ACCESS_TOKEN_LIFETIME_SECONDS = 3600L;
     private final String rsaKid;
     private final String mode;
     private final String issuer;
@@ -239,6 +241,21 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid access token audience");
             }
 
+            // Every protected route must reject signer-selected lifetimes
+            // longer than one hour, even when the token is close to expiry.
+            Date issuedAt = claims.getIssuedAt();
+            Date expiration = claims.getExpiration();
+            Instant requestNow = clock.instant();
+            if (issuedAt == null || expiration == null
+                    || !expiration.toInstant().isAfter(issuedAt.toInstant())
+                    || java.time.Duration.between(issuedAt.toInstant(), expiration.toInstant())
+                         .compareTo(java.time.Duration.ofSeconds(MAX_ACCESS_TOKEN_LIFETIME_SECONDS)) > 0
+                    || issuedAt.toInstant().isAfter(requestNow.plusSeconds(30))
+                    || !expiration.toInstant().isAfter(requestNow)) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                             "Invalid signed access token lifetime");
+            }
+
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
             Object userId = claims.get("uid");
@@ -252,15 +269,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             // Mirror their own direct-service checks at the gateway, while
             // leaving Orchestrator's distinct role/scopes policy unchanged.
             if (isAdministrativeApi(path)) {
-                // B62-A: use the same trusted clock as the B61 old-key cutoff.
-                Instant requestNow = clock.instant();
-                Date issuedAt = claims.getIssuedAt();
-                Date expiration = claims.getExpiration();
-                if (!isPositiveIntegralUid(userId) || issuedAt == null
-                        || issuedAt.toInstant().isAfter(requestNow.plusSeconds(30))
-                        || expiration == null || !expiration.toInstant().isAfter(requestNow)) {
+                // Common temporal policy above covers all protected routes.
+                if (!isPositiveIntegralUid(userId)) {
                     return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
-                            "Invalid administrative token identity or lifetime");
+                            "Invalid administrative token identity");
                 }
                 if (!"ADMIN".equals(role)) {
                     return error(exchange, HttpStatus.FORBIDDEN, "Forbidden",

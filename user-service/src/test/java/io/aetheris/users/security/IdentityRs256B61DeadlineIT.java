@@ -100,4 +100,18 @@ class IdentityRs256B61DeadlineIT {
         clock.advanceTo(wallNow.plusSeconds(1500));
         check(same, "current", false);
     }
+
+    @Test
+    void actualIdentitySignedAccessTokensAreBoundedToOneHour() throws Exception {
+        // No unsigned claim rewriting; source tokens come from real, ephemeral
+        // Identity signing keys kept only inside synthetic test memory.
+        Instant now = Instant.now();
+        DirectApiJwtFilter same = filter(Clock.systemUTC(),
+            Long.toString(now.plusSeconds(300).getEpochSecond()));
+        check(same, "current", true);
+        check(same, "previous", true);
+        check(same, "max-lifetime", true);      // exactly 3600 seconds
+        check(same, "overlong-lifetime", false); // signed 3601-second validity
+        check(same, "zero-lifetime", false);     // exp equals iat
+    }
 }
