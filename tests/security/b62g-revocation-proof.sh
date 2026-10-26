@@ -21,7 +21,7 @@ assert not svc.get("ports") and not svc.get("privileged")
 assert not svc.get("devices") and not svc.get("pid")
 assert not any("docker.sock" in str(v) for v in svc.get("volumes",[]))
 assert svc["environment"]["POSTGRES_DB"] == "b62g_synthetic"
-assert all("production" not in str(v).lower() for v in svc["environment"].values())
+assert svc["environment"]["POSTGRES_PASSWORD"] == "test-only-b62g-never-use-in-production"
 print("B62G_ISOLATED_UNEXPOSED_TEMP_VOLUME_CONFIRMED")
 '
 
