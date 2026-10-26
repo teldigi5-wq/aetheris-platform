@@ -20,7 +20,8 @@ class IdentityRs256B60RotationIT {
     }
     private static DirectApiJwtFilter filter(String previousKey, String previousKid) throws Exception {
         return new DirectApiJwtFilter("", ISSUER, AUDIENCE,"rs256",
-            read("current-public-x509.b64"),"b60-current",previousKey,previousKid);
+            read("current-public-x509.b64"),"b60-current",previousKey,previousKid,
+            previousKid.isBlank() ? "" : Long.toString(java.time.Instant.now().plusSeconds(600).getEpochSecond()));
     }
     @Test
     void overlapAdmitsExactlyBothVerifiedSigningKeysAndRejectsKidRelabeling() throws Exception {

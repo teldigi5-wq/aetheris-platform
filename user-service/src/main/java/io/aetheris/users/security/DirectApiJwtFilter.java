@@ -24,6 +24,7 @@ import java.util.Base64;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -48,6 +49,9 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private final PublicKey rsaPublicKey;
     private final PublicKey rsaPreviousPublicKey;
     private final String rsaPreviousKid;
+    private final Instant previousKeyNotAfter;
+    private final Clock clock;
+    private static final long MAX_PREVIOUS_KEY_GRACE_SECONDS = 3600L;
     private final String rsaKid;
     private final String mode;
     private final String issuer;
@@ -62,7 +66,18 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             @Value("${aetheris.jwt.rsa-public-key-x509-base64:}") String publicKey,
             @Value("${aetheris.jwt.kid:}") String kid,
             @Value("${aetheris.jwt.rsa-previous-public-key-x509-base64:}") String previousPublicKey,
-            @Value("${aetheris.jwt.previous-kid:}") String previousKid) {
+            @Value("${aetheris.jwt.previous-kid:}") String previousKid,
+            @Value("${aetheris.jwt.previous-key-not-after-epoch-seconds:}") String previousNotAfter) {
+        this(secret, issuer, audience, mode, publicKey, kid, previousPublicKey,
+            previousKid, previousNotAfter, Clock.systemUTC());
+    }
+
+    // Explicit injectable clock for deterministic deadline regressions; production
+    // injects the real UTC clock, never a request-controlled timestamp.
+    public DirectApiJwtFilter(String secret, String issuer, String audience, String mode,
+            String publicKey, String kid, String previousPublicKey,
+            String previousKid, String previousNotAfter, Clock clock) {
+        this.clock = java.util.Objects.requireNonNull(clock, "clock");
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
         }
@@ -74,7 +89,8 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                     || (publicKey != null && !publicKey.isBlank())
                     || (kid != null && !kid.isBlank())
                     || (previousPublicKey != null && !previousPublicKey.isBlank())
-                    || (previousKid != null && !previousKid.isBlank())) {
+                    || (previousKid != null && !previousKid.isBlank())
+                    || (previousNotAfter != null && !previousNotAfter.isBlank())) {
                 throw new IllegalArgumentException("Invalid HMAC JWT verifier configuration");
             }
             this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
@@ -82,6 +98,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             this.rsaKid = null;
             this.rsaPreviousPublicKey = null;
             this.rsaPreviousKid = null;
+            this.previousKeyNotAfter = null;
         } else if ("rs256".equals(mode)) {
             if ((secret != null && !secret.isBlank()) || publicKey == null
                     || publicKey.isBlank() || publicKey.length() > 16384
@@ -121,9 +138,28 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                     throw new IllegalArgumentException("Invalid previous RSA verification key");
                 }
                 this.rsaPreviousKid = previousKid;
+                if (previousNotAfter == null || !previousNotAfter.matches("[1-9][0-9]{9}")) {
+                    throw new IllegalArgumentException("Previous public key requires strict UTC epoch cutoff");
+                }
+                final Instant cutoff;
+                try {
+                    cutoff = Instant.ofEpochSecond(Long.parseLong(previousNotAfter));
+                } catch (RuntimeException invalidDeadline) {
+                    throw new IllegalArgumentException("Invalid previous public key cutoff");
+                }
+                // Expired cutoffs are allowed at startup so current credentials
+                // remain usable, but the previous key must never authenticate.
+                if (cutoff.isAfter(clock.instant().plusSeconds(MAX_PREVIOUS_KEY_GRACE_SECONDS))) {
+                    throw new IllegalArgumentException("Previous public key trust exceeds maximum overlap");
+                }
+                this.previousKeyNotAfter = cutoff;
             } else {
+                if (previousNotAfter != null && !previousNotAfter.isBlank()) {
+                    throw new IllegalArgumentException("Cutoff without previous public key");
+                }
                 this.rsaPreviousPublicKey = null;
                 this.rsaPreviousKid = null;
+                this.previousKeyNotAfter = null;
             }
             this.key = null;
         } else {
@@ -135,11 +171,19 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     // B59 constructor retained for explicit single-key verification and existing contract tests.
     public DirectApiJwtFilter(String secret, String issuer, String audience,
                      String mode, String publicKey, String kid) {
-        this(secret, issuer, audience, mode, publicKey, kid, "", "");
+        this(secret, issuer, audience, mode, publicKey, kid, "", "", "");
+    }
+
+    // Source-compatible B60 helper: refuses previous-key enrollment without
+    // an explicit deadline, rather than accidentally trusting it forever.
+    public DirectApiJwtFilter(String secret, String issuer, String audience,
+                     String mode, String publicKey, String kid,
+                     String previousPublicKey, String previousKid) {
+        this(secret, issuer, audience, mode, publicKey, kid, previousPublicKey, previousKid, "");
     }
 
     public DirectApiJwtFilter(String secret, String issuer, String audience) {
-        this(secret, issuer, audience, "hmac", "", "", "", "");
+        this(secret, issuer, audience, "hmac", "", "", "", "", "");
     }
 
     public DirectApiJwtFilter(String secret) {
@@ -182,7 +226,8 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                         .requireIssuer(issuer).requireAudience(audience)
                         .build().parseSignedClaims(token);
                 } catch (io.jsonwebtoken.JwtException invalidCurrent) {
-                    if (rsaPreviousPublicKey == null) throw invalidCurrent;
+                    if (rsaPreviousPublicKey == null
+                            || !clock.instant().isBefore(previousKeyNotAfter)) throw invalidCurrent;
                     signed = Jwts.parser().verifyWith(rsaPreviousPublicKey)
                         .requireIssuer(issuer).requireAudience(audience)
                         .build().parseSignedClaims(token);
@@ -196,6 +241,9 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                     || (previousKeyVerified ? !rsaPreviousKid.equals(signed.getHeader().getKeyId())
                                             : !rsaKid.equals(signed.getHeader().getKeyId())))) {
                 throw new SecurityException("Rejected JWT signing key identity");
+            }
+            if (previousKeyVerified && !clock.instant().isBefore(previousKeyNotAfter)) {
+                throw new SecurityException("Previous public signing key expired");
             }
             claims = signed.getPayload();
             // requireAudience() checks membership; reject cross-workload multi-audience tokens.
