@@ -72,6 +72,12 @@ This is synthetic metadata checking ONLY: no operator history rows/checksums or 
 
 No actual operator history was read, no persistent database was touched, and nothing was merged to `main`. Six Identity/User Compose `ddl-auto:update` overrides, backup/restore, ownership and checksum provenance, #242, Stage45 and nine certification gates remain unresolved. Any final documentation revision requires new exact-head CI verification.
 
+### B4Y: real Audit synthetic pg_dump/pg_restore recovery and startup — tested draft, NO_GO
+
+[Draft PR #282](https://github.com/teldigi5-wq/aetheris-platform/pull/282) is stacked on tested #281 and tests a **different** gap from B4X: an actual fresh Audit V1 Flyway database containing a deliberately invented, nameless synthetic event is backed up using `pg_dump -Fc`, restored twice using `pg_restore --exit-on-error`, validated by backup SHA-256 and canonical schema/data comparisons, checked with B4W/B4X metadata preflights, and then loaded by a genuine independent Audit Docker image with successful health/anonymous-denial HTTP checks. The second separate restored copy has its V1 checksum altered and its real Audit startup must fail with checksum validation; the untouched restored copy must retain its data. The [initial hosted Ubuntu Docker CI #40276232332](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/40276232332) passed **7/7 Python regression tests**, all recovery/failure probes and cleanup. The first test-import error was corrected and is not counted as a passing run. [Exact limits](database/AUDIT_RESTORE_REHEARSAL_B4Y_20261026.md).
+
+**Important:** This is a synthetic CI archive restored on a test runner, NOT a representative owner backup or a production rollback drill. No historical operator database was accessed, and no persistent database or protected `main` was modified. Identity/User operational Compose `ddl-auto:update` overrides, release-critical issues #242/#251/#255/#259, Stage45 and all nine release gates remain unresolved. Do not merge/deploy until independently authorized DBA recovery and migration history have been tested. Final documentation-head CI must be rerun before recording the final PR SHA as verified.
+
 ## Outstanding platform release blockers
 
 1. [#242 — persistent database migrations](https://github.com/teldigi5-wq/aetheris-platform/issues/242): replace unsafe automatic Identity/User schema mutation; rehearse real volume backups, recovery and rollback before promotion.
