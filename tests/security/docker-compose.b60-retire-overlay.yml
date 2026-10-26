@@ -1,0 +1,14 @@
+# B60 CI ONLY. Keep current RS256 public key and remove both previous-key fields.
+services:
+  gateway:
+    environment:
+      AETHERIS_JWT_PREVIOUS_KID: ""
+      AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64: ""
+  user-service:
+    environment:
+      AETHERIS_JWT_PREVIOUS_KID: ""
+      AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64: ""
+  audit-service:
+    environment:
+      AETHERIS_JWT_PREVIOUS_KID: ""
+      AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64: ""
