@@ -1,0 +1,12 @@
+# B61 CI ONLY. Deadline elapsed during the same running three service containers.
+# Base B60 overlay supplies pinned current + prior public keys and strict RS256.
+services:
+  gateway:
+    environment:
+      AETHERIS_JWT_PREVIOUS_KEY_NOT_AFTER_EPOCH_SECONDS: ${B61_CI_LIVE_CUTOFF:?CI-only-UTC-expiry-required}
+  user-service:
+    environment:
+      AETHERIS_JWT_PREVIOUS_KEY_NOT_AFTER_EPOCH_SECONDS: ${B61_CI_LIVE_CUTOFF:?CI-only-UTC-expiry-required}
+  audit-service:
+    environment:
+      AETHERIS_JWT_PREVIOUS_KEY_NOT_AFTER_EPOCH_SECONDS: ${B61_CI_LIVE_CUTOFF:?CI-only-UTC-expiry-required}
