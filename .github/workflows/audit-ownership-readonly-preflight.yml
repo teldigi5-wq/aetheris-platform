@@ -1,7 +1,7 @@
 name: Audit Operator Metadata Inventory - No Release Approval
 on:
   pull_request:
-    branches: [security/audit-flyway-default-deny-baseline-20261025]
+    branches: [security/audit-flyway-default-deny-baseline-20261025, test/audit-operator-readonly-inventory-gate-20261025]
     paths:
       - '.github/workflows/audit-ownership-readonly-preflight.yml'
       - 'scripts/audit_ownership_preflight.py'
