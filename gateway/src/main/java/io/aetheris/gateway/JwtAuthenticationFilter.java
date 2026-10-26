@@ -252,11 +252,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             // Mirror their own direct-service checks at the gateway, while
             // leaving Orchestrator's distinct role/scopes policy unchanged.
             if (isAdministrativeApi(path)) {
+                // B62-A: use the same trusted clock as the B61 old-key cutoff.
+                Instant requestNow = clock.instant();
                 Date issuedAt = claims.getIssuedAt();
                 Date expiration = claims.getExpiration();
                 if (!isPositiveIntegralUid(userId) || issuedAt == null
-                        || issuedAt.toInstant().isAfter(Instant.now().plusSeconds(30))
-                        || expiration == null || !expiration.toInstant().isAfter(Instant.now())) {
+                        || issuedAt.toInstant().isAfter(requestNow.plusSeconds(30))
+                        || expiration == null || !expiration.toInstant().isAfter(requestNow)) {
                     return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
                             "Invalid administrative token identity or lifetime");
                 }

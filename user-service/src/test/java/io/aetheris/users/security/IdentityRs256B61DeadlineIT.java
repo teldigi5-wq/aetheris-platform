@@ -71,4 +71,33 @@ class IdentityRs256B61DeadlineIT {
         check(filter,"current",true);
         check(filter,"previous",false);
     }
+
+    @Test
+    void tokenIssueAndExpiryChecksUseSameInjectedClockAsKeyRetirement() throws Exception {
+        // Only ephemeral Identity-issued RSA JWT fixtures are used: no real signing keys.
+        Instant wallNow = Instant.now();
+        AdjustableClock clock = new AdjustableClock(wallNow.minusSeconds(180));
+        Instant cutoff = wallNow.plusSeconds(600);
+        DirectApiJwtFilter same =
+            filter(clock, Long.toString(cutoff.getEpochSecond()));
+
+        // Signed tokens are valid in real wall time, but their iat is too far
+        // into this verifier's deliberately lagging test clock (>30s).
+        check(same, "current", false);
+        check(same, "previous", false);
+
+        clock.advanceTo(wallNow);
+        check(same, "current", true);
+        check(same, "previous", true);
+
+        // B61's absolute key deadline remains separate from JWT expiration.
+        clock.advanceTo(cutoff);
+        check(same, "previous", false);
+        check(same, "current", true);
+
+        // Current-key tokens cannot outlive their signed expiration when
+        // the injected clock advances; verification uses this same clock.
+        clock.advanceTo(wallNow.plusSeconds(1500));
+        check(same, "current", false);
+    }
 }
