@@ -2,7 +2,7 @@ FROM docker.io/library/amazoncorretto:21.0.13-al2023@sha256:1a307926702559b0086a
 ARG MAVEN_VERSION=3.9.11
 ARG MAVEN_SHA512=bcfe4fe305c962ace56ac7b5fc7a08b87d5abd8b7e89027ab251069faebee516b0ded8961445d6d91ec1985dfe30f8153268843c89aa392733d1a3ec956c9978
 # Amazon Linux 2023 Corretto images omit tar; install only the required build tool.
-RUN dnf -y install tar && dnf clean all
+RUN dnf -y install tar gzip && dnf clean all
 RUN curl --fail --silent --show-error --location \
       "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${MAVEN_VERSION}/apache-maven-${MAVEN_VERSION}-bin.tar.gz" \
       --output /tmp/apache-maven.tar.gz \
