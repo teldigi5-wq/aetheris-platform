@@ -27,13 +27,18 @@ class IdentityRs256B60RotationIT {
     }
 
     private static String issue(KeyPair key, String kid, String iss, String aud) {
+        return issueWithLifetime(key, kid, iss, aud, 1200);
+    }
+
+    private static String issueWithLifetime(KeyPair key, String kid, String iss, String aud,
+                                            long lifetimeSeconds) {
         var account = new IdentityAccount("B60 Synthetic", "b60-admin@example.invalid",
             "no-real-password", Role.ADMIN);
         ReflectionTestUtils.setField(account, "id", 42L);
         // B61 CI runs full HMAC/RSA and a real UTC deadline wait before
         // post-cutoff assertions. This TEST-ONLY JWT must outlast that run;
         // it is never sent to production or a real account.
-        return new JwtService("", 1200, iss, aud, "rs256",
+        return new JwtService("", lifetimeSeconds, iss, aud, "rs256",
             Base64.getEncoder().encodeToString(key.getPrivate().getEncoded()), kid)
             .issue(account);
     }
@@ -57,7 +62,11 @@ class IdentityRs256B60RotationIT {
             "unknown-kid",issue(current,"unknown-b60","aetheris-identity","aetheris-api"),
             "untrusted-key",issue(untrusted,CURRENT,"aetheris-identity","aetheris-api"),
             "foreign-issuer",issue(current,CURRENT,"foreign-issuer","aetheris-api"),
-            "workload-only",issue(current,CURRENT,"aetheris-identity","aetheris-runtime")
+            "workload-only",issue(current,CURRENT,"aetheris-identity","aetheris-runtime"),
+            // Extra B62-B real Identity-signed synthetic JWTs.
+            "max-lifetime",issueWithLifetime(current,CURRENT,"aetheris-identity","aetheris-api",3600),
+            "overlong-lifetime",issueWithLifetime(current,CURRENT,"aetheris-identity","aetheris-api",3601),
+            "zero-lifetime",issueWithLifetime(current,CURRENT,"aetheris-identity","aetheris-api",0)
         );
         for(var entry:tokens.entrySet()){
             assertEquals(3,entry.getValue().split("\\.").length);
