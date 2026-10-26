@@ -30,7 +30,10 @@ class IdentityRs256B60RotationIT {
         var account = new IdentityAccount("B60 Synthetic", "b60-admin@example.invalid",
             "no-real-password", Role.ADMIN);
         ReflectionTestUtils.setField(account, "id", 42L);
-        return new JwtService("", 300, iss, aud, "rs256",
+        // B61 CI runs full HMAC/RSA and a real UTC deadline wait before
+        // post-cutoff assertions. This TEST-ONLY JWT must outlast that run;
+        // it is never sent to production or a real account.
+        return new JwtService("", 1200, iss, aud, "rs256",
             Base64.getEncoder().encodeToString(key.getPrivate().getEncoded()), kid)
             .issue(account);
     }
