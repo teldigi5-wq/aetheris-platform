@@ -51,20 +51,33 @@ jobs:
                 echo "B51_REQUIRED_ARCHITECTURE_MISSING:$tag"
                 continue
               fi
-              digest="$(docker buildx imagetools inspect "$ref" | awk '$1 == "Digest:" {print $2; exit}')"
+              if ! docker buildx imagetools inspect "$ref" > "$RUNNER_TEMP/b51/inspect.txt" 2>"$RUNNER_TEMP/b51/inspect-error.txt"; then
+                echo "B51_REGISTRY_DIGEST_INSPECTION_UNAVAILABLE:$tag"
+                continue
+              fi
+              digest="$(awk '$1 == "Digest:" {print $2; exit}' "$RUNNER_TEMP/b51/inspect.txt")"
               if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
                 echo "B51_INVALID_MULTIARCH_INDEX_DIGEST:$tag"
                 continue
               fi
               pinned="$repository:$tag@$digest"
-              docker pull --platform linux/amd64 "$pinned" >/dev/null
-              java_details="$(docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" java -version 2>&1)"
+              if ! docker pull --platform linux/amd64 "$pinned" >/dev/null 2>&1; then
+                echo "B51_PINNED_PUBLIC_IMAGE_PULL_UNAVAILABLE:$tag"
+                continue
+              fi
+              if ! java_details="$(docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" java -version 2>&1)"; then
+                echo "B51_NETWORKLESS_RUNTIME_VERIFICATION_FAILED:$tag"
+                continue
+              fi
               if ! grep -Eq '^(openjdk|java) version "21\.0\.13([+" _-]|")' <<< "$java_details"; then
                 echo "B51_RUNNING_PATCH_NOT_21_0_13:$tag"
                 continue
               fi
               if [ "$role" = jdk ]; then
-                docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" javac -version 2>&1 | grep -Eq '^javac 21\.0\.13'
+                if ! docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" javac -version 2>&1 | grep -Eq '^javac 21\.0\.13'; then
+                  echo "B51_BUILDER_JAVAC_PATCH_VALIDATION_FAILED:$tag"
+                  continue
+                fi
               fi
               # Captures fixed public image metadata only; no application secrets.
               jq -n --arg tag "$tag" --arg digest "$digest" --arg runtime "$java_details" \
