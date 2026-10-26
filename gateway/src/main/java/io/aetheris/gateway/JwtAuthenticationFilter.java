@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -29,13 +30,29 @@ import java.util.Set;
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     static final String VERIFIED_USER_ID_ATTRIBUTE = "aetheris.gateway.verifiedUserId";
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
+    public static final String DEFAULT_ISSUER = "aetheris-identity";
+    public static final String DEFAULT_AUDIENCE = "aetheris-api";
     private final SecretKey key;
+    private final String issuer;
+    private final String audience;
 
-    public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret) {
+    @Autowired
+    public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret,
+            @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
+            @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
+        if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
+            throw new IllegalArgumentException("JWT issuer and audience must be configured");
+        }
+        this.issuer = issuer;
+        this.audience = audience;
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public JwtAuthenticationFilter(String secret) {
+        this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
     }
 
     @Override
@@ -61,6 +78,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(key)
+                    .requireIssuer(issuer)
+                    .requireAudience(audience)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
