@@ -1,0 +1,44 @@
+name: B62-G Disposable PostgreSQL Revocation Prototype
+on:
+  pull_request:
+    branches: [security/b62f-refresh-session-lifecycle-review-20261026]
+    paths:
+      - '.github/workflows/b62g-revocation-postgres-prototype.yml'
+      - 'tests/security/b62g-*'
+      - 'tests/security/docker-compose.b62g-epoch-proof.yml'
+      - 'tests/test_b62g_revocation_prototype_contract.py'
+      - 'docs/security/B62G_REVOCATION_EPOCH_ARCHITECTURE_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  disposable-revocation-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Exact PR HEAD and static safety/contract checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g_revocation_prototype_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62f_refresh_session_readiness.py' -v
+          bash -n tests/security/b62g-revocation-proof.sh
+          docker compose version
+      - name: Real isolated PostgreSQL concurrent monotonic revocation and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g-revocation-proof.sh
+          echo B62G_PROOF_ONLY_CI_SUCCESS
+      - name: Unconditional cleanup of synthetic network and volume
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G_DISPOSABLE_DATA_ONLY_CLEANUP_COMPLETED
