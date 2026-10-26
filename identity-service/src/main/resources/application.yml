@@ -17,7 +17,11 @@ aetheris:
   browser-auth:
     secure-cookie: ${AETHERIS_BROWSER_REFRESH_COOKIE_SECURE:true}
   jwt:
-    secret: ${AETHERIS_JWT_SECRET}
+    # HMAC remains the default until a coordinated, approved deployment migration.
+    mode: ${AETHERIS_JWT_MODE:hmac}
+    secret: ${AETHERIS_JWT_SECRET:}
+    kid: ${AETHERIS_JWT_KID:}
+    rsa-private-key-pkcs8-base64: ${AETHERIS_JWT_RSA_PRIVATE_KEY_PKCS8_B64:}
     issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
     audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
     expiration-seconds: ${AETHERIS_JWT_EXPIRATION_SECONDS:3600}
