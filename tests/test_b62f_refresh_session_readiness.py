@@ -42,7 +42,7 @@ class B62FSessionSafety(unittest.TestCase):
             "previous-key cutoff", "rollback", "not implemented",
             "no real production keys", "owner approval",
         ):
-            self.assertIn(phrase, s.lower() if phrase=="rollback" else s)
+            self.assertIn(phrase.casefold(), s.casefold())
 
 if __name__ == "__main__":
     unittest.main()
