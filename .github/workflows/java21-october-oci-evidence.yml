@@ -1,0 +1,111 @@
+name: B51 Java 21 October OCI Immutable Digest Inventory
+on:
+  pull_request:
+    branches: [security/jackson-exact-resolution-gate-20261026]
+    paths:
+      - 'scripts/verify_java21_oci_inventory.py'
+      - 'tests/test_java21_oci_inventory.py'
+      - '.github/workflows/java21-october-oci-evidence.yml'
+      - 'docs/security/JAVA21_OCTOBER_OCI_B51_20261026.md'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  verify-public-java21-october-images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Check source immutability and reject counterfeit OCI evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_java21_oci_inventory.py -v
+          echo B51_OFFLINE_VERIFIER_AND_OLD_IMAGE_SOURCE_CHECKS_PASSED
+      - name: Check real official-image tag, index digests, two platforms and running Java
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx version
+          echo "B51 is inventory ONLY. No Dockerfile changes, releases or deployments."
+          mkdir -p "$RUNNER_TEMP/b51"
+          for role in jdk jre; do
+            found=0
+            # Prefer a version-specific tag; mutable alias is accepted ONLY
+            # when its immutable resolved digest runs exact Java 21.0.13.
+            for tag in "21.0.13_9-$role-noble" "21-$role-noble"; do
+              repository="docker.io/library/eclipse-temurin"
+              ref="$repository:$tag"
+              if ! docker buildx imagetools inspect --raw "$ref" > "$RUNNER_TEMP/b51/manifest.json" 2>/dev/null; then
+                echo "B51_UPSTREAM_TAG_UNAVAILABLE:$tag"
+                continue
+              fi
+              if ! jq -e '
+                (.manifests | type == "array") and
+                ([.manifests[] | select(.platform.os == "linux" and .platform.architecture == "amd64")] | length >= 1) and
+                ([.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64")] | length >= 1)
+              ' "$RUNNER_TEMP/b51/manifest.json" >/dev/null; then
+                echo "B51_REQUIRED_ARCHITECTURE_MISSING:$tag"
+                continue
+              fi
+              digest="$(docker buildx imagetools inspect "$ref" | awk '$1 == "Digest:" {print $2; exit}')"
+              if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                echo "B51_INVALID_MULTIARCH_INDEX_DIGEST:$tag"
+                continue
+              fi
+              pinned="$repository:$tag@$digest"
+              docker pull --platform linux/amd64 "$pinned" >/dev/null
+              java_details="$(docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" java -version 2>&1)"
+              if ! grep -Eq '^(openjdk|java) version "21\.0\.13([+" _-]|")' <<< "$java_details"; then
+                echo "B51_RUNNING_PATCH_NOT_21_0_13:$tag"
+                continue
+              fi
+              if [ "$role" = jdk ]; then
+                docker run --rm --platform linux/amd64 --network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --tmpfs /tmp:rw,nosuid,noexec,size=16777216 "$pinned" javac -version 2>&1 | grep -Eq '^javac 21\.0\.13'
+              fi
+              # Captures fixed public image metadata only; no application secrets.
+              jq -n --arg tag "$tag" --arg digest "$digest" --arg runtime "$java_details" \
+                '{publisher:"docker.io/library/eclipse-temurin",
+                  tag:$tag, digest:$digest, java_version:$runtime,
+                  platforms:["linux/amd64","linux/arm64"]}' > "$RUNNER_TEMP/b51/$role.json"
+              echo "B51_PUBLIC_PATCHED_IMAGE_CANDIDATE_VERIFIED:$role:$tag"
+              found=1
+              break
+            done
+            if [ "$found" -ne 1 ]; then
+              echo "B51_UPSTREAM_BLOCKED_NO_VERIFIABLE_JAVA_21_0_13_$role"
+            fi
+          done
+          if [ -s "$RUNNER_TEMP/b51/jdk.json" ] && [ -s "$RUNNER_TEMP/b51/jre.json" ]; then
+            jq -n --slurpfile jdk "$RUNNER_TEMP/b51/jdk.json" \
+                  --slurpfile jre "$RUNNER_TEMP/b51/jre.json" \
+                  '{jdk:$jdk[0],jre:$jre[0]}' > "$RUNNER_TEMP/b51/verified.json"
+            python3 -m scripts.verify_java21_oci_inventory "$RUNNER_TEMP/b51/verified.json" \
+              > "$RUNNER_TEMP/b51/verdict.txt"
+            cat "$RUNNER_TEMP/b51/verdict.txt"
+            grep -qx JAVA21_OCI_READY_FOR_DOCKERFILE_REVIEW \
+              <(head -n 1 "$RUNNER_TEMP/b51/verdict.txt")
+            {
+              echo "### B51 independently verified OCI candidate (NOT deployed)"
+              cat "$RUNNER_TEMP/b51/verdict.txt"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "B51_OCI_NO_GO_UPSTREAM_PATCHED_PAIR_NOT_VERIFIED"
+            {
+              echo "### B51 inventory: BLOCKED / NO_GO"
+              echo "Exact Java 21.0.13 JDK+JRE OCI multiarch images were not both independently verified."
+              echo "Existing Dockerfiles are unchanged, and issue #255 remains open."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Reconfirm no application Dockerfiles were changed in this discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in gateway identity-service user-service audit-service; do
+            grep -q '^FROM eclipse-temurin:21.0.12_8-jdk-noble@sha256:' "$service/Dockerfile"
+            grep -q '^FROM eclipse-temurin:21.0.12_8-jre-noble@sha256:' "$service/Dockerfile"
+          done
+          echo B51_IMAGE_DISCOVERY_NO_UNVERIFIED_CODE_OR_DEPLOYMENT_CHANGES
