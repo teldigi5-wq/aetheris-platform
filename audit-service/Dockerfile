@@ -19,7 +19,10 @@ FROM docker.io/library/amazoncorretto:21.0.13-al2023-headless@sha256:212faf5f8f9
 WORKDIR /app
 # Preserve the original named unprivileged account on minimal Amazon Linux 2023.
 # Apply current signed AL2023 repository security fixes before runtime account creation; re-scan the complete image.
-RUN dnf -y upgrade && dnf -y install shadow-utils && dnf clean all
+# Pin the AWS-published 2026-10-26 security repository; do NOT use the moving latest alias.
+RUN dnf -y --releasever=2023.12.20261026 upgrade \
+ && dnf -y --releasever=2023.12.20261026 install shadow-utils \
+ && dnf clean all
 RUN groupadd --system --gid 10001 aetheris \
  && useradd --system --uid 10001 --gid aetheris --create-home --home-dir /home/aetheris --shell /usr/sbin/nologin aetheris
 COPY --from=build --chown=10001:10001 /app/target/*.jar app.jar
