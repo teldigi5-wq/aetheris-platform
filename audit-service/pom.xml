@@ -9,7 +9,7 @@
   <groupId>io.aetheris</groupId>
   <artifactId>aetheris-audit-service</artifactId>
   <version>0.4.0-SNAPSHOT</version>
-  <properties><java.version>21</java.version><jjwt.version>0.12.6</jjwt.version><jackson-bom.version>3.1.8</jackson-bom.version><jackson-2-bom.version>2.21.8</jackson-2-bom.version></properties>
+  <properties><java.version>21</java.version><jjwt.version>0.12.6</jjwt.version><jackson-bom.version>3.1.8</jackson-bom.version><jackson-2-bom.version>2.21.8</jackson-2-bom.version><tomcat.version>11.0.27</tomcat.version></properties>
   <dependencies>
     <!-- Independent backend JWT verification; never trust Gateway identity headers. -->
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-api</artifactId><version>${jjwt.version}</version></dependency>
@@ -17,6 +17,8 @@
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-jackson</artifactId><version>${jjwt.version}</version><scope>runtime</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-webmvc</artifactId></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-amqp</artifactId></dependency>
+    <!-- Explicit direct version overrides older Boot starter transitive client until an upstream BOM upgrade. -->
+    <dependency><groupId>com.rabbitmq</groupId><artifactId>amqp-client</artifactId><version>5.37.0</version></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-jdbc</artifactId></dependency>
     <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-flyway</artifactId></dependency>
