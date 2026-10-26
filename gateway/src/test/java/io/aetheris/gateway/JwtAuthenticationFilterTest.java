@@ -236,6 +236,8 @@ class JwtAuthenticationFilterTest {
     private static String tokenWithClaims(String role, Object uid, List<String> scopes,
                                           Instant issued, Instant expires) {
         var builder = Jwts.builder()
+            .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+            .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
             .subject("user@example.com")
             .claim("role", role)
             .claim("uid", uid)
@@ -250,6 +252,8 @@ class JwtAuthenticationFilterTest {
 
     private static String token(List<String> scopes, Instant expiration) {
         return Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
                 .subject("user@example.com")
                 .claim("role", "ADMIN")
                 .claim("uid", 42L)
