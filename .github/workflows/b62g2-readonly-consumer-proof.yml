@@ -1,0 +1,45 @@
+name: B62-G2 Read-Only Revocation Consumer Contract
+on:
+  pull_request:
+    branches: [security/b62g-durable-revocation-postgres-proof-20261026]
+    paths:
+      - '.github/workflows/b62g2-readonly-consumer-proof.yml'
+      - 'tests/security/b62g2-*'
+      - 'tests/test_b62g2_*'
+      - 'docs/security/B62G2_READONLY_VERIFIER_BOUNDARY_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  synthetic-consumer-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify immutable pull request commit and static safety gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g2_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g_revocation_prototype_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g2_adapter_unit.py' -v
+          bash -n tests/security/b62g2-consumer-proof.sh
+          python3 -m py_compile tests/security/b62g2_signed_decision.py tests/security/b62g2_live_acceptance.py
+          docker compose version
+      - name: Test actual isolated Postgres read-only role JWT decisions restart and outage
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g2-consumer-proof.sh
+          echo B62G2_ISOLATED_REAL_POSTGRES_SYNTHETIC_VERIFIER_PASS
+      - name: Unconditional removal of only disposable B62-G synthetic data
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G2_EPHEMERAL_DATA_ONLY_CLEANUP_COMPLETE
