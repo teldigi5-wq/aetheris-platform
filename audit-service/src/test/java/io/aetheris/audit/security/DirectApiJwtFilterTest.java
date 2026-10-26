@@ -33,6 +33,8 @@ class DirectApiJwtFilterTest {
 
     private String token(String role, List<String> scopes, Instant expiry) {
         return Jwts.builder()
+            .issuer(DirectApiJwtFilter.DEFAULT_ISSUER)
+            .audience().add(DirectApiJwtFilter.DEFAULT_AUDIENCE).and()
             .subject("authenticated@example.invalid")
             .claim("uid", 42L)
             .claim("role", role)
@@ -79,6 +81,8 @@ class DirectApiJwtFilterTest {
 
     private String tokenWithUid(Object uid) {
         return Jwts.builder()
+            .issuer(DirectApiJwtFilter.DEFAULT_ISSUER)
+            .audience().add(DirectApiJwtFilter.DEFAULT_AUDIENCE).and()
             .subject("authenticated@example.invalid")
             .claim("uid", uid)
             .claim("role", "ADMIN")
