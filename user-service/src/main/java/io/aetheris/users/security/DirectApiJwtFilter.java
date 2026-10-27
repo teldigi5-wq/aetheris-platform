@@ -34,6 +34,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private static final String SIGNED_ID_ATTRIBUTE = "aetheris.verified.uid";
     private final SecretKey key;
     private final PublicKey rs256PublicKey;
+    private final JwtPinnedRotationVerifier rs256Verifier;
     private final Clock clock;
     private final String expectedIssuer;
     private final String expectedAudience;
@@ -50,8 +51,12 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         @Value("${AETHERIS_JWT_SECRET:}") String secret,
         @Value("${AETHERIS_BACKEND_JWT_ISSUER:}") String issuer,
         @Value("${AETHERIS_BACKEND_JWT_AUDIENCE:}") String audience,
-        @Value("${AETHERIS_BACKEND_JWT_RS256_PUBLIC_KEY_PEM:}") String rs256Pem) {
-        this(secret, issuer, audience, rs256Pem, Clock.systemUTC());
+        @Value("${AETHERIS_BACKEND_JWT_RS256_PUBLIC_KEY_PEM:}") String rs256Pem,
+        @Value("${AETHERIS_BACKEND_JWT_RS256_KEY_ID:}") String activeKid,
+        @Value("${AETHERIS_BACKEND_JWT_RS256_STAGED_PUBLIC_KEY_PEM:}") String stagedPem,
+        @Value("${AETHERIS_BACKEND_JWT_RS256_STAGED_KEY_ID:}") String stagedKid) {
+        this(secret, issuer, audience, rs256Pem,
+             activeKid, stagedPem, stagedKid, Clock.systemUTC());
     }
 
     // Legacy tests and call sites keep existing behavior until an approved rollout.
@@ -65,16 +70,24 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     }
 
     DirectApiJwtFilter(String secret, String issuer, String audience, Clock clock) {
-        this(secret, issuer, audience, "", clock);
+        this(secret, issuer, audience, "", "", "", "", clock);
     }
 
     DirectApiJwtFilter(String secret, String issuer, String audience,
                        String rs256Pem, Clock clock) {
+        this(secret, issuer, audience, rs256Pem, "", "", "", clock);
+    }
+
+    DirectApiJwtFilter(String secret, String issuer, String audience,
+                       String rs256Pem, String activeKid, String stagedPem,
+                       String stagedKid, Clock clock) {
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
         this.key = secret != null && secret.length() >= 32
             ? Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)) : null;
         // Review-only: a configured public key selects exclusive RS256
         // verification. A bad PEM fails service initialization, never HS fallback.
+        this.rs256Verifier = new JwtPinnedRotationVerifier(rs256Pem, activeKid,
+            stagedPem, stagedKid);
         this.rs256PublicKey = rs256Pem == null || rs256Pem.isEmpty()
             ? null : JwtRs256KeySupport.publicKey(rs256Pem);
         this.expectedIssuer = issuer;
@@ -123,10 +136,9 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         final String role;
         final Set<String> scopes;
         try {
-            var signed = (rs256PublicKey == null
-                ? Jwts.parser().verifyWith(key)
-                : Jwts.parser().verifyWith(rs256PublicKey))
-                .build().parseSignedClaims(token);
+            var signed = rs256Verifier.configured()
+                ? rs256Verifier.verify(token)
+                : Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
             if (rs256PublicKey != null && !"RS256".equals(signed.getHeader().getAlgorithm())) {
                 throw new IllegalArgumentException("Expected RS256 signature");
             }
