@@ -19,13 +19,21 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Map;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
+    private static final Map<String, Set<String>> ROLE_SCOPES = Map.of(
+        "ADMIN", Set.of("users:read", "users:write", "services:read",
+            "identity:read", "identity:write", "orchestrator:read", "orchestrator:write"),
+        "DEVELOPER", Set.of("users:read", "users:write", "services:read",
+            "identity:read", "orchestrator:read", "orchestrator:write"),
+        "API_CONSUMER", Set.of("users:read", "services:read", "orchestrator:read")
+    );
     private final SecretKey key;
     private final String expectedIssuer;
     private final String usersAudience;
@@ -97,7 +105,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     "Exactly one bearer authorization header required");
         }
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        if (authorization == null || authorization.length() > 8192
+                || !authorization.startsWith("Bearer ") || authorization.substring(7).isBlank()) {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Missing bearer token");
         }
 
@@ -120,10 +129,36 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
             Object userId = claims.get("uid");
-            Set<String> scopes = readScopes(claims.get("scopes"));
+            Set<String> scopes = verifiedScopes(claims.get("scopes"));
+            Set<String> allowedByRole = ROLE_SCOPES.get(role);
+            Instant issuedAt = claims.getIssuedAt() == null
+                ? null : claims.getIssuedAt().toInstant();
+            Instant expires = claims.getExpiration() == null
+                ? null : claims.getExpiration().toInstant();
 
-            if (email == null || role == null) {
-                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
+            // Match the direct-backend resource boundary before asserting
+            // an authenticated principal in forwarded X-Aetheris headers.
+            if (email == null || email.isBlank() || email.length() > 254
+                || !email.equals(email.trim())
+                || !(userId instanceof Long || userId instanceof Integer)
+                || ((Number) userId).longValue() <= 0
+                || allowedByRole == null || scopes.isEmpty()
+                || !allowedByRole.containsAll(scopes)
+                || issuedAt == null || expires == null
+                || issuedAt.isAfter(Instant.now().plusSeconds(30))
+                || !expires.isAfter(issuedAt)) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                    "Invalid signed principal claims");
+            }
+
+            // Direct User/Audit controllers are privileged-only until tenant
+            // and object ownership are proven. Never grant API_CONSUMER
+            // access merely because legacy role scopes contain users:read.
+            if ((path.equals("/api/users") || path.startsWith("/api/users/")
+                    || path.equals("/api/events") || path.startsWith("/api/events/"))
+                    && role.equals("API_CONSUMER")) {
+                return error(exchange, HttpStatus.FORBIDDEN, "Forbidden",
+                    "Direct backend access requires privileged role");
             }
 
             String requiredScope = requiredScope(path, exchange.getRequest().getMethod());
@@ -155,16 +190,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
     }
 
-    private Set<String> readScopes(Object claim) {
-        Set<String> scopes = new HashSet<>();
-        if (claim instanceof Collection<?> values) {
-            values.stream().filter(String.class::isInstance).map(String.class::cast).forEach(scopes::add);
-        } else if (claim instanceof String value) {
-            for (String scope : value.split("\\s+")) {
-                if (!scope.isBlank()) scopes.add(scope);
-            }
+    private static Set<String> verifiedScopes(Object claim) {
+        if (!(claim instanceof Collection<?> values) || values.isEmpty()
+                || values.size() > 32) return Set.of();
+        Set<String> scopes = new java.util.HashSet<>();
+        for (Object value : values) {
+            if (!(value instanceof String scope) || scope.isBlank()
+                    || scope.length() > 80) return Set.of();
+            scopes.add(scope);
         }
-        return scopes;
+        return Set.copyOf(scopes);
     }
 
     private boolean isProtectedRoute(String path) {
