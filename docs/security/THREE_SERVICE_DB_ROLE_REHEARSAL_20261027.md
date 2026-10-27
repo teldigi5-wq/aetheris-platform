@@ -17,6 +17,8 @@ This follow-up is stacked on PR #327 (Identity/User scoped Flyway on one physica
 
 7. **Follow-up concurrent first-start rehearsal:** Two separately instantiated real Flyway migrators synchronize their first attempt against an empty `audit_race` schema under `audit_migrator`; test asserts the V1 migration executes exactly once, the history has one successful entry, and a third migration executes none. This validates a specific isolated Flyway lock/concurrency path, **not full concurrent Spring service startup, network partition tolerance, or production schema migration**. A bounded timeout prevents CI from hanging indefinitely.
 
+8. **Issue #251 precursor — explicit object ownership binding rehearsal:** The disposable PostgreSQL `user_stage` schema gets a separately created `synthetic_user_owner_bindings` table with a unique `user_id` / `identity_uid` relation and explicit `tenant_id`. Two synthetic user rows intentionally have *crossed* numeric identity and object IDs; a JDBC test proves numeric equality is denied, valid unique tuples are accepted, and wrong principal, tenant, missing binding, or invalid values are rejected. The runtime login can only SELECT this candidate mapping, not edit it; unrelated migrators cannot read it. The mapping does not exist in application migration resources and is **NOT deployed or wired to the user controller/filter**. There is no authenticated signed tenant principal yet. Consumer self-access remains denied; issue #251 and production approval remain open.
+
 ## Limits and hard blockers
 
 - This is a **test policy** and a proposed database topology, not production database-role deployment. Compose and Kubernetes secrets/roles remain unconfigured for this model.
