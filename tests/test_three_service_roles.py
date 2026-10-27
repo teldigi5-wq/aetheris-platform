@@ -152,6 +152,33 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         issuer = (ROOT / "identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
         self.assertNotIn('.claim("tenant_id"', issuer)
 
+    def test_both_backend_filters_have_opt_in_strict_issuer_audience_policy(self):
+        for service, namespace in (("user-service", "users"), ("audit-service", "audit")):
+            root = ROOT / service / "src"
+            source = (root / "main/java/io/aetheris" / namespace / "security/DirectApiJwtFilter.java").read_text()
+            tests = (root / "test/java/io/aetheris" / namespace / "security/DirectApiIssuerAudiencePolicyTest.java").read_text()
+            for phrase in (
+                'AETHERIS_BACKEND_JWT_ISSUER',
+                'AETHERIS_BACKEND_JWT_AUDIENCE',
+                'issuerAudiencePolicyReady',
+                'strictIssuerAudience',
+                'claims.getIssuer()',
+                'claims.getAudience()',
+                'claims.getAudience().size() != 1',
+                'HttpServletResponse.SC_SERVICE_UNAVAILABLE',
+                'Signed token issuer or audience mismatch',
+            ):
+                self.assertIn(phrase, source)
+            for test in (
+                'validExactIssuerAndSoleAudiencePermitOnlyAlreadyPrivilegedRoute',
+                'missingWrongAndMultiAudienceTokensAreDeniedBeforeController',
+                'incompleteOrMalformedOperatorPolicyFailsClosedWith503',
+                'defaultLegacyModeDoesNotSilentlyGrantNewPermissions',
+                'verifyNoInteractions(service)',
+            ):
+                self.assertIn(test, tests)
+            self.assertNotIn('tenant_id', source)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (

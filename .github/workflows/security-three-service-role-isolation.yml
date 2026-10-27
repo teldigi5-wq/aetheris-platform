@@ -1,7 +1,7 @@
 name: Security Three Service Scoped Audit and DB Role Denials
 on:
   pull_request:
-    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027]
+    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027]
     paths:
       - '.github/workflows/security-three-service-role-isolation.yml'
       - 'audit-service/src/main/resources/application.yml'
@@ -9,6 +9,10 @@ on:
       - 'audit-service/src/test/java/io/aetheris/audit/ConcurrentAuditFlywayMigrationTest.java'
       - 'user-service/src/test/java/io/aetheris/users/security/SyntheticUserOwnershipBindingTest.java'
       - 'user-service/src/test/java/io/aetheris/users/security/SyntheticSignedTenantBindingTest.java'
+      - 'user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/DirectApiJwtFilter.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/DirectApiIssuerAudiencePolicyTest.java'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/DirectApiIssuerAudiencePolicyTest.java'
       - 'scripts/security/rehearse_shared_db_three_roles.sh'
       - 'tests/test_three_service_roles.py'
       - 'docs/security/THREE_SERVICE_DB_ROLE_REHEARSAL_20261027.md'
