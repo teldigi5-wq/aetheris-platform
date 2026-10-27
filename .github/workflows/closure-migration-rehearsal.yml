@@ -1,0 +1,66 @@
+name: Closure Migration - Fresh/Legacy Restore and Hibernate Validate
+on:
+  pull_request:
+    branches: [security/review-only-disable-compose-hibernate-auto-ddl-20261027]
+    paths:
+      - '.github/workflows/closure-migration-rehearsal.yml'
+      - 'database/migration-candidates/**'
+      - 'scripts/security/rehearse_pg_migrations.sh'
+      - 'tests/test_schema_migration_candidate.py'
+      - 'identity-service/src/test/java/io/aetheris/identity/SchemaCandidateValidationTest.java'
+      - 'user-service/src/test/java/io/aetheris/users/SchemaCandidateValidationTest.java'
+      - 'docs/security/closure-migration-rehearsal-20261027.md'
+permissions:
+  contents: read
+jobs:
+  fresh-and-legacy-schemas:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify exact SHA and no production migration activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_schema_migration_candidate.py' -v
+          python3 -m unittest discover -s tests -p 'test_security_closure_preflight.py' -v
+          python3 -m unittest discover -s tests -p 'test_safe_compose_ddl_validation.py' -v
+          bash -n scripts/security/rehearse_pg_migrations.sh
+      - name: Genuine disposable PostgreSQL backup, restore, JPA verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/security/rehearse_pg_migrations.sh
+          echo CLOSURE_MIGRATION_FRESH_LEGACY_HIBERNATE_REHEARSAL_PASSED
+      - name: Release remains NO_GO and no live data touched
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security_closure_preflight.py --assert-blocked > closure.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open("closure.json",encoding="utf-8"))
+          assert d["status"]=="NO_GO" and d["safe_to_merge_or_deploy"] is False
+          assert not d["unreviewed_schema_mutation"]
+          assert not d["backend_service_authentication_gaps"]
+          assert len(d["independent_release_attestations_required"])==9
+          print("CLOSURE_MIGRATION_CI_ONLY_REAL_DB_NO_GO")
+          PY
+      - name: Always stop disposable synthetic rehearsal database
+        if: always()
+        shell: bash
+        run: |
+          docker ps --filter 'name=^/aetheris-schema-rehearsal-' --format '{{.Names}}' |
+            while IFS= read -r container; do
+              docker rm -f "$container" >/dev/null 2>&1 || true
+            done
+          echo CLOSURE_MIGRATION_DISPOSABLE_CLEANUP_COMPLETED
