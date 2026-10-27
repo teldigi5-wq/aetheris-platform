@@ -94,6 +94,45 @@ class DirectApiRs256VerificationTest {
     }
 
     @Test
+    void realServletRejectsRetiredKeyAfterPinnedRotation() throws Exception {
+        KeyPair older = pair(2048), newer = pair(2048);
+        io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
+        when(service.recent()).thenReturn(List.of());
+        MockMvc during = MockMvcBuilders.standaloneSetup(
+            new io.aetheris.audit.AuditController(service))
+            .addFilters(new DirectApiJwtFilter(SECRET, ISSUER, AUDIENCE,
+                pem(older), "old", pem(newer), "new", Clock.systemUTC())).build();
+        Instant now = Instant.now();
+        String oldToken = Jwts.builder().header().keyId("old").and()
+            .subject("admin@example.invalid").claim("uid", 42L)
+            .claim("role", "ADMIN").claim("scopes", List.of("services:read"))
+            .issuer(ISSUER).claim("aud", List.of(AUDIENCE))
+            .issuedAt(Date.from(now.minusSeconds(5)))
+            .expiration(Date.from(now.plusSeconds(120)))
+            .signWith(older.getPrivate(), Jwts.SIG.RS256).compact();
+        String newToken = Jwts.builder().header().keyId("new").and()
+            .subject("admin@example.invalid").claim("uid", 42L)
+            .claim("role", "ADMIN").claim("scopes", List.of("services:read"))
+            .issuer(ISSUER).claim("aud", List.of(AUDIENCE))
+            .issuedAt(Date.from(now.minusSeconds(5)))
+            .expiration(Date.from(now.plusSeconds(120)))
+            .signWith(newer.getPrivate(), Jwts.SIG.RS256).compact();
+        during.perform(get("/api/events").header("Authorization", "Bearer " + oldToken))
+            .andExpect(status().isOk());
+        during.perform(get("/api/events").header("Authorization", "Bearer " + newToken))
+            .andExpect(status().isOk());
+        MockMvc afterRetirement = MockMvcBuilders.standaloneSetup(
+            new io.aetheris.audit.AuditController(service))
+            .addFilters(new DirectApiJwtFilter(SECRET, ISSUER, AUDIENCE,
+                pem(newer), "new", "", "", Clock.systemUTC())).build();
+        afterRetirement.perform(get("/api/events").header("Authorization", "Bearer " + oldToken))
+            .andExpect(status().isUnauthorized());
+        afterRetirement.perform(get("/api/events").header("Authorization", "Bearer " + newToken))
+            .andExpect(status().isOk());
+        verify(service, times(3)).recent();
+    }
+
+    @Test
     void invalidKeyAndIncompleteTargetPolicyFailClosed() throws Exception {
         assertThrows(IllegalArgumentException.class,
             () -> new DirectApiJwtFilter(SECRET, ISSUER, AUDIENCE, "invalid", Clock.systemUTC()));
