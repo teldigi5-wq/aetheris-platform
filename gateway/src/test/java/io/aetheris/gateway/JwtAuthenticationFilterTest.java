@@ -25,9 +25,9 @@ class JwtAuthenticationFilterTest {
     @Test
     void validScopedTokenPassesAndVerifiedClaimsOverwriteSpoofedIdentityHeaders() {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
-        String token = token(List.of("users:read"), Instant.now().plusSeconds(300));
+        String token = token(List.of("orchestrator:read"), Instant.now().plusSeconds(300));
         MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/users")
+                MockServerHttpRequest.get("/api/orchestrator")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .header("X-Aetheris-User-Id", "999")
                         .header("X-Aetheris-User-Email", "attacker@example.com")
@@ -48,7 +48,7 @@ class JwtAuthenticationFilterTest {
         assertEquals("42", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Id"));
         assertEquals("user@example.com", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Email"));
         assertEquals("API_CONSUMER", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
-        assertEquals("users:read", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-Scopes"));
+        assertEquals("orchestrator:read", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-Scopes"));
     }
 
     @Test
@@ -123,6 +123,7 @@ class JwtAuthenticationFilterTest {
                 .claim("role", "API_CONSUMER")
                 .claim("uid", 42L)
                 .claim("scopes", scopes)
+                .issuedAt(Date.from(Instant.now().minusSeconds(10)))
                 .expiration(Date.from(expiration))
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();

@@ -249,6 +249,35 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         self.assertNotIn("issueForApprovedAudience", controller)
         self.assertNotIn(".claim(\"tenant_id\"", issuer)
 
+    def test_gateway_signed_principal_claims_mirror_backend_denials(self):
+        gateway = (ROOT / "gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java").read_text()
+        boundary = (ROOT / "gateway/src/test/java/io/aetheris/gateway/GatewayPrincipalBoundaryTest.java").read_text()
+        jwt_baseline = (ROOT / "identity-service/src/main/java/io/aetheris/identity/Role.java").read_text()
+        for role in ("ADMIN", "DEVELOPER", "API_CONSUMER"):
+            self.assertIn(role, jwt_baseline)
+            self.assertIn(role, gateway)
+        for expected in (
+            "verifiedScopes(claims.get(\"scopes\"))",
+            "allowedByRole.containsAll(scopes)",
+            "userId instanceof Long || userId instanceof Integer",
+            "issuedAt.isAfter(Instant.now().plusSeconds(30))",
+            "expires.isAfter(issuedAt)",
+            'role.equals("API_CONSUMER")',
+            "Direct backend access requires privileged role",
+            "ROLE_SCOPES = Map.of(",
+            "Collection<?> values",
+        ):
+            self.assertIn(expected, gateway)
+        for case in (
+            "validConsumerOrchestratorReadAndPrivilegedUserAuditRequestsWork",
+            "consumerCannotReadDirectUsersOrAuditRegardlessOfLegacyScopes",
+            "forgedRoleOrClaimedScopeOutsideActualRoleCeilingIsUnauthorized",
+            "untrustedUidFormatAndMissingOrBadTimestampsNeverBecomePrincipal",
+            "untypedScopesNullScopesMixedCollectionAndOversizedScopeAreDenied",
+        ):
+            self.assertIn(case, boundary)
+        self.assertNotIn("readScopes(claims.get", gateway)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
