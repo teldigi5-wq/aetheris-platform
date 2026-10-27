@@ -278,6 +278,51 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             self.assertIn(case, boundary)
         self.assertNotIn("readScopes(claims.get", gateway)
 
+    def test_review_only_rs256_signing_and_public_only_verification(self):
+        issuer = (ROOT / "identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+        for phrase in (
+            "AETHERIS_IDENTITY_JWT_RS256_PRIVATE_KEY_PEM",
+            "rs256PrivateKey",
+            "Jwts.SIG.RS256",
+            "JwtRs256KeySupport.privateKey(rs256Pem)",
+        ):
+            self.assertIn(phrase, issuer)
+        for service, relative in (
+            ("gateway", "io/aetheris/gateway/JwtAuthenticationFilter.java"),
+            ("user-service", "io/aetheris/users/security/DirectApiJwtFilter.java"),
+            ("audit-service", "io/aetheris/audit/security/DirectApiJwtFilter.java"),
+        ):
+            source = (ROOT / service / "src/main/java" / relative).read_text()
+            self.assertIn("JWT_RS256_PUBLIC_KEY_PEM", source)
+            self.assertIn("JwtRs256KeySupport.publicKey(rs256Pem)", source)
+            self.assertIn('!"RS256".equals(signed.getHeader().getAlgorithm())', source)
+            self.assertIn("Jwts.parser().verifyWith(rs256PublicKey)", source)
+            self.assertNotIn("privateKey(rs256Pem)", source)
+        for service, package in (
+            ("identity-service", "io/aetheris/identity"),
+            ("gateway", "io/aetheris/gateway"),
+            ("user-service", "io/aetheris/users/security"),
+            ("audit-service", "io/aetheris/audit/security"),
+        ):
+            support = (ROOT / service / "src/main/java" / package /
+                       "JwtRs256KeySupport.java").read_text()
+            for phrase in (
+                "PKCS8EncodedKeySpec", "X509EncodedKeySpec",
+                "RSAKey rsa", "bitLength() < 2048",
+                "Invalid RS256 PEM configuration",
+            ):
+                self.assertIn(phrase, support)
+        for file in (
+            "identity-service/src/test/java/io/aetheris/identity/JwtRs256IssuerTest.java",
+            "gateway/src/test/java/io/aetheris/gateway/GatewayRs256VerificationTest.java",
+            "user-service/src/test/java/io/aetheris/users/security/DirectApiRs256VerificationTest.java",
+            "audit-service/src/test/java/io/aetheris/audit/security/DirectApiRs256VerificationTest.java",
+        ):
+            test = (ROOT / file).read_text()
+            self.assertIn("getInstance(\"RSA\")", test)
+            self.assertIn("Jwts.SIG.RS256", test)
+            self.assertIn("assertThrows(", test)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
