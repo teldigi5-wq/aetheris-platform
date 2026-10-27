@@ -1,0 +1,56 @@
+name: B62-G13 Function-only Audited Emergency Writer - Test Only
+on:
+  pull_request:
+    branches: [test/b62g12-revocation-restore-cutover-gates-20261027]
+    paths:
+      - '.github/workflows/b62g13-audited-emergency-privileges.yml'
+      - 'tests/security/b62g13-*'
+      - 'tests/test_b62g13_writer_contract.py'
+      - 'docs/security/B62G13_FUNCTION_ONLY_EMERGENCY_OWNER_REVIEW_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  audited-function-only-writer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact PR source, least-privilege and NO_GO contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g13_writer_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g12_release_readiness.py' -v
+          bash -n tests/security/b62g13-function-only-writer-proof.sh
+          python3 -m py_compile scripts/b62g12_release_readiness.py
+          docker compose version
+      - name: Real authenticated PostgreSQL privilege and transactional audit proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g13-function-only-writer-proof.sh
+          echo B62G13_REAL_FUNCTION_ONLY_ROLE_AND_TRANSACTIONAL_AUDIT_TEST_PASSED
+      - name: Full four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Always destroy synthetic DB and ephemeral private network
+        if: always()
+        shell: bash
+        run: |
+          docker compose \
+            -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            -f tests/security/b62g12-restore-overlay.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G13_SYNTHETIC_DATABASE_AND_NETWORK_DESTROYED
