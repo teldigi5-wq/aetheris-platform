@@ -98,6 +98,34 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         ):
             self.assertIn(requirement, source)
 
+    def test_identity_to_user_owner_binding_is_explicit_and_not_api_enabled(self):
+        source = (ROOT / "user-service/src/test/java/io/aetheris/users/security/SyntheticUserOwnershipBindingTest.java").read_text()
+        users_filter = (ROOT / "user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java").read_text()
+        for required in (
+            'aetheris.object.binding.synthetic',
+            '@JdbcTest(',
+            'spring.flyway.enabled=false',
+            'synthetic_user_owner_bindings',
+            'identity_uid=? AND user_id=? AND tenant_id=?::uuid',
+            'assertFalse(hasExplicitBinding(userA, userA, TENANT_A))',
+            'assertFalse(hasExplicitBinding(userB, userB, TENANT_B))',
+            'assertFalse(hasExplicitBinding(userB, userA, TENANT_B))',
+        ):
+            self.assertIn(required, source)
+        self.assertIn("return privileged && scopes.contains(\"users:read\");", users_filter)
+        self.assertNotIn('SyntheticUserOwnershipBindingTest', users_filter)
+        script = SCRIPT.read_text()
+        for required in (
+            'CREATE TABLE user_stage.synthetic_user_owner_bindings',
+            'identity_uid BIGINT NOT NULL UNIQUE',
+            'tenant_id UUID NOT NULL',
+            'GRANT SELECT ON user_stage.synthetic_user_owner_bindings TO user_runtime',
+            'assert_denied user_runtime "$usrp" "DELETE FROM user_stage.synthetic_user_owner_bindings;"',
+            'assert_denied identity_migrator "$idmp" "SELECT * FROM user_stage.synthetic_user_owner_bindings;"',
+            'THREE_ROLE_SYNTHETIC_CROSS_TENANT_OBJECT_OWNERSHIP_DENIALS_PASS',
+        ):
+            self.assertIn(required, script)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
