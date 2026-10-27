@@ -7,3 +7,6 @@ target/
 node_modules/
 dist/
 coverage/
+
+# Operator-generated application log files, may contain sensitive data.
+observability/logs/

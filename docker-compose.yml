@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: aetheris
       POSTGRES_USER: aetheris
-      POSTGRES_PASSWORD: aetheris
+      POSTGRES_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}
     volumes:
       - aetheris_pg:/var/lib/postgresql/data
     healthcheck:
@@ -15,7 +15,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    environment:
+      # redis-cli inherits REDISCLI_AUTH for maintenance and health probes.
+      REDISCLI_AUTH: ${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}"]
     volumes:
       - aetheris_redis:/data
     healthcheck:
@@ -28,7 +31,7 @@ services:
     image: rabbitmq:3-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: aetheris
-      RABBITMQ_DEFAULT_PASS: aetheris
+      RABBITMQ_DEFAULT_PASS: ${AETHERIS_RABBITMQ_PASSWORD:?Set AETHERIS_RABBITMQ_PASSWORD to a unique local secret}
     volumes:
       - aetheris_rabbitmq:/var/lib/rabbitmq
     healthcheck:
@@ -40,16 +43,18 @@ services:
   user-service:
     build: ./user-service
     environment:
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique 32+ byte signing key}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
-      SPRING_RABBITMQ_PASSWORD: aetheris
+      SPRING_RABBITMQ_PASSWORD: ${AETHERIS_RABBITMQ_PASSWORD:?Set AETHERIS_RABBITMQ_PASSWORD to a unique local secret}
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
@@ -66,10 +71,10 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
-      AETHERIS_BROWSER_REFRESH_COOKIE_SECURE: "false"
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique random signing key (32+ bytes)}
+      AETHERIS_BROWSER_REFRESH_COOKIE_SECURE: "${AETHERIS_BROWSER_REFRESH_COOKIE_SECURE:-true}"
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
@@ -80,13 +85,14 @@ services:
   audit-service:
     build: ./audit-service
     environment:
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique 32+ byte signing key}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
-      SPRING_RABBITMQ_PASSWORD: aetheris
+      SPRING_RABBITMQ_PASSWORD: ${AETHERIS_RABBITMQ_PASSWORD:?Set AETHERIS_RABBITMQ_PASSWORD to a unique local secret}
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
@@ -104,7 +110,7 @@ services:
       ORCHESTRATOR_PORT: 8090
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}
       AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GENERIC:-}
       AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB: ${AETHERIS_CONNECTOR_SECRET_RUNTIME_GITHUB:-}
     depends_on:
@@ -116,10 +122,11 @@ services:
   gateway:
     build: ./gateway
     environment:
-      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-change-me-local-development-secret-32chars}
+      AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique random signing key (32+ bytes)}
       AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${AETHERIS_REDIS_PASSWORD:?Set AETHERIS_REDIS_PASSWORD to a unique Redis secret}
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       redis:
@@ -198,7 +205,7 @@ services:
     command: ["run", "/etc/alloy/config.alloy", "--server.http.listen-addr=0.0.0.0:12345"]
     volumes:
       - ./observability/alloy.alloy:/etc/alloy/config.alloy:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./observability/logs:/var/log/aetheris:ro
     ports:
       - "127.0.0.1:12345:12345"
     depends_on:
@@ -209,7 +216,7 @@ services:
     profiles: ["observability"]
     environment:
       GF_SECURITY_ADMIN_USER: aetheris
-      GF_SECURITY_ADMIN_PASSWORD: aetheris
+      GF_SECURITY_ADMIN_PASSWORD: ${AETHERIS_GRAFANA_ADMIN_PASSWORD:?Set AETHERIS_GRAFANA_ADMIN_PASSWORD}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro

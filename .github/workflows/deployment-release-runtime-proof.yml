@@ -23,6 +23,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: Generate isolated CI-only Compose credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_POSTGRES_PASSWORD AETHERIS_RABBITMQ_PASSWORD AETHERIS_REDIS_PASSWORD AETHERIS_JWT_SECRET AETHERIS_GRAFANA_ADMIN_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -143,6 +152,15 @@ jobs:
       AETHERIS_EXTERNAL_ORCHESTRATOR_CONTAINER: orchestrator-runtime
       AETHERIS_ORCHESTRATOR_URI: http://orchestrator-runtime:8090
     steps:
+      - name: Generate isolated CI-only Compose credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_POSTGRES_PASSWORD AETHERIS_RABBITMQ_PASSWORD AETHERIS_REDIS_PASSWORD AETHERIS_JWT_SECRET AETHERIS_GRAFANA_ADMIN_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:

@@ -23,6 +23,9 @@ HOST_IP = "127.0.0.1"
 def render_compose(*filenames: str) -> dict:
     env = dict(os.environ)
     # Test-only public fixture. Never load developer or production secrets.
+    import secrets
+    for key in ("AETHERIS_POSTGRES_PASSWORD", "AETHERIS_RABBITMQ_PASSWORD", "AETHERIS_REDIS_PASSWORD", "AETHERIS_JWT_SECRET", "AETHERIS_GRAFANA_ADMIN_PASSWORD"):
+        env[key] = secrets.token_hex(32)
     env["AETHERIS_AI_RUNTIME_IMAGE"] = "aetheris-ai-runtime:65a6262717adcd52ac8d8a16ed6f223e299fd74d"
     cmd = ["docker", "compose"]
     for name in filenames:

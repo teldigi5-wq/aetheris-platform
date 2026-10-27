@@ -39,7 +39,7 @@ RUNTIME_DATASOURCE_USERNAME = os.environ.get(
 )
 RUNTIME_DATASOURCE_PASSWORD = os.environ.get(
     "AETHERIS_EXTERNAL_ORCHESTRATOR_DATASOURCE_PASSWORD",
-    "aetheris",
+    os.environ.get("AETHERIS_POSTGRES_PASSWORD", ""),
 )
 TRUTH_BOUNDARY = (
     "HOSTED_RUNTIME evidence proves the core-only Docker Compose path can be configured, "
@@ -240,7 +240,7 @@ def main() -> int:
                 "-e",
                 f"SPRING_DATASOURCE_USERNAME={RUNTIME_DATASOURCE_USERNAME}",
                 "-e",
-                f"SPRING_DATASOURCE_PASSWORD={RUNTIME_DATASOURCE_PASSWORD}",
+                "SPRING_DATASOURCE_PASSWORD",
                 RUNTIME_IMAGE,
             ]
         )
