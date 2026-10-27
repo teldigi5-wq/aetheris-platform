@@ -16,5 +16,14 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+  auth-probe:
+    image: postgres:16-alpine
+    # Separate ephemeral TCP CLIENT. Connecting from inside the server
+    # container can accidentally hit PostgreSQL localhost TRUST auth.
+    # This probe has no server data volume or network port.
+    entrypoint: ["sleep", "3600"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [isolated]
 volumes:
   b62g9_stale_snapshot_data:
