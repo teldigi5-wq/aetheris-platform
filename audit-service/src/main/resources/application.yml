@@ -9,9 +9,13 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
     password: ${SPRING_DATASOURCE_PASSWORD}
   flyway:
-    enabled: true
+    # Deliberately OFF for any existing historical database until an
+    # approved audit schema inventory, restore and baseline plan exists.
+    enabled: ${AETHERIS_AUDIT_FLYWAY_MIGRATION_ENABLED:false}
     table: flyway_audit_schema_history
-    baseline-on-migrate: true
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-on-migrate: true
     baseline-version: "0"
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
