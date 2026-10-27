@@ -35,17 +35,17 @@ jobs:
           bash -n tests/security/b62g10-physical-replication-proof.sh
           python3 -m py_compile tests/security/b62g10-physical-replication-client.py
           docker compose version
-      - name: Full four-module Java security regression
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./mvnw -B -ntp -f pom.xml test
       - name: Actual physical WAL streaming and paused replay revocation denial
         shell: bash
         run: |
           set -euo pipefail
           bash tests/security/b62g10-physical-replication-proof.sh
           echo B62G10_REAL_PHYSICAL_STREAMING_SYNTHETIC_REVOCATION_PASS
+      - name: Full four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
       - name: Always delete both disposable databases and isolated network
         if: always()
         shell: bash
