@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 env:
-  JAVA_VERSION: '21.0.12'
-  NODE_VERSION: '22.23.2'
+  JAVA_VERSION: '21.0.13'
+  NODE_VERSION: '22.23.4'
   POLICY_PYTHON_VERSION: '3.12.11'
 
 jobs:

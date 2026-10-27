@@ -71,7 +71,7 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
 
     compose = ROOT / contract["platform_compose_file"]
     compose_text = compose.read_text(encoding="utf-8") if compose.is_file() else ""
-    discovered_ports = sorted({int(p) for p in re.findall(r'[- ]+["\']?(\d+):\d+', compose_text)})
+    discovered_ports = sorted({int(p) for p in re.findall(r'127\.0\.0\.1:(\d+):\d+', compose_text)})
     expected_ports = sorted(contract["expected_platform_ports"])
     missing_ports = sorted(set(expected_ports) - set(discovered_ports))
     unexpected_ports = sorted(set(discovered_ports) - set(expected_ports))
@@ -88,7 +88,7 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
         "orchestrator-service:",
         f"image: {runtime['required_image_expression']}",
         "AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}",
-        '"8090:8090"',
+        '"127.0.0.1:8090:8090"',
     ]
     missing_external = [marker for marker in external_markers if marker not in external_text]
     forbidden_external = [token for token in (

@@ -1,0 +1,33 @@
+name: Aetheris Compose Host Binding Proof
+on:
+  push:
+    branches:
+      - release/aetheris-compose-network-hardening-20261027
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker-compose*.yml'
+      - 'configs/first-boot-contract.json'
+      - 'scripts/first_boot_preflight.py'
+      - 'tests/test_compose_loopback_boundary.py'
+      - '.github/workflows/compose-host-binding-proof.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compose-loopback-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Verify live Docker Compose rendered port bindings
+        run: |
+          docker compose version
+          python -m unittest tests.test_compose_loopback_boundary -v
+      - name: Assert dependency and readiness contracts
+        run: |
+          python scripts/check_dependency_lockdown.py --scope core
+          python -m unittest tests.test_first_boot_preflight -v

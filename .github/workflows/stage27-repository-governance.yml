@@ -16,10 +16,10 @@ jobs:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
-      - name: Set up Python 3.13.15
+      - name: Set up Python 3.13.18
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
-          python-version: '3.13.15'
+          python-version: '3.13.18'
 
       - name: Compile Stage 27 verifier
         run: python -m py_compile scripts/stage27/repository_governance.py
