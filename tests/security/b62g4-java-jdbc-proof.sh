@@ -32,7 +32,9 @@ print("B62G4_COMPOSE_EFFECTIVE_SECURITY",
       "entrypoint=",repr(java.get("entrypoint")),flush=True)
 assert java.get("build")
 assert str(java["build"].get("dockerfile","")).endswith("/tests/security/b62g4-Dockerfile")
-assert "ALL" in {str(x).upper() for x in java.get("cap_drop",[])}, java.get("cap_drop")
+cap_all = any(str(value).strip().upper() == "ALL" for value in java.get("cap_drop", []))
+print("B62G4_CAPABILITY_DROP_EFFECTIVE", cap_all, flush=True)
+assert cap_all, "Missing explicit ALL capability drop"
 assert "no-new-privileges:true" in java.get("security_opt",[])
 assert java.get("entrypoint")==["sh","-ec"]
 command=java.get("command")
@@ -42,6 +44,10 @@ assert "B62G4RealJdbcRevocationIT" in command[0]
 assert command[0].strip().endswith(" test"), "Maven lifecycle goal is mandatory"
 print("B62G4_ZERO_HOST_PORT_INTERNAL_JAVA_DB_TOPOLOGY")
 '
+if [[ "${B62G4_TOPOLOGY_ONLY:-0}" == "1" ]]; then
+  echo B62G4_TOPOLOGY_PREFLIGHT_PASS
+  exit 0
+fi
 # Image build uses a test-only Dockerfile matching the existing pinned
 # Corretto base/Maven 3.9.11 SHA512 and prefetches JUnit before network isolation.
 "${COMPOSE[@]}" build java-proof
