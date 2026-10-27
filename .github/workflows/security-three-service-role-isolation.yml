@@ -1,0 +1,69 @@
+name: Security Three Service Scoped Audit and DB Role Denials
+on:
+  pull_request:
+    branches: [test/security-shared-db-schema-isolation-20261027]
+    paths:
+      - '.github/workflows/security-three-service-role-isolation.yml'
+      - 'audit-service/src/main/resources/application.yml'
+      - 'audit-service/src/test/java/io/aetheris/audit/SharedDatabaseAuditSchemaIsolationTest.java'
+      - 'scripts/security/rehearse_shared_db_three_roles.sh'
+      - 'tests/test_three_service_roles.py'
+      - 'docs/security/THREE_SERVICE_DB_ROLE_REHEARSAL_20261027.md'
+permissions:
+  contents: read
+jobs:
+  real-audit-migration-and-postgres-role-boundaries:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify exact immutable PR head and safety contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p test_three_service_roles.py -v
+          python3 -m unittest discover -s tests -p test_shared_db_scoped_flyway.py -v
+          bash -n scripts/security/rehearse_shared_db_three_roles.sh
+      - name: Real synthetic PostgreSQL 16 migrations with six authenticated roles
+        shell: bash
+        run: |
+          set -euo pipefail
+          AETHERIS_THREE_ROLE_SYNTHETIC_ONLY=yes bash scripts/security/rehearse_shared_db_three_roles.sh
+          echo THREE_SERVICE_SCOPED_FLYWAY_AND_DATABASE_GRANT_PROOF_COMPLETED
+      - name: Full four-module Java regression, Audit default disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Production closure must remain NO_GO
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security_closure_preflight.py --assert-blocked > closure.json
+          python3 - <<'PY'
+          import json
+          with open("closure.json", encoding="utf-8") as stream:
+              report=json.load(stream)
+          assert report["status"] == "NO_GO"
+          assert report["safe_to_merge_or_deploy"] is False
+          assert len(report["independent_release_attestations_required"]) == 9
+          print("THREE_SERVICE_ROLE_REHEARSAL_NOT_RELEASE_APPROVAL")
+          PY
+      - name: Destroy disposable database even on failure
+        if: always()
+        shell: bash
+        run: |
+          docker ps --filter 'name=^/aetheris-three-roles-' --format '{{.Names}}' |
+            while IFS= read -r name; do
+              docker rm -f "$name" >/dev/null 2>&1 || true
+            done
+          echo THREE_SERVICE_SYNTHETIC_CONTAINER_CLEANUP_COMPLETE
