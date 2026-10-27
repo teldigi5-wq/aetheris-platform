@@ -66,6 +66,8 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             "THREE_ROLE_SECOND_START_HISTORY_AND_SYNTHETIC_ROWS_PRESERVED",
             "pg_dump",
             "pg_restore",
+            "THREE_ROLE_UNKNOWN_AUDIT_LEGACY_REFUSED_WITH_SENTINEL_PRESERVED",
+            "THREE_ROLE_UNKNOWN_AUDIT_LEGACY_FAILED_FOR_UNRELATED_REASON",
             "STAGE45_NO_GO",
         ):
             self.assertIn(phrase, script)
