@@ -1,0 +1,50 @@
+name: Reviewed Migration Required - Compose Never Auto-DDL
+on:
+  pull_request:
+    branches: [security/direct-backend-jwt-auth-review-20261027]
+    paths:
+      - 'docker-compose.yml'
+      - 'docker-compose.core.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'tests/test_safe_compose_ddl_validation.py'
+      - 'tests/test_security_closure_preflight.py'
+      - '.github/workflows/review-only-disable-hibernate-ddl.yml'
+      - 'docs/security/hibernate-validate-no-migration-20261027.md'
+permissions:
+  contents: read
+jobs:
+  rendered-safe-compose-no-migration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact SHA and rendered Compose no-DLL safety checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p test_safe_compose_ddl_validation.py -v
+          python3 -m unittest discover -s tests -p test_security_closure_preflight.py -v
+          python3 -m unittest discover -s tests -p test_direct_backend_jwt_boundary.py -v
+          python3 scripts/security_closure_preflight.py --assert-blocked > closure.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open("closure.json",encoding="utf-8"))
+          assert r["status"]=="NO_GO" and r["safe_to_merge_or_deploy"] is False
+          assert not r["unreviewed_schema_mutation"]
+          assert not r["backend_service_authentication_gaps"]
+          print("RELEASE_CONFIG_NO_AUTO_DDL_BUT_HISTORICAL_MIGRATION_STILL_NO_GO")
+          PY
+      - name: Complete four-module Java regression on exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
