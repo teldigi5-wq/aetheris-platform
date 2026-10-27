@@ -16,9 +16,8 @@ class ClosureReleaseGate(unittest.TestCase):
         status = gate.evaluate(ROOT)
         self.assertEqual(status["status"], "NO_GO")
         self.assertFalse(status["safe_to_merge_or_deploy"])
-        self.assertEqual(len(status["unreviewed_schema_mutation"]), 3)
-        self.assertTrue(all(":UNREVIEWED_AUTO_DDL" in s
-                            for s in status["unreviewed_schema_mutation"]))
+        self.assertEqual(len(status["unreviewed_schema_mutation"]), 0)
+        self.assertEqual(status["unreviewed_schema_mutation"], [])
         self.assertEqual(len(status["backend_service_authentication_gaps"]), 0)
         # Source presence is not authenticated workload identity or multi-tenant certification.
         self.assertEqual(len(status["independent_release_attestations_required"]), 9)
