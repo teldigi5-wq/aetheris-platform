@@ -12,6 +12,9 @@ This follow-up is stacked on PR #327 (Identity/User scoped Flyway on one physica
 4. Spring/Flyway integration is invoked for Identity and User with actual Hibernate validation and for Audit with a JDBC slice. The script authenticates each login over TCP with its own password, checks required synthetic writes/readback, denies cross-service reads/DDL and migration-history mutation, and denies Audit runtime DELETE of its own append-only event table. It repeats all three startup tests, verifies preserved synthetic rows and one history row per schema, and performs an isolated `pg_dump`/`pg_restore` of the **synthetic** database.
 5. Exact-head Ubuntu CI runs source contracts, the genuine ephemeral database rehearsal, full four-module Java tests, and the deliberate Stage45 NO_GO gate. The container is destroyed even on test failure.
 
+
+6. The rehearsal creates a separate, nonempty **synthetic** `legacy_unknown` schema and runs the Audit `@JdbcTest` with `baseline-on-migrate:false`. It expects **Flyway's specific nonempty-schema refusal**, not an arbitrary Java failure, then verifies the synthetic sentinel row is untouched and that no Audit history/event table appeared in that schema. This is not proof of compatibility with real historical databases.
+
 ## Limits and hard blockers
 
 - This is a **test policy** and a proposed database topology, not production database-role deployment. Compose and Kubernetes secrets/roles remain unconfigured for this model.
