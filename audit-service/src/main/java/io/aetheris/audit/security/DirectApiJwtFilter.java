@@ -58,6 +58,14 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private final String mode;
     private final String issuer;
     private final String audience;
+    // Review-only B62-G5 seam: production Autowired constructor always passes null.
+    // No external property, Spring bean or JDBC endpoint can activate this.
+    @FunctionalInterface
+    interface TestOnlyRevocationDecision {
+        boolean allowed(long verifiedUid, String verifiedIssuer, String verifiedKid,
+                        long signedIssuedAtEpoch) throws Exception;
+    }
+    private final TestOnlyRevocationDecision b62g5TestOnlyDecision;
     private static final String ROOT = "/api/events";
 
     @Autowired
@@ -79,6 +87,20 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     public DirectApiJwtFilter(String secret, String issuer, String audience, String mode,
             String publicKey, String kid, String previousPublicKey,
             String previousKid, String previousNotAfter, Clock clock) {
+        this(secret, issuer, audience, mode, publicKey, kid, previousPublicKey,
+            previousKid, previousNotAfter, clock, null);
+    }
+
+    // Package-private test-only construction; never an injectable Spring or
+    // configuration path. The normal production filter remains unchanged.
+    DirectApiJwtFilter(String secret, String issuer, String audience, String mode,
+            String publicKey, String kid, String previousPublicKey,
+            String previousKid, String previousNotAfter, Clock clock,
+            TestOnlyRevocationDecision injectedDecision) {
+        if (injectedDecision != null && !"rs256".equals(mode)) {
+            throw new IllegalArgumentException("Revocation proof requires RS256 signing");
+        }
+        this.b62g5TestOnlyDecision = injectedDecision;
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
@@ -213,6 +235,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         }
 
         final Claims claims;
+        final String verifiedSignerKid;
         try {
             String token = headers.get(0).substring("Bearer ".length());
             if (token.isBlank() || token.contains(" ") || token.contains("\t")) {
@@ -250,6 +273,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             if (previousKeyVerified && !clock.instant().isBefore(previousKeyNotAfter)) {
                 throw new SecurityException("Previous public signing key expired");
             }
+            verifiedSignerKid = signed.getHeader().getKeyId();
             claims = signed.getPayload();
             // requireAudience() checks membership; reject cross-workload multi-audience tokens.
             if (!java.util.Set.of(audience).equals(claims.getAudience())) {
@@ -285,6 +309,28 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         if (!administrator || !authorizedScope) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Insufficient permission");
             return;
+        }
+        // B62-G5 test-only reference: even a correctly signed and scoped JWT
+        // is rejected when emergency state denies or the decision store fails.
+        // The existing Spring constructor installs NULL: no deployed hookup.
+        if (b62g5TestOnlyDecision != null) {
+            Object uidClaim = claims.get("uid");
+            if (!isPositiveIntegralUid(uidClaim)) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Revocation identity invalid");
+                return;
+            }
+            long signedUid = uidClaim instanceof Integer value
+                    ? value.longValue() : ((Long) uidClaim).longValue();
+            try {
+                if (!b62g5TestOnlyDecision.allowed(signedUid, issuer,
+                        verifiedSignerKid, claims.getIssuedAt().toInstant().getEpochSecond())) {
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Bearer token rejected");
+                    return;
+                }
+            } catch (Exception storeUnavailableOrTimeout) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Bearer token rejected");
+                return;
+            }
         }
         chain.doFilter(request, response);
     }
