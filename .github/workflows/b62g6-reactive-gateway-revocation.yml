@@ -1,0 +1,45 @@
+name: B62-G6 Reactive Gateway JWT Revocation Seam - Test Only
+on:
+  pull_request:
+    branches: [test/b62g5-direct-servlet-revocation-seams-20261027]
+    paths:
+      - '.github/workflows/b62g6-reactive-gateway-revocation.yml'
+      - 'gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java'
+      - 'gateway/src/test/java/io/aetheris/gateway/B62G6ReactiveGatewayRevocationTest.java'
+      - 'tests/test_b62g6_reactive_gateway_seam.py'
+      - 'docs/security/B62G6_REACTIVE_GATEWAY_SEAM_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  test-only-reactive-gateway:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact PR SHA and default-disabled nonblocking policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g6_reactive_gateway_seam.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g5_servlet_filter_seams.py' -v
+      - name: Four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Actual Gateway filter ephemeral RS256 reactive lookup regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=B62G6ReactiveGatewayRevocationTest test
+          echo B62G6_REAL_GATEWAY_TEST_ONLY_NONBLOCKING_FAIL_CLOSED_ACCEPTANCE_PASS

@@ -26,6 +26,7 @@ import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.Collection;
@@ -51,6 +52,15 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private final String mode;
     private final String issuer;
     private final String audience;
+    // B62-G6: TEST-ONLY reactive revocation boundary. No production bean,
+    // environment flag or database client is connected to this callback.
+    @FunctionalInterface
+    interface TestOnlyReactiveRevocation {
+        Mono<Boolean> allowed(long verifiedUid, String verifiedIssuer,
+                              String verifiedKid, long issuedAtEpoch);
+    }
+    private static final Duration B62G6_TEST_ONLY_LOOKUP_TIMEOUT = Duration.ofMillis(200);
+    private final TestOnlyReactiveRevocation b62g6TestOnlyRevocation;
 
     @Autowired
     public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret:}") String secret,
@@ -71,6 +81,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public JwtAuthenticationFilter(String secret, String issuer, String audience, String mode,
             String publicKey, String kid, String previousPublicKey,
             String previousKid, String previousNotAfter, Clock clock) {
+        this(secret, issuer, audience, mode, publicKey, kid, previousPublicKey,
+            previousKid, previousNotAfter, clock, null);
+    }
+
+    // Package-private test constructor ONLY. The Spring @Autowired constructor
+    // always calls the public clock constructor and sets the callback to null.
+    JwtAuthenticationFilter(String secret, String issuer, String audience, String mode,
+            String publicKey, String kid, String previousPublicKey,
+            String previousKid, String previousNotAfter, Clock clock,
+            TestOnlyReactiveRevocation revocation) {
+        if (revocation != null && !"rs256".equals(mode)) {
+            throw new IllegalArgumentException("Revocation proof requires RS256 signing");
+        }
+        this.b62g6TestOnlyRevocation = revocation;
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
@@ -288,31 +312,65 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
             }
 
-            // This attribute is never copied from request headers. Only signed,
-            // in-scope tokens are permitted to select a per-user limiter bucket.
-            if (isPositiveIntegralUid(userId)) {
-                exchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE, String.valueOf(userId));
+            if (b62g6TestOnlyRevocation != null) {
+                // Refuse nonintegral principal identity even on Orchestrator.
+                // Only signed and fully authorized claims reach the reader.
+                if (!isPositiveIntegralUid(userId)) {
+                    return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                            "Revocation principal identity invalid");
+                }
+                long trustedUid = userId instanceof Integer integerId
+                        ? integerId.longValue() : ((Long) userId).longValue();
+                String verifiedKid = signed.getHeader().getKeyId();
+                long issuedEpoch = issuedAt.toInstant().getEpochSecond();
+
+                // Never block WebFlux/Netty waiting for JDBC. The injected
+                // callback must be nonblocking, is bounded, and fails closed.
+                // Synchronous callback throws, empty publisher, network error
+                // and timeout all DENY. No allow result may be cached.
+                return Mono.defer(() -> {
+                        Mono<Boolean> result = b62g6TestOnlyRevocation.allowed(
+                                trustedUid, issuer, verifiedKid, issuedEpoch);
+                        return result == null
+                                ? Mono.error(new IllegalStateException("Missing revocation decision"))
+                                : result;
+                    })
+                    .timeout(B62G6_TEST_ONLY_LOOKUP_TIMEOUT)
+                    .onErrorReturn(false)
+                    .defaultIfEmpty(false)
+                    .flatMap(allowed -> Boolean.TRUE.equals(allowed)
+                        ? forwardVerified(exchange, chain, userId, email, role, scopes)
+                        : error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                                "Bearer token rejected"));
             }
-
-            ServerWebExchange authenticatedExchange = exchange.mutate()
-                    .request(builder -> builder.headers(headers -> {
-                        headers.remove("X-Aetheris-User-Id");
-                        headers.remove("X-Aetheris-User-Email");
-                        headers.remove("X-Aetheris-User-Role");
-                        headers.remove("X-Aetheris-Scopes");
-                        headers.set("X-Aetheris-User-Email", email);
-                        headers.set("X-Aetheris-User-Role", role);
-                        headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
-                        if (isPositiveIntegralUid(userId)) {
-                            headers.set("X-Aetheris-User-Id", String.valueOf(userId));
-                        }
-                    }))
-                    .build();
-
-            return chain.filter(authenticatedExchange);
+            return forwardVerified(exchange, chain, userId, email, role, scopes);
         } catch (Exception exception) {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid or expired access token");
         }
+    }
+
+    // Identity propagation and per-user limiter attributes are written only
+    // AFTER the test-only revocation gate (or normal production JWT policy).
+    private Mono<Void> forwardVerified(ServerWebExchange exchange, GatewayFilterChain chain,
+                                       Object userId, String email, String role, Set<String> scopes) {
+        if (isPositiveIntegralUid(userId)) {
+            exchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE, String.valueOf(userId));
+        }
+        ServerWebExchange authenticatedExchange = exchange.mutate()
+                .request(builder -> builder.headers(headers -> {
+                    headers.remove("X-Aetheris-User-Id");
+                    headers.remove("X-Aetheris-User-Email");
+                    headers.remove("X-Aetheris-User-Role");
+                    headers.remove("X-Aetheris-Scopes");
+                    headers.set("X-Aetheris-User-Email", email);
+                    headers.set("X-Aetheris-User-Role", role);
+                    headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
+                    if (isPositiveIntegralUid(userId)) {
+                        headers.set("X-Aetheris-User-Id", String.valueOf(userId));
+                    }
+                }))
+                .build();
+        return chain.filter(authenticatedExchange);
     }
 
     private static boolean isPositiveIntegralUid(Object uid) {
