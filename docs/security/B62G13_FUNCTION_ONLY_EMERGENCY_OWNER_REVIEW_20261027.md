@@ -20,7 +20,7 @@ The approved *synthetic* operations are `b62g13_raise_epoch(principal, cutoff, r
 
 ## Remaining owner-reviewable production integration gates
 
-- **Historical migration and restore (#242):** Identify actual Identity/Audit/User DB ownership, Flyway checksums, schema history and baseline rules, apply only after DBA-approved versioned migrations and representative restore. G13 SQL is **not** a Flyway migration.
+- **Historical migration and restore (#242):** Before any historical migration, identify actual Identity/Audit/User DB ownership, Flyway checksums, schema history and baseline rules, apply only after DBA-approved versioned migrations and representative restore. G13 SQL is **not** a Flyway migration.
 - **Real service identity and read-after-write:** Issue, scope, rotate and revoke distinct workload authentication; protect transport; ensure non-stale primary **read-after-write** for Gateway, User and Audit and deny any network/read error. No production JDBC or reactive client exists yet.
 - **Emergency audit and authorization:** Require human dual-control and durable external audit before issuing any real signer/UID revocation; prevent a compromised signer from minting post-cutoff tokens; never expose anonymous emergency functions or frontend secrets.
 - **Independent tenant/object authorization (#251):** JWT `uid` alone is not authorization to access a database row; verify resource ownership and ADMIN policy in each service separately.
