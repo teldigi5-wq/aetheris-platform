@@ -4,7 +4,8 @@
 services:
   java-proof:
     build:
-      context: ../../identity-service
+      context: ../..
+      dockerfile: tests/security/b62g4-Dockerfile
       target: build
     working_dir: /app
     cap_drop: ["ALL"]
