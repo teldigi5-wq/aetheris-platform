@@ -36,6 +36,8 @@ a historical symmetric secret.
   RSA acceptance, HMAC downgrade rejection, and legacy missing-key refusal.
   Source tests also assert the RSA mode does not install an HMAC key.
 
+Identity and Gateway also change their `application.yml` placeholders to `${AETHERIS_JWT_SECRET:}` so Spring can resolve an absent legacy secret; the constructors still enforce a >=32-character HMAC secret when RSA mode is NOT configured.
+
 No RS256 key is committed; no production configuration change; no addition
 of new HTTP endpoints, privileges, database schema, tenant mappings or
 deployment. All prior #337 key-ID rotation protections remain enabled when
