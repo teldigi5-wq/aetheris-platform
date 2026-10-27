@@ -155,6 +155,8 @@ class DockerComposeSecurityBoundary(unittest.TestCase):
                 self.assertNotIn("SPRING_DATASOURCE_PASSWORD: aetheris", data)
         boundary = (ROOT/"tools/core_deployment_boundary_smoke.py").read_text("utf-8")
         self.assertIn('os.environ.get("AETHERIS_POSTGRES_PASSWORD", "")', boundary)
+        # The external runtime must inherit the secret through env, not argv.
+        self.assertIn('os.environ["SPRING_DATASOURCE_PASSWORD"] = RUNTIME_DATASOURCE_PASSWORD', boundary)
         self.assertNotIn('f"SPRING_DATASOURCE_PASSWORD={RUNTIME_DATASOURCE_PASSWORD}"', boundary)
 
     def test_observability_has_no_docker_control_socket(self):
