@@ -145,4 +145,25 @@ docker exec "$container" createdb -U postgres synthetic_restored
 docker exec "$container" pg_restore --exit-on-error -U postgres -d synthetic_restored /tmp/three-role-synthetic.dump
 [[ "$(docker exec "$container" psql -X -qAt -U postgres -d synthetic_restored -c "SELECT count(*) FROM audit_stage.audit_events WHERE event_id='evt-synthetic-role';")" == 1 ]] || exit 1
 echo THREE_ROLE_SYNTHETIC_BACKUP_RESTORE_SUCCESS
+# Fail closed on an unknown *synthetic* legacy schema. A failed Java test
+# only counts as proof when Maven's output names Flyway's nonempty-schema
+# refusal; an unrelated context/JUnit failure must never count as success.
+admin "CREATE SCHEMA legacy_unknown AUTHORIZATION audit_migrator;"
+admin "CREATE TABLE legacy_unknown.historical_sentinel(id integer PRIMARY KEY, marker text NOT NULL);"
+admin "INSERT INTO legacy_unknown.historical_sentinel VALUES (1, 'untouched');"
+legacy_log="$(mktemp)"
+if run_migration audit_migrator "$aump" legacy_unknown audit-service SharedDatabaseAuditSchemaIsolationTest aetheris.audit.shared.synthetic >"$legacy_log" 2>&1; then
+  rm -f "$legacy_log"
+  echo THREE_ROLE_UNKNOWN_AUDIT_LEGACY_MIGRATION_UNEXPECTEDLY_SUCCEEDED; exit 1
+fi
+if ! grep -Eiq 'Found non-empty schema|non-empty schema\\(s\\)' "$legacy_log"; then
+  tail -n 35 "$legacy_log"
+  rm -f "$legacy_log"
+  echo THREE_ROLE_UNKNOWN_AUDIT_LEGACY_FAILED_FOR_UNRELATED_REASON; exit 1
+fi
+rm -f "$legacy_log"
+[[ "$(admin "SELECT marker FROM legacy_unknown.historical_sentinel WHERE id=1;")" == 'untouched' ]] || exit 1
+[[ "$(admin "SELECT count(*) FROM information_schema.tables WHERE table_schema='legacy_unknown' AND table_name='flyway_audit_schema_history';")" == 0 ]] || exit 1
+[[ "$(admin "SELECT count(*) FROM information_schema.tables WHERE table_schema='legacy_unknown' AND table_name='audit_events';")" == 0 ]] || exit 1
+echo THREE_ROLE_UNKNOWN_AUDIT_LEGACY_REFUSED_WITH_SENTINEL_PRESERVED
 echo THREE_ROLE_REVIEW_ONLY_NO_HISTORICAL_MIGRATION_STAGE45_NO_GO
