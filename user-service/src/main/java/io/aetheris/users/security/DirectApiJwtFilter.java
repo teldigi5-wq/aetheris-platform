@@ -67,11 +67,13 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             ? Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)) : null;
         this.expectedIssuer = issuer;
         this.expectedAudience = audience;
-        boolean hasIssuer = issuer != null && !issuer.isBlank();
-        boolean hasAudience = audience != null && !audience.isBlank();
+        // Even a whitespace-only env value is an explicit, INVALID attempt
+        // at configuration. Never treat it as absent and downgrade to legacy.
+        boolean hasIssuer = issuer != null && !issuer.isEmpty();
+        boolean hasAudience = audience != null && !audience.isEmpty();
         this.strictIssuerAudience = hasIssuer || hasAudience;
         this.issuerAudiencePolicyReady = !strictIssuerAudience
-            || (hasIssuer && hasAudience
+            || (hasIssuer && hasAudience && !issuer.isBlank() && !audience.isBlank()
                 && issuer.equals(issuer.trim()) && audience.equals(audience.trim())
                 && issuer.length() <= 255 && audience.length() <= 128);
     }
