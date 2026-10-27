@@ -32,8 +32,7 @@ class B62G7SourceContract(unittest.TestCase):
             self.assertIn("class B62G7SharedHttpContractIT",src)
             self.assertIn('KID = "b62g7-synthetic-current"',src)
             self.assertIn("Instant.parse(\"2026-10-27T09:00:00Z\")",src)
-            self.assertIn("generator.initialize(3072)" if module == "gateway"
-                          else "g.initialize(3072)",src)
+            self.assertIn("g.initialize(3072)",src)
             self.assertIn("Jwts.SIG.RS256",src)
             self.assertIn("127.0.0.1:15377/decision",src)
             self.assertIn("response.statusCode() == 200",src)
