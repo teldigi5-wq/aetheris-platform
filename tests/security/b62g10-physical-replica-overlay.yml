@@ -1,0 +1,28 @@
+# B62-G10 disposable actual PostgreSQL 16 WAL streaming replica.
+# Zero published host ports, separate temporary TCP authentication client.
+# NOT a production replication topology, promotion controller, or failover.
+services:
+  replica:
+    image: postgres:16-alpine
+    user: "0:0"
+    entrypoint: ["sh", "/tests/replica-bootstrap.sh"]
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      PGPASSWORD: b62g10-replica-test-only-password
+    volumes:
+      - b62g10_replica_volume:/var/lib/postgresql/data
+      - ./b62g10-replica-bootstrap.sh:/tests/replica-bootstrap.sh:ro
+    networks: [isolated]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U b62g_synthetic -d b62g_synthetic"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+  auth-probe:
+    image: postgres:16-alpine
+    entrypoint: ["sleep", "3600"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [isolated]
+volumes:
+  b62g10_replica_volume:
