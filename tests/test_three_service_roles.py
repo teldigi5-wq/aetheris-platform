@@ -179,6 +179,43 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
                 self.assertIn(test, tests)
             self.assertNotIn('tenant_id', source)
 
+    def test_identity_issuer_and_gateway_per_route_audience_are_opt_in(self):
+        identity = (ROOT / "identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+        identity_test = (ROOT / "identity-service/src/test/java/io/aetheris/identity/JwtIssuerAudienceIssuanceTest.java").read_text()
+        gateway = (ROOT / "gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java").read_text()
+        gateway_test = (ROOT / "gateway/src/test/java/io/aetheris/gateway/GatewayTargetedJwtContractTest.java").read_text()
+        for text_fragment in (
+            "AETHERIS_IDENTITY_JWT_ISSUER", "AETHERIS_IDENTITY_JWT_AUDIENCE",
+            'builder.issuer(issuer).claim("aud", java.util.List.of(audience))',
+            "Identity issuer/audience policy incomplete or invalid",
+        ):
+            self.assertIn(text_fragment, identity)
+        self.assertNotIn('.claim("tenant_id"', identity)
+        for text_fragment in (
+            "AETHERIS_GATEWAY_JWT_ISSUER",
+            "AETHERIS_GATEWAY_JWT_USERS_AUDIENCE",
+            "AETHERIS_GATEWAY_JWT_AUDIT_AUDIENCE",
+            "AETHERIS_GATEWAY_JWT_ORCHESTRATOR_AUDIENCE",
+            "strictTargetedMode",
+            "claims.getAudience().size() != 1",
+            "headers.remove(\"X-Aetheris-Tenant-Id\")",
+            "HttpStatus.SERVICE_UNAVAILABLE",
+        ):
+            self.assertIn(text_fragment, gateway)
+        for method in (
+            "targetedIssuerProducesRealSingleAudienceSignedJwt",
+            "legacyDefaultsPreserveUnchangedClaimContract",
+            "partialBlankOrMalformedTargetSettingsFailClosedOnConstruction",
+        ):
+            self.assertIn(method, identity_test)
+        for method in (
+            "exactSignedTargetAdmitsOnlyTheIntendedServiceRoute",
+            "missingIssuerMissingAudienceAndMultipleRecipientsAreRejected",
+            "partiallyConfiguredRouteFailsClosedWith503NotLegacyFallback",
+            "emptyPolicyPreservesLegacyWhileStrippingSpoofedTenantHeader",
+        ):
+            self.assertIn(method, gateway_test)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
