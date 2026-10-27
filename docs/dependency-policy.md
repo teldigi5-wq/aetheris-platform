@@ -11,7 +11,7 @@ This platform repository owns dependency lockdown for the retained core: gateway
 - Node direct dependencies and development dependencies must use exact versions. `latest`, `*`, caret, tilde, and other floating selectors are not permitted.
 - `dashboard/package-lock.json` is mandatory and must be installed with `npm ci`; CI must never regenerate the graph implicitly with `npm install`.
 - Maven is executed through the committed Maven Wrapper for repository builds. The wrapper is pinned to wrapper 3.3.4 and Maven 3.9.11. Java service container builds likewise pin Maven 3.9.11 and verify the downloaded Maven archive by its exact SHA-512. Runtime dependency-tree snapshots for the retained Java services are committed under `build-evidence/maven/` because Maven has no native lockfile equivalent.
-- CI pins the operating-system runner, Java, Node, Python used by policy tooling, and third-party GitHub Actions. Platform application container base images must use immutable `tag@sha256:<digest>` references rather than mutable tags.
+- CI pins the operating-system runner, Java 21.0.13, Node 22.23.4, Python 3.13.18 used by policy tooling, and third-party GitHub Actions. Platform application container base images must use immutable `tag@sha256:<digest>` references rather than mutable tags.
 - Java service runtime images must declare an explicit non-root `USER`; build stages may use elevated privileges only as an isolated image-build concern.
 - The build timestamp used for Maven artifacts is fixed through `.mvn/maven.config` so archive metadata does not change solely because the build was rerun later.
 
