@@ -27,6 +27,7 @@ assert pg["environment"]["POSTGRES_USER"]=="b62g_synthetic"
 assert pg["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-production"
 java=d["services"]["java-proof"]
 assert java.get("build")
+assert str(java["build"].get("dockerfile","")).endswith("/tests/security/b62g4-Dockerfile")
 assert java.get("cap_drop")==["ALL"]
 assert "no-new-privileges:true" in java.get("security_opt",[])
 assert java.get("entrypoint")==["sh","-ec"]
@@ -37,8 +38,8 @@ assert "B62G4RealJdbcRevocationIT" in command[0]
 assert command[0].strip().endswith(" test"), "Maven lifecycle goal is mandatory"
 print("B62G4_ZERO_HOST_PORT_INTERNAL_JAVA_DB_TOPOLOGY")
 '
-# Image build uses the existing sha256-pinned identity-service Dockerfile,
-# verifying Maven 3.9.11 downloaded archive SHA512 before any test code runs.
+# Image build uses a test-only Dockerfile matching the existing pinned
+# Corretto base/Maven 3.9.11 SHA512 and prefetches JUnit before network isolation.
 "${COMPOSE[@]}" build java-proof
 "${COMPOSE[@]}" up -d --wait --wait-timeout 120 postgres
 PSQL=(psql -X -qAt -v ON_ERROR_STOP=1 -U b62g_synthetic -d b62g_synthetic)
