@@ -35,6 +35,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_b62g2_contract.py' -v
           bash -n tests/security/b62g4-java-jdbc-proof.sh
           docker compose version
+          B62G4_TOPOLOGY_ONLY=1 bash tests/security/b62g4-java-jdbc-proof.sh
       - name: Full four-module Java reactor regression
         shell: bash
         run: |
