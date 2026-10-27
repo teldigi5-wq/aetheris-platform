@@ -16,6 +16,7 @@ import java.util.Date;
 public class JwtService {
     private final SecretKey key;
     private final PrivateKey rs256PrivateKey;
+    private final String rs256KeyId;
     private final long expirationSeconds;
     private final String issuer;
     private final String audience;
@@ -30,7 +31,8 @@ public class JwtService {
                       @Value("${AETHERIS_IDENTITY_TARGETED_TOKENS_ENABLED:false}")
                       boolean approvedTargetIssuanceEnabled,
                       @Value("${AETHERIS_IDENTITY_JWT_RS256_PRIVATE_KEY_PEM:}")
-                      String rs256Pem) {
+                      String rs256Pem,
+                      @Value("${AETHERIS_IDENTITY_JWT_RS256_KEY_ID:}") String rs256KeyId) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
@@ -54,6 +56,12 @@ public class JwtService {
         if (rs256Pem != null && !rs256Pem.isEmpty() && !anyPolicySet) {
             throw new IllegalArgumentException("RS256 issuance requires issuer and audience");
         }
+        if (rs256KeyId != null && !rs256KeyId.isEmpty() &&
+            ((rs256Pem == null || rs256Pem.isEmpty()) ||
+             !rs256KeyId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,63}"))) {
+            throw new IllegalArgumentException("RS256 key ID requires reviewed private signing key");
+        }
+        this.rs256KeyId = rs256KeyId == null || rs256KeyId.isEmpty() ? null : rs256KeyId;
         this.rs256PrivateKey = rs256Pem == null || rs256Pem.isEmpty()
             ? null : JwtRs256KeySupport.privateKey(rs256Pem);
         // The service cannot run with target minting switched on but an
@@ -66,16 +74,21 @@ public class JwtService {
 
     // Test-only compatibility constructors. Production Spring autowires six.
     JwtService(String secret, long expirationSeconds) {
-        this(secret, expirationSeconds, "", "", false, "");
+        this(secret, expirationSeconds, "", "", false, "", "");
     }
 
     JwtService(String secret, long expirationSeconds, String issuer, String audience) {
-        this(secret, expirationSeconds, issuer, audience, false, "");
+        this(secret, expirationSeconds, issuer, audience, false, "", "");
     }
 
     JwtService(String secret, long expirationSeconds, String issuer, String audience,
                boolean approvedTargetIssuanceEnabled) {
-        this(secret, expirationSeconds, issuer, audience, approvedTargetIssuanceEnabled, "");
+        this(secret, expirationSeconds, issuer, audience, approvedTargetIssuanceEnabled, "", "");
+    }
+
+    JwtService(String secret, long expirationSeconds, String issuer, String audience,
+               boolean enableTarget, String privatePem) {
+        this(secret, expirationSeconds, issuer, audience, enableTarget, privatePem, "");
     }
 
     private static boolean validTarget(String value, int maxLength) {
@@ -97,6 +110,9 @@ public class JwtService {
             // Exactly one intended backend: this token cannot be a general
             // permission grant to ALL gateway routes or all services.
             builder.issuer(issuer).claim("aud", java.util.List.of(audience));
+        }
+        if (rs256PrivateKey != null && rs256KeyId != null) {
+            builder.header().keyId(rs256KeyId).and();
         }
         return (rs256PrivateKey == null
                 ? builder.signWith(key) : builder.signWith(rs256PrivateKey, Jwts.SIG.RS256))
@@ -134,6 +150,9 @@ public class JwtService {
                 .claim("aud", java.util.List.of(target.audience()))
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(cappedLifetime)));
+        if (rs256PrivateKey != null && rs256KeyId != null) {
+            builder.header().keyId(rs256KeyId).and();
+        }
         return (rs256PrivateKey == null
                 ? builder.signWith(key) : builder.signWith(rs256PrivateKey, Jwts.SIG.RS256))
                 .compact();
