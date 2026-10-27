@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.crypto.SecretKey;
+import java.security.PublicKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -32,6 +33,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private static final String PREFIX = "/api/users";
     private static final String SIGNED_ID_ATTRIBUTE = "aetheris.verified.uid";
     private final SecretKey key;
+    private final PublicKey rs256PublicKey;
     private final Clock clock;
     private final String expectedIssuer;
     private final String expectedAudience;
@@ -47,8 +49,9 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     public DirectApiJwtFilter(
         @Value("${AETHERIS_JWT_SECRET:}") String secret,
         @Value("${AETHERIS_BACKEND_JWT_ISSUER:}") String issuer,
-        @Value("${AETHERIS_BACKEND_JWT_AUDIENCE:}") String audience) {
-        this(secret, issuer, audience, Clock.systemUTC());
+        @Value("${AETHERIS_BACKEND_JWT_AUDIENCE:}") String audience,
+        @Value("${AETHERIS_BACKEND_JWT_RS256_PUBLIC_KEY_PEM:}") String rs256Pem) {
+        this(secret, issuer, audience, rs256Pem, Clock.systemUTC());
     }
 
     // Legacy tests and call sites keep existing behavior until an approved rollout.
@@ -62,16 +65,25 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     }
 
     DirectApiJwtFilter(String secret, String issuer, String audience, Clock clock) {
+        this(secret, issuer, audience, "", clock);
+    }
+
+    DirectApiJwtFilter(String secret, String issuer, String audience,
+                       String rs256Pem, Clock clock) {
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
         this.key = secret != null && secret.length() >= 32
             ? Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)) : null;
+        // Review-only: a configured public key selects exclusive RS256
+        // verification. A bad PEM fails service initialization, never HS fallback.
+        this.rs256PublicKey = rs256Pem == null || rs256Pem.isEmpty()
+            ? null : JwtRs256KeySupport.publicKey(rs256Pem);
         this.expectedIssuer = issuer;
         this.expectedAudience = audience;
         // Even a whitespace-only env value is an explicit, INVALID attempt
         // at configuration. Never treat it as absent and downgrade to legacy.
         boolean hasIssuer = issuer != null && !issuer.isEmpty();
         boolean hasAudience = audience != null && !audience.isEmpty();
-        this.strictIssuerAudience = hasIssuer || hasAudience;
+        this.strictIssuerAudience = hasIssuer || hasAudience || rs256PublicKey != null;
         this.issuerAudiencePolicyReady = !strictIssuerAudience
             || (hasIssuer && hasAudience && !issuer.isBlank() && !audience.isBlank()
                 && issuer.equals(issuer.trim()) && audience.equals(audience.trim())
@@ -111,7 +123,14 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         final String role;
         final Set<String> scopes;
         try {
-            claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            var signed = (rs256PublicKey == null
+                ? Jwts.parser().verifyWith(key)
+                : Jwts.parser().verifyWith(rs256PublicKey))
+                .build().parseSignedClaims(token);
+            if (rs256PublicKey != null && !"RS256".equals(signed.getHeader().getAlgorithm())) {
+                throw new IllegalArgumentException("Expected RS256 signature");
+            }
+            claims = signed.getPayload();
             // Do not trust token-scoped claims until the signature is verified.
             // The audience must be the SINGLE backend intended recipient; a
             // multi-audience token is not an authorization shortcut.

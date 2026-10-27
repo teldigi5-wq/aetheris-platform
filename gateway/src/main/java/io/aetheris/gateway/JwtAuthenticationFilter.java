@@ -18,6 +18,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
+import java.security.PublicKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
@@ -35,6 +36,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         "API_CONSUMER", Set.of("users:read", "services:read", "orchestrator:read")
     );
     private final SecretKey key;
+    private final PublicKey rs256PublicKey;
     private final String expectedIssuer;
     private final String usersAudience;
     private final String auditAudience;
@@ -48,24 +50,33 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         @Value("${AETHERIS_GATEWAY_JWT_ISSUER:}") String issuer,
         @Value("${AETHERIS_GATEWAY_JWT_USERS_AUDIENCE:}") String usersAudience,
         @Value("${AETHERIS_GATEWAY_JWT_AUDIT_AUDIENCE:}") String auditAudience,
-        @Value("${AETHERIS_GATEWAY_JWT_ORCHESTRATOR_AUDIENCE:}") String orchestratorAudience) {
+        @Value("${AETHERIS_GATEWAY_JWT_ORCHESTRATOR_AUDIENCE:}") String orchestratorAudience,
+        @Value("${AETHERIS_GATEWAY_JWT_RS256_PUBLIC_KEY_PEM:}") String rs256Pem) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        // Public key verification never attempts legacy HMAC fallback.
+        this.rs256PublicKey = rs256Pem == null || rs256Pem.isEmpty()
+            ? null : JwtRs256KeySupport.publicKey(rs256Pem);
         this.expectedIssuer = issuer;
         this.usersAudience = usersAudience;
         this.auditAudience = auditAudience;
         this.orchestratorAudience = orchestratorAudience;
         // A partially set policy must NOT revert to legacy authorization.
-        this.strictTargetedMode = nonEmpty(issuer) || nonEmpty(usersAudience)
+        this.strictTargetedMode = rs256PublicKey != null || nonEmpty(issuer) || nonEmpty(usersAudience)
             || nonEmpty(auditAudience) || nonEmpty(orchestratorAudience);
         this.issuerConfigurationReady = !strictTargetedMode || valid(issuer, 255);
     }
 
     // Only existing tests and deliberate direct construction use legacy mode.
     JwtAuthenticationFilter(String secret) {
-        this(secret, "", "", "", "");
+        this(secret, "", "", "", "", "");
+    }
+
+    JwtAuthenticationFilter(String secret, String issuer, String users,
+                            String audit, String orchestrator) {
+        this(secret, issuer, users, audit, orchestrator, "");
     }
 
     private static boolean nonEmpty(String value) {
@@ -112,11 +123,15 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         String token = authorization.substring(7).trim();
         try {
-            Claims claims = Jwts.parser()
-                    .verifyWith(key)
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
+            var signed = (rs256PublicKey == null
+                    ? Jwts.parser().verifyWith(key)
+                    : Jwts.parser().verifyWith(rs256PublicKey))
+                    .build().parseSignedClaims(token);
+            if (rs256PublicKey != null && !"RS256".equals(signed.getHeader().getAlgorithm())) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                        "Expected RS256 signature");
+            }
+            Claims claims = signed.getPayload();
 
             if (strictTargetedMode && (
                 !expectedIssuer.equals(claims.getIssuer())
