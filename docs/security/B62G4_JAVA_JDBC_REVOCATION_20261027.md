@@ -1,0 +1,23 @@
+# B62-G4 — Real JJWT RS256 signatures plus live PostgreSQL JDBC, in disposable CI only
+
+**27 October 2026 · REVIEW DRAFT · NOT INTEGRATED**
+
+## Evidence lineage
+
+B62-G1 (draft #302) verified monotonic synthetic principal revocation epochs, blocked signer IDs, concurrent PostgreSQL writers, restart durability, and fail-closed shell lookup. B62-G2 (draft #303) verified a synthetic Python JWT reader and a read-only database role through real PostgreSQL. B62-G3 (draft #307, exact passing commit `900cf04f6bce4c46e0535ca349f934ca4cd468ce`) verified genuine ephemeral 3072-bit RSA JJWT signature and claim checks in Java **before** an in-memory revocation callback. B62-G4 bridges that **test-only** gap with actual Java JDBC over the same disposable Postgres schema, not production Gateway/User/Audit integration.
+
+## Tested implementation
+
+`identity-service/src/test/.../B62G4RealJdbcRevocationIT.java` is explicitly selected by `-Dtest`; it never registers a Spring component, runtime route, or production datasource. It generates fresh 3072-bit RSA signing keys inside each isolated CI test process and uses `Jwts.builder().signWith(..., Jwts.SIG.RS256)` and `Jwts.parser().verifyWith(...).parseSignedClaims(...)`. The pinned test-only issuer, exact one-element audience, signed `uid`, role, scope, trusted `kid`, one-hour validity cap and fixed test clock must all pass **before** JDBC access.
+
+Only validated signed UID, issuer, kid, and `iat` reach a parameterized `PreparedStatement`. The ephemeral connection uses `Connection.setReadOnly(true)`, a transaction-local `SET LOCAL ROLE b62g_verifier`, and a two-second statement timeout. URL is pinned to `jdbc:postgresql://127.0.0.1:15479/b62g_synthetic?connectTimeout=2&socketTimeout=3&sslmode=disable`, with hardcoded and clearly synthetic local CI credentials. There are no cached allow decisions. Any unavailable database, query error, timeout, missing row or negative revocation result returns DENY.
+
+The **test-only Compose overlay** publishes precisely one loopback-only `127.0.0.1:15479` port on the GitHub runner and verifies that exposure; the base internal network and disposable named database volume remain unchanged. The proof script installs the existing prototype schema, synthetic role and monotonic epoch cutoff 12000; then exercises actual Java/JDBC signed authorization with accepted post-cutoff credentials, rejected exact/older cutoff credentials, unaffected principal, blocked signer, invalid issuer/audience, wrong key/kid and malformed UID. The same assertions run after a PostgreSQL container restart using that disposable volume. Finally it stops the database and requires every request to deny. Unconditional cleanup removes only the proof's ephemeral network and volume.
+
+## Security boundaries and what is still missing
+
+**NOT INTEGRATED:** The production Java Gateway, User and Audit JWT filters do not call this reader; it is an Identity module integration-test class, not an application dependency. A synthetic PostgreSQL superuser account can assume the `NOLOGIN` read-only role for this proof; this does **not** establish production workload identity or least privilege for connection creation. Neither historical Identity migrations, live sessions, customer tenants, production bearer tokens nor emergency writes are touched. Explicit network/statement timeouts in this test do not certify operational latency or outages.
+
+A real emergency revocation mechanism needs: historical migration and restore approval (#242); owner approval and durable audit for emergency writers; properly authenticated read-only service credentials (no superuser proxy); secure shared database connectivity and strict primary read-after-write without stale replicas; error-deny policy integrated into each **real** Gateway/User/Audit auth path; independent object-owner authorization (#251); multi-node concurrency and latency/failure injection; full real Docker HTTP regression; trusted clock/NTP; real key custody, incident procedures, and consistent rollback without restoring compromised trust. Parallel Java certificate-trust hardening drafts #305/#306 require reconciliation into one verified release path.
+
+**Production: NO_GO.** All nine runtime release gates and Stage45 blockers remain. This evidence does not authorize merging protected `main`, deploying a kill switch, or updating customer data.

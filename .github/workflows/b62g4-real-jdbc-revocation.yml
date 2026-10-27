@@ -1,0 +1,56 @@
+name: B62-G4 Real Java JWT + Read-Only PostgreSQL JDBC Proof
+on:
+  pull_request:
+    branches: [test/b62g3-java-signed-revocation-boundary-20261027]
+    paths:
+      - '.github/workflows/b62g4-real-jdbc-revocation.yml'
+      - 'tests/security/b62g4-*'
+      - 'tests/test_b62g4_*'
+      - 'identity-service/src/test/java/io/aetheris/identity/B62G4RealJdbcRevocationIT.java'
+      - 'docs/security/B62G4_JAVA_JDBC_REVOCATION_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  real-jdbc-signed-revocation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Pin exact source and enforce test-only boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g4_java_jdbc_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g3_java_signature_boundary.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g2_contract.py' -v
+          bash -n tests/security/b62g4-java-jdbc-proof.sh
+          docker compose version
+      - name: Full four-module Java reactor regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Genuine JJWT RSA signatures and JDBC read-only revocation decisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g4-java-jdbc-proof.sh
+      - name: Always remove only CI B62-G4 network and synthetic database volume
+        if: always()
+        shell: bash
+        run: |
+          docker compose \
+            -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            -f tests/security/docker-compose.b62g4-local-jdbc-overlay.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G4_SYNTHETIC_ONLY_RESOURCE_CLEANUP_COMPLETED

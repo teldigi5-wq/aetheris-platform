@@ -1,0 +1,6 @@
+# B62-G4 CI-only overlay: loopback port is deliberately limited to the
+# hosted disposable runner. Base B62-G database remains internal and ephemeral.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:15479:5432"
