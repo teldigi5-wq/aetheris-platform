@@ -133,6 +133,36 @@ class DirectApiRs256VerificationTest {
     }
 
     @Test
+    void publicKeyOnlyServletAcceptsRsaWithoutAnyLegacyHmacKey() throws Exception {
+        KeyPair signer = pair(2048);
+        for (String absentHmac : new String[]{"", "short", null}) {
+            io.aetheris.users.UserService service = mock(io.aetheris.users.UserService.class);
+            when(service.findAll()).thenReturn(List.of());
+            MockMvc rsaOnly = MockMvcBuilders.standaloneSetup(
+                new io.aetheris.users.UserController(service))
+                .addFilters(new DirectApiJwtFilter(
+                    absentHmac, ISSUER, AUDIENCE, pem(signer), Clock.systemUTC()))
+                .build();
+            rsaOnly.perform(get("/api/users").header("Authorization",
+                "Bearer " + jwt(signer, AUDIENCE, "ADMIN")))
+                .andExpect(status().isOk());
+            rsaOnly.perform(get("/api/users").header("Authorization",
+                "Bearer " + jwt(null, AUDIENCE, "ADMIN")))
+                .andExpect(status().isUnauthorized());
+            verify(service, times(1)).findAll();
+            MockMvc missingBoth = MockMvcBuilders.standaloneSetup(
+                new io.aetheris.users.UserController(service))
+                .addFilters(new DirectApiJwtFilter(
+                    absentHmac, ISSUER, AUDIENCE, "", Clock.systemUTC()))
+                .build();
+            missingBoth.perform(get("/api/users").header("Authorization",
+                "Bearer " + jwt(signer, AUDIENCE, "ADMIN")))
+                .andExpect(status().isServiceUnavailable());
+            verifyNoMoreInteractions(service);
+        }
+    }
+
+    @Test
     void invalidKeyAndIncompleteTargetPolicyFailClosed() throws Exception {
         assertThrows(IllegalArgumentException.class,
             () -> new DirectApiJwtFilter(SECRET, ISSUER, AUDIENCE, "invalid", Clock.systemUTC()));

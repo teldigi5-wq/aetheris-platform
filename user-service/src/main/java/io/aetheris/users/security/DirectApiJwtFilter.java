@@ -82,7 +82,10 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                        String rs256Pem, String activeKid, String stagedPem,
                        String stagedKid, Clock clock) {
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
-        this.key = secret != null && secret.length() >= 32
+        // Legacy HMAC is not installed when public-key RS256 is configured.
+        // This prevents a shared signing secret being needed on resource APIs.
+        boolean rsaMode = rs256Pem != null && !rs256Pem.isEmpty();
+        this.key = !rsaMode && secret != null && secret.length() >= 32
             ? Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)) : null;
         // Review-only: a configured public key selects exclusive RS256
         // verification. A bad PEM fails service initialization, never HS fallback.
@@ -114,7 +117,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                                     FilterChain chain) throws ServletException, IOException {
         // Misconfigured services remain healthy for diagnostics but no user or
         // audit data is ever exposed without a valid signing key.
-        if (key == null || !issuerAudiencePolicyReady) {
+        if ((key == null && !rs256Verifier.configured()) || !issuerAudiencePolicyReady) {
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "Signed backend authorization is not configured");
             return;

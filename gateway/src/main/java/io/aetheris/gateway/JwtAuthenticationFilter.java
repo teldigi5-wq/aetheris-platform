@@ -47,7 +47,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     @Autowired
     public JwtAuthenticationFilter(
-        @Value("${aetheris.jwt.secret}") String secret,
+        @Value("${aetheris.jwt.secret:}") String secret,
         @Value("${AETHERIS_GATEWAY_JWT_ISSUER:}") String issuer,
         @Value("${AETHERIS_GATEWAY_JWT_USERS_AUDIENCE:}") String usersAudience,
         @Value("${AETHERIS_GATEWAY_JWT_AUDIT_AUDIENCE:}") String auditAudience,
@@ -56,13 +56,15 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         @Value("${AETHERIS_GATEWAY_JWT_RS256_KEY_ID:}") String activeKid,
         @Value("${AETHERIS_GATEWAY_JWT_RS256_STAGED_PUBLIC_KEY_PEM:}") String stagedPem,
         @Value("${AETHERIS_GATEWAY_JWT_RS256_STAGED_KEY_ID:}") String stagedKid) {
-        if (secret == null || secret.length() < 32) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 characters");
-        }
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        // Public key verification never attempts legacy HMAC fallback.
+        // Check pinned RSA config first: RSA-only mode needs no shared HMAC
+        // secret and must never initialize one as an alternate verifier.
         this.rs256Verifier = new JwtPinnedRotationVerifier(rs256Pem, activeKid,
             stagedPem, stagedKid);
+        if (!rs256Verifier.configured() && (secret == null || secret.length() < 32)) {
+            throw new IllegalArgumentException("Legacy JWT HMAC secret must be at least 32 characters");
+        }
+        this.key = rs256Verifier.configured() ? null
+            : Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.rs256PublicKey = rs256Pem == null || rs256Pem.isEmpty()
             ? null : JwtRs256KeySupport.publicKey(rs256Pem);
         this.expectedIssuer = issuer;

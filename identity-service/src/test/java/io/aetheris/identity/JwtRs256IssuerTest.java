@@ -96,6 +96,32 @@ class JwtRs256IssuerTest {
     }
 
     @Test
+    void rsaOnlyIdentityIssuesBothTokenTypesWithNoSharedHmacSecret() throws Exception {
+        KeyPair keys = generate(2048);
+        String pem = pem("PRIVATE KEY", keys.getPrivate().getEncoded());
+        for (String legacy : new String[]{"", "short", null}) {
+            JwtService issuer = new JwtService(
+                legacy, 120, ISSUER, AUDIENCE, true, pem, "rsa-only-1");
+            var primary = Jwts.parser().verifyWith(keys.getPublic())
+                .build().parseSignedClaims(issuer.issue(account()));
+            assertEquals("RS256", primary.getHeader().getAlgorithm());
+            assertEquals("rsa-only-1", primary.getHeader().getKeyId());
+            var delegated = Jwts.parser().verifyWith(keys.getPublic())
+                .build().parseSignedClaims(
+                    issuer.issueForApprovedAudience(account(), ApprovedTokenAudience.AUDIT));
+            assertEquals("RS256", delegated.getHeader().getAlgorithm());
+            assertEquals(java.util.Set.of("aetheris-audit-api"),
+                delegated.getPayload().getAudience());
+        }
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtService("", 120));
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtService(null, 120));
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtService("", 120, ISSUER, AUDIENCE, false, "bad-pem", "kid1"));
+    }
+
+    @Test
     void legacySignatureStillValidOnlyWithExplicitlyUnconfiguredRs256() throws Exception {
         String hmac = new JwtService(SECRET, 3600).issue(account());
         var verified = Jwts.parser().verifyWith(

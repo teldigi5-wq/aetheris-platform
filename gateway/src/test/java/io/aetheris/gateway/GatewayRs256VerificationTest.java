@@ -121,6 +121,24 @@ class GatewayRs256VerificationTest {
     }
 
     @Test
+    void publicKeyOnlyGatewayNeedsNoSharedHmacAndRefusesDowngrade() throws Exception {
+        KeyPair signer = pair(2048);
+        for (String absentHmac : new String[]{"", "short", null}) {
+            var gateway = new JwtAuthenticationFilter(
+                absentHmac, ISSUER, USERS, AUDIT, ORCH, pem(signer));
+            assertRoute(gateway, signed(signer, USERS), null);
+            assertRoute(gateway, signed(null, USERS), HttpStatus.UNAUTHORIZED);
+        }
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtAuthenticationFilter("", ISSUER, USERS, AUDIT, ORCH));
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtAuthenticationFilter(null, ISSUER, USERS, AUDIT, ORCH));
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtAuthenticationFilter(
+                "", ISSUER, USERS, AUDIT, ORCH, "bad-public-key"));
+    }
+
+    @Test
     void weakMalformedAndUntargetedPublicKeyPolicyFailClosed() throws Exception {
         assertThrows(IllegalArgumentException.class,
             () -> new JwtAuthenticationFilter(SECRET, ISSUER, USERS, AUDIT, ORCH, "broken-key"));

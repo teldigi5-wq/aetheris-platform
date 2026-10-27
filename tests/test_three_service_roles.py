@@ -370,6 +370,33 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
                           else "actualGatewayAcceptsPinnedOverlapThenRejectsRetiredSigner",
                           (ROOT / path).read_text())
 
+    def test_rs256_independent_from_legacy_shared_hmac_configuration(self):
+        identity = (ROOT / "identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+        self.assertIn('aetheris.jwt.secret:}', identity)
+        self.assertIn('this.key = rsaMode ? null', identity)
+        self.assertIn('Legacy JWT HMAC secret must be at least 32 characters', identity)
+        for service in ("identity-service", "gateway"):
+            yml = (ROOT / service / "src/main/resources/application.yml").read_text()
+            self.assertIn("secret: ${AETHERIS_JWT_SECRET:}", yml)
+            self.assertNotIn("secret: ${AETHERIS_JWT_SECRET}", yml)
+        gateway = (ROOT / "gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java").read_text()
+        self.assertIn('aetheris.jwt.secret:}', gateway)
+        self.assertIn('this.key = rs256Verifier.configured() ? null', gateway)
+        self.assertIn('!rs256Verifier.configured() && (secret == null', gateway)
+        for svc, package in (("user-service", "users"), ("audit-service", "audit")):
+            source = (ROOT / svc / "src/main/java/io/aetheris" / package /
+                      "security/DirectApiJwtFilter.java").read_text()
+            self.assertIn('boolean rsaMode = rs256Pem != null && !rs256Pem.isEmpty()', source)
+            self.assertIn('this.key = !rsaMode && secret != null', source)
+            self.assertIn('(key == null && !rs256Verifier.configured())', source)
+            regression = (ROOT / svc / "src/test/java/io/aetheris" / package /
+                          "security/DirectApiRs256VerificationTest.java").read_text()
+            self.assertIn('publicKeyOnlyServletAcceptsRsaWithoutAnyLegacyHmacKey', regression)
+        issuer_test = (ROOT / "identity-service/src/test/java/io/aetheris/identity/JwtRs256IssuerTest.java").read_text()
+        gateway_test = (ROOT / "gateway/src/test/java/io/aetheris/gateway/GatewayRs256VerificationTest.java").read_text()
+        self.assertIn('rsaOnlyIdentityIssuesBothTokenTypesWithNoSharedHmacSecret', issuer_test)
+        self.assertIn('publicKeyOnlyGatewayNeedsNoSharedHmacAndRefusesDowngrade', gateway_test)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
