@@ -26,9 +26,15 @@ for name,svc in d["services"].items():
     assert not svc.get("ports") and not svc.get("privileged"),name
     assert not svc.get("devices") and not svc.get("pid"),name
     assert not any("docker.sock" in str(v) for v in svc.get("volumes",[])),name
-    assert svc["environment"]["POSTGRES_DB"]=="b62g_synthetic"
-    assert svc["environment"]["POSTGRES_USER"]=="b62g_synthetic"
-    assert svc["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-production"
+    if name != "auth-probe":
+        assert svc["environment"]["POSTGRES_DB"]=="b62g_synthetic"
+        assert svc["environment"]["POSTGRES_USER"]=="b62g_synthetic"
+        assert svc["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-production"
+    else:
+        assert not svc.get("environment"), "Client must not hold persistent credentials"
+        assert svc.get("entrypoint")==["sleep","3600"]
+        assert "ALL" in {str(x).upper() for x in svc.get("cap_drop",[])}
+        assert "no-new-privileges:true" in svc.get("security_opt",[])
 print("B62G9_TWO_DISPOSABLE_DB_NO_HOST_PORTS_ISOLATION_PASS",flush=True)
 '
 "${COMPOSE[@]}" up -d --wait --wait-timeout 120 postgres stale-snapshot auth-probe
