@@ -1,12 +1,13 @@
 name: Security Three Service Scoped Audit and DB Role Denials
 on:
   pull_request:
-    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027]
+    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027]
     paths:
       - '.github/workflows/security-three-service-role-isolation.yml'
       - 'audit-service/src/main/resources/application.yml'
       - 'audit-service/src/test/java/io/aetheris/audit/SharedDatabaseAuditSchemaIsolationTest.java'
       - 'audit-service/src/test/java/io/aetheris/audit/ConcurrentAuditFlywayMigrationTest.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/SyntheticUserOwnershipBindingTest.java'
       - 'scripts/security/rehearse_shared_db_three_roles.sh'
       - 'tests/test_three_service_roles.py'
       - 'docs/security/THREE_SERVICE_DB_ROLE_REHEARSAL_20261027.md'
