@@ -166,4 +166,13 @@ rm -f "$legacy_log"
 [[ "$(admin "SELECT count(*) FROM information_schema.tables WHERE table_schema='legacy_unknown' AND table_name='flyway_audit_schema_history';")" == 0 ]] || exit 1
 [[ "$(admin "SELECT count(*) FROM information_schema.tables WHERE table_schema='legacy_unknown' AND table_name='audit_events';")" == 0 ]] || exit 1
 echo THREE_ROLE_UNKNOWN_AUDIT_LEGACY_REFUSED_WITH_SENTINEL_PRESERVED
+# Prove real concurrent first-time Audit Flyway migration attempts serialize
+# on an independent EMPTY synthetic schema with a dedicated migration login.
+# Separate Java Flyway instances share a real PostgreSQL history/lock boundary.
+admin "CREATE SCHEMA audit_race AUTHORIZATION audit_migrator;"
+run_migration audit_migrator "$aump" audit_race audit-service ConcurrentAuditFlywayMigrationTest aetheris.audit.concurrent.synthetic
+[[ "$(admin "SELECT count(*) FROM audit_race.flyway_audit_schema_history WHERE version='1' AND success;")" == 1 ]] || exit 1
+[[ "$(admin "SELECT count(*) FROM audit_race.flyway_audit_schema_history;")" == 1 ]] || exit 1
+[[ "$(admin "SELECT count(*) FROM information_schema.tables WHERE table_schema='audit_race' AND table_name='audit_events';")" == 1 ]] || exit 1
+echo THREE_ROLE_AUDIT_REAL_CONCURRENT_FIRST_START_ONE_MIGRATION_SUCCESS
 echo THREE_ROLE_REVIEW_ONLY_NO_HISTORICAL_MIGRATION_STAGE45_NO_GO

@@ -67,6 +67,8 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             "pg_dump",
             "pg_restore",
             "THREE_ROLE_UNKNOWN_AUDIT_LEGACY_REFUSED_WITH_SENTINEL_PRESERVED",
+            "THREE_ROLE_AUDIT_REAL_CONCURRENT_FIRST_START_ONE_MIGRATION_SUCCESS",
+            "ConcurrentAuditFlywayMigrationTest",
             "THREE_ROLE_UNKNOWN_AUDIT_LEGACY_FAILED_FOR_UNRELATED_REASON",
             "STAGE45_NO_GO",
         ):
@@ -78,6 +80,23 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             "DROP SCHEMA",
         ):
             self.assertNotIn(forbidden, script)
+
+    def test_real_concurrent_flyway_migrator_contract(self):
+        source = (ROOT / "audit-service/src/test/java/io/aetheris/audit/ConcurrentAuditFlywayMigrationTest.java").read_text()
+        for requirement in (
+            'aetheris.audit.concurrent.synthetic',
+            'jdbc:postgresql://127.0.0.1:55436/shared_synthetic?currentSchema=audit_race',
+            'CountDownLatch',
+            'Executors.newFixedThreadPool(2)',
+            'start.countDown()',
+            'migrationsExecuted',
+            'assertEquals(1, executions',
+            'flyway_audit_schema_history',
+            'baselineOnMigrate(false)',
+            'cleanDisabled(true)',
+            'assertTimeoutPreemptively',
+        ):
+            self.assertIn(requirement, source)
 
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
