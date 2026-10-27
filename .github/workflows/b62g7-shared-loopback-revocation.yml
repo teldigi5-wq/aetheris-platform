@@ -1,0 +1,46 @@
+name: B62-G7 Cross-Service Loopback Revocation Contract - Test Only
+on:
+  pull_request:
+    branches: [test/b62g6-reactive-gateway-revocation-seam-20261027]
+    paths:
+      - '.github/workflows/b62g7-shared-loopback-revocation.yml'
+      - 'tests/security/b62g7-*'
+      - 'tests/test_b62g7_shared_http_contract.py'
+      - '**/B62G7SharedHttpContractIT.java'
+      - 'docs/security/B62G7_SHARED_HTTP_CONTRACT_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  shared-loopback-filter-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact SHA test-only loopback security contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g7_shared_http_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g6_reactive_gateway_seam.py' -v
+          python3 -m py_compile tests/security/b62g7-loopback-authority.py
+          bash -n tests/security/b62g7-shared-revocation-proof.sh
+      - name: Full four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Three real filter suites against one pinned loopback authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g7-shared-revocation-proof.sh
