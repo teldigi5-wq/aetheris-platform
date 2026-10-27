@@ -1,0 +1,60 @@
+name: Actual User and Audit Direct JWT HTTP Boundary (Review Only)
+on:
+  pull_request:
+    branches: [release/security-closure-gate-20261027]
+    paths:
+      - '.github/workflows/direct-service-jwt-boundary.yml'
+      - 'user-service/src/main/java/io/aetheris/users/security/**'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/**'
+      - 'user-service/src/test/java/io/aetheris/users/security/**'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/**'
+      - 'user-service/pom.xml'
+      - 'audit-service/pom.xml'
+      - 'tests/test_direct_backend_jwt_boundary.py'
+      - 'tests/test_security_closure_preflight.py'
+      - 'docs/security/direct-backend-legacy-jwt-boundary-20261027.md'
+permissions:
+  contents: read
+jobs:
+  real-legacy-jwt-service-filter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact source SHA and verify no unapproved ownership grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p test_direct_backend_jwt_boundary.py -v
+          python3 -m unittest discover -s tests -p test_security_closure_preflight.py -v
+          python3 scripts/security_closure_preflight.py --assert-blocked > closure.json
+          python3 - <<'PY'
+          import json
+          report=json.load(open("closure.json",encoding="utf-8"))
+          assert report["status"]=="NO_GO"
+          assert not report["backend_service_authentication_gaps"]
+          assert len(report["unreviewed_schema_mutation"])==3
+          assert report["safe_to_merge_or_deploy"] is False
+          print("DIRECT_BACKEND_SOURCE_PRESENT_RELEASE_STILL_NO_GO")
+          PY
+      - name: Complete four-module Java regression on actual release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Explicit real signed token servlet filter negative/positive cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+          echo DIRECT_SERVICE_LEGACY_SIGNED_HMAC_HTTP_FILTER_PROOF_PASS
