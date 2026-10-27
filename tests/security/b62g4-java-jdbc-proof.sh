@@ -29,7 +29,12 @@ java=d["services"]["java-proof"]
 assert java.get("build")
 assert java.get("cap_drop")==["ALL"]
 assert "no-new-privileges:true" in java.get("security_opt",[])
-assert "jdbc:postgresql://postgres:5432/b62g_synthetic" in str(java.get("command"))
+assert java.get("entrypoint")==["sh","-ec"]
+command=java.get("command")
+assert isinstance(command,list) and len(command)==1
+assert "jdbc:postgresql://postgres:5432/b62g_synthetic" in command[0]
+assert "B62G4RealJdbcRevocationIT" in command[0]
+assert command[0].strip().endswith(" test"), "Maven lifecycle goal is mandatory"
 print("B62G4_ZERO_HOST_PORT_INTERNAL_JAVA_DB_TOPOLOGY")
 '
 # Image build uses the existing sha256-pinned identity-service Dockerfile,
