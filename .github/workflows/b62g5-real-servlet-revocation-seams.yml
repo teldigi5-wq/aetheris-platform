@@ -1,0 +1,53 @@
+name: B62-G5 Real Servlet JWT Revocation Seams - Test-Only
+on:
+  pull_request:
+    branches: [test/b62g4-java-jdbc-revocation-acceptance-20261027]
+    paths:
+      - '.github/workflows/b62g5-real-servlet-revocation-seams.yml'
+      - 'user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/DirectApiJwtFilter.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/B62G5DirectRevocationServletTest.java'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/B62G5DirectRevocationServletTest.java'
+      - 'tests/test_b62g5_servlet_filter_seams.py'
+      - 'docs/security/B62G5_REAL_SERVLET_FILTER_SEAMS_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  true-servlet-filter-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Pin exact source and default-no-revocation policy guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g5_servlet_filter_seams.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g4_java_jdbc_contract.py' -v
+      - name: Full four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Explicit real User filter signed JWT revocation acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=B62G5DirectRevocationServletTest test
+          echo B62G5_USER_ACTUAL_FILTER_SIGNED_REVOCATION_SEAM_PASS
+      - name: Explicit real Audit filter signed JWT revocation acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=B62G5DirectRevocationServletTest test
+          echo B62G5_AUDIT_ACTUAL_FILTER_SIGNED_REVOCATION_SEAM_PASS
