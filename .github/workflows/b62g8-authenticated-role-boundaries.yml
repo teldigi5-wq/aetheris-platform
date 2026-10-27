@@ -1,0 +1,53 @@
+name: B62-G8 Authenticated PostgreSQL Reader and Writer Boundary Proof
+on:
+  pull_request:
+    branches: [test/b62g7-shared-loopback-revocation-contract-20261027]
+    paths:
+      - '.github/workflows/b62g8-authenticated-role-boundaries.yml'
+      - 'tests/security/b62g8-*'
+      - 'tests/test_b62g8_authenticated_roles.py'
+      - 'docs/security/B62G8_AUTHENTICATED_POSTGRES_ROLES_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  synthetic-password-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact SHA, privilege contract and disposable test topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g8_authenticated_roles.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g7_shared_http_contract.py' -v
+          bash -n tests/security/b62g8-password-roles-proof.sh
+          docker compose version
+      - name: Full four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Authenticated role isolation on real disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g8-password-roles-proof.sh
+          echo B62G8_REAL_SYNTHETIC_POSTGRES_AUTHENTICATED_ROLE_BOUNDARIES_PASS
+      - name: Always destroy only synthetic B62-G8 network and database
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G8_DISPOSABLE_ONLY_DATABASE_AND_NETWORK_CLEANED
