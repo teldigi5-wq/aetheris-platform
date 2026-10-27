@@ -1,7 +1,7 @@
 name: Security Three Service Scoped Audit and DB Role Denials
 on:
   pull_request:
-    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027]
+    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027, security/gateway-strict-principal-validation-20261027]
     paths:
       - '.github/workflows/security-three-service-role-isolation.yml'
       - 'audit-service/src/main/resources/application.yml'
@@ -16,6 +16,15 @@ on:
       - 'gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java'
       - 'gateway/src/test/java/io/aetheris/gateway/GatewayTargetedJwtContractTest.java'
       - 'gateway/src/test/java/io/aetheris/gateway/GatewayPrincipalBoundaryTest.java'
+      - 'identity-service/src/main/java/io/aetheris/identity/JwtRs256KeySupport.java'
+      - 'gateway/src/main/java/io/aetheris/gateway/JwtRs256KeySupport.java'
+      - 'user-service/src/main/java/io/aetheris/users/security/JwtRs256KeySupport.java'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/JwtRs256KeySupport.java'
+      - 'identity-service/src/test/java/io/aetheris/identity/JwtRs256IssuerTest.java'
+      - 'gateway/src/test/java/io/aetheris/gateway/GatewayRs256VerificationTest.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/DirectApiRs256VerificationTest.java'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/DirectApiRs256VerificationTest.java'
+      - 'docs/security/RS256_PUBLIC_VERIFICATION_REVIEW_20261027.md'
       - 'user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java'
       - 'audit-service/src/main/java/io/aetheris/audit/security/DirectApiJwtFilter.java'
       - 'user-service/src/test/java/io/aetheris/users/security/DirectApiIssuerAudiencePolicyTest.java'
