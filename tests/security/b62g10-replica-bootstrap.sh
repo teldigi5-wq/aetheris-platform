@@ -12,6 +12,10 @@ if [ ! -f "$PGDATA/PG_VERSION" ]; then
         -h postgres -p 5432 -U b62g10_replication -D "$PGDATA" \
         -X stream -R --checkpoint=fast --no-password
 fi
+# PostgreSQL forbids broadly readable/writable cluster directories.
+# Enforce owner-only access to the real physical data before postmaster starts.
+chmod 0700 "$PGDATA"
+test "$(stat -c %a "$PGDATA")" = "700"
 # The standby WAL receiver needs its OWN passfile after pg_basebackup exits.
 printf '%s\n' 'postgres:5432:*:b62g10_replication:b62g10-replica-test-only-password' \
     > /var/lib/postgresql/.b62g10-pgpass
