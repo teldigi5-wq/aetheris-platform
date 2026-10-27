@@ -47,13 +47,18 @@ class B62G9ConsistencyGuard(unittest.TestCase):
 
     def test_dual_disposable_db_topology_has_no_published_ports(self):
         self.assertIn("stale-snapshot:",OVERLAY)
+        self.assertIn("auth-probe:",OVERLAY)
+        self.assertIn('entrypoint: ["sleep", "3600"]',OVERLAY)
+        self.assertIn('"auth-probe", "psql"',PY)
+        self.assertIn('"-h", service',PY)
+        self.assertIn('auth-probe timeout 10s psql',SCRIPT)
         self.assertIn("b62g9_stale_snapshot_data",OVERLAY)
         self.assertIn("networks: [isolated]",OVERLAY)
         self.assertNotIn("ports:",OVERLAY)
         self.assertNotIn("external:",OVERLAY)
         for marker in ("set -euo pipefail","trap cleanup EXIT",
                        "down --volumes --remove-orphans",
-                       'set(d["services"]) == {"postgres","stale-snapshot"}',
+                       'set(d["services"]) == {"postgres","stale-snapshot","auth-probe"}',
                        'not svc.get("ports")',
                        "client baseline","client postcommit",
                        "client blocked","client restarted","client outage",
