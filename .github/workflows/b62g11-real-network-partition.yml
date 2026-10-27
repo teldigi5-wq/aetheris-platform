@@ -1,0 +1,58 @@
+name: B62-G11 Real Docker Network Partition and Recovery - CI Only
+on:
+  pull_request:
+    branches: [test/b62g10-physical-streaming-replica-20261027]
+    paths:
+      - '.github/workflows/b62g11-real-network-partition.yml'
+      - 'tests/security/b62g11-*'
+      - 'tests/security/b62g10-physical-replication-proof.sh'
+      - 'tests/test_b62g11_network_partition.py'
+      - 'docs/security/B62G11_NETWORK_PARTITION_RECOVERY_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  live-isolated-network-faults:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact head, isolated Docker network and fail-closed contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g11_network_partition.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g10_replication.py' -v
+          python3 -m py_compile tests/security/b62g11-partition-client.py
+          bash -n tests/security/b62g11-partition-proof.sh
+          bash -n tests/security/b62g10-physical-replication-proof.sh
+          docker compose version
+      - name: Real physical streaming, real container network cuts and recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          B62G11_TEST_ONLY_FAULTS=1 bash tests/security/b62g10-physical-replication-proof.sh
+          echo B62G11_REAL_NETWORK_FAILURE_AUTHENTICATION_DENIED_AND_RECOVERED
+      - name: Full four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Always destroy synthetic PostgreSQL volumes and network
+        if: always()
+        shell: bash
+        run: |
+          docker compose \
+            -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            -f tests/security/b62g10-physical-replica-overlay.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G11_DISPOSABLE_PHYSICAL_STANDBY_AND_NETWORK_REMOVED

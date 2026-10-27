@@ -103,6 +103,12 @@ wal="$(primary_sql 'SELECT pg_current_wal_lsn();')"
 wait_replay_lsn "$wal"
 client replayed-epoch
 
+# B62-G11 opts into real Docker network disconnect/rejoin faults at this
+# point only. Normal B62-G10 tests retain their existing exact behavior.
+if [[ "${B62G11_TEST_ONLY_FAULTS:-0}" == "1" ]]; then
+  source tests/security/b62g11-partition-proof.sh
+fi
+
 replica_sql "SELECT pg_wal_replay_pause();" >/dev/null
 writer "SELECT b62g_proof.block_signer('b62g-identity','key-current','compromise');" >/dev/null
 wait_paused
