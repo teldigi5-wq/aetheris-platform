@@ -33,17 +33,47 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private static final String SIGNED_ID_ATTRIBUTE = "aetheris.verified.uid";
     private final SecretKey key;
     private final Clock clock;
+    private final String expectedIssuer;
+    private final String expectedAudience;
+    private final boolean strictIssuerAudience;
+    private final boolean issuerAudiencePolicyReady;
 
+    /**
+     * Explicitly configured issuer+audience hardening is opt-in until Identity
+     * issues and Gateway forwards equivalent vetted claims. An incomplete
+     * configuration denies ALL protected calls rather than downgrading.
+     */
     @Autowired
-    public DirectApiJwtFilter(@Value("${AETHERIS_JWT_SECRET:}") String secret) {
-        this(secret, Clock.systemUTC());
+    public DirectApiJwtFilter(
+        @Value("${AETHERIS_JWT_SECRET:}") String secret,
+        @Value("${AETHERIS_BACKEND_JWT_ISSUER:}") String issuer,
+        @Value("${AETHERIS_BACKEND_JWT_AUDIENCE:}") String audience) {
+        this(secret, issuer, audience, Clock.systemUTC());
     }
 
-    // Explicit test-only clock; no @Bean / remote property to bypass checks.
+    // Legacy tests and call sites keep existing behavior until an approved rollout.
+    DirectApiJwtFilter(String secret) {
+        this(secret, "", "", Clock.systemUTC());
+    }
+
+    // Explicit test-only clock; never exposed as a bean or remote bypass.
     DirectApiJwtFilter(String secret, Clock clock) {
+        this(secret, "", "", clock);
+    }
+
+    DirectApiJwtFilter(String secret, String issuer, String audience, Clock clock) {
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
         this.key = secret != null && secret.length() >= 32
             ? Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)) : null;
+        this.expectedIssuer = issuer;
+        this.expectedAudience = audience;
+        boolean hasIssuer = issuer != null && !issuer.isBlank();
+        boolean hasAudience = audience != null && !audience.isBlank();
+        this.strictIssuerAudience = hasIssuer || hasAudience;
+        this.issuerAudiencePolicyReady = !strictIssuerAudience
+            || (hasIssuer && hasAudience
+                && issuer.equals(issuer.trim()) && audience.equals(audience.trim())
+                && issuer.length() <= 255 && audience.length() <= 128);
     }
 
     @Override
@@ -57,7 +87,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
                                     FilterChain chain) throws ServletException, IOException {
         // Misconfigured services remain healthy for diagnostics but no user or
         // audit data is ever exposed without a valid signing key.
-        if (key == null) {
+        if (key == null || !issuerAudiencePolicyReady) {
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "Signed backend authorization is not configured");
             return;
@@ -80,6 +110,15 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         final Set<String> scopes;
         try {
             claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+            // Do not trust token-scoped claims until the signature is verified.
+            // The audience must be the SINGLE backend intended recipient; a
+            // multi-audience token is not an authorization shortcut.
+            if (strictIssuerAudience &&
+                (!expectedIssuer.equals(claims.getIssuer())
+                || claims.getAudience() == null || claims.getAudience().size() != 1
+                || !claims.getAudience().contains(expectedAudience))) {
+                throw new IllegalArgumentException("Signed token issuer or audience mismatch");
+            }
             String subject = claims.getSubject();
             Object uid = claims.get("uid");
             role = claims.get("role", String.class);
