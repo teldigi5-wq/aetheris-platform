@@ -19,7 +19,8 @@ class ClosureReleaseGate(unittest.TestCase):
         self.assertEqual(len(status["unreviewed_schema_mutation"]), 3)
         self.assertTrue(all(":UNREVIEWED_AUTO_DDL" in s
                             for s in status["unreviewed_schema_mutation"]))
-        self.assertEqual(len(status["backend_service_authentication_gaps"]), 2)
+        self.assertEqual(len(status["backend_service_authentication_gaps"]), 0)
+        # Source presence is not authenticated workload identity or multi-tenant certification.
         self.assertEqual(len(status["independent_release_attestations_required"]), 9)
 
     def test_malformed_or_missing_files_must_never_return_release_go(self):
