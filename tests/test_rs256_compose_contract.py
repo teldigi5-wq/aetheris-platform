@@ -53,8 +53,8 @@ class ComposeJwtModeContractTest(unittest.TestCase):
             with self.subTest(filename=filename):
                 value=(ROOT / filename).read_text()
                 self.assertEqual(4, value.count("AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:-}"))
-                self.assertEqual(1, value.count("AETHERIS_IDENTITY_JWT_RS256_PRIVATE_KEY_PEM:"))
-                self.assertEqual(3, value.count("JWT_RS256_PUBLIC_KEY_PEM:"))
+                self.assertEqual(1, value.count("      AETHERIS_IDENTITY_JWT_RS256_PRIVATE_KEY_PEM:"))
+                self.assertEqual(3, sum(1 for line in value.splitlines() if line.startswith("      AETHERIS_") and line.split(":", 1)[0].endswith("JWT_RS256_PUBLIC_KEY_PEM")))
                 for key in ("AETHERIS_USER_JWT_AUDIENCE",
                             "AETHERIS_AUDIT_JWT_AUDIENCE",
                             "AETHERIS_ORCHESTRATOR_JWT_AUDIENCE"):
