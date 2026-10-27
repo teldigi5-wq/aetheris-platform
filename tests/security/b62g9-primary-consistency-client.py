@@ -41,8 +41,8 @@ def raw_read(role: str, principal: int, iat: int, *, snapshot: bool = False,
     )
     args = [
         *COMPOSE, "exec", "-T", "-e", f"PGPASSWORD={password}",
-        service, "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1",
-        "-h", "127.0.0.1", "-p", "5432",
+        "auth-probe", "psql", "-X", "-qAt", "-v", "ON_ERROR_STOP=1",
+        "-h", service, "-p", "5432",
         "-U", role, "-d", "b62g_synthetic", "-c", sql,
     ]
     try:
