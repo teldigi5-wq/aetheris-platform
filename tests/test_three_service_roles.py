@@ -320,7 +320,10 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         ):
             test = (ROOT / file).read_text()
             self.assertIn("getInstance(\"RSA\")", test)
-            self.assertIn("Jwts.SIG.RS256", test)
+            if "JwtRs256IssuerTest.java" in file:
+                self.assertIn('assertEquals("RS256", verified.getHeader().getAlgorithm())', test)
+            else:
+                self.assertIn("Jwts.SIG.RS256", test)
             self.assertIn("assertThrows(", test)
 
     def test_ci_exact_head_nonproduction_and_gate(self):
