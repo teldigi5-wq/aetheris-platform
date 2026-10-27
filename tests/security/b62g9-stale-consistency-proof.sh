@@ -17,7 +17,7 @@ trap cleanup EXIT
 "${COMPOSE[@]}" config --format json | python3 -c '
 import sys,json
 d=json.load(sys.stdin)
-assert set(d["services"]) == {"postgres","stale-snapshot"}
+assert set(d["services"]) == {"postgres","stale-snapshot","auth-probe"}
 assert len(d["networks"])==1
 assert all(v.get("internal") is True for v in d["networks"].values())
 assert len(d.get("volumes",{}))==2
@@ -31,7 +31,7 @@ for name,svc in d["services"].items():
     assert svc["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-production"
 print("B62G9_TWO_DISPOSABLE_DB_NO_HOST_PORTS_ISOLATION_PASS",flush=True)
 '
-"${COMPOSE[@]}" up -d --wait --wait-timeout 120 postgres stale-snapshot
+"${COMPOSE[@]}" up -d --wait --wait-timeout 120 postgres stale-snapshot auth-probe
 
 ADMIN=(psql -X -qAt -v ON_ERROR_STOP=1 -U b62g_synthetic -d b62g_synthetic)
 for service in postgres stale-snapshot; do
@@ -45,8 +45,8 @@ writer_sql() {
   # Test-only password, never live key material. The reader clients use
   # THREE distinct TCP-authenticated logins, not temporary SET ROLE.
   "${COMPOSE[@]}" exec -T -e 'PGPASSWORD=b62g8-writer-synthetic-ci-only' \
-    postgres timeout 10s psql -X -qAt -v ON_ERROR_STOP=1 \
-      -h 127.0.0.1 -p 5432 -U b62g8_emergency_writer -d b62g_synthetic \
+    auth-probe timeout 10s psql -X -qAt -v ON_ERROR_STOP=1 \
+      -h postgres -p 5432 -U b62g8_emergency_writer -d b62g_synthetic \
       -c "$1"
 }
 client() {
