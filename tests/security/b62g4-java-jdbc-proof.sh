@@ -26,6 +26,10 @@ assert pg["environment"]["POSTGRES_DB"]=="b62g_synthetic"
 assert pg["environment"]["POSTGRES_USER"]=="b62g_synthetic"
 assert pg["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-production"
 java=d["services"]["java-proof"]
+print("B62G4_COMPOSE_EFFECTIVE_SECURITY",
+      "cap_drop=",repr(java.get("cap_drop")),
+      "security_opt=",repr(java.get("security_opt")),
+      "entrypoint=",repr(java.get("entrypoint")),flush=True)
 assert java.get("build")
 assert str(java["build"].get("dockerfile","")).endswith("/tests/security/b62g4-Dockerfile")
 assert "ALL" in {str(x).upper() for x in java.get("cap_drop",[])}, java.get("cap_drop")
