@@ -40,7 +40,7 @@ class B62G4RealJdbcRevocationIT {
     private static final Instant NOW = Instant.ofEpochSecond(12200L);
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     private static final String JDBC_URL =
-        "jdbc:postgresql://127.0.0.1:15479/b62g_synthetic"
+        "jdbc:postgresql://postgres:5432/b62g_synthetic"
         + "?connectTimeout=2&socketTimeout=3&sslmode=disable";
     private static final String SYNTHETIC_PASSWORD =
         "test-only-b62g-never-use-in-production";
@@ -49,7 +49,7 @@ class B62G4RealJdbcRevocationIT {
     @BeforeAll
     static void ephemeralKeys() throws Exception {
         assertEquals(JDBC_URL, System.getProperty("b62g4.jdbcUrl"),
-            "Test-only loopback URL is mandatory; never accept arbitrary DB URLs");
+            "Test-only isolated Docker service URL required; never accept arbitrary DB URLs");
         assertTrue(Set.of("online", "restarted", "outage")
             .contains(System.getProperty("b62g4.mode")),
             "Run this test only within the reviewed B62-G4 CI harness");
