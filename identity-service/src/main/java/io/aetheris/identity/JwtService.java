@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.security.PrivateKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
@@ -14,6 +15,7 @@ import java.util.Date;
 @Service
 public class JwtService {
     private final SecretKey key;
+    private final PrivateKey rs256PrivateKey;
     private final long expirationSeconds;
     private final String issuer;
     private final String audience;
@@ -26,7 +28,9 @@ public class JwtService {
                       @Value("${AETHERIS_IDENTITY_JWT_ISSUER:}") String issuer,
                       @Value("${AETHERIS_IDENTITY_JWT_AUDIENCE:}") String audience,
                       @Value("${AETHERIS_IDENTITY_TARGETED_TOKENS_ENABLED:false}")
-                      boolean approvedTargetIssuanceEnabled) {
+                      boolean approvedTargetIssuanceEnabled,
+                      @Value("${AETHERIS_IDENTITY_JWT_RS256_PRIVATE_KEY_PEM:}")
+                      String rs256Pem) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
@@ -45,6 +49,13 @@ public class JwtService {
         this.issuer = issuer;
         this.audience = audience;
         this.targetedIssuance = anyPolicySet;
+        // A configured private key selects RS256 exclusively. Any malformed
+        // PEM fails startup rather than falling back to shared HMAC issuance.
+        if (rs256Pem != null && !rs256Pem.isEmpty() && !anyPolicySet) {
+            throw new IllegalArgumentException("RS256 issuance requires issuer and audience");
+        }
+        this.rs256PrivateKey = rs256Pem == null || rs256Pem.isEmpty()
+            ? null : JwtRs256KeySupport.privateKey(rs256Pem);
         // The service cannot run with target minting switched on but an
         // incomplete issuer+audience policy. Refuse to initialize.
         if (approvedTargetIssuanceEnabled && !anyPolicySet) {
@@ -53,13 +64,18 @@ public class JwtService {
         this.approvedTargetIssuanceEnabled = approvedTargetIssuanceEnabled;
     }
 
-    // Test-only compatibility constructors. Production Spring autowires five.
+    // Test-only compatibility constructors. Production Spring autowires six.
     JwtService(String secret, long expirationSeconds) {
-        this(secret, expirationSeconds, "", "", false);
+        this(secret, expirationSeconds, "", "", false, "");
     }
 
     JwtService(String secret, long expirationSeconds, String issuer, String audience) {
-        this(secret, expirationSeconds, issuer, audience, false);
+        this(secret, expirationSeconds, issuer, audience, false, "");
+    }
+
+    JwtService(String secret, long expirationSeconds, String issuer, String audience,
+               boolean approvedTargetIssuanceEnabled) {
+        this(secret, expirationSeconds, issuer, audience, approvedTargetIssuanceEnabled, "");
     }
 
     private static boolean validTarget(String value, int maxLength) {
@@ -82,7 +98,9 @@ public class JwtService {
             // permission grant to ALL gateway routes or all services.
             builder.issuer(issuer).claim("aud", java.util.List.of(audience));
         }
-        return builder.signWith(key).compact();
+        return (rs256PrivateKey == null
+                ? builder.signWith(key) : builder.signWith(rs256PrivateKey, Jwts.SIG.RS256))
+                .compact();
     }
 
     /**
@@ -107,7 +125,7 @@ public class JwtService {
         }
         Instant now = Instant.now();
         long cappedLifetime = Math.min(expirationSeconds, 300L);
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(account.getEmail())
                 .claim("uid", account.getId())
                 .claim("role", account.getRole().name())
@@ -115,8 +133,10 @@ public class JwtService {
                 .issuer(issuer)
                 .claim("aud", java.util.List.of(target.audience()))
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(cappedLifetime)))
-                .signWith(key).compact();
+                .expiration(Date.from(now.plusSeconds(cappedLifetime)));
+        return (rs256PrivateKey == null
+                ? builder.signWith(key) : builder.signWith(rs256PrivateKey, Jwts.SIG.RS256))
+                .compact();
     }
 
     public long expirationSeconds() { return expirationSeconds; }
