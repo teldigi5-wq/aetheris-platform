@@ -64,7 +64,7 @@ No new HTTP endpoint, database table, Maven/npm/Python dependency, privileged sh
 
 ## Validation
 
-`.github/workflows/stage32-automation-control.yml` runs `Stage32FoundationTest` twice using pinned GitHub Actions and Java 21.0.12 to detect regressions and hidden state coupling.
+`.github/workflows/stage32-automation-control.yml` runs `Stage32FoundationTest` twice using pinned GitHub Actions and Java 21.0.13 to detect regressions and hidden state coupling.
 
 The canonical PR gate also includes:
 

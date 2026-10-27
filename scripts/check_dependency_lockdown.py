@@ -57,8 +57,8 @@ def verify_node() -> None:
         for name, version in declared.items():
             if not EXACT_SEMVER.fullmatch(version):
                 fail(f"dashboard {name} must be exact semver, got {version!r}")
-    if package.get("engines", {}).get("node") != "22.23.2":
-        fail("dashboard Node engine must remain pinned to 22.23.2")
+    if package.get("engines", {}).get("node") != "22.23.4":
+        fail("dashboard Node engine must remain pinned to 22.23.4")
     if lock.get("lockfileVersion") != 3:
         fail("dashboard package-lock.json must use lockfileVersion 3")
     root_lock = lock.get("packages", {}).get("", {})
@@ -81,11 +81,11 @@ def verify_node() -> None:
 
 def verify_core_toolchain() -> None:
     java = require_file(".java-version")
-    if java.is_file() and java.read_text(encoding="utf-8").strip() != "21.0.12":
-        fail(".java-version must contain 21.0.12")
+    if java.is_file() and java.read_text(encoding="utf-8").strip() != "21.0.13":
+        fail(".java-version must contain 21.0.13")
     node = require_file(".nvmrc")
-    if node.is_file() and node.read_text(encoding="utf-8").strip() != "22.23.2":
-        fail(".nvmrc must contain 22.23.2")
+    if node.is_file() and node.read_text(encoding="utf-8").strip() != "22.23.4":
+        fail(".nvmrc must contain 22.23.4")
     wrapper = require_file(".mvn/wrapper/maven-wrapper.properties")
     if wrapper.is_file():
         text = wrapper.read_text(encoding="utf-8")
