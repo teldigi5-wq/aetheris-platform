@@ -27,8 +27,8 @@ public class JwtService {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
-        if (expirationSeconds <= 0 || expirationSeconds > 3600) {
-            throw new IllegalArgumentException("Access token lifetime must be within 1..3600 seconds");
+        if (expirationSeconds <= 0) {
+            throw new IllegalArgumentException("Access token lifetime must be positive");
         }
         boolean anyPolicySet = (issuer != null && !issuer.isEmpty())
             || (audience != null && !audience.isEmpty());
