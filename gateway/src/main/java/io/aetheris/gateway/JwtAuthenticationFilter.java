@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -26,12 +27,54 @@ import java.util.Set;
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
     private final SecretKey key;
+    private final String expectedIssuer;
+    private final String usersAudience;
+    private final String auditAudience;
+    private final String orchestratorAudience;
+    private final boolean strictTargetedMode;
+    private final boolean issuerConfigurationReady;
 
-    public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret) {
-        if (secret.length() < 32) {
+    @Autowired
+    public JwtAuthenticationFilter(
+        @Value("${aetheris.jwt.secret}") String secret,
+        @Value("${AETHERIS_GATEWAY_JWT_ISSUER:}") String issuer,
+        @Value("${AETHERIS_GATEWAY_JWT_USERS_AUDIENCE:}") String usersAudience,
+        @Value("${AETHERIS_GATEWAY_JWT_AUDIT_AUDIENCE:}") String auditAudience,
+        @Value("${AETHERIS_GATEWAY_JWT_ORCHESTRATOR_AUDIENCE:}") String orchestratorAudience) {
+        if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expectedIssuer = issuer;
+        this.usersAudience = usersAudience;
+        this.auditAudience = auditAudience;
+        this.orchestratorAudience = orchestratorAudience;
+        // A partially set policy must NOT revert to legacy authorization.
+        this.strictTargetedMode = nonEmpty(issuer) || nonEmpty(usersAudience)
+            || nonEmpty(auditAudience) || nonEmpty(orchestratorAudience);
+        this.issuerConfigurationReady = !strictTargetedMode || valid(issuer, 255);
+    }
+
+    // Only existing tests and deliberate direct construction use legacy mode.
+    JwtAuthenticationFilter(String secret) {
+        this(secret, "", "", "", "");
+    }
+
+    private static boolean nonEmpty(String value) {
+        return value != null && !value.isEmpty();
+    }
+
+    private static boolean valid(String value, int limit) {
+        return value != null && !value.isBlank()
+            && value.length() <= limit && value.equals(value.trim());
+    }
+
+    private String audienceForPath(String path) {
+        if (path.equals("/api/users") || path.startsWith("/api/users/")) return usersAudience;
+        if (path.equals("/api/events") || path.startsWith("/api/events/")) return auditAudience;
+        if (path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/"))
+            return orchestratorAudience;
+        return null;
     }
 
     @Override
@@ -42,6 +85,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
+        final String expectedAudience = audienceForPath(path);
+        if (strictTargetedMode && (!issuerConfigurationReady || !valid(expectedAudience, 128))) {
+            // Missing per-route recipient blocks that route; no fallback to
+            // accepting a token for some other service (confused deputy).
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE, "Unavailable",
+                    "JWT target policy is incomplete");
+        }
+        if (exchange.getRequest().getHeaders().getOrEmpty(HttpHeaders.AUTHORIZATION).size() != 1) {
+            return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                    "Exactly one bearer authorization header required");
+        }
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Missing bearer token");
@@ -54,6 +108,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
+
+            if (strictTargetedMode && (
+                !expectedIssuer.equals(claims.getIssuer())
+                || claims.getAudience() == null || claims.getAudience().size() != 1
+                || !claims.getAudience().contains(expectedAudience))) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                        "Signed issuer or audience does not match this route");
+            }
 
             String email = claims.getSubject();
             String role = claims.get("role", String.class);
@@ -75,6 +137,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         headers.remove("X-Aetheris-User-Email");
                         headers.remove("X-Aetheris-User-Role");
                         headers.remove("X-Aetheris-Scopes");
+                        // Never forward caller-supplied tenant evidence.
+                        // No trusted tenant model exists in Identity yet.
+                        headers.remove("X-Aetheris-Tenant-Id");
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
                         headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
