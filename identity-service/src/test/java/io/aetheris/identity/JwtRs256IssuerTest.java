@@ -74,6 +74,28 @@ class JwtRs256IssuerTest {
     }
 
     @Test
+    void reviewedKeyIdAppearsOnBothRealIdentitySignedTokenPaths() throws Exception {
+        KeyPair keys = generate(2048);
+        String privatePem = pem("PRIVATE KEY", keys.getPrivate().getEncoded());
+        JwtService signer = new JwtService(
+            SECRET, 3600, ISSUER, AUDIENCE, true, privatePem, "release-002");
+        var access = Jwts.parser().verifyWith(keys.getPublic())
+            .build().parseSignedClaims(signer.issue(account()));
+        assertEquals("release-002", access.getHeader().getKeyId());
+        var internal = Jwts.parser().verifyWith(keys.getPublic())
+            .build().parseSignedClaims(
+                signer.issueForApprovedAudience(account(), ApprovedTokenAudience.AUDIT));
+        assertEquals("release-002", internal.getHeader().getKeyId());
+        assertEquals(java.util.Set.of("aetheris-audit-api"), internal.getPayload().getAudience());
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtService(SECRET, 3600, ISSUER, AUDIENCE, true, "", "orphan"));
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtService(SECRET, 3600, ISSUER, AUDIENCE, true, privatePem, " ../bad"));
+        assertThrows(IllegalArgumentException.class,
+            () -> new JwtService(SECRET, 3600, ISSUER, AUDIENCE, true, privatePem, " "));
+    }
+
+    @Test
     void legacySignatureStillValidOnlyWithExplicitlyUnconfiguredRs256() throws Exception {
         String hmac = new JwtService(SECRET, 3600).issue(account());
         var verified = Jwts.parser().verifyWith(
