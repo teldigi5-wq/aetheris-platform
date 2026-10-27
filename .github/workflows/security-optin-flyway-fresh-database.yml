@@ -1,0 +1,73 @@
+name: Security Flyway Opt-In Fresh and Unknown Legacy Proof
+on:
+  pull_request:
+    branches: [test/security-migration-hibernate-restore-rehearsal-20261027]
+    paths:
+      - '.github/workflows/security-optin-flyway-fresh-database.yml'
+      - 'scripts/security/flyway_optin_postgres_rehearsal.sh'
+      - 'tests/test_flyway_optin_contract.py'
+      - 'tests/test_schema_migration_candidate.py'
+      - 'identity-service/pom.xml'
+      - 'user-service/pom.xml'
+      - 'identity-service/src/main/resources/**'
+      - 'user-service/src/main/resources/**'
+      - 'identity-service/src/test/java/**/FlywayOptInFreshDatabaseTest.java'
+      - 'user-service/src/test/java/**/FlywayOptInFreshDatabaseTest.java'
+      - 'docs/security/FLYWAY_OPTIN_FRESH_REHEARSAL_20261027.md'
+permissions:
+  contents: read
+jobs:
+  real-disposable-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify exact SHA, disabled-by-default and source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p test_flyway_optin_contract.py -v
+          python3 -m unittest discover -s tests -p test_schema_migration_candidate.py -v
+          python3 -m unittest discover -s tests -p test_security_closure_preflight.py -v
+          bash -n scripts/security/flyway_optin_postgres_rehearsal.sh
+      - name: PostgreSQL fresh Flyway, ORM schema validate, restart and legacy refusal
+        shell: bash
+        run: |
+          set -euo pipefail
+          AETHERIS_FLYWAY_SYNTHETIC_CI_ONLY=yes bash scripts/security/flyway_optin_postgres_rehearsal.sh
+          echo FLYWAY_REAL_FRESH_SEPARATE_DATABASES_AND_LEGACY_FAIL_CLOSED_PASS
+      - name: Full four-module Java regression with migration disabled by default
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Prove production closure remains denied
+        shell: bash
+        run: |
+          python3 scripts/security_closure_preflight.py --assert-blocked > closure.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open("closure.json",encoding="utf-8"))
+          assert d["status"]=="NO_GO"
+          assert d["safe_to_merge_or_deploy"] is False
+          assert len(d["independent_release_attestations_required"]) == 9
+          print("FLYWAY_SYNTHETIC_TEST_ONLY_HISTORICAL_RELEASE_NO_GO")
+          PY
+      - name: Always remove disposable Flyway database if interrupted
+        if: always()
+        shell: bash
+        run: |
+          docker ps --filter 'name=^/aetheris-flyway-ci-' --format '{{.Names}}' |
+            while IFS= read -r name; do
+              docker rm -f "$name" >/dev/null 2>&1 || true
+            done
+          echo FLYWAY_SYNTHETIC_CONTAINER_CLEANUP_COMPLETED
