@@ -1,0 +1,92 @@
+name: Helm Backend Ingress Isolation Proof
+
+on:
+  push:
+    branches: [release/aetheris-compose-credential-hardening-20261027]
+    paths:
+      - 'deploy/helm/aetheris/**'
+      - 'tests/test_helm_deployment_safety.py'
+      - 'docs/kubernetes.md'
+      - '.github/workflows/helm-backend-ingress-proof.yml'
+  pull_request:
+    branches: [main, release/aetheris-unified-security-20261022]
+    paths:
+      - 'deploy/helm/aetheris/**'
+      - 'tests/test_helm_deployment_safety.py'
+      - 'docs/kubernetes.md'
+      - '.github/workflows/helm-backend-ingress-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-and-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Validate existing and new chart contracts
+        run: python -m unittest tests.test_helm_deployment_safety -v
+      - name: Helm lint, actual rendering, least-privilege policy checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm version --short
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          python - "$temp_dir/nonlocal-private.yaml" <<'PY'
+          import os, secrets, sys
+          images=("gateway","userService","identityService","auditService","dashboard","postgres","redis","rabbitmq")
+          with open(sys.argv[1], "w", encoding="utf-8") as stream:
+              stream.write("secrets:\n")
+              for name in ("jwtSecret","postgresPassword","rabbitmqPassword","redisPassword"):
+                  stream.write("  "+name+": "+secrets.token_hex(32)+"\n")
+              stream.write("images:\n")
+              for name in images:
+                  stream.write(f"  {name}: registry.invalid/aetheris/{name}@sha256:{'1'*64}\n")
+          os.chmod(sys.argv[1], 0o600)
+          PY
+          chart=deploy/helm/aetheris
+          helm lint "$chart" -f "$temp_dir/nonlocal-private.yaml" --quiet
+          helm template aetheris "$chart" -f "$temp_dir/nonlocal-private.yaml"             --namespace aetheris > "$temp_dir/nonlocal.yaml"
+          helm lint "$chart" -f "$chart/values-local.yaml"             -f "$temp_dir/nonlocal-private.yaml" --quiet
+          helm template aetheris "$chart" -f "$chart/values-local.yaml"             -f "$temp_dir/nonlocal-private.yaml"             --namespace aetheris > "$temp_dir/local.yaml"
+          python - "$temp_dir/nonlocal.yaml" "$temp_dir/local.yaml" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+          expected={
+              "postgres":(5432,{"user-service","identity-service","audit-service"}),
+              "redis":(6379,{"user-service","gateway"}),
+              "rabbitmq":(5672,{"user-service","audit-service"}),
+              "user-service":(8081,{"gateway"}),
+              "identity-service":(8082,{"gateway"}),
+              "audit-service":(8083,{"gateway"}),
+          }
+          def policies(file):
+              return [part for part in Path(file).read_text().split("---")
+                      if re.search(r"(?m)^kind: NetworkPolicy$", part)]
+          nonlocal_policies=policies(sys.argv[1])
+          assert len(nonlocal_policies)==len(expected), "NONLOCAL_POLICY_COUNT_DRIFT"
+          seen=set()
+          for doc in nonlocal_policies:
+              name=re.search(r"(?m)^  name: aetheris-(.+)-ingress$", doc)
+              assert name, "POLICY_NAME_MISSING"
+              target=name.group(1)
+              assert target in expected and target not in seen, "POLICY_TARGET_DRIFT"
+              seen.add(target)
+              assert "apiVersion: networking.k8s.io/v1" in doc
+              assert "policyTypes:" in doc and "- from:" in doc
+              assert not any(key in doc for key in ("namespaceSelector:", "ipBlock:", "0.0.0.0/0"))
+              apps=re.findall(r'(?m)^\s+app: "([^"]+)"$', doc)
+              assert apps and apps[0]==target, "POLICY_SELECTOR_DRIFT"
+              port=int(re.search(r"(?m)^          port: (\d+)$", doc).group(1))
+              allowed_port, expected_clients=expected[target]
+              assert port==allowed_port and set(apps[1:])==expected_clients, "POLICY_PEER_PORT_DRIFT"
+          assert not policies(sys.argv[2]), "LOCAL_DEMO_POLICY_CHANGE"
+          print("HELM_INGRESS_ISOLATION_RENDER_PASS: six non-local policies; no local-demo policies")
+          PY
+          # Rendered manifests contain synthetic credentials. Do not print/upload.
