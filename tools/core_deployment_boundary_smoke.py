@@ -224,6 +224,9 @@ def main() -> int:
 
         if not RUNTIME_DATASOURCE_URL or not RUNTIME_DATASOURCE_USERNAME or not RUNTIME_DATASOURCE_PASSWORD:
             raise AssertionError("external orchestrator datasource configuration is incomplete")
+        # Inherit the validated secret by environment name; never put it in
+        # docker CLI argv, exception messages, or CI logs.
+        os.environ["SPRING_DATASOURCE_PASSWORD"] = RUNTIME_DATASOURCE_PASSWORD
         run(
             [
                 "docker",
