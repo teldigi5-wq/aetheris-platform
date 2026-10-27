@@ -153,6 +153,11 @@ assert_denied user_runtime "$usrp" "INSERT INTO user_stage.synthetic_user_owner_
 assert_denied identity_migrator "$idmp" "SELECT * FROM user_stage.synthetic_user_owner_bindings;"
 run_migration user_runtime "$usrp" user_stage user-service SyntheticUserOwnershipBindingTest aetheris.object.binding.synthetic
 echo THREE_ROLE_SYNTHETIC_CROSS_TENANT_OBJECT_OWNERSHIP_DENIALS_PASS
+# Link synthetic JWT signature validation to the *same* disposable ownership
+# records. No live Identity token or controller permission is modified.
+run_migration user_runtime "$usrp" user_stage user-service SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic
+echo THREE_ROLE_SIGNED_TENANT_BINDING_AND_HTTP_DENY_PROOF_PASS
+
 
 
 # Repeat real Flyway startup, preserve all synthetic DML and histories.
