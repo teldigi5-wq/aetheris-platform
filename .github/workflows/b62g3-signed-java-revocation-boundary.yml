@@ -1,0 +1,46 @@
+name: B62-G3 Real Java Signed JWT Revocation Boundary
+on:
+  pull_request:
+    branches: [security/b62g2-readonly-revocation-adapter-20261026]
+    paths:
+      - '.github/workflows/b62g3-signed-java-revocation-boundary.yml'
+      - 'identity-service/src/test/java/io/aetheris/identity/B62G3SignedJavaRevocationBoundaryTest.java'
+      - 'tests/test_b62g3_java_signature_boundary.py'
+      - 'docs/security/B62G3_SIGNED_JAVA_REVOCATION_BOUNDARY_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  signed-java-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Assert exact SHA and source-only security boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g3_java_signature_boundary.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g2_adapter_unit.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g2_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g_revocation_prototype_contract.py' -v
+      - name: Complete four-module Java reactor regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Genuine ephemeral Identity JJWT RS256 revocation gate acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=B62G3SignedJavaRevocationBoundaryTest test
+          echo B62G3_GENUINE_SIGNED_JAVA_TEST_ONLY_BOUNDARY_PASSED
