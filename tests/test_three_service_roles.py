@@ -126,6 +126,32 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         ):
             self.assertIn(required, script)
 
+    def test_signed_tenant_claim_is_synthetic_and_cannot_enable_runtime_consumer(self):
+        path = ROOT / "user-service/src/test/java/io/aetheris/users/security/SyntheticSignedTenantBindingTest.java"
+        source = path.read_text()
+        for assertion in (
+            "aetheris.signed.binding.synthetic",
+            'spring.flyway.enabled=false',
+            'Jwts.parser().verifyWith(TEST_KEY)',
+            'identity_uid=? AND user_id=? AND tenant_id=?::uuid',
+            'claims.get("tenant_id", String.class)',
+            'assertTrue(admitsSyntheticObject(consumer(b, TENANT_A), a))',
+            'assertFalse(admitsSyntheticObject(consumer(a, TENANT_A), a))',
+            'assertFalse(admitsSyntheticObject(consumer(b, TENANT_B), a))',
+            'token(WRONG_SECRET',
+            'verifyNoInteractions(service)',
+            '.andExpect(status().isForbidden())',
+            'X-Aetheris-Tenant-Id',
+        ):
+            self.assertIn(assertion, source)
+        script = SCRIPT.read_text()
+        self.assertIn('SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic', script)
+        self.assertIn('THREE_ROLE_SIGNED_TENANT_BINDING_AND_HTTP_DENY_PROOF_PASS', script)
+        user_filter = (ROOT / "user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java").read_text()
+        self.assertIn('return privileged && scopes.contains("users:read");', user_filter)
+        issuer = (ROOT / "identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+        self.assertNotIn('.claim("tenant_id"', issuer)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
