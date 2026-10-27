@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Generate isolated CI-only Compose credentials
+        working-directory: ${{ runner.temp }}
         shell: bash
         run: |
           set -euo pipefail
@@ -153,6 +154,7 @@ jobs:
       AETHERIS_ORCHESTRATOR_URI: http://orchestrator-runtime:8090
     steps:
       - name: Generate isolated CI-only Compose credentials
+        working-directory: ${{ runner.temp }}
         shell: bash
         run: |
           set -euo pipefail

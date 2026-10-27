@@ -53,6 +53,7 @@ jobs:
       AETHERIS_JWT_SECRET: observability-proof-local-ci-secret-42chars-long
     steps:
       - name: Generate isolated CI-only Compose credentials
+        working-directory: ${{ runner.temp }}
         shell: bash
         run: |
           set -euo pipefail

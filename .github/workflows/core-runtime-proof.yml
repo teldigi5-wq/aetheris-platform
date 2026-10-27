@@ -52,6 +52,7 @@ jobs:
       COMPOSE_FILE: docker-compose.integration-external.yml
     steps:
       - name: Generate isolated CI-only Compose credentials
+        working-directory: ${{ runner.temp }}
         shell: bash
         run: |
           set -euo pipefail

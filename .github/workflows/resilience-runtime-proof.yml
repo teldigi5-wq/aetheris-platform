@@ -43,6 +43,7 @@ jobs:
       AETHERIS_JWT_SECRET: resilience-runtime-proof-local-ci-secret-42chars
     steps:
       - name: Generate isolated CI-only Compose credentials
+        working-directory: ${{ runner.temp }}
         shell: bash
         run: |
           set -euo pipefail
