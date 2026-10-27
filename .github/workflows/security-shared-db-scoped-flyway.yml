@@ -1,0 +1,67 @@
+name: Security Shared Physical Database - Two Scoped Flyway Histories
+on:
+  pull_request:
+    branches: [test/security-flyway-opt-in-fresh-schema-20261027]
+    paths:
+      - '.github/workflows/security-shared-db-scoped-flyway.yml'
+      - 'scripts/security/rehearse_shared_db_scoped_flyway.sh'
+      - 'tests/test_shared_db_scoped_flyway.py'
+      - 'identity-service/src/test/java/io/aetheris/identity/SharedDatabaseSchemaIsolationTest.java'
+      - 'user-service/src/test/java/io/aetheris/users/SharedDatabaseSchemaIsolationTest.java'
+      - 'docs/security/SHARED_DATABASE_SCOPED_FLYWAY_20261027.md'
+permissions:
+  contents: read
+jobs:
+  actual-shared-physical-database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact head and nonproduction schema isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p test_shared_db_scoped_flyway.py -v
+          python3 -m unittest discover -s tests -p test_flyway_optin_contract.py -v
+          bash -n scripts/security/rehearse_shared_db_scoped_flyway.sh
+      - name: Actual one physical database, two Flyway histories, ORM validation and restart
+        shell: bash
+        run: |
+          set -euo pipefail
+          AETHERIS_SHARED_SCHEMA_SYNTHETIC_ONLY=yes bash scripts/security/rehearse_shared_db_scoped_flyway.sh
+          echo SHARED_PHYSICAL_POSTGRES_TWO_LOGICAL_SERVICE_SCHEMAS_PASS
+      - name: Full four-module Java JWT and JPA regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Stage45 remains NO_GO
+        shell: bash
+        run: |
+          python3 scripts/security_closure_preflight.py --assert-blocked > closure.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open("closure.json",encoding="utf-8"))
+          assert d["status"]=="NO_GO"
+          assert d["safe_to_merge_or_deploy"] is False
+          assert len(d["independent_release_attestations_required"])==9
+          print("SHARED_DB_SYNTHETIC_PROOF_NOT_PRODUCTION_MIGRATION_APPROVAL")
+          PY
+      - name: Always destroy disposable shared database
+        if: always()
+        shell: bash
+        run: |
+          docker ps --filter 'name=^/aetheris-shared-schema-' --format '{{.Names}}' |
+            while IFS= read -r name; do
+              docker rm -f "$name" >/dev/null 2>&1 || true
+            done
+          echo SHARED_SCHEMA_SYNTHETIC_CONTAINER_DESTROYED
