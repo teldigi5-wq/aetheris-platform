@@ -1,0 +1,40 @@
+name: Security Closure Source Review - Remains NO_GO
+on:
+  pull_request:
+    branches: [release/aetheris-compose-credential-hardening-20261027]
+    paths:
+      - 'scripts/security_closure_preflight.py'
+      - 'tests/test_security_closure_preflight.py'
+      - 'docs/security/security-closure-release-candidate-20261027.md'
+permissions:
+  contents: read
+jobs:
+  non-promoting-closure-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Source-only closure tests and exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p test_security_closure_preflight.py -v
+          python3 scripts/security_closure_preflight.py --assert-blocked > closure.json
+          python3 - <<'PY'
+          import json
+          r=json.load(open("closure.json",encoding="utf-8"))
+          assert r["status"]=="NO_GO" and r["safe_to_merge_or_deploy"] is False
+          assert len(r["independent_release_attestations_required"])==9
+          print("SECURITY_CLOSURE_SOURCE_REVIEW_BLOCKED_AS_REQUIRED")
+          print("UNREVIEWED_AUTO_DDL_SOURCES",len(r["unreviewed_schema_mutation"]))
+          print("BACKEND_AUTH_GAPS",len(r["backend_service_authentication_gaps"]))
+          PY
+      - name: Report is NOT a deployment approval
+        shell: bash
+        run: |
+          printf '%s\n' 'Security review source policy verified, but release remains NO_GO.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Owner approvals, migration restore, service authorization and runtime gates outstanding.' >> "$GITHUB_STEP_SUMMARY"
