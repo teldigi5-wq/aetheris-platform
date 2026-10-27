@@ -7,6 +7,7 @@ JAVA = (ROOT/"identity-service/src/test/java/io/aetheris/identity/B62G4RealJdbcR
 SCRIPT = (ROOT/"tests/security/b62g4-java-jdbc-proof.sh").read_text()
 OVERLAY = (ROOT/"tests/security/docker-compose.b62g4-local-jdbc-overlay.yml").read_text()
 WORKFLOW = (ROOT/".github/workflows/b62g4-real-jdbc-revocation.yml").read_text()
+DOCKERFILE = (ROOT/"tests/security/b62g4-Dockerfile").read_text()
 DOC = (ROOT/"docs/security/B62G4_JAVA_JDBC_REVOCATION_20261027.md").read_text()
 
 class B62G4Boundaries(unittest.TestCase):
@@ -43,6 +44,12 @@ class B62G4Boundaries(unittest.TestCase):
         self.assertIn('security_opt: ["no-new-privileges:true"]', OVERLAY)
         self.assertNotIn("ports:", OVERLAY)
         self.assertIn("B62G4_ZERO_HOST_PORT_INTERNAL_JAVA_DB_TOPOLOGY", SCRIPT)
+        self.assertIn("b62g4-Dockerfile", OVERLAY)
+        self.assertIn("b62g4-Dockerfile", SCRIPT)
+        self.assertIn("FROM docker.io/library/amazoncorretto:21.0.13-al2023@sha256:", DOCKERFILE)
+        self.assertIn("MAVEN_SHA512=", DOCKERFILE)
+        self.assertIn("sha512sum --check --strict", DOCKERFILE)
+        self.assertIn("RUN mvn -B -ntp -Dtest=B62G3SignedJavaRevocationBoundaryTest test", DOCKERFILE)
         for fragment in ("trap cleanup EXIT", "down --volumes --remove-orphans",
                          "docker compose", "b62g-revocation-prototype.sql",
                          "b62g2-readonly-role.sql",
