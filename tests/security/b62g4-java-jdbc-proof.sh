@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# B62-G4 exact-source, CI-only real Java JDBC revocation admission proof.
-# Never connect to live DBs, publish non-loopback ports, or store real keys.
+# B62-G4: actual JJWT 3072-bit RSA + JDBC on the same internal CI network.
+# Zero exposed database ports; zero real keys, accounts or external URLs.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 COMPOSE=(
@@ -15,20 +15,26 @@ trap cleanup EXIT
 "${COMPOSE[@]}" config --format json | python3 -c '
 import json,sys
 d=json.load(sys.stdin)
-assert set(d["services"])=={"postgres"}
+assert set(d["services"])=={"postgres","java-proof"}
 assert len(d["networks"])==1 and all(x.get("internal") is True for x in d["networks"].values())
 assert len(d.get("volumes",{}))==1 and not any(x.get("external") for x in d["volumes"].values())
-v=d["services"]["postgres"]
-assert not v.get("privileged") and not v.get("devices") and not v.get("pid")
-assert len(v.get("ports",[]))==1
-p=v["ports"][0]
-assert p["host_ip"]=="127.0.0.1" and str(p["published"])=="15479" and p["target"]==5432
-assert not any("docker.sock" in str(x) for x in v.get("volumes",[]))
-assert v["environment"]["POSTGRES_DB"]=="b62g_synthetic"
-assert v["environment"]["POSTGRES_USER"]=="b62g_synthetic"
-assert v["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-production"
-print("B62G4_EXACT_LOOPBACK_ONLY_EPHEMERAL_DB_TOPOLOGY")
+for name,v in d["services"].items():
+    assert not v.get("ports") and not v.get("privileged") and not v.get("devices") and not v.get("pid"),name
+    assert not any("docker.sock" in str(x) for x in v.get("volumes",[])),name
+pg=d["services"]["postgres"]
+assert pg["environment"]["POSTGRES_DB"]=="b62g_synthetic"
+assert pg["environment"]["POSTGRES_USER"]=="b62g_synthetic"
+assert pg["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-production"
+java=d["services"]["java-proof"]
+assert java.get("build")
+assert java.get("cap_drop")==["ALL"]
+assert "no-new-privileges:true" in java.get("security_opt",[])
+assert "jdbc:postgresql://postgres:5432/b62g_synthetic" in str(java.get("command"))
+print("B62G4_ZERO_HOST_PORT_INTERNAL_JAVA_DB_TOPOLOGY")
 '
+# Image build uses the existing sha256-pinned identity-service Dockerfile,
+# verifying Maven 3.9.11 downloaded archive SHA512 before any test code runs.
+"${COMPOSE[@]}" build java-proof
 "${COMPOSE[@]}" up -d --wait --wait-timeout 120 postgres
 PSQL=(psql -X -qAt -v ON_ERROR_STOP=1 -U b62g_synthetic -d b62g_synthetic)
 "${COMPOSE[@]}" exec -T postgres "${PSQL[@]}" < tests/security/b62g-revocation-prototype.sql
@@ -36,13 +42,9 @@ PSQL=(psql -X -qAt -v ON_ERROR_STOP=1 -U b62g_synthetic -d b62g_synthetic)
 "${COMPOSE[@]}" exec -T postgres "${PSQL[@]}" < tests/security/b62g2-readonly-role.sql
 "${COMPOSE[@]}" exec -T postgres "${PSQL[@]}" -c \
   "SELECT b62g_proof.raise_principal_epoch(42,12000);" >/dev/null
-
-JDBC='jdbc:postgresql://127.0.0.1:15479/b62g_synthetic?connectTimeout=2&socketTimeout=3&sslmode=disable'
 run_java() {
   local mode="$1"
-  ./mvnw -B -ntp -f identity-service/pom.xml \
-    -Dtest=B62G4RealJdbcRevocationIT \
-    "-Db62g4.jdbcUrl=${JDBC}" "-Db62g4.mode=${mode}" test
+  "${COMPOSE[@]}" run --rm --no-deps -e "B62G4_MODE=${mode}" java-proof
 }
 run_java online
 "${COMPOSE[@]}" restart postgres
@@ -50,6 +52,5 @@ run_java online
 run_java restarted
 "${COMPOSE[@]}" stop postgres
 run_java outage
-
 echo B62G4_REAL_JJWT_RS256_READONLY_JDBC_RESTART_OUTAGE_PASS
 echo B62G4_REAL_PRODUCTION_VERIFIERS_UNCHANGED
