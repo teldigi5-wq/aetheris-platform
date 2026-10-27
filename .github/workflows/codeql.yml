@@ -21,8 +21,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  JAVA_VERSION: '21.0.12'
-  NODE_VERSION: '22.23.2'
+  JAVA_VERSION: '21.0.13'
+  NODE_VERSION: '22.23.4'
 
 jobs:
   analyze-java:
