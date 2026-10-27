@@ -216,6 +216,39 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         ):
             self.assertIn(method, gateway_test)
 
+    def test_disabled_by_default_typed_token_mint_stays_internal(self):
+        issuer = (ROOT / "identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+        target = (ROOT / "identity-service/src/main/java/io/aetheris/identity/ApprovedTokenAudience.java").read_text()
+        tests = (ROOT / "identity-service/src/test/java/io/aetheris/identity/ApprovedAudienceTokenIssuanceTest.java").read_text()
+        controller = (ROOT / "identity-service/src/main/java/io/aetheris/identity/AuthController.java").read_text()
+        for phrase in (
+            "AETHERIS_IDENTITY_TARGETED_TOKENS_ENABLED:false",
+            "issueForApprovedAudience(IdentityAccount account, ApprovedTokenAudience target)",
+            "approvedTargetIssuanceEnabled",
+            "Math.min(expirationSeconds, 300L)",
+            "Role cannot request target-scoped token",
+            'claim("aud", java.util.List.of(target.audience()))',
+        ):
+            self.assertIn(phrase, issuer)
+        for phrase in (
+            'USER("aetheris-user-api"',
+            'AUDIT("aetheris-audit-api"',
+            'ORCHESTRATOR("aetheris-orchestrator-api"',
+            "role != Role.ADMIN && role != Role.DEVELOPER",
+            "result.retainAll(scopes)",
+        ):
+            self.assertIn(phrase, target)
+        for phrase in (
+            "fixedApprovedTargetsYieldDistinctSignedRecipientsAndStrictScopedClaims",
+            "developerGetsOnlyItsOriginalIntersectedScopes",
+            "consumerAndMissingIdentityAreRefusedBeforeMinting",
+            "mintingIsDisabledByDefaultAndRejectsUnpairedOperatorSettings",
+            "shorterConfiguredTtlIsNotExtended",
+        ):
+            self.assertIn(phrase, tests)
+        self.assertNotIn("issueForApprovedAudience", controller)
+        self.assertNotIn(".claim(\"tenant_id\"", issuer)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
