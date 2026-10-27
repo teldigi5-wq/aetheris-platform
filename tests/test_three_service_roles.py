@@ -296,7 +296,8 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             self.assertIn("JWT_RS256_PUBLIC_KEY_PEM", source)
             self.assertIn("JwtRs256KeySupport.publicKey(rs256Pem)", source)
             self.assertIn('!"RS256".equals(signed.getHeader().getAlgorithm())', source)
-            self.assertIn("Jwts.parser().verifyWith(rs256PublicKey)", source)
+            self.assertIn("rs256Verifier.verify(token)", source)
+            self.assertIn("JwtPinnedRotationVerifier", source)
             self.assertNotIn("privateKey(rs256Pem)", source)
         for service, package in (
             ("identity-service", "io/aetheris/identity"),
@@ -325,6 +326,49 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             else:
                 self.assertIn("Jwts.SIG.RS256", test)
             self.assertIn("assertThrows(", test)
+
+    def test_rs256_rotation_is_pinned_signature_first_and_non_networked(self):
+        identity = (ROOT / "identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+        self.assertIn("AETHERIS_IDENTITY_JWT_RS256_KEY_ID", identity)
+        self.assertIn("builder.header().keyId(rs256KeyId).and()", identity)
+        self.assertIn("RS256 key ID requires reviewed private signing key", identity)
+        for svc, namespace in (
+            ("gateway", "gateway"),
+            ("user-service", "users/security"),
+            ("audit-service", "audit/security"),
+        ):
+            base = ROOT / svc / "src/main/java/io/aetheris" / namespace
+            verifier = (base / "JwtPinnedRotationVerifier.java").read_text()
+            for literal in (
+                "JwtRs256KeySupport.publicKey(activePem)",
+                "JwtRs256KeySupport.publicKey(stagedPem)",
+                '!"RS256".equals(signed.getHeader().getAlgorithm())',
+                "expectedKid.equals(signed.getHeader().getKeyId())",
+                "signed = Jwts.parser().verifyWith(key).build().parseSignedClaims(jwt)",
+                "RS256 rotation key IDs must be distinct",
+            ):
+                self.assertIn(literal, verifier)
+            self.assertNotIn("http://", verifier)
+            self.assertNotIn("https://", verifier)
+            self.assertNotIn("getKeyId())", (base / "JwtRs256KeySupport.java").read_text())
+            source = (base / ("JwtAuthenticationFilter.java" if svc=="gateway"
+                              else "DirectApiJwtFilter.java")).read_text()
+            self.assertIn("rs256Verifier.verify(token)", source)
+            self.assertIn("JWT_RS256_STAGED_PUBLIC_KEY_PEM", source)
+            test = (ROOT / svc / "src/test/java/io/aetheris" /
+                    namespace / "JwtPinnedRotationVerifierTest.java").read_text()
+            for case in ("overlapAdmitsOnlyMatchingVerifiedActiveOrStagedKid",
+                         "retiringOldKeyImmediatelyRejectsOldSignatures",
+                         "partialDuplicateAndMalformedRotationSettingsFailClosed"):
+                self.assertIn(case, test)
+        for path in (
+            "gateway/src/test/java/io/aetheris/gateway/GatewayRs256VerificationTest.java",
+            "user-service/src/test/java/io/aetheris/users/security/DirectApiRs256VerificationTest.java",
+            "audit-service/src/test/java/io/aetheris/audit/security/DirectApiRs256VerificationTest.java",
+        ):
+            self.assertIn("AfterPinnedRotation" if "DirectApi" in path
+                          else "actualGatewayAcceptsPinnedOverlapThenRejectsRetiredSigner",
+                          (ROOT / path).read_text())
 
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()

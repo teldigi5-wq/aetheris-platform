@@ -37,6 +37,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     );
     private final SecretKey key;
     private final PublicKey rs256PublicKey;
+    private final JwtPinnedRotationVerifier rs256Verifier;
     private final String expectedIssuer;
     private final String usersAudience;
     private final String auditAudience;
@@ -51,12 +52,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         @Value("${AETHERIS_GATEWAY_JWT_USERS_AUDIENCE:}") String usersAudience,
         @Value("${AETHERIS_GATEWAY_JWT_AUDIT_AUDIENCE:}") String auditAudience,
         @Value("${AETHERIS_GATEWAY_JWT_ORCHESTRATOR_AUDIENCE:}") String orchestratorAudience,
-        @Value("${AETHERIS_GATEWAY_JWT_RS256_PUBLIC_KEY_PEM:}") String rs256Pem) {
+        @Value("${AETHERIS_GATEWAY_JWT_RS256_PUBLIC_KEY_PEM:}") String rs256Pem,
+        @Value("${AETHERIS_GATEWAY_JWT_RS256_KEY_ID:}") String activeKid,
+        @Value("${AETHERIS_GATEWAY_JWT_RS256_STAGED_PUBLIC_KEY_PEM:}") String stagedPem,
+        @Value("${AETHERIS_GATEWAY_JWT_RS256_STAGED_KEY_ID:}") String stagedKid) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         // Public key verification never attempts legacy HMAC fallback.
+        this.rs256Verifier = new JwtPinnedRotationVerifier(rs256Pem, activeKid,
+            stagedPem, stagedKid);
         this.rs256PublicKey = rs256Pem == null || rs256Pem.isEmpty()
             ? null : JwtRs256KeySupport.publicKey(rs256Pem);
         this.expectedIssuer = issuer;
@@ -71,12 +77,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     // Only existing tests and deliberate direct construction use legacy mode.
     JwtAuthenticationFilter(String secret) {
-        this(secret, "", "", "", "", "");
+        this(secret, "", "", "", "", "", "", "", "");
     }
 
     JwtAuthenticationFilter(String secret, String issuer, String users,
                             String audit, String orchestrator) {
-        this(secret, issuer, users, audit, orchestrator, "");
+        this(secret, issuer, users, audit, orchestrator, "", "", "", "");
+    }
+
+    JwtAuthenticationFilter(String secret, String issuer, String users,
+                            String audit, String orchestrator, String rs256Pem) {
+        this(secret, issuer, users, audit, orchestrator, rs256Pem, "", "", "");
     }
 
     private static boolean nonEmpty(String value) {
@@ -123,10 +134,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         String token = authorization.substring(7).trim();
         try {
-            var signed = (rs256PublicKey == null
-                    ? Jwts.parser().verifyWith(key)
-                    : Jwts.parser().verifyWith(rs256PublicKey))
-                    .build().parseSignedClaims(token);
+            var signed = rs256Verifier.configured()
+                ? rs256Verifier.verify(token)
+                : Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
             if (rs256PublicKey != null && !"RS256".equals(signed.getHeader().getAlgorithm())) {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
                         "Expected RS256 signature");
