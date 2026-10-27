@@ -18,12 +18,15 @@ public class JwtService {
     private final String issuer;
     private final String audience;
     private final boolean targetedIssuance;
+    private final boolean approvedTargetIssuanceEnabled;
 
     @Autowired
     public JwtService(@Value("${aetheris.jwt.secret}") String secret,
                       @Value("${aetheris.jwt.expiration-seconds:3600}") long expirationSeconds,
                       @Value("${AETHERIS_IDENTITY_JWT_ISSUER:}") String issuer,
-                      @Value("${AETHERIS_IDENTITY_JWT_AUDIENCE:}") String audience) {
+                      @Value("${AETHERIS_IDENTITY_JWT_AUDIENCE:}") String audience,
+                      @Value("${AETHERIS_IDENTITY_TARGETED_TOKENS_ENABLED:false}")
+                      boolean approvedTargetIssuanceEnabled) {
         if (secret == null || secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters");
         }
@@ -42,11 +45,21 @@ public class JwtService {
         this.issuer = issuer;
         this.audience = audience;
         this.targetedIssuance = anyPolicySet;
+        // The service cannot run with target minting switched on but an
+        // incomplete issuer+audience policy. Refuse to initialize.
+        if (approvedTargetIssuanceEnabled && !anyPolicySet) {
+            throw new IllegalArgumentException("Targeted issuance needs reviewed issuer/audience policy");
+        }
+        this.approvedTargetIssuanceEnabled = approvedTargetIssuanceEnabled;
     }
 
-    // Test-only compatibility constructor. Production Spring autowires all four.
+    // Test-only compatibility constructors. Production Spring autowires five.
     JwtService(String secret, long expirationSeconds) {
-        this(secret, expirationSeconds, "", "");
+        this(secret, expirationSeconds, "", "", false);
+    }
+
+    JwtService(String secret, long expirationSeconds, String issuer, String audience) {
+        this(secret, expirationSeconds, issuer, audience, false);
     }
 
     private static boolean validTarget(String value, int maxLength) {
@@ -70,6 +83,40 @@ public class JwtService {
             builder.issuer(issuer).claim("aud", java.util.List.of(audience));
         }
         return builder.signWith(key).compact();
+    }
+
+    /**
+     * NOT exposed through a controller or public token exchange. A future
+     * authenticated exchange must independently validate client and subject,
+     * tenant/object grants and revocation before invoking this method.
+     * Existing caller-supplied target strings, URLs, and headers are NOT
+     * accepted; the target must be an approved Java enum constant.
+     */
+    String issueForApprovedAudience(IdentityAccount account, ApprovedTokenAudience target) {
+        if (!approvedTargetIssuanceEnabled || !targetedIssuance) {
+            throw new IllegalStateException("Target-scoped token minting is disabled");
+        }
+        if (account == null || target == null || account.getId() == null
+                || account.getId() <= 0 || account.getEmail() == null
+                || account.getEmail().isBlank() || account.getRole() == null) {
+            throw new IllegalArgumentException("Verified account and target are required");
+        }
+        var scopes = target.allowedScopes(account.getRole());
+        if (scopes.isEmpty()) {
+            throw new SecurityException("Role cannot request target-scoped token");
+        }
+        Instant now = Instant.now();
+        long cappedLifetime = Math.min(expirationSeconds, 300L);
+        return Jwts.builder()
+                .subject(account.getEmail())
+                .claim("uid", account.getId())
+                .claim("role", account.getRole().name())
+                .claim("scopes", scopes.stream().sorted().toList())
+                .issuer(issuer)
+                .claim("aud", java.util.List.of(target.audience()))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(cappedLifetime)))
+                .signWith(key).compact();
     }
 
     public long expirationSeconds() { return expirationSeconds; }
