@@ -375,6 +375,10 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         self.assertIn('aetheris.jwt.secret:}', identity)
         self.assertIn('this.key = rsaMode ? null', identity)
         self.assertIn('Legacy JWT HMAC secret must be at least 32 characters', identity)
+        for service in ("identity-service", "gateway"):
+            yml = (ROOT / service / "src/main/resources/application.yml").read_text()
+            self.assertIn("secret: ${AETHERIS_JWT_SECRET:}", yml)
+            self.assertNotIn("secret: ${AETHERIS_JWT_SECRET}", yml)
         gateway = (ROOT / "gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java").read_text()
         self.assertIn('aetheris.jwt.secret:}', gateway)
         self.assertIn('this.key = rs256Verifier.configured() ? null', gateway)
