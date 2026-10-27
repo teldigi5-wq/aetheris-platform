@@ -18,6 +18,15 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Verify source guard across all four services
         run: python3 -m unittest -v tests.test_dependency_lockdown_containers
+      - name: Set up pinned JDK for CI-only TLS probe compilation
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+      - name: Compile read-only TLS proof (not packaged in app images)
+        run: |
+          mkdir -p "${RUNNER_TEMP}/emudhra-proof"
+          javac --release 17 -d "${RUNNER_TEMP}/emudhra-proof" tests/EmudhraTlsProbe.java
       - name: Rebuild four images and inspect actual runtime truststores
         shell: bash
         run: |
@@ -41,5 +50,8 @@ jobs:
               fi
               echo "Runtime truststore: Oracle-disallowed aliases and known fingerprints absent"
             '
+            docker run --rm --mount "type=bind,src=${RUNNER_TEMP}/emudhra-proof,dst=/proof,readonly" \
+              --entrypoint java "aetheris-${module}-ca-proof:${GITHUB_SHA}" \
+              -cp /proof EmudhraTlsProbe
             echo "::endgroup::"
           done
