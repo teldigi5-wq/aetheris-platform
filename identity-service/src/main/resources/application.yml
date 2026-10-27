@@ -8,6 +8,13 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
     password: ${SPRING_DATASOURCE_PASSWORD}
+  flyway:
+    # Production migrations remain OFF until owner-reviewed historical
+    # baseline/restore and explicit service/database activation.
+    enabled: ${AETHERIS_FLYWAY_MIGRATION_ENABLED:false}
+    baseline-on-migrate: false
+    clean-disabled: true
+    validate-on-migrate: true
   jpa:
     hibernate:
       ddl-auto: validate

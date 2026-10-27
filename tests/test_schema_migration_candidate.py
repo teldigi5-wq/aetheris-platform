@@ -17,8 +17,12 @@ class SchemaMigrationCandidateTests(unittest.TestCase):
             application = (ROOT / svc / "src/main/resources/application.yml").read_text()
             self.assertIn("ddl-auto: validate", application)
             pom = (ROOT / svc / "pom.xml").read_text()
-            self.assertNotIn("<artifactId>flyway-core</artifactId>", pom)
-            self.assertFalse((ROOT / svc / "src/main/resources/db/migration").exists())
+            self.assertIn("<artifactId>flyway-core</artifactId>", pom)
+            self.assertIn("<artifactId>flyway-database-postgresql</artifactId>", pom)
+            self.assertIn("enabled: ${AETHERIS_FLYWAY_MIGRATION_ENABLED:false}", application)
+            self.assertIn("baseline-on-migrate: false", application)
+            self.assertIn("clean-disabled: true", application)
+            self.assertTrue((ROOT / svc / "src/main/resources/db/migration/V1__fresh_schema.sql").is_file())
         for name in ("docker-compose.yml", "docker-compose.core.yml",
                      "docker-compose.integration-external.yml"):
             # New review-only release branch fails closed; historical schema
