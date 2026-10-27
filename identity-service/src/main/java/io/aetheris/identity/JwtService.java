@@ -24,7 +24,7 @@ public class JwtService {
     private final boolean approvedTargetIssuanceEnabled;
 
     @Autowired
-    public JwtService(@Value("${aetheris.jwt.secret}") String secret,
+    public JwtService(@Value("${aetheris.jwt.secret:}") String secret,
                       @Value("${aetheris.jwt.expiration-seconds:3600}") long expirationSeconds,
                       @Value("${AETHERIS_IDENTITY_JWT_ISSUER:}") String issuer,
                       @Value("${AETHERIS_IDENTITY_JWT_AUDIENCE:}") String audience,
@@ -33,8 +33,11 @@ public class JwtService {
                       @Value("${AETHERIS_IDENTITY_JWT_RS256_PRIVATE_KEY_PEM:}")
                       String rs256Pem,
                       @Value("${AETHERIS_IDENTITY_JWT_RS256_KEY_ID:}") String rs256KeyId) {
-        if (secret == null || secret.length() < 32) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 characters");
+        // RS256 signing never needs or initializes a shared HMAC secret.
+        // Legacy HMAC mode still fails startup without a sufficiently long key.
+        boolean rsaMode = rs256Pem != null && !rs256Pem.isEmpty();
+        if (!rsaMode && (secret == null || secret.length() < 32)) {
+            throw new IllegalArgumentException("Legacy JWT HMAC secret must be at least 32 characters");
         }
         if (expirationSeconds <= 0) {
             throw new IllegalArgumentException("Access token lifetime must be positive");
@@ -46,13 +49,14 @@ public class JwtService {
             // downgrade issuance back to untargeted legacy JWTs.
             throw new IllegalArgumentException("Identity issuer/audience policy incomplete or invalid");
         }
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.key = rsaMode ? null
+            : Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationSeconds = expirationSeconds;
         this.issuer = issuer;
         this.audience = audience;
         this.targetedIssuance = anyPolicySet;
-        // A configured private key selects RS256 exclusively. Any malformed
-        // PEM fails startup rather than falling back to shared HMAC issuance.
+        // A configured private key selects RS256 exclusively without a shared
+        // HMAC dependency. Invalid PEM fails startup; never revert to HMAC.
         if (rs256Pem != null && !rs256Pem.isEmpty() && !anyPolicySet) {
             throw new IllegalArgumentException("RS256 issuance requires issuer and audience");
         }
