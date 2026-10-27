@@ -91,6 +91,36 @@ class GatewayRs256VerificationTest {
     }
 
     @Test
+    void actualGatewayAcceptsPinnedOverlapThenRejectsRetiredSigner() throws Exception {
+        KeyPair older = pair(2048), newer = pair(2048);
+        var overlap = new JwtAuthenticationFilter(
+            SECRET, ISSUER, USERS, AUDIT, ORCH,
+            pem(older), "2026-old", pem(newer), "2026-new");
+        Instant now = Instant.now();
+        String oldToken = Jwts.builder().header().keyId("2026-old").and()
+            .subject("admin@example.invalid").claim("uid", 42L)
+            .claim("role", "ADMIN").claim("scopes", List.of("users:read"))
+            .issuer(ISSUER).claim("aud", List.of(USERS))
+            .issuedAt(Date.from(now.minusSeconds(5)))
+            .expiration(Date.from(now.plusSeconds(120)))
+            .signWith(older.getPrivate(), Jwts.SIG.RS256).compact();
+        String newToken = Jwts.builder().header().keyId("2026-new").and()
+            .subject("admin@example.invalid").claim("uid", 42L)
+            .claim("role", "ADMIN").claim("scopes", List.of("users:read"))
+            .issuer(ISSUER).claim("aud", List.of(USERS))
+            .issuedAt(Date.from(now.minusSeconds(5)))
+            .expiration(Date.from(now.plusSeconds(120)))
+            .signWith(newer.getPrivate(), Jwts.SIG.RS256).compact();
+        assertRoute(overlap, oldToken, null);
+        assertRoute(overlap, newToken, null);
+        var retired = new JwtAuthenticationFilter(
+            SECRET, ISSUER, USERS, AUDIT, ORCH,
+            pem(newer), "2026-new", "", "");
+        assertRoute(retired, oldToken, HttpStatus.UNAUTHORIZED);
+        assertRoute(retired, newToken, null);
+    }
+
+    @Test
     void weakMalformedAndUntargetedPublicKeyPolicyFailClosed() throws Exception {
         assertThrows(IllegalArgumentException.class,
             () -> new JwtAuthenticationFilter(SECRET, ISSUER, USERS, AUDIT, ORCH, "broken-key"));
