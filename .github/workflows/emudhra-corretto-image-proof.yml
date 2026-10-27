@@ -1,0 +1,45 @@
+name: Corretto eMudhra CA Image Proof
+
+on:
+  push:
+    branches:
+      - security/b62g2-emudhra-cert-trust-20261027
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-trust-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout reviewed branch revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify source guard across all four services
+        run: python3 -m unittest -v tests.test_dependency_lockdown_containers
+      - name: Rebuild four images and inspect actual runtime truststores
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in gateway identity-service user-service audit-service; do
+            echo "::group::Truststore proof: ${module}"
+            docker build --pull --file "${module}/Dockerfile" \
+              --tag "aetheris-${module}-ca-proof:${GITHUB_SHA}" "${module}"
+            docker run --rm --entrypoint /bin/sh "aetheris-${module}-ca-proof:${GITHUB_SHA}" -ec '
+              set -eu
+              java -version
+              keytool -list -cacerts -storepass changeit >/dev/null
+              for alias in "emsignrootcag1 [jdk]" "emsignrootcag2 [jdk]" "emsigneccrootcag3 [jdk]" "comodoaaaca [jdk]"; do
+                if keytool -list -cacerts -storepass changeit -alias "$alias" >/dev/null 2>&1; then
+                  echo "Unsafe CA alias remains: $alias" >&2; exit 1
+                fi
+              done
+              certs="$(keytool -list -v -cacerts -storepass changeit)"
+              if printf "%s\n" "$certs" | tr -d : | grep -Eqi "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B|D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4"; then
+                echo "Compromised CA fingerprint remains in runtime" >&2; exit 1
+              fi
+              echo "Runtime truststore: Oracle-disallowed aliases and known fingerprints absent"
+            '
+            echo "::endgroup::"
+          done
