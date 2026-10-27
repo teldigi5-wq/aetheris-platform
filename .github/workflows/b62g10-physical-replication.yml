@@ -1,0 +1,57 @@
+name: B62-G10 Real Physical Streaming PostgreSQL Replica - CI Only
+on:
+  pull_request:
+    branches: [test/b62g9-stale-snapshot-primary-consistency-20261027]
+    paths:
+      - '.github/workflows/b62g10-physical-replication.yml'
+      - 'tests/security/b62g10-*'
+      - 'tests/test_b62g10_replication.py'
+      - 'docs/security/B62G10_PHYSICAL_REPLICATION_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  physical-standby-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact PR SHA, physical streaming and fail-closed source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g10_replication.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g9_consistency.py' -v
+          bash -n tests/security/b62g10-replica-bootstrap.sh
+          bash -n tests/security/b62g10-physical-replication-proof.sh
+          python3 -m py_compile tests/security/b62g10-physical-replication-client.py
+          docker compose version
+      - name: Full four-module Java security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Actual physical WAL streaming and paused replay revocation denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g10-physical-replication-proof.sh
+          echo B62G10_REAL_PHYSICAL_STREAMING_SYNTHETIC_REVOCATION_PASS
+      - name: Always delete both disposable databases and isolated network
+        if: always()
+        shell: bash
+        run: |
+          docker compose \
+            -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            -f tests/security/b62g10-physical-replica-overlay.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G10_SYNTHETIC_REPLICA_DATABASE_AND_NETWORK_CLEANED
