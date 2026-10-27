@@ -1,0 +1,21 @@
+# B62-G4 CI-only, no published ports. Java test runner shares the exact
+# disposable internal network with PostgreSQL; Maven is pinned by the
+# existing identity-service/Dockerfile Corretto digest and checked Maven SHA.
+services:
+  java-proof:
+    build:
+      context: ../..
+      dockerfile: tests/security/b62g4-Dockerfile
+      target: build
+    working_dir: /app
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      B62G4_MODE: online
+    networks: [isolated]
+    entrypoint: ["sh", "-ec"]
+    command:
+      - >-
+        mvn -B -ntp -f /app/pom.xml -Dtest=B62G4RealJdbcRevocationIT
+        '-Db62g4.jdbcUrl=jdbc:postgresql://postgres:5432/b62g_synthetic?connectTimeout=2&socketTimeout=3&sslmode=disable'
+        "-Db62g4.mode=$${B62G4_MODE}" test
