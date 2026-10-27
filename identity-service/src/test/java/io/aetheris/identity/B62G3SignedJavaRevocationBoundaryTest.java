@@ -225,11 +225,13 @@ class B62G3SignedJavaRevocationBoundaryTest {
         // are NOT wired to this reference implementation.
         for (String consumer : List.of("gateway-sim", "user-sim", "audit-sim")) {
             assertTrue(signedThenRevocationLookup(token, current.getPublic(),
-                    KID, TEST_CLOCK, store), consumer);
-            cutoff.accumulateAndGet(NOW.minusSeconds(10).getEpochSecond(),
-                    Math::max);
+                    KID, TEST_CLOCK, store), consumer + " before revocation");
+        }
+        // One monotonic emergency cutoff is seen by every simulated reader.
+        cutoff.accumulateAndGet(NOW.minusSeconds(10).getEpochSecond(), Math::max);
+        for (String consumer : List.of("gateway-sim", "user-sim", "audit-sim")) {
             assertFalse(signedThenRevocationLookup(token, current.getPublic(),
-                    KID, TEST_CLOCK, store), consumer);
+                    KID, TEST_CLOCK, store), consumer + " after revocation");
         }
         // A newly issued token is not blocked by the earlier account epoch,
         // but emergency signer block must then independently deny it.
