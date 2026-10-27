@@ -31,7 +31,8 @@ print("B62G4_COMPOSE_EFFECTIVE_SECURITY",
       "security_opt=",repr(java.get("security_opt")),
       "entrypoint=",repr(java.get("entrypoint")),flush=True)
 assert java.get("build")
-assert str(java["build"].get("dockerfile","")).endswith("/tests/security/b62g4-Dockerfile")
+dockerfile = str(java["build"].get("dockerfile","")).replace(chr(92), "/")
+assert dockerfile == "tests/security/b62g4-Dockerfile" or dockerfile.endswith("/tests/security/b62g4-Dockerfile"), dockerfile
 cap_all = any(str(value).strip().upper() == "ALL" for value in java.get("cap_drop", []))
 print("B62G4_CAPABILITY_DROP_EFFECTIVE", cap_all, flush=True)
 assert cap_all, "Missing explicit ALL capability drop"
