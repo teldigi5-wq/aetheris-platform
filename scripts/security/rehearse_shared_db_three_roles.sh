@@ -126,6 +126,34 @@ assert_denied audit_runtime "$aurp" "DELETE FROM audit_stage.audit_events;"
 assert_denied user_runtime "$usrp" "CREATE TABLE user_stage.runtime_ddl(id int);"
 assert_denied audit_runtime "$aurp" "CREATE TABLE public.runtime_ddl(id int);"
 echo THREE_ROLE_CROSS_SCHEMA_MIGRATION_AND_AUDIT_MUTATION_DENIED
+# Synthetic-only authorization binding: do NOT infer Identity.uid == User.id.
+# No prod migration, table, role, request handler or permission is introduced.
+# Here the two numeric IDs are deliberately crossed to detect unsafe equality.
+admin "CREATE TABLE user_stage.synthetic_user_owner_bindings (
+  user_id BIGINT PRIMARY KEY REFERENCES user_stage.users(id),
+  identity_uid BIGINT NOT NULL UNIQUE,
+  tenant_id UUID NOT NULL
+);"
+admin "ALTER TABLE user_stage.synthetic_user_owner_bindings OWNER TO user_migrator;"
+admin "REVOKE ALL ON user_stage.synthetic_user_owner_bindings FROM PUBLIC;"
+admin "GRANT SELECT ON user_stage.synthetic_user_owner_bindings TO user_runtime;"
+role_sql user_runtime "$usrp" "INSERT INTO user_stage.users(name,email)
+VALUES ('Synthetic Other','user-two-role@example.invalid');" >/dev/null
+role_sql user_migrator "$usmp" "INSERT INTO user_stage.synthetic_user_owner_bindings(user_id,identity_uid,tenant_id)
+ SELECT a.id,b.id,'11111111-1111-4111-8111-111111111111'::uuid
+ FROM user_stage.users a CROSS JOIN user_stage.users b
+ WHERE a.email='user-role@example.invalid' AND b.email='user-two-role@example.invalid';" >/dev/null
+role_sql user_migrator "$usmp" "INSERT INTO user_stage.synthetic_user_owner_bindings(user_id,identity_uid,tenant_id)
+ SELECT b.id,a.id,'22222222-2222-4222-8222-222222222222'::uuid
+ FROM user_stage.users a CROSS JOIN user_stage.users b
+ WHERE a.email='user-role@example.invalid' AND b.email='user-two-role@example.invalid';" >/dev/null
+[[ "$(admin "SELECT count(*) FROM user_stage.synthetic_user_owner_bindings;")" == 2 ]] || exit 1
+assert_denied user_runtime "$usrp" "DELETE FROM user_stage.synthetic_user_owner_bindings;"
+assert_denied user_runtime "$usrp" "INSERT INTO user_stage.synthetic_user_owner_bindings (user_id,identity_uid,tenant_id) VALUES (900,900,'11111111-1111-4111-8111-111111111111');"
+assert_denied identity_migrator "$idmp" "SELECT * FROM user_stage.synthetic_user_owner_bindings;"
+run_migration user_runtime "$usrp" user_stage user-service SyntheticUserOwnershipBindingTest aetheris.object.binding.synthetic
+echo THREE_ROLE_SYNTHETIC_CROSS_TENANT_OBJECT_OWNERSHIP_DENIALS_PASS
+
 
 # Repeat real Flyway startup, preserve all synthetic DML and histories.
 run_all_migrations
