@@ -24,7 +24,7 @@ aetheris:
   browser-auth:
     secure-cookie: ${AETHERIS_BROWSER_REFRESH_COOKIE_SECURE:true}
   jwt:
-    secret: ${AETHERIS_JWT_SECRET}
+    secret: ${AETHERIS_JWT_SECRET:}
     expiration-seconds: ${AETHERIS_JWT_EXPIRATION_SECONDS:3600}
     refresh-expiration-seconds: ${AETHERIS_REFRESH_EXPIRATION_SECONDS:604800}
 
