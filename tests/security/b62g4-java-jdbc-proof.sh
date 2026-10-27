@@ -28,7 +28,7 @@ assert pg["environment"]["POSTGRES_PASSWORD"]=="test-only-b62g-never-use-in-prod
 java=d["services"]["java-proof"]
 assert java.get("build")
 assert str(java["build"].get("dockerfile","")).endswith("/tests/security/b62g4-Dockerfile")
-assert java.get("cap_drop")==["ALL"]
+assert "ALL" in {str(x).upper() for x in java.get("cap_drop",[])}, java.get("cap_drop")
 assert "no-new-privileges:true" in java.get("security_opt",[])
 assert java.get("entrypoint")==["sh","-ec"]
 command=java.get("command")
