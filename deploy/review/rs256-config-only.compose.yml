@@ -1,0 +1,51 @@
+# NOT a deployable or runnable stack. Used ONLY by the offline configuration
+# audit script; all services terminate, have no network, ports or volumes.
+# Never merge this into production Compose or use 'up' for application testing.
+name: aetheris-rs256-config-rehearsal
+
+x-review-safety: &review-safety
+  profiles: [rs256-review-config-only]
+  image: aetheris-rs256-config-review-never-built:blocked
+  pull_policy: never
+  entrypoint: ["/bin/false"]
+  restart: "no"
+  network_mode: none
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  identity-service:
+    <<: *review-safety
+    environment:
+      AETHERIS_IDENTITY_JWT_ISSUER: ${AETHERIS_RS256_REVIEW_ISSUER:?Synthetic issuer required}
+      AETHERIS_IDENTITY_JWT_AUDIENCE: aetheris-user-api
+      AETHERIS_IDENTITY_JWT_RS256_PRIVATE_KEY_PEM: ${AETHERIS_RS256_REVIEW_PRIVATE_PEM:?Ephemeral test private key required}
+      AETHERIS_IDENTITY_JWT_RS256_KEY_ID: review-20261027
+      AETHERIS_IDENTITY_TARGETED_TOKENS_ENABLED: "false"
+
+  gateway:
+    <<: *review-safety
+    environment:
+      AETHERIS_GATEWAY_JWT_ISSUER: ${AETHERIS_RS256_REVIEW_ISSUER:?Synthetic issuer required}
+      AETHERIS_GATEWAY_JWT_USERS_AUDIENCE: aetheris-user-api
+      AETHERIS_GATEWAY_JWT_AUDIT_AUDIENCE: aetheris-audit-api
+      AETHERIS_GATEWAY_JWT_ORCHESTRATOR_AUDIENCE: aetheris-orchestrator-api
+      AETHERIS_GATEWAY_JWT_RS256_PUBLIC_KEY_PEM: ${AETHERIS_RS256_REVIEW_PUBLIC_PEM:?Ephemeral test public key required}
+      AETHERIS_GATEWAY_JWT_RS256_KEY_ID: review-20261027
+
+  user-service:
+    <<: *review-safety
+    environment:
+      AETHERIS_BACKEND_JWT_ISSUER: ${AETHERIS_RS256_REVIEW_ISSUER:?Synthetic issuer required}
+      AETHERIS_BACKEND_JWT_AUDIENCE: aetheris-user-api
+      AETHERIS_BACKEND_JWT_RS256_PUBLIC_KEY_PEM: ${AETHERIS_RS256_REVIEW_PUBLIC_PEM:?Ephemeral test public key required}
+      AETHERIS_BACKEND_JWT_RS256_KEY_ID: review-20261027
+
+  audit-service:
+    <<: *review-safety
+    environment:
+      AETHERIS_BACKEND_JWT_ISSUER: ${AETHERIS_RS256_REVIEW_ISSUER:?Synthetic issuer required}
+      AETHERIS_BACKEND_JWT_AUDIENCE: aetheris-audit-api
+      AETHERIS_BACKEND_JWT_RS256_PUBLIC_KEY_PEM: ${AETHERIS_RS256_REVIEW_PUBLIC_PEM:?Ephemeral test public key required}
+      AETHERIS_BACKEND_JWT_RS256_KEY_ID: review-20261027
