@@ -150,6 +150,13 @@ class B62G4RealJdbcRevocationIT {
                 }
             }
         } catch (SQLException orNetworkFailure) {
+            // Test-only sanitized diagnostics: never print the JDBC URL,
+            // username, password, SQL query or bearer credentials.
+            if (!"outage".equals(System.getProperty("b62g4.mode"))) {
+                System.err.println("B62G4_JDBC_FAIL_CLOSED sqlstate="
+                    + orNetworkFailure.getSQLState() + " exception="
+                    + orNetworkFailure.getClass().getSimpleName());
+            }
             return false;
         }
     }
