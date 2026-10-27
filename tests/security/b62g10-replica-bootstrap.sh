@@ -7,7 +7,7 @@ mkdir -p "$PGDATA"
 chown -R postgres:postgres /var/lib/postgresql/data
 if [ ! -f "$PGDATA/PG_VERSION" ]; then
     # This MUST be an actual physical pg_basebackup over the private Docker
-    # network, NEVER pg_dump or a second unrelated initialised database.
+    # network. It cannot be implemented as a separate logical snapshot.
     su-exec postgres pg_basebackup \
         -h postgres -p 5432 -U b62g10_replication -D "$PGDATA" \
         -X stream -R --checkpoint=fast --no-password
