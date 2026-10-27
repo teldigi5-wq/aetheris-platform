@@ -85,8 +85,31 @@ jobs:
 
       - name: Start core and observability stack
         run: |
+          # Create file-bridge directory before Docker can create it as root.
+          mkdir -p observability/logs
           docker compose --profile observability up -d --build
           docker compose --profile observability ps
+
+      - name: Export genuine hosted container logs through a file-only bridge
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p observability/logs
+          # Wait for actual gateway startup logs; empty logs immediately after
+          # 'up -d' do not indicate a security or container failure.
+          for attempt in $(seq 1 60); do
+            docker compose --profile observability logs --no-color --timestamps --tail=300 gateway > observability/logs/gateway.log
+            if test -s observability/logs/gateway.log; then
+              break
+            fi
+            sleep 2
+          done
+          test -s observability/logs/gateway.log || { echo "No real gateway logs after bounded readiness window" >&2; exit 1; }
+          for service in user-service identity-service audit-service orchestrator-service; do
+            docker compose --profile observability logs --no-color --timestamps --tail=300 "$service" > "observability/logs/$service.log"
+          done
+          # Alloy has NO Docker socket; only these selected genuine log files enter Loki.
+          docker compose --profile observability restart alloy
 
       - name: Run observability runtime proof
         run: |
