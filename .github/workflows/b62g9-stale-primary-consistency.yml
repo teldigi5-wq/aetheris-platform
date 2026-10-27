@@ -1,0 +1,56 @@
+name: B62-G9 Authoritative Primary Versus Stale Snapshot - CI Only
+on:
+  pull_request:
+    branches: [test/b62g8-authenticated-revocation-roles-20261027]
+    paths:
+      - '.github/workflows/b62g9-stale-primary-consistency.yml'
+      - 'tests/security/b62g9-*'
+      - 'tests/test_b62g9_consistency.py'
+      - 'docs/security/B62G9_STALE_PRIMARY_AUTHORITY_PROOF_20261027.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  stale-snapshot-counterexample:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact SHA and enforced no-stale-authorization policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62g9_consistency.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62g8_authenticated_roles.py' -v
+          bash -n tests/security/b62g9-stale-consistency-proof.sh
+          python3 -m py_compile tests/security/b62g9-primary-consistency-client.py
+          docker compose version
+      - name: Complete four-module Java regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Real authenticated primary and deliberately stale independent PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g9-stale-consistency-proof.sh
+          echo B62G9_SYNTHETIC_STALE_PRIMARY_REJECTION_VERIFIED
+      - name: Always delete BOTH synthetic PostgreSQL volumes and private network
+        if: always()
+        shell: bash
+        run: |
+          docker compose \
+            -f tests/security/docker-compose.b62g-epoch-proof.yml \
+            -f tests/security/b62g9-stale-snapshot-overlay.yml \
+            down --volumes --remove-orphans --timeout 10 || true
+          echo B62G9_BOTH_DISPOSABLE_DB_VOLUMES_CLEANED
