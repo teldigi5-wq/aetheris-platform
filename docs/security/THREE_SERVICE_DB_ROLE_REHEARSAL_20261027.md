@@ -15,13 +15,15 @@ This follow-up is stacked on PR #327 (Identity/User scoped Flyway on one physica
 
 6. The rehearsal creates a separate, nonempty **synthetic** `legacy_unknown` schema and runs the Audit `@JdbcTest` with `baseline-on-migrate:false`. It expects **Flyway's specific nonempty-schema refusal**, not an arbitrary Java failure, then verifies the synthetic sentinel row is untouched and that no Audit history/event table appeared in that schema. This is not proof of compatibility with real historical databases.
 
+7. **Follow-up concurrent first-start rehearsal:** Two separately instantiated real Flyway migrators synchronize their first attempt against an empty `audit_race` schema under `audit_migrator`; test asserts the V1 migration executes exactly once, the history has one successful entry, and a third migration executes none. This validates a specific isolated Flyway lock/concurrency path, **not full concurrent Spring service startup, network partition tolerance, or production schema migration**. A bounded timeout prevents CI from hanging indefinitely.
+
 ## Limits and hard blockers
 
 - This is a **test policy** and a proposed database topology, not production database-role deployment. Compose and Kubernetes secrets/roles remain unconfigured for this model.
 - Migration roles own their schemas and need CREATE/DDL for migrations; application runtime roles do not. Real workloads, credentials, backup operators, rotation, revocation, and Audit service connection pooling must still be reconciled.
 - Database-level grants do **not** prove application authorization, user-to-object binding, tenant isolation, or prevention of an already-privileged superuser bypass.
 - The existing Audit V1 SQL contains `IF NOT EXISTS`; turning off baselining is a refusal policy for unknown nonempty schemas, not a historical compatibility analysis. Check schema fingerprints and Flyway metadata before any actual rollout.
-- Shared-database startup concurrency, migration lock/contention, representative historical schema upgrades, full application service boot, production owner permissions, long-term key custody, dedicated audit-writer restrictions, and failover are not certified by this milestone.
+- Full Spring service startup concurrency, cross-service migration orchestration, representative historical schema upgrades, production owner permissions, long-term key custody, dedicated audit-writer restrictions, and failover are not certified by this milestone.
 - Production requires owner/DBA schema inventory, verified backups/restores, carefully sequenced migration and rollback, least-privilege grants, credentials approval, runtime tests, and nine independent release attestations.
 - **Never** use `docker compose down -v`, `flyway clean`, silent automatic baselining, or Hibernate `ddl-auto:update` to force migration success.
 
