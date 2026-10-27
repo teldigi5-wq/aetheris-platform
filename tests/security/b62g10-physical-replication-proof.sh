@@ -49,7 +49,11 @@ primary_sql "CREATE ROLE b62g10_replication WITH LOGIN REPLICATION PASSWORD 'b62
 "${COMPOSE[@]}" exec -T postgres sh -ec \
   'printf "%s\n" "host replication b62g10_replication all scram-sha-256" >> "$PGDATA/pg_hba.conf"'
 primary_sql "SELECT pg_reload_conf();" >/dev/null
-"${COMPOSE[@]}" up -d --wait --wait-timeout 180 replica
+if ! "${COMPOSE[@]}" up -d --wait --wait-timeout 180 replica; then
+  echo B62G10_STANDBY_BOOTSTRAP_FAILED_DIAGNOSTIC
+  "${COMPOSE[@]}" logs --no-color --tail=80 replica || true
+  exit 1
+fi
 
 test "$(primary_sql 'SELECT pg_is_in_recovery();')" = "f"
 test "$(replica_sql 'SELECT pg_is_in_recovery();')" = "t"
