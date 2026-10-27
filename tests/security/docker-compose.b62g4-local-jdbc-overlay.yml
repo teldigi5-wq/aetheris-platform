@@ -13,7 +13,8 @@ services:
       B62G4_MODE: online
     networks: [isolated]
     entrypoint: ["sh", "-ec"]
-    command: >-
-      mvn -B -ntp -f /app/pom.xml -Dtest=B62G4RealJdbcRevocationIT
-      '-Db62g4.jdbcUrl=jdbc:postgresql://postgres:5432/b62g_synthetic?connectTimeout=2&socketTimeout=3&sslmode=disable'
-      "-Db62g4.mode=$${B62G4_MODE}" test
+    command:
+      - >-
+        mvn -B -ntp -f /app/pom.xml -Dtest=B62G4RealJdbcRevocationIT
+        '-Db62g4.jdbcUrl=jdbc:postgresql://postgres:5432/b62g_synthetic?connectTimeout=2&socketTimeout=3&sslmode=disable'
+        "-Db62g4.mode=$${B62G4_MODE}" test
