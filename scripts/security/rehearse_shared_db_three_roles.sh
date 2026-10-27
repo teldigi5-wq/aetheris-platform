@@ -3,7 +3,7 @@
 # runtime logins for Identity, User and Audit in ONE physical database.
 # Never point this script at existing volumes or a user-supplied DB.
 set -euo pipefail
-[[ "$AETHERIS_THREE_ROLE_SYNTHETIC_ONLY" == "yes" ]] || {
+[[ "${AETHERIS_THREE_ROLE_SYNTHETIC_ONLY:-}" == "yes" ]] || {
   echo THREE_ROLE_EXPLICIT_SYNTHETIC_OPT_IN_REQUIRED; exit 2;
 }
 cd "$(dirname "$0")/../.."
@@ -14,7 +14,7 @@ secret() { python3 -c 'import secrets; print(secrets.token_hex(32))'; }
 superpass="$(secret)"
 idmp="$(secret)"; usmp="$(secret)"; aump="$(secret)"
 idrp="$(secret)"; usrp="$(secret)"; aurp="$(secret)"
-if [[ -n "$GITHUB_ACTIONS" ]]; then
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
   for v in "$superpass" "$idmp" "$usmp" "$aump" "$idrp" "$usrp" "$aurp"; do
     echo "::add-mask::$v"
   done
