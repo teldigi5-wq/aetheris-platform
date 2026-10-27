@@ -296,7 +296,8 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             self.assertIn("JWT_RS256_PUBLIC_KEY_PEM", source)
             self.assertIn("JwtRs256KeySupport.publicKey(rs256Pem)", source)
             self.assertIn('!"RS256".equals(signed.getHeader().getAlgorithm())', source)
-            self.assertIn("Jwts.parser().verifyWith(rs256PublicKey)", source)
+            self.assertIn("rs256Verifier.verify(token)", source)
+            self.assertIn("JwtPinnedRotationVerifier", source)
             self.assertNotIn("privateKey(rs256Pem)", source)
         for service, package in (
             ("identity-service", "io/aetheris/identity"),
