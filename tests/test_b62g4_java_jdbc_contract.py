@@ -36,9 +36,13 @@ class B62G4Boundaries(unittest.TestCase):
         self.assertNotIn("Statement.executeQuery(", JAVA)
 
     def test_compose_port_is_localhost_only_and_disposable(self):
-        self.assertIn('127.0.0.1:15479:5432',OVERLAY)
-        self.assertNotIn('0.0.0.0:',OVERLAY)
-        self.assertIn("B62G4_EXACT_LOOPBACK_ONLY_EPHEMERAL_DB_TOPOLOGY", SCRIPT)
+        self.assertIn("java-proof:", OVERLAY)
+        self.assertIn("target: build", OVERLAY)
+        self.assertIn("networks: [isolated]", OVERLAY)
+        self.assertIn('cap_drop: ["ALL"]', OVERLAY)
+        self.assertIn('security_opt: ["no-new-privileges:true"]', OVERLAY)
+        self.assertNotIn("ports:", OVERLAY)
+        self.assertIn("B62G4_ZERO_HOST_PORT_INTERNAL_JAVA_DB_TOPOLOGY", SCRIPT)
         for fragment in ("trap cleanup EXIT", "down --volumes --remove-orphans",
                          "docker compose", "b62g-revocation-prototype.sql",
                          "b62g2-readonly-role.sql",
