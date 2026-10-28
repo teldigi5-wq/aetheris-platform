@@ -39,6 +39,13 @@ printf 'basicConstraints=critical,CA:FALSE\nsubjectAltName=URI:spiffe://aetheris
 openssl x509 -req -sha256 -days 1 -in "$scratch/gateway.csr" \
   -CA "$scratch/ca.crt" -CAkey "$scratch/ca.key" -CAcreateserial \
   -extfile "$scratch/gateway.ext" -out "$scratch/gateway.crt" >/dev/null 2>&1
+openssl req -new -newkey rsa:2048 -nodes -sha256 \
+  -keyout "$scratch/wrong-client.key" -out "$scratch/wrong-client.csr" \
+  -subj '/CN=CI-only synthetic unrelated client' >/dev/null 2>&1
+printf 'basicConstraints=critical,CA:FALSE\\nsubjectAltName=URI:spiffe://aetheris.test/ns/security/sa/untrusted\\nextendedKeyUsage=clientAuth\\nkeyUsage=digitalSignature\\n' > "$scratch/wrong-client.ext"
+openssl x509 -req -sha256 -days 1 -in "$scratch/wrong-client.csr" \
+  -CA "$scratch/ca.crt" -CAkey "$scratch/ca.key" -CAcreateserial \
+  -extfile "$scratch/wrong-client.ext" -out "$scratch/wrong-client.crt" >/dev/null 2>&1
 openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
   -keyout "$scratch/untrusted-ca.key" -out "$scratch/untrusted-ca.crt" \
   -subj '/CN=Untrusted Disposable Netty CA' \
@@ -47,10 +54,14 @@ openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 1 \
 
 openssl verify -CAfile "$scratch/ca.crt" -purpose sslserver "$scratch/backend.crt" >/dev/null
 openssl verify -CAfile "$scratch/ca.crt" -purpose sslclient "$scratch/gateway.crt" >/dev/null
+openssl verify -CAfile "$scratch/ca.crt" -purpose sslclient "$scratch/wrong-client.crt" >/dev/null
 openssl pkcs12 -export -inkey "$scratch/gateway.key" \
   -in "$scratch/gateway.crt" -certfile "$scratch/ca.crt" \
   -out "$scratch/gateway.p12" -passout env:AETHERIS_TLS_LAB_PASSWORD >/dev/null 2>&1
-chmod 600 "$scratch/"{ca.key,backend.key,gateway.key,untrusted-ca.key,gateway.p12}
+openssl pkcs12 -export -inkey "$scratch/wrong-client.key" \
+  -in "$scratch/wrong-client.crt" -certfile "$scratch/ca.crt" \
+  -out "$scratch/wrong-client.p12" -passout env:AETHERIS_TLS_LAB_PASSWORD >/dev/null 2>&1
+chmod 600 "$scratch/"{ca.key,backend.key,gateway.key,wrong-client.key,untrusted-ca.key,gateway.p12,wrong-client.p12}
 ./mvnw -B -ntp -f gateway/pom.xml \
   -Dtest=GatewayDisposableNettyMutualTlsSocketTest \
   -Daetheris.tls.lab.fixture="$scratch" test
