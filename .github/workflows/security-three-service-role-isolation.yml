@@ -1,7 +1,7 @@
 name: Security Three Service Scoped Audit and DB Role Denials
 on:
   pull_request:
-    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027, security/gateway-strict-principal-validation-20261027, security/rs256-public-verification-review-20261027, security/rs256-two-key-pinned-rotation-20261027, security/rs256-independent-key-custody-20261027, security/compose-rs256-mode-preflight-20261027]
+    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027, security/gateway-strict-principal-validation-20261027, security/rs256-public-verification-review-20261027, security/rs256-two-key-pinned-rotation-20261027, security/rs256-independent-key-custody-20261027, security/compose-rs256-mode-preflight-20261027, security/helm-rs256-external-key-references-20261028]
     paths:
       - '.github/workflows/security-three-service-role-isolation.yml'
       - 'audit-service/src/main/resources/application.yml'
@@ -43,6 +43,11 @@ on:
       - 'deploy/helm/aetheris/templates/00-safety-gate.yaml'
       - 'tests/test_helm_rs256_external_keys.py'
       - 'docs/security/HELM_RS256_EXTERNAL_SECRET_REVIEW_20261028.md'
+      - 'identity-service/src/test/java/io/aetheris/identity/RealIdentityInteroperabilityFixtureTest.java'
+      - 'gateway/src/test/java/io/aetheris/gateway/RealIdentityToGatewayInteropTest.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/RealIdentityToBackendInteropTest.java'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/RealIdentityToBackendInteropTest.java'
+      - 'docs/security/REAL_IDENTITY_CROSS_SERVICE_JWT_CONTRACT_20261028.md'
       - 'docs/security/RS256_COMPOSE_MODE_REVIEW_20261027.md'
       - 'user-service/src/test/java/io/aetheris/users/security/DirectApiRs256VerificationTest.java'
       - 'audit-service/src/test/java/io/aetheris/audit/security/DirectApiRs256VerificationTest.java'
@@ -93,6 +98,31 @@ jobs:
         run: |
           set -euo pipefail
           ./mvnw -B -ntp -f pom.xml test
+      - name: Actual Identity-issued RS256 interoperability across four Java modules
+        shell: bash
+        env:
+          AETHERIS_INTEROP_MUST_RUN: "yes"
+        run: |
+          set -euo pipefail
+          fixture_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$fixture_dir"' EXIT
+          chmod 700 "$fixture_dir"
+          fixture="$fixture_dir/real-identity-signed.properties"
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=RealIdentityInteroperabilityFixtureTest \
+            -Daetheris.jwt.interop.fixture="$fixture" test
+          test -s "$fixture"
+          for spec in \
+            "gateway/pom.xml:RealIdentityToGatewayInteropTest" \
+            "user-service/pom.xml:RealIdentityToBackendInteropTest" \
+            "audit-service/pom.xml:RealIdentityToBackendInteropTest"; do
+            module="${spec%%:*}"
+            test_name="${spec#*:}"
+            ./mvnw -B -ntp -f "$module" \
+              -Dtest="$test_name" \
+              -Daetheris.jwt.interop.fixture="$fixture" test
+          done
+          echo AETHERIS_REAL_IDENTITY_TO_THREE_RESOURCE_FILTERS_RS256_CONTRACT_PASS
       - name: Production closure must remain NO_GO
         shell: bash
         run: |
