@@ -53,15 +53,15 @@ class GatewayDisposableNettyMutualTlsSocketTest {
         return path;
     }
 
-    private static SslContext clientContext(Path dir, String trustCa, boolean clientCert)
+    private static SslContext clientContext(Path dir, String trustCa, String clientKeyStore)
             throws Exception {
         var builder = SslContextBuilder.forClient()
             .trustManager(dir.resolve(trustCa).toFile());
-        if (clientCert) {
+        if (clientKeyStore != null && !clientKeyStore.isBlank()) {
             String password = System.getenv("AETHERIS_TLS_LAB_PASSWORD");
             assertNotNull(password, "Ephemeral test keystore password required");
             KeyStore store = KeyStore.getInstance("PKCS12");
-            try (InputStream stream = Files.newInputStream(dir.resolve("gateway.p12"))) {
+            try (InputStream stream = Files.newInputStream(dir.resolve(clientKeyStore))) {
                 store.load(stream, password.toCharArray());
             }
             KeyManagerFactory km = KeyManagerFactory.getInstance(
@@ -145,7 +145,7 @@ class GatewayDisposableNettyMutualTlsSocketTest {
         AtomicBoolean accepted = new AtomicBoolean(false);
         DisposableServer server = backend(dir, accepted);
         try {
-            assertEquals(200, request(server, clientContext(dir, "ca.crt", true), false));
+            assertEquals(200, request(server, clientContext(dir, "ca.crt", "gateway.p12"), false));
             assertTrue(accepted.get(), "Server SSL session must expose the signed client SPIFFE SAN");
         } finally {
             server.disposeNow(TIMEOUT);
@@ -160,7 +160,7 @@ class GatewayDisposableNettyMutualTlsSocketTest {
         DisposableServer server = backend(dir, accepted);
         try {
             assertThrows(RuntimeException.class,
-                () -> request(server, clientContextUnchecked(dir, "ca.crt", false), true));
+                () -> request(server, clientContextUnchecked(dir, "ca.crt", ""), true));
             assertFalse(accepted.get(), "HTTP header cannot replace a TLS client certificate");
         } finally {
             server.disposeNow(TIMEOUT);
@@ -174,14 +174,30 @@ class GatewayDisposableNettyMutualTlsSocketTest {
         DisposableServer server = backend(dir, accepted);
         try {
             assertThrows(RuntimeException.class,
-                () -> request(server, clientContextUnchecked(dir, "untrusted-ca.crt", true), false));
+                () -> request(server, clientContextUnchecked(dir, "untrusted-ca.crt", "gateway.p12"), false));
             assertFalse(accepted.get());
         } finally {
             server.disposeNow(TIMEOUT);
         }
     }
 
-    private static SslContext clientContextUnchecked(Path dir, String ca, boolean cert) {
+    @Test
+    void wrongSpiffeUriIsDeniedAfterCryptographicallyValidClientTlsHandshake()
+            throws Exception {
+        Path dir = fixtureDir();
+        AtomicBoolean accepted = new AtomicBoolean(false);
+        DisposableServer server = backend(dir, accepted);
+        try {
+            assertEquals(403,
+                request(server, clientContext(dir, "ca.crt", "wrong-client.p12"), true));
+            assertFalse(accepted.get(),
+                "Trusted CA alone cannot authorize a different service account URI SAN");
+        } finally {
+            server.disposeNow(TIMEOUT);
+        }
+    }
+
+    private static SslContext clientContextUnchecked(Path dir, String ca, String cert) {
         try {
             return clientContext(dir, ca, cert);
         } catch (Exception missingFixture) {
