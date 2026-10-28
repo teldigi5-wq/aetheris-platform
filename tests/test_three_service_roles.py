@@ -470,6 +470,39 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
                                 "verifyNoInteractions(service)"):
                 self.assertIn(requirement, test)
 
+    def test_gateway_outbound_mtls_profile_and_https_route_contract(self):
+        application = (ROOT / "gateway/src/main/resources/application.yml").read_text()
+        profile = (ROOT / "gateway/src/main/resources/application-gateway-mtls.yml").read_text()
+        guard = (ROOT / "gateway/src/main/java/io/aetheris/gateway/GatewayOutboundMutualTlsPreflight.java").read_text()
+        test = (ROOT / "gateway/src/test/java/io/aetheris/gateway/GatewayOutboundMutualTlsPreflightTest.java").read_text()
+        self.assertEqual(2, application.count("uri: ${AETHERIS_USER_BACKEND_URI:http://user-service:8081}"))
+        self.assertEqual(1, application.count("uri: ${AETHERIS_AUDIT_BACKEND_URI:http://audit-service:8083}"))
+        self.assertIn('gateway-mtls', guard)
+        for requirement in (
+            "use-insecure-trust-manager: false",
+            "key-store: file:${AETHERIS_GATEWAY_TLS_CLIENT_KEY_STORE_PATH:}",
+            "key-store-type: PKCS12",
+            "trusted-x509-certificates:",
+            "${AETHERIS_GATEWAY_TLS_TRUSTED_CA_CERT_PATH:}"
+        ):
+            self.assertIn(requirement, profile)
+        for requirement in (
+            "AETHERIS_GATEWAY_UPSTREAM_MTLS_REQUIRED",
+            "https", "approvedRoute",
+            "Files.isSymbolicLink",
+            "getPosixFilePermissions",
+            "Gateway mTLS needs both explicit opt-in",
+        ):
+            self.assertIn(requirement, guard)
+        for requirement in (
+            "exactHttpsBackendsOnlyAndNoRedirectedCredentialDestinations",
+            "preflightRejectsUntrustedAndMissingExternalFileSettings",
+            "legacyDefaultsStayUnchangedButNoHalfEnabledProfile"
+        ):
+            self.assertIn(requirement, test)
+        self.assertNotIn("InsecureTrustManagerFactory", profile)
+        self.assertNotIn("PRIVATE KEY-----", profile)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
