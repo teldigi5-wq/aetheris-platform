@@ -73,7 +73,7 @@ class GatewayOutboundMutualTlsPreflightTest {
     }
 
     @Test
-    void opticalPreflightRejectsUntrustedAndMissingExternalFileSettings() throws Exception {
+    void preflightRejectsUntrustedAndMissingExternalFileSettings() throws Exception {
         Path client = fakeFile("client.p12");
         Path ca = fakeFile("backend-ca.pem");
         assertDoesNotThrow(() -> configured(client, ca));
@@ -103,7 +103,6 @@ class GatewayOutboundMutualTlsPreflightTest {
             // CI Linux supports symlinks; some local platforms do not.
         }
         try {
-            var all = java.nio.file.attribute.PosixFilePermission.values();
             Files.setPosixFilePermissions(client, java.util.Set.of(
                 java.nio.file.attribute.PosixFilePermission.OWNER_READ,
                 java.nio.file.attribute.PosixFilePermission.OWNER_WRITE,
