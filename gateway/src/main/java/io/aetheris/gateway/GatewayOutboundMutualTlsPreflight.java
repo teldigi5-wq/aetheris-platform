@@ -20,13 +20,15 @@ import java.util.Objects;
 public final class GatewayOutboundMutualTlsPreflight {
     @Autowired
     public GatewayOutboundMutualTlsPreflight(Environment environment) {
-        this(Boolean.parseBoolean(environment.getProperty(
+        this(readStrictOptIn(environment.getProperty(
                 "AETHERIS_GATEWAY_UPSTREAM_MTLS_REQUIRED", "false")),
             environment.acceptsProfiles(Profiles.of("gateway-mtls")),
             environment.getProperty("AETHERIS_USER_BACKEND_URI",
                 "http://user-service:8081"),
             environment.getProperty("AETHERIS_AUDIT_BACKEND_URI",
                 "http://audit-service:8083"),
+            environment.getProperty("AETHERIS_ORCHESTRATOR_URI",
+                "http://orchestrator-service:8090"),
             environment.getProperty("AETHERIS_GATEWAY_TLS_CLIENT_KEY_STORE_PATH", ""),
             environment.getProperty("AETHERIS_GATEWAY_TLS_CLIENT_KEY_STORE_PASSWORD", ""),
             environment.getProperty("AETHERIS_GATEWAY_TLS_TRUSTED_CA_CERT_PATH", ""),
@@ -36,7 +38,7 @@ public final class GatewayOutboundMutualTlsPreflight {
     }
 
     GatewayOutboundMutualTlsPreflight(boolean required, boolean profile,
-            String userUri, String auditUri, String keyStorePath,
+            String userUri, String auditUri, String orchestratorUri, String keyStorePath,
             String keyStorePassword, String caCertPath, String insecureTrust) {
         if (!required && !profile) {
             // Preserve existing local development with unchanged HTTP routes.
@@ -47,7 +49,8 @@ public final class GatewayOutboundMutualTlsPreflight {
                 "Gateway mTLS needs both explicit opt-in and gateway-mtls profile");
         }
         if (!approvedRoute(userUri, "user-service", 8081)
-                || !approvedRoute(auditUri, "audit-service", 8083)) {
+                || !approvedRoute(auditUri, "audit-service", 8083)
+                || !"http://orchestrator-service:8090".equals(orchestratorUri)) {
             throw new IllegalArgumentException(
                 "Gateway mTLS requires exact HTTPS User and Audit upstream identities");
         }
@@ -58,11 +61,17 @@ public final class GatewayOutboundMutualTlsPreflight {
             throw new IllegalArgumentException(
                 "Gateway mTLS needs a separately provisioned client key-store password");
         }
-        requireExternalFile(keyStorePath, "client keystore");
-        requireExternalFile(caCertPath, "backend CA certificate");
+        requireExternalFile(keyStorePath, "client keystore", true);
+        requireExternalFile(caCertPath, "backend CA certificate", false);
         if (Path.of(keyStorePath).normalize().equals(Path.of(caCertPath).normalize())) {
             throw new IllegalArgumentException("Client keystore and CA paths must differ");
         }
+    }
+
+    static boolean readStrictOptIn(String value) {
+        if ("true".equals(value)) return true;
+        if ("false".equals(value)) return false;
+        throw new IllegalArgumentException("Gateway mTLS opt-in must be exactly true or false");
     }
 
     static boolean approvedRoute(String route, String hostname, int port) {
@@ -82,7 +91,8 @@ public final class GatewayOutboundMutualTlsPreflight {
         }
     }
 
-    private static void requireExternalFile(String value, String description) {
+    private static void requireExternalFile(String value, String description,
+                                            boolean privateMaterial) {
         if (value == null || !value.startsWith("/") || !value.equals(value.trim())) {
             throw new IllegalArgumentException(
                 "Gateway mTLS needs an absolute external path for " + description);
@@ -95,6 +105,20 @@ public final class GatewayOutboundMutualTlsPreflight {
                     || !Files.isReadable(path) || Files.size(path) == 0) {
                 throw new IllegalArgumentException(
                     "Gateway mTLS " + description + " is missing or invalid");
+            }
+            if (privateMaterial) {
+                try {
+                    var perms = Files.getPosixFilePermissions(path);
+                    if (perms.contains(java.nio.file.attribute.PosixFilePermission.GROUP_READ)
+                            || perms.contains(java.nio.file.attribute.PosixFilePermission.GROUP_WRITE)
+                            || perms.contains(java.nio.file.attribute.PosixFilePermission.OTHERS_READ)
+                            || perms.contains(java.nio.file.attribute.PosixFilePermission.OTHERS_WRITE)) {
+                        throw new IllegalArgumentException(
+                            "Gateway client keystore must not be readable by group or others");
+                    }
+                } catch (UnsupportedOperationException ignored) {
+                    // Non-POSIX filesystems require separately reviewed ACL evidence.
+                }
             }
         } catch (java.io.IOException | java.nio.file.InvalidPathException failed) {
             throw new IllegalArgumentException(
