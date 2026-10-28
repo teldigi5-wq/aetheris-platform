@@ -42,7 +42,7 @@ openssl x509 -req -sha256 -days 1 -in "$scratch/gateway.csr" \
 openssl req -new -newkey rsa:2048 -nodes -sha256 \
   -keyout "$scratch/wrong-client.key" -out "$scratch/wrong-client.csr" \
   -subj '/CN=CI-only synthetic unrelated client' >/dev/null 2>&1
-printf 'basicConstraints=critical,CA:FALSE\\nsubjectAltName=URI:spiffe://aetheris.test/ns/security/sa/untrusted\\nextendedKeyUsage=clientAuth\\nkeyUsage=digitalSignature\\n' > "$scratch/wrong-client.ext"
+printf 'basicConstraints=critical,CA:FALSE\nsubjectAltName=URI:spiffe://aetheris.test/ns/security/sa/untrusted\nextendedKeyUsage=clientAuth\nkeyUsage=digitalSignature\n' > "$scratch/wrong-client.ext"
 openssl x509 -req -sha256 -days 1 -in "$scratch/wrong-client.csr" \
   -CA "$scratch/ca.crt" -CAkey "$scratch/ca.key" -CAcreateserial \
   -extfile "$scratch/wrong-client.ext" -out "$scratch/wrong-client.crt" >/dev/null 2>&1
