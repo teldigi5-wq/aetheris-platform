@@ -7,6 +7,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.util.Base64;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.X509Certificate;
 import java.time.Clock;
@@ -32,6 +35,36 @@ class GatewayMutualTlsWorkloadPolicyTest {
     private static final String SPIFFE =
         "spiffe://aetheris.test/ns/security/sa/gateway";
 
+    private static final KeyPair RSA_KEY = newTestRsaKey();
+
+    private static KeyPair newTestRsaKey() {
+        try {
+            KeyPairGenerator g = KeyPairGenerator.getInstance("RSA");
+            g.initialize(2048);
+            return g.generateKeyPair();
+        } catch (Exception error) {
+            throw new IllegalStateException("Unable to create ephemeral RSA test key", error);
+        }
+    }
+
+    private static String publicPem() {
+        return "-----BEGIN PUBLIC KEY-----\n"
+            + Base64.getMimeEncoder(64, new byte[]{'\n'})
+                .encodeToString(RSA_KEY.getPublic().getEncoded())
+            + "\n-----END PUBLIC KEY-----";
+    }
+
+    private static String rsaToken() {
+        Instant now = Instant.now();
+        return Jwts.builder().header().keyId("ci-workload-rs256").and()
+            .subject("admin@example.invalid").claim("uid", 42L)
+            .claim("role", "ADMIN").claim("scopes", List.of("users:read"))
+            .issuer(ISSUER).claim("aud", List.of(AUDIENCE))
+            .issuedAt(Date.from(now.minusSeconds(5)))
+            .expiration(Date.from(now.plusSeconds(120)))
+            .signWith(RSA_KEY.getPrivate(), Jwts.SIG.RS256).compact();
+    }
+
     private static String token() {
         Instant now = Instant.now();
         return Jwts.builder().subject("admin@example.invalid")
@@ -53,8 +86,10 @@ class GatewayMutualTlsWorkloadPolicyTest {
                         GatewayMutualTlsWorkloadPolicy policy) {
         return MockMvcBuilders.standaloneSetup(
             new io.aetheris.users.UserController(service))
-            .addFilters(new DirectApiJwtFilter(SECRET, ISSUER, AUDIENCE,
-                "", "", "", "", Clock.systemUTC(), policy))
+            .addFilters(new DirectApiJwtFilter(policy.required() ? "" : SECRET,
+                ISSUER, AUDIENCE, policy.required() ? publicPem() : "",
+                policy.required() ? "ci-workload-rs256" : "", "", "",
+                Clock.systemUTC(), policy))
             .build();
     }
 
@@ -87,7 +122,7 @@ class GatewayMutualTlsWorkloadPolicyTest {
         MockMvc api = api(service, enabled());
 
         api.perform(get("/api/users")
-            .header("Authorization", "Bearer " + token())
+            .header("Authorization", "Bearer " + rsaToken())
             .header("X-Forwarded-Client-Cert", SPIFFE)
             .header("X-Aetheris-Gateway-Identity", SPIFFE))
             .andExpect(status().isForbidden());
@@ -95,7 +130,7 @@ class GatewayMutualTlsWorkloadPolicyTest {
         X509Certificate wrong = certificate("spiffe://aetheris.test/ns/security/sa/untrusted");
         api.perform(get("/api/users")
             .requestAttr("jakarta.servlet.request.X509Certificate", new X509Certificate[]{wrong})
-            .header("Authorization", "Bearer " + token()))
+            .header("Authorization", "Bearer " + rsaToken()))
             .andExpect(status().isForbidden());
 
         X509Certificate expired = certificate(SPIFFE);
@@ -103,14 +138,14 @@ class GatewayMutualTlsWorkloadPolicyTest {
             .when(expired).checkValidity(any(Date.class));
         api.perform(get("/api/users")
             .requestAttr("jakarta.servlet.request.X509Certificate", new X509Certificate[]{expired})
-            .header("Authorization", "Bearer " + token()))
+            .header("Authorization", "Bearer " + rsaToken()))
             .andExpect(status().isForbidden());
 
         X509Certificate missingClientEku = certificate(SPIFFE);
         when(missingClientEku.getExtendedKeyUsage()).thenReturn(List.of("1.3.6.1.5.5.7.3.1"));
         api.perform(get("/api/users")
             .requestAttr("jakarta.servlet.request.X509Certificate", new X509Certificate[]{missingClientEku})
-            .header("Authorization", "Bearer " + token()))
+            .header("Authorization", "Bearer " + rsaToken()))
             .andExpect(status().isForbidden());
 
         X509Certificate ambiguous = certificate(SPIFFE);
@@ -118,7 +153,7 @@ class GatewayMutualTlsWorkloadPolicyTest {
             List.of(6, SPIFFE), List.of(6, "spiffe://untrusted/ns/a/sa/attacker")));
         api.perform(get("/api/users")
             .requestAttr("jakarta.servlet.request.X509Certificate", new X509Certificate[]{ambiguous})
-            .header("Authorization", "Bearer " + token()))
+            .header("Authorization", "Bearer " + rsaToken()))
             .andExpect(status().isForbidden());
 
         verifyNoInteractions(service);
@@ -130,13 +165,16 @@ class GatewayMutualTlsWorkloadPolicyTest {
         verifyNoInteractions(service);
         api.perform(get("/api/users")
             .requestAttr("jakarta.servlet.request.X509Certificate", new X509Certificate[]{valid})
-            .header("Authorization", "Bearer " + token()))
+            .header("Authorization", "Bearer " + rsaToken()))
             .andExpect(status().isOk());
         verify(service, times(1)).findAll();
     }
 
     @Test
     void invalidTlsTrustAndIdentitySettingsRefuseConstruction() {
+        assertThrows(IllegalArgumentException.class,
+            () -> new DirectApiJwtFilter(SECRET, ISSUER, AUDIENCE,
+                "", "", "", "", Clock.systemUTC(), enabled()));
         assertThrows(IllegalArgumentException.class,
             () -> new GatewayMutualTlsWorkloadPolicy(true, SPIFFE, false, "need", "ca", ""));
         assertThrows(IllegalArgumentException.class,
