@@ -503,6 +503,41 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         self.assertNotIn("InsecureTrustManagerFactory", profile)
         self.assertNotIn("PRIVATE KEY-----", profile)
 
+    def test_disposable_real_netty_tls_lab_is_mandatory_and_private(self):
+        lab = (ROOT / "scripts/security/run_gateway_netty_tls_lab.sh").read_text()
+        source = (ROOT / "gateway/src/test/java/io/aetheris/gateway/GatewayDisposableNettyMutualTlsSocketTest.java").read_text()
+        workflow = WORKFLOW.read_text()
+        for required in (
+            "AETHERIS_NETTY_MTLS_LAB_SYNTHETIC_ONLY",
+            "mktemp -d /tmp/aetheris-netty-mtls.",
+            "trap cleanup EXIT",
+            "umask 077",
+            "openssl verify -CAfile",
+            "openssl pkcs12 -export",
+            "gateway.p12",
+            "wrong-client.p12",
+            "chmod 600",
+            "AETHERIS_REAL_DISPOSABLE_NETTY_MTLS_TLS_HANDSHAKE_PASS",
+        ):
+            self.assertIn(required, lab)
+        for required in (
+            "HttpServer.create()",
+            "ClientAuth.REQUIRE",
+            "getPeerCertificates()",
+            "GatewayDisposableNettyMutualTlsSocketTest",
+            "matchesGatewayPeer",
+            "wrongSpiffeUriIsDeniedAfterCryptographicallyValidClientTlsHandshake",
+            "wrongServerCaFailsHandshakeBeforeApplicationRequest",
+            "missingClientCertificateAndForgedForwardedHeaderFailRealTlsHandshake",
+        ):
+            self.assertIn(required, source)
+        self.assertIn("AETHERIS_TLS_LAB_MUST_RUN", source)
+        self.assertIn("bash scripts/security/run_gateway_netty_tls_lab.sh", workflow)
+        self.assertIn("bash -n scripts/security/run_gateway_netty_tls_lab.sh", workflow)
+        self.assertNotIn("docker compose down -v", lab)
+        self.assertNotIn("InsecureTrustManagerFactory", source)
+        self.assertNotIn("System.out.println", source)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
