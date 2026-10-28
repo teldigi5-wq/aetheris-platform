@@ -24,6 +24,13 @@ class GatewayOutboundMutualTlsPreflightTest {
     private Path fakeFile(String name) throws Exception {
         Path path = temp.resolve(name);
         Files.writeString(path, "CI-only non-secret placeholder; not TLS credentials");
+        try {
+            Files.setPosixFilePermissions(path, java.util.Set.of(
+                java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                java.nio.file.attribute.PosixFilePermission.OWNER_WRITE));
+        } catch (UnsupportedOperationException ignored) {
+            // The Linux CI runner supports this; other developer hosts may not.
+        }
         return path;
     }
 
