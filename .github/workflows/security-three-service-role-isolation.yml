@@ -57,6 +57,11 @@ on:
       - 'user-service/src/test/java/io/aetheris/users/security/GatewayMutualTlsWorkloadPolicyTest.java'
       - 'audit-service/src/test/java/io/aetheris/audit/security/GatewayMutualTlsWorkloadPolicyTest.java'
       - 'docs/security/GATEWAY_MTLS_SPIFFE_WORKLOAD_REVIEW_20261028.md'
+      - 'gateway/src/main/java/io/aetheris/gateway/GatewayOutboundMutualTlsPreflight.java'
+      - 'gateway/src/main/resources/application-gateway-mtls.yml'
+      - 'gateway/src/main/resources/application.yml'
+      - 'gateway/src/test/java/io/aetheris/gateway/GatewayOutboundMutualTlsPreflightTest.java'
+      - 'docs/security/GATEWAY_OUTBOUND_MTLS_PROFILE_REVIEW_20261028.md'
       - 'user-service/src/main/java/io/aetheris/users/security/GatewayMutualTlsWorkloadPolicy.java'
       - 'audit-service/src/main/java/io/aetheris/audit/security/GatewayMutualTlsWorkloadPolicy.java'
       - 'user-service/src/test/java/io/aetheris/users/security/GatewayMutualTlsWorkloadPolicyTest.java'
@@ -112,6 +117,12 @@ jobs:
         run: |
           set -euo pipefail
           ./mvnw -B -ntp -f pom.xml test
+      - name: Outbound Gateway HTTPS client mTLS profile and route preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=GatewayOutboundMutualTlsPreflightTest test
+          echo GATEWAY_OUTBOUND_MTLS_PROFILE_AND_ROUTE_PREFLIGHT_PASS
       - name: Synthetic Gateway mutual TLS identity at actual protected servlet boundary
         shell: bash
         run: |
