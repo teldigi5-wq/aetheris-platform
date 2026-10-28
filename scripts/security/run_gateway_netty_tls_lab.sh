@@ -61,9 +61,20 @@ openssl pkcs12 -export -inkey "$scratch/gateway.key" \
 openssl pkcs12 -export -inkey "$scratch/wrong-client.key" \
   -in "$scratch/wrong-client.crt" -certfile "$scratch/ca.crt" \
   -out "$scratch/wrong-client.p12" -passout env:AETHERIS_TLS_LAB_PASSWORD >/dev/null 2>&1
-chmod 600 "$scratch/"{ca.key,backend.key,gateway.key,wrong-client.key,untrusted-ca.key,gateway.p12,wrong-client.p12}
+openssl pkcs12 -export -inkey "$scratch/backend.key" \
+  -in "$scratch/backend.crt" -certfile "$scratch/ca.crt" \
+  -out "$scratch/backend.p12" -passout env:AETHERIS_TLS_LAB_PASSWORD >/dev/null 2>&1
+keytool -importcert -noprompt -alias aetheris-disposable-ca \
+  -file "$scratch/ca.crt" -storetype PKCS12 \
+  -keystore "$scratch/ca-trust.p12" \
+  -storepass:env AETHERIS_TLS_LAB_PASSWORD >/dev/null 2>&1
+chmod 600 "$scratch/"{ca.key,backend.key,gateway.key,wrong-client.key,untrusted-ca.key,gateway.p12,wrong-client.p12,backend.p12,ca-trust.p12}
 ./mvnw -B -ntp -f gateway/pom.xml \
   -Dtest=GatewayDisposableNettyMutualTlsSocketTest \
   -Daetheris.tls.lab.fixture="$scratch" test
+./mvnw -B -ntp -f user-service/pom.xml \
+  -Dtest=RealUserHttpsServletWorkloadTest \
+  -Daetheris.tls.lab.fixture="$scratch" test
+echo AETHERIS_REAL_USER_TOMCAT_HTTPS_MTLS_AND_RS256_FILTER_PASS
 echo AETHERIS_REAL_DISPOSABLE_NETTY_MTLS_TLS_HANDSHAKE_PASS
 echo AETHERIS_TLS_LAB_NOT_A_DEPLOYMENT_OR_BACKEND_IDENTITY_CERTIFICATION
