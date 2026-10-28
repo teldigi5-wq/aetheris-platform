@@ -45,6 +45,7 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private final SecretKey key;
     private final PublicKey rs256PublicKey;
     private final JwtPinnedRotationVerifier rs256Verifier;
+    private final GatewayMutualTlsWorkloadPolicy gatewayWorkloadPolicy;
     private final Clock clock;
     private final String expectedIssuer;
     private final String expectedAudience;
@@ -64,9 +65,17 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         @Value("${AETHERIS_BACKEND_JWT_RS256_PUBLIC_KEY_PEM:}") String rs256Pem,
         @Value("${AETHERIS_BACKEND_JWT_RS256_KEY_ID:}") String activeKid,
         @Value("${AETHERIS_BACKEND_JWT_RS256_STAGED_PUBLIC_KEY_PEM:}") String stagedPem,
-        @Value("${AETHERIS_BACKEND_JWT_RS256_STAGED_KEY_ID:}") String stagedKid) {
+        @Value("${AETHERIS_BACKEND_JWT_RS256_STAGED_KEY_ID:}") String stagedKid,
+        @Value("${AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED:false}") boolean requiredMtls,
+        @Value("${AETHERIS_BACKEND_GATEWAY_SPIFFE_ID:}") String gatewaySpiffeId,
+        @Value("${server.ssl.enabled:false}") boolean tlsEnabled,
+        @Value("${server.ssl.client-auth:}") String clientAuth,
+        @Value("${server.ssl.trust-store:}") String trustStore,
+        @Value("${server.ssl.bundle:}") String sslBundle) {
         this(secret, issuer, audience, rs256Pem,
-             activeKid, stagedPem, stagedKid, Clock.systemUTC());
+             activeKid, stagedPem, stagedKid, Clock.systemUTC(),
+             new GatewayMutualTlsWorkloadPolicy(requiredMtls, gatewaySpiffeId,
+                 tlsEnabled, clientAuth, trustStore, sslBundle));
     }
 
     // Legacy tests and call sites keep existing behavior until an approved rollout.
@@ -91,7 +100,17 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
     DirectApiJwtFilter(String secret, String issuer, String audience,
                        String rs256Pem, String activeKid, String stagedPem,
                        String stagedKid, Clock clock) {
+        this(secret, issuer, audience, rs256Pem, activeKid, stagedPem,
+             stagedKid, clock, new GatewayMutualTlsWorkloadPolicy(
+                 false, "", false, "", "", ""));
+    }
+
+    DirectApiJwtFilter(String secret, String issuer, String audience,
+                       String rs256Pem, String activeKid, String stagedPem,
+                       String stagedKid, Clock clock,
+                       GatewayMutualTlsWorkloadPolicy workloadPolicy) {
         this.clock = java.util.Objects.requireNonNull(clock, "clock");
+        this.gatewayWorkloadPolicy = java.util.Objects.requireNonNull(workloadPolicy, "workloadPolicy");
         // Legacy HMAC is not installed when public-key RS256 is configured.
         // This prevents a shared signing secret being needed on resource APIs.
         boolean rsaMode = rs256Pem != null && !rs256Pem.isEmpty();
@@ -114,6 +133,14 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             || (hasIssuer && hasAudience && !issuer.isBlank() && !audience.isBlank()
                 && issuer.equals(issuer.trim()) && audience.equals(audience.trim())
                 && issuer.length() <= 255 && audience.length() <= 128);
+        // Do not create a workload-trusted endpoint that accepts any shared
+        // HMAC bearer or an unpinned public-key verifier. Require exact target.
+        if (gatewayWorkloadPolicy.required() &&
+                (!rs256Verifier.configured() || activeKid == null || activeKid.isBlank()
+                 || !issuerAudiencePolicyReady || !strictIssuerAudience)) {
+            throw new IllegalArgumentException(
+                "Gateway mTLS workload mode requires pinned, audience-scoped RS256 JWT verification");
+        }
     }
 
     @Override
@@ -130,6 +157,14 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         if ((key == null && !rs256Verifier.configured()) || !issuerAudiencePolicyReady) {
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "Signed backend authorization is not configured");
+            return;
+        }
+        // Client certificate identity is a SECOND requirement, not a substitute
+        // for the signed end-user bearer and resource-level permissions.
+        // No forwarded HTTP identity header is ever accepted as evidence.
+        if (!gatewayWorkloadPolicy.permits(request)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                    "Verified Gateway client certificate required");
             return;
         }
         String auth = request.getHeader("Authorization");
