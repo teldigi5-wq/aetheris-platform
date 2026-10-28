@@ -538,6 +538,36 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         self.assertNotIn("InsecureTrustManagerFactory", source)
         self.assertNotIn("System.out.println", source)
 
+    def test_real_user_https_tomcat_tls_client_and_signed_jwt_boundary(self):
+        java = (ROOT / "user-service/src/test/java/io/aetheris/users/security/RealUserHttpsServletWorkloadTest.java").read_text()
+        lab = (ROOT / "scripts/security/run_gateway_netty_tls_lab.sh").read_text()
+        workflow = WORKFLOW.read_text()
+        for expected in (
+            "TomcatServletWebServerFactory",
+            "Ssl.ClientAuth.NEED",
+            "new UserController(service)",
+            "new DirectApiJwtFilter(",
+            "new GatewayMutualTlsWorkloadPolicy(",
+            "AnnotationConfigServletWebServerApplicationContext",
+            "matchingRealTlsClientAndPinnedIdentityJwtReachActualUserController",
+            "missingClientCertRejectsTlsEvenWithForgedForwardedHeaders",
+            "realTrustedWrongSpiffeClientAndValidJwtAreDeniedAtServletBoundary",
+            "matchingClientCertificateDoesNotBypassJwtIssuerRoleOrAudience"
+        ):
+            self.assertIn(expected, java)
+        for expected in (
+            'keytool -importcert -noprompt',
+            'backend.p12',
+            'ca-trust.p12',
+            '-Dtest=RealUserHttpsServletWorkloadTest',
+            'AETHERIS_REAL_USER_TOMCAT_HTTPS_MTLS_AND_RS256_FILTER_PASS',
+        ):
+            self.assertIn(expected, lab)
+        self.assertIn("Real Netty and Spring Tomcat HTTPS mTLS", workflow)
+        self.assertIn("AETHERIS_NETTY_MTLS_LAB_SYNTHETIC_ONLY=yes bash scripts/security/run_gateway_netty_tls_lab.sh", workflow)
+        self.assertNotIn("InsecureTrustManagerFactory", java)
+        self.assertNotIn("TrustAll", java)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
