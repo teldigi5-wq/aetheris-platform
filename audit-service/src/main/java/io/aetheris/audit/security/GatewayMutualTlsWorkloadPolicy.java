@@ -42,6 +42,8 @@ final class GatewayMutualTlsWorkloadPolicy {
         }
     }
 
+    boolean required() { return required; }
+
     boolean permits(HttpServletRequest request) {
         if (!required) return true;
         Object attribute = request.getAttribute(CLIENT_CERT_ATTRIBUTE);
