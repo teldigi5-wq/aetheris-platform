@@ -1,3 +1,4 @@
+{{- include "aetheris.validateJwtMode" . -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -6,7 +7,9 @@ metadata:
     {{- include "aetheris.labels" . | nindent 4 }}
 type: Opaque
 stringData:
+  {{- if eq .Values.authJwt.mode "legacy" }}
   AETHERIS_JWT_SECRET: {{ .Values.secrets.jwtSecret | quote }}
+  {{- end }}
   POSTGRES_PASSWORD: {{ .Values.secrets.postgresPassword | quote }}
   RABBITMQ_DEFAULT_USER: {{ .Values.secrets.rabbitmqUsername | quote }}
   RABBITMQ_DEFAULT_PASS: {{ .Values.secrets.rabbitmqPassword | quote }}
@@ -306,10 +309,7 @@ spec:
             - name: SPRING_RABBITMQ_PASSWORD
               valueFrom: { secretKeyRef: { name: aetheris-secrets, key: RABBITMQ_DEFAULT_PASS } }
             {{- end }}
-            {{- if or (eq $app.name "identity-service") (eq $app.name "gateway") }}
-            - name: AETHERIS_JWT_SECRET
-              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: AETHERIS_JWT_SECRET } }
-            {{- end }}
+            {{- include "aetheris.jwtAppEnv" (dict "root" $ "app" $app.name) | nindent 12 }}
             {{- if $.Values.observability.otlpEndpoint }}
             - name: MANAGEMENT_OTLP_TRACING_ENDPOINT
               value: {{ $.Values.observability.otlpEndpoint | quote }}

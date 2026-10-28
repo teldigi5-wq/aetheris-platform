@@ -66,3 +66,19 @@ service:
 
 observability:
   otlpEndpoint: ""
+
+# Review-only RSA option. Values contain references/IDs only: NO PEM bytes.
+# Default legacy behavior is unchanged, subject to existing local-only controls.
+# A real RSA deployment requires a separately provisioned, access-controlled
+# signer Secret (Identity only) and verifier Secret (public keys only).
+authJwt:
+  mode: legacy
+  issuer: ""
+  primaryAudience: ""
+  usersAudience: ""
+  auditAudience: ""
+  orchestratorAudience: ""
+  activeKeyId: ""
+  stagedKeyId: ""
+  signerSecretName: ""
+  verifierSecretName: ""
