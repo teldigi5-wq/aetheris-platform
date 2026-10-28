@@ -133,6 +133,14 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             || (hasIssuer && hasAudience && !issuer.isBlank() && !audience.isBlank()
                 && issuer.equals(issuer.trim()) && audience.equals(audience.trim())
                 && issuer.length() <= 255 && audience.length() <= 128);
+        // Do not create a workload-trusted endpoint that accepts any shared
+        // HMAC bearer or an unpinned public-key verifier. Require exact target.
+        if (gatewayWorkloadPolicy.required() &&
+                (!rs256Verifier.configured() || activeKid == null || activeKid.isBlank()
+                 || !issuerAudiencePolicyReady || !strictIssuerAudience)) {
+            throw new IllegalArgumentException(
+                "Gateway mTLS workload mode requires pinned, audience-scoped RS256 JWT verification");
+        }
     }
 
     @Override
