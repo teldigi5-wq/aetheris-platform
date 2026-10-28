@@ -1,7 +1,7 @@
 name: Security Three Service Scoped Audit and DB Role Denials
 on:
   pull_request:
-    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027, security/gateway-strict-principal-validation-20261027, security/rs256-public-verification-review-20261027, security/rs256-two-key-pinned-rotation-20261027, security/rs256-independent-key-custody-20261027, security/compose-rs256-mode-preflight-20261027, security/helm-rs256-external-key-references-20261028, security/real-identity-jwt-cross-service-contract-20261028, security/backend-signed-principal-role-ceiling-20261028, security/backend-gateway-mtls-spiffe-review-20261028, security/gateway-outbound-mtls-contract-20261028]
+    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027, security/gateway-strict-principal-validation-20261027, security/rs256-public-verification-review-20261027, security/rs256-two-key-pinned-rotation-20261027, security/rs256-independent-key-custody-20261027, security/compose-rs256-mode-preflight-20261027, security/helm-rs256-external-key-references-20261028, security/real-identity-jwt-cross-service-contract-20261028, security/backend-signed-principal-role-ceiling-20261028, security/backend-gateway-mtls-spiffe-review-20261028, security/gateway-outbound-mtls-contract-20261028, security/disposable-netty-mutual-tls-handshake-20261028]
     paths:
       - '.github/workflows/security-three-service-role-isolation.yml'
       - 'audit-service/src/main/resources/application.yml'
@@ -65,6 +65,8 @@ on:
       - 'gateway/src/test/java/io/aetheris/gateway/GatewayDisposableNettyMutualTlsSocketTest.java'
       - 'scripts/security/run_gateway_netty_tls_lab.sh'
       - 'docs/security/REAL_DISPOSABLE_NETTY_MTLS_TRANSPORT_PROOF_20261028.md'
+      - 'user-service/src/test/java/io/aetheris/users/security/RealUserHttpsServletWorkloadTest.java'
+      - 'docs/security/REAL_USER_TOMCAT_MTLS_RS256_LAB_20261028.md'
       - 'user-service/src/main/java/io/aetheris/users/security/GatewayMutualTlsWorkloadPolicy.java'
       - 'audit-service/src/main/java/io/aetheris/audit/security/GatewayMutualTlsWorkloadPolicy.java'
       - 'user-service/src/test/java/io/aetheris/users/security/GatewayMutualTlsWorkloadPolicyTest.java'
@@ -121,7 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           ./mvnw -B -ntp -f pom.xml test
-      - name: Real disposable Netty TLS socket client-certificate, SPIFFE and CA denials
+      - name: Real Netty and Spring Tomcat HTTPS mTLS with signed User authorization
         shell: bash
         run: |
           set -euo pipefail
