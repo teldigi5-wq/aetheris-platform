@@ -34,6 +34,9 @@ class RealIdentityInteroperabilityFixtureTest {
     @Test
     void exportRealIdentitySignedTokensOnlyWhenExplicitCiFixturePathProvided() throws Exception {
         String filename = System.getProperty("aetheris.jwt.interop.fixture", "");
+        if ("yes".equals(System.getenv("AETHERIS_INTEROP_MUST_RUN"))) {
+            assertFalse(filename.isBlank(), "Explicit cross-module CI must supply a fixture path");
+        }
         if (filename.isBlank()) {
             org.junit.jupiter.api.Assumptions.abort("Only executable in explicit transient CI contract step");
         }
