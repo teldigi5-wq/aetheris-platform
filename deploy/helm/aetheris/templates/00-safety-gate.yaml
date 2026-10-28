@@ -12,7 +12,7 @@ credential and use digest-pinned images.
   {{- fail "unsafe Helm Redis configuration: secrets.redisPassword must be independent of JWT, PostgreSQL and RabbitMQ credentials" -}}
 {{- end -}}
 {{- if not .Values.global.allowInsecureLocalDefaults -}}
-  {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
+  {{- if and (eq .Values.authJwt.mode "legacy") (eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars") -}}
     {{- fail "unsafe Helm default: replace secrets.jwtSecret or explicitly opt into values-local.yaml for local development" -}}
   {{- end -}}
   {{- if eq .Values.secrets.postgresPassword "aetheris" -}}
