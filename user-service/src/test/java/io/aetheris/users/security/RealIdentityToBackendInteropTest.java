@@ -24,6 +24,9 @@ class RealIdentityToBackendInteropTest {
 
     private Properties fixture() throws Exception {
         String path = System.getProperty("aetheris.jwt.interop.fixture", "");
+        if ("yes".equals(System.getenv("AETHERIS_INTEROP_MUST_RUN"))) {
+            assertFalse(path.isBlank(), "Explicit cross-module CI must supply a fixture path");
+        }
         Assumptions.assumeTrue(!path.isBlank(), "Run only in explicit cross-module CI");
         Properties props = new Properties();
         try (var stream = Files.newInputStream(Path.of(path))) { props.load(stream); }
