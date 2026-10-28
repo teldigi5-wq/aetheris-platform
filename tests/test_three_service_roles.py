@@ -419,6 +419,33 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         self.assertIn("KeyPairGenerator.getInstance(\"RSA\")", issuer)
         self.assertNotIn("fixture.setProperty(\"private", issuer)
 
+    def test_user_and_audit_direct_jwt_principals_match_identity_role_ceiling(self):
+        identity_roles = (ROOT / "identity-service/src/main/java/io/aetheris/identity/Role.java").read_text()
+        gateway = (ROOT / "gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java").read_text()
+        for service, namespace in (("user-service", "users"), ("audit-service", "audit")):
+            base = ROOT / service / "src/main/java/io/aetheris" / namespace / "security"
+            source = (base / "DirectApiJwtFilter.java").read_text()
+            self.assertIn("ROLE_SCOPE_CEILINGS", source)
+            self.assertIn("!permittedRoleScopes.containsAll(scopes)", source)
+            self.assertIn("!subject.equals(subject.trim())", source)
+            for role, scoped in (
+                ("ADMIN", "identity:write"),
+                ("DEVELOPER", "orchestrator:write"),
+                ("API_CONSUMER", "orchestrator:read"),
+            ):
+                self.assertIn('"'+role+'"', source)
+                self.assertIn(scoped, source)
+                self.assertIn(role, identity_roles)
+                self.assertIn('"'+role+'"', gateway)
+            test = (ROOT / service / "src/test/java/io/aetheris" /
+                    namespace / "security/DirectApiPrincipalCeilingTest.java").read_text()
+            self.assertIn("signedHmacRoleScopeEscalationsAndUnnormalizedSubjectNeverReachController", test)
+            self.assertIn("signedRs256RoleScopeEscalationsAreRejectedButLegitimatePrincipalStillWorks", test)
+            self.assertIn("verifyNoInteractions(data)", test)
+        self.assertIn('valid("API_CONSUMER","users:write",42)', (
+            ROOT / "user-service/src/test/java/io/aetheris/users/security/DirectApiJwtFilterTest.java"
+        ).read_text())
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
