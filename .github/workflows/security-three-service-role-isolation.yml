@@ -1,7 +1,7 @@
 name: Security Three Service Scoped Audit and DB Role Denials
 on:
   pull_request:
-    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027, security/gateway-strict-principal-validation-20261027, security/rs256-public-verification-review-20261027, security/rs256-two-key-pinned-rotation-20261027, security/rs256-independent-key-custody-20261027, security/compose-rs256-mode-preflight-20261027, security/helm-rs256-external-key-references-20261028, security/real-identity-jwt-cross-service-contract-20261028]
+    branches: [test/security-shared-db-schema-isolation-20261027, test/security-audit-db-role-isolation-20261027, test/security-audit-flyway-concurrency-20261027, test/security-explicit-object-binding-proof-20261027, test/security-signed-tenant-binding-20261027, security/backend-jwt-issuer-audience-review-20261027, security/identity-gateway-jwt-audience-contract-20261027, security/identity-audience-scoped-mint-review-20261027, security/gateway-strict-principal-validation-20261027, security/rs256-public-verification-review-20261027, security/rs256-two-key-pinned-rotation-20261027, security/rs256-independent-key-custody-20261027, security/compose-rs256-mode-preflight-20261027, security/helm-rs256-external-key-references-20261028, security/real-identity-jwt-cross-service-contract-20261028, security/backend-signed-principal-role-ceiling-20261028]
     paths:
       - '.github/workflows/security-three-service-role-isolation.yml'
       - 'audit-service/src/main/resources/application.yml'
@@ -52,6 +52,11 @@ on:
       - 'audit-service/src/test/java/io/aetheris/audit/security/DirectApiPrincipalCeilingTest.java'
       - 'user-service/src/test/java/io/aetheris/users/security/DirectApiJwtFilterTest.java'
       - 'docs/security/USER_AUDIT_SIGNED_ROLE_CEILING_REVIEW_20261028.md'
+      - 'user-service/src/main/java/io/aetheris/users/security/GatewayMutualTlsWorkloadPolicy.java'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/GatewayMutualTlsWorkloadPolicy.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/GatewayMutualTlsWorkloadPolicyTest.java'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/GatewayMutualTlsWorkloadPolicyTest.java'
+      - 'docs/security/GATEWAY_MTLS_SPIFFE_WORKLOAD_REVIEW_20261028.md'
       - 'docs/security/RS256_COMPOSE_MODE_REVIEW_20261027.md'
       - 'user-service/src/test/java/io/aetheris/users/security/DirectApiRs256VerificationTest.java'
       - 'audit-service/src/test/java/io/aetheris/audit/security/DirectApiRs256VerificationTest.java'
@@ -102,6 +107,13 @@ jobs:
         run: |
           set -euo pipefail
           ./mvnw -B -ntp -f pom.xml test
+      - name: Synthetic Gateway mutual TLS identity at actual protected servlet boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=GatewayMutualTlsWorkloadPolicyTest test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=GatewayMutualTlsWorkloadPolicyTest test
+          echo GATEWAY_MTLS_SPIFFE_CERTIFICATE_ATTRIBUTE_DENIAL_PROOF_PASS
       - name: Real User and Audit signed principal role-scope denial regression
         shell: bash
         run: |
