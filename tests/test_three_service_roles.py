@@ -397,6 +397,28 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
         self.assertIn('rsaOnlyIdentityIssuesBothTokenTypesWithNoSharedHmacSecret', issuer_test)
         self.assertIn('publicKeyOnlyGatewayNeedsNoSharedHmacAndRefusesDowngrade', gateway_test)
 
+    def test_real_identity_cross_module_jwt_contract_is_mandatory_in_hosted_ci(self):
+        workflow = WORKFLOW.read_text()
+        self.assertIn("Actual Identity-issued RS256 interoperability across four Java modules", workflow)
+        self.assertIn('AETHERIS_INTEROP_MUST_RUN: "yes"', workflow)
+        self.assertIn("mktemp -d", workflow)
+        self.assertIn("trap 'rm -rf -- \"$fixture_dir\"' EXIT", workflow)
+        self.assertIn("AETHERIS_REAL_IDENTITY_TO_THREE_RESOURCE_FILTERS_RS256_CONTRACT_PASS", workflow)
+        for module, path in (
+            ("identity-service", "io/aetheris/identity/RealIdentityInteroperabilityFixtureTest.java"),
+            ("gateway", "io/aetheris/gateway/RealIdentityToGatewayInteropTest.java"),
+            ("user-service", "io/aetheris/users/security/RealIdentityToBackendInteropTest.java"),
+            ("audit-service", "io/aetheris/audit/security/RealIdentityToBackendInteropTest.java"),
+        ):
+            test = (ROOT / module / "src/test/java" / path).read_text()
+            self.assertIn('System.getenv("AETHERIS_INTEROP_MUST_RUN")', test)
+            self.assertIn("aetheris.jwt.interop.fixture", test)
+        issuer = (ROOT / "identity-service/src/test/java/io/aetheris/identity/RealIdentityInteroperabilityFixtureTest.java").read_text()
+        self.assertIn("issuer.issueForApprovedAudience(admin, ApprovedTokenAudience.AUDIT)", issuer)
+        self.assertIn("issuer.issue(admin)", issuer)
+        self.assertIn("KeyPairGenerator.getInstance(\"RSA\")", issuer)
+        self.assertNotIn("fixture.setProperty(\"private", issuer)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
