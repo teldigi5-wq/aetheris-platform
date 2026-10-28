@@ -27,6 +27,9 @@ class RealIdentityToGatewayInteropTest {
 
     private static Properties source() throws Exception {
         String path = System.getProperty("aetheris.jwt.interop.fixture", "");
+        if ("yes".equals(System.getenv("AETHERIS_INTEROP_MUST_RUN"))) {
+            assertFalse(path.isBlank(), "Explicit cross-module CI must supply a fixture path");
+        }
         Assumptions.assumeTrue(!path.isBlank(), "Run only in explicit cross-module CI");
         Properties p = new Properties();
         try (var in = Files.newInputStream(Path.of(path))) { p.load(in); }
