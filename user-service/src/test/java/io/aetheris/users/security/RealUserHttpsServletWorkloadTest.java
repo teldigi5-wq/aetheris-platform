@@ -227,6 +227,7 @@ class RealUserHttpsServletWorkloadTest {
             signedToken("ADMIN", List.of("users:read"), "aetheris-audit-api"), false));
         assertEquals(401, status("gateway.p12",
             signedToken("API_CONSUMER", List.of("users:write"), AUDIENCE), false));
-        verify(mockService, times(1)).findAll();
+        verifyNoInteractions(mockService);
+
     }
 }
