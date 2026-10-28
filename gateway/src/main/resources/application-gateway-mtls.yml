@@ -1,0 +1,15 @@
+# Deliberately inactive unless spring.profiles.active includes gateway-mtls.
+# The native Spring Cloud Gateway Reactor Netty HTTP client owns actual TLS.
+# Private material lives in an operator-managed external PKCS#12 file only,
+# never in this repository or a Docker image.
+spring:
+  cloud:
+    gateway:
+      httpclient:
+        ssl:
+          use-insecure-trust-manager: false
+          key-store: file:${AETHERIS_GATEWAY_TLS_CLIENT_KEY_STORE_PATH:}
+          key-store-password: ${AETHERIS_GATEWAY_TLS_CLIENT_KEY_STORE_PASSWORD:}
+          key-store-type: PKCS12
+          trusted-x509-certificates:
+            - ${AETHERIS_GATEWAY_TLS_TRUSTED_CA_CERT_PATH:}
