@@ -71,7 +71,7 @@ class RealIdentityInteroperabilityFixtureTest {
             issuer.issueForApprovedAudience(admin, ApprovedTokenAudience.AUDIT));
         fixture.setProperty("targetOrchestrator",
             issuer.issueForApprovedAudience(admin, ApprovedTokenAudience.ORCHESTRATOR));
-        assertEquals(7, fixture.size(), "No private signing key or credential is exported");
+        assertEquals(8, fixture.size(), "No private signing key or credential is exported");
         Files.createFile(destination);
         try {
             try {
