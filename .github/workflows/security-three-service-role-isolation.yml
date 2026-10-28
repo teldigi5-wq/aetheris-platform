@@ -119,13 +119,6 @@ jobs:
           ./mvnw -B -ntp -f user-service/pom.xml -Dtest=GatewayMutualTlsWorkloadPolicyTest test
           ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=GatewayMutualTlsWorkloadPolicyTest test
           echo GATEWAY_MTLS_SPIFFE_CERTIFICATE_ATTRIBUTE_DENIAL_PROOF_PASS
-      - name: Actual opt-in backend Gateway SPIFFE client-certificate enforcement
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=GatewayMutualTlsWorkloadPolicyTest test
-          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=GatewayMutualTlsWorkloadPolicyTest test
-          echo SYNTHETIC_GATEWAY_MTLS_SPIFFE_SERVLET_DENIAL_PROOF_PASS
       - name: Real User and Audit signed principal role-scope denial regression
         shell: bash
         run: |
