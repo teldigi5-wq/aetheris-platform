@@ -6,16 +6,12 @@ import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.web.servlet.DispatcherServletAutoConfiguration;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
-import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
-import org.springframework.boot.web.servlet.ServletContextInitializer;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.boot.web.servlet.server.ServletWebServerFactory;
-import org.springframework.boot.web.servlet.server.ServletWebServerApplicationContext;
-import org.springframework.boot.web.servlet.ServletContextInitializerBeans;
 import org.springframework.boot.web.server.Ssl;
 import org.springframework.boot.web.servlet.context.AnnotationConfigServletWebServerApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -79,6 +75,11 @@ class RealUserHttpsServletWorkloadTest {
         context.register(MinimalRealHttpsUserApp.class);
         context.refresh();
         assertTrue(context.getWebServer().getPort() > 0);
+    }
+
+    @BeforeEach
+    void resetBackendObservation() {
+        clearInvocations(mockService);
     }
 
     @AfterAll
