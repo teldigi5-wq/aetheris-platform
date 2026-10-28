@@ -446,6 +446,30 @@ class ThreeServiceRoleBoundaryContract(unittest.TestCase):
             ROOT / "user-service/src/test/java/io/aetheris/users/security/DirectApiJwtFilterTest.java"
         ).read_text())
 
+    def test_gateway_workload_mtls_is_opt_in_container_certificate_only(self):
+        for svc, namespace in (("user-service", "users"), ("audit-service", "audit")):
+            prefix = ROOT / svc / "src/main/java/io/aetheris" / namespace / "security"
+            verifier = (prefix / "GatewayMutualTlsWorkloadPolicy.java").read_text()
+            servlet = (prefix / "DirectApiJwtFilter.java").read_text()
+            assert "jakarta.servlet.request.X509Certificate" in verifier
+            for required in ("client-auth=need", "getSubjectAlternativeNames",
+                             "getExtendedKeyUsage", "getKeyUsage", "checkValidity",
+                             "expectedSpiffeId.equals(onlyUri)"):
+                self.assertIn(required, verifier)
+            self.assertNotIn("getHeader(", verifier)
+            self.assertIn("gatewayWorkloadPolicy.permits(request)", servlet)
+            self.assertIn("AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED:false", servlet)
+            self.assertIn("AETHERIS_BACKEND_GATEWAY_SPIFFE_ID:", servlet)
+            self.assertIn("server.ssl.client-auth:", servlet)
+            test = (ROOT / svc / "src/test/java/io/aetheris" / namespace /
+                    "security/GatewayMutualTlsWorkloadPolicyTest.java").read_text()
+            for requirement in ("invalidTlsTrustAndIdentitySettingsRefuseConstruction",
+                                "enabledModeRequiresVerifiedClientCertificateAndRealSignedUserJwt",
+                                "disabledModePreservesExistingJwtAuthentication",
+                                "X-Forwarded-Client-Cert",
+                                "verifyNoInteractions(service)"):
+                self.assertIn(requirement, test)
+
     def test_ci_exact_head_nonproduction_and_gate(self):
         workflow = WORKFLOW.read_text()
         for phrase in (
