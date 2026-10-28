@@ -24,7 +24,7 @@ final class GatewayMutualTlsWorkloadPolicy {
         this.required = required;
         this.expectedSpiffeId = expectedSpiffeId;
         if (!required) {
-            if (hasText(expectedSpiffeId)) {
+            if (expectedSpiffeId != null && !expectedSpiffeId.isEmpty()) {
                 throw new IllegalArgumentException(
                     "Gateway SPIFFE policy configured without enabling workload mTLS");
             }
