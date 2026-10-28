@@ -99,8 +99,15 @@ class DirectApiJwtFilterTest {
         api.perform(get("/api/users/42").header("Authorization",bearer(
             valid("API_CONSUMER","users:read",42))))
             .andExpect(status().isForbidden());
+        // Signed scopes outside a role's Identity-issued ceiling are not a
+        // valid principal: reject with 401 before the route permission check.
         api.perform(delete("/api/users/42").header("Authorization",bearer(
             valid("API_CONSUMER","users:write",42))))
+            .andExpect(status().isUnauthorized());
+        // Even with an authentic consumer role + legitimate scope, this
+        // unverified object ownership route remains forbidden.
+        api.perform(delete("/api/users/42").header("Authorization",bearer(
+            valid("API_CONSUMER","users:read",42))))
             .andExpect(status().isForbidden());
         verifyNoInteractions(service);
     }

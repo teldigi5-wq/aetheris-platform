@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
 
 /**
  * Transitional direct-backend JWT boundary for the EXISTING Identity HMAC
@@ -32,6 +33,15 @@ import java.util.HashSet;
 public final class DirectApiJwtFilter extends OncePerRequestFilter {
     private static final String PREFIX = "/api/users";
     private static final String SIGNED_ID_ATTRIBUTE = "aetheris.verified.uid";
+    // Keep the direct resource-server principal ceiling aligned with the
+    // actual Identity Role enum and the Gateway's signed role policy.
+    private static final Map<String, Set<String>> ROLE_SCOPE_CEILINGS = Map.of(
+        "ADMIN", Set.of("users:read", "users:write", "services:read",
+            "identity:read", "identity:write", "orchestrator:read", "orchestrator:write"),
+        "DEVELOPER", Set.of("users:read", "users:write", "services:read",
+            "identity:read", "orchestrator:read", "orchestrator:write"),
+        "API_CONSUMER", Set.of("users:read", "services:read", "orchestrator:read")
+    );
     private final SecretKey key;
     private final PublicKey rs256PublicKey;
     private final JwtPinnedRotationVerifier rs256Verifier;
@@ -159,8 +169,11 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
             Object uid = claims.get("uid");
             role = claims.get("role", String.class);
             scopes = verifiedScopes(claims.get("scopes"));
+            Set<String> permittedRoleScopes = ROLE_SCOPE_CEILINGS.get(role);
             if (subject == null || subject.isBlank() || subject.length() > 254
-                    || role == null || !Set.of("ADMIN", "DEVELOPER", "API_CONSUMER").contains(role)
+                    || !subject.equals(subject.trim())
+                    || permittedRoleScopes == null || scopes.isEmpty()
+                    || !permittedRoleScopes.containsAll(scopes)
                     || !(uid instanceof Long || uid instanceof Integer)
                     || claims.getIssuedAt() == null || claims.getExpiration() == null) {
                 throw new IllegalArgumentException("Invalid required signed claims");
