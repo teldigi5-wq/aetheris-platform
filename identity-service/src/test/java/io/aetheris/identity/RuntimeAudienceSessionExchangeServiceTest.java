@@ -140,6 +140,9 @@ class RuntimeAudienceSessionExchangeServiceTest {
 
         var result = exchange.exchangeUsingSingleUseRefreshCredential(VALID_SHAPE);
         assertSame(replacement,result.rotatedRefreshToken());
+        assertFalse(result.toString().contains(result.runtimeAccessToken()));
+        assertFalse(result.toString().contains(result.rotatedRefreshToken().token()));
+        assertTrue(result.toString().contains("REDACTED"));
         var claims = Jwts.parser().verifyWith(key.getPublic()).build()
             .parseSignedClaims(result.runtimeAccessToken()).getPayload();
         assertEquals(42L,((Number)claims.get("uid")).longValue());
