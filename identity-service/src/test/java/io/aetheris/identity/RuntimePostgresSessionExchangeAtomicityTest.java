@@ -127,6 +127,17 @@ class RuntimePostgresSessionExchangeAtomicityTest {
         accounts.deleteAllInBatch();
     }
 
+    @Test
+    void realSpringTransactionProxyMustExistBeforeTestingDatabaseAtomicity() {
+        assertTrue(org.springframework.aop.support.AopUtils.isAopProxy(exchange),
+            "Live transaction advice is essential; an annotation alone is insufficient");
+        assertTrue(org.springframework.aop.support.AopUtils.isCglibProxy(exchange),
+            "Concrete service must be CGLIB proxied by the real Spring context");
+        assertNotNull(org.springframework.core.annotation.AnnotationUtils.findAnnotation(
+            RuntimeAudienceSessionExchangeService.class,
+            org.springframework.stereotype.Service.class));
+    }
+
     private IdentityAccount createAccount(String email, Role role) {
         return accounts.saveAndFlush(new IdentityAccount(
             "Disposable identity", email, "unusable-synthetic-password-hash", role));
