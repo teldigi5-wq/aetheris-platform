@@ -2,7 +2,7 @@ name: S0-E6D Dormant Runtime RS256 Audience Token Contract
 on:
   pull_request:
     branches:
-      - main
+      - feature/syntra-aetheris-foundation-v2
     paths:
       - 'identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenIssuer.java'
       - 'identity-service/src/test/java/io/aetheris/identity/RuntimeAudienceTokenIssuerTest.java'
