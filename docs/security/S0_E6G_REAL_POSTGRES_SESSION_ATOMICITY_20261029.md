@@ -9,7 +9,7 @@
 
 ## What E6G specifically tests
 
-This slice adds **test/CI/docs only**. It does not alter application source, production Hibernate policy, authenticated routes, token issuance defaults or current user sessions.
+This slice adds **real PostgreSQL transaction tests, CI, review documentation, and one narrowly scoped production-source correction**. The first test run exposed a real Spring integration defect: `RuntimeAudienceSessionExchangeService` was declared `final`, preventing Spring CGLIB from proxying its `@Transactional` exchange method. That class is now non-final so the actual transaction proxy can be created. No method body, routes, session defaults, production Hibernate policy or public-token issuance behavior is changed. A dedicated `AopUtils.isAopProxy/isCglibProxy` assertion requires genuine proxy registration before testing database effects.
 
 `RuntimePostgresSessionExchangeAtomicityTest` uses the actual `IdentityAccount` and `RefreshToken` JPA entities, `IdentityAccountRepository`, `RefreshTokenRepository`, `RefreshTokenService`, production `RuntimeAudienceSessionExchangeService`, and real operator-configured `RuntimeAudienceTokenIssuer` with ephemeral, synthetic RSA keys. Unlike the E6F simulated repository, this test uses an actual independent **PostgreSQL 16 server** provisioned by GitHub Actions `services.postgres`, a disposable local JDBC database `aetheris_e6g_disposable`, a deliberately nonproduction username/password and no network calls to user infrastructure. The PostgreSQL service is run only on the isolated GitHub-hosted runner.
 
@@ -18,6 +18,8 @@ Destructive test safety: `@DynamicPropertySource` requires both `AETHERIS_E6G_DI
 Critical transaction guard: Spring `@DataJpaTest` usually starts a transaction around each test method and rolls it back at end. That would hide uncommitted inserted sessions from competing threads and make rollback claims meaningless. This class **explicitly overrides** that behavior using `@Transactional(propagation=NOT_SUPPORTED)`: the production `@Transactional` service uses its **real transaction manager and database commits** across independently executed calls.
 
 Tests verify:
+
+0. The **real Spring AOP/CGLIB transactional proxy exists** for the production exchange service (without the non-final class correction, the test application failed startup, so previous mock-only transactional success was not proof of real database transaction behavior).
 
 1. A persisted PostgreSQL account's original refresh credential is atomically claimed, marked revoked, and a single replacement is committed; signed Runtime JWT reflects current database role and minimal audience scopes, and neither bearer credential leaks through result `toString`.
 2. Existing revoked, expired and already-used refresh credentials cannot issue another RSA Runtime token; actual PostgreSQL revoked state is checked.
