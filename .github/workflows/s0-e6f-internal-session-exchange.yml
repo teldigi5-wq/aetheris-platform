@@ -54,7 +54,8 @@ jobs:
               'accounts.findById(accountId)',
               'issuer.issueForVerifiedExchange(fresh)',
               'if (!issuer.isConfigured())', '[A-Za-z0-9_-]{43}',
-              'Runtime session exchange denied'):
+              'Runtime session exchange denied',
+              'return "InternalExchangeResult[credentials=REDACTED]"'):
               assert s in svc,s
           for s in ('@RestController', '@PostMapping', '@GetMapping',
                     'HttpServletRequest', 'FilterChain', 'request.getHeader(',
