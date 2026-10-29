@@ -59,7 +59,7 @@ jobs:
           assert 'RuntimeAudienceTokenIssuer' not in auth
           test=(root/'test/java/io/aetheris/identity/RuntimeAudienceTokenIssuerTest.java').read_text()
           for v in ('rsa(1024)', 'rsa(2048)', '"RS256"',
-                    'List.of(AUDIENCE)', 'Duration.ofMinutes(5)',
+                    'Set.of(AUDIENCE)', 'Duration.ofMinutes(5)',
                     'wrong' if False else 'unconfiguredAndPartialOperatorTrustNeverIssueRuntimeCredentials',
                     'persistedAccountIdentityRequiredAndLegacyHmacJwtServiceUnchanged'):
               assert v in test,v
