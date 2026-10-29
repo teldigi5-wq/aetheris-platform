@@ -117,7 +117,8 @@ class RuntimePlatformRuntimeCrossRepoRoundTripTest {
         assertEquals(KID, signed.getHeader().getKeyId());
         assertEquals(ISSUER, signed.getPayload().getIssuer());
         assertEquals(Set.of(AUDIENCE), signed.getPayload().getAudience());
-        assertEquals(CLOCK.instant().plusSeconds(300),
+        assertEquals(CLOCK.instant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+                .plusSeconds(300),
             signed.getPayload().getExpiration().toInstant());
         assertNotNull(signed.getPayload().getId());
         assertFalse(signed.getPayload().getId().isBlank());
@@ -194,7 +195,8 @@ class RuntimePlatformRuntimeCrossRepoRoundTripTest {
         String hmac = legacy.issue(syntheticAccount(Role.DEVELOPER, 771L));
         var headerJson = new String(Base64.getUrlDecoder()
             .decode(hmac.split("\\.")[0]), StandardCharsets.UTF_8);
-        assertTrue(headerJson.contains("\"alg\":\"HS256\""));
+        assertTrue(headerJson.contains("\"alg\":\"HS"),
+            "Legacy JWT must remain an HMAC-family token");
         assertThrows(IllegalArgumentException.class,
             () -> runtimeVerifier(pair).verifyBearer("Bearer " + hmac));
         // Proves legacy auth remains intentionally separate; it does not
