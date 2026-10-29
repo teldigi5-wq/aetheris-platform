@@ -33,8 +33,7 @@ class RuntimePlatformRuntimeCrossRepoRoundTripTest {
     private static final String ISSUER = "https://identity.aetheris.example.invalid";
     private static final String AUDIENCE = "aetheris-orchestrator-api";
     private static final String KID = "s0-e6e-fixed-test-kid";
-    private static final Clock CLOCK = Clock.fixed(
-        Instant.parse("2026-10-29T18:00:00Z"), ZoneOffset.UTC);
+    private static final Clock CLOCK = Clock.fixed(Instant.now(), ZoneOffset.UTC);
 
     private static KeyPair rsa() {
         try {
