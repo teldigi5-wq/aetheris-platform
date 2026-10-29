@@ -90,7 +90,7 @@ class RuntimeAudienceTokenIssuerTest {
         assertEquals(KID,signed.getHeader().getKeyId());
         var claims=signed.getPayload();
         assertEquals(ISSUER,claims.getIssuer());
-        assertEquals(List.of(AUDIENCE),claims.getAudience());
+        assertEquals(Set.of(AUDIENCE),claims.getAudience());
         assertEquals("synthetic@example.invalid",claims.getSubject());
         assertEquals(42L,((Number)claims.get("uid")).longValue());
         assertEquals("DEVELOPER",claims.get("role",String.class));
