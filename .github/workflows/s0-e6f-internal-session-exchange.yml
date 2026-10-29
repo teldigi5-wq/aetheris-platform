@@ -1,0 +1,116 @@
+name: S0-E6F Internal Atomic Refresh-bound Runtime Exchange
+on:
+  pull_request:
+    branches:
+      - security/s0-e6e-platform-runtime-signed-interop-20261029
+    paths:
+      - 'identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceSessionExchangeService.java'
+      - 'identity-service/src/test/java/io/aetheris/identity/RuntimeAudienceSessionExchangeServiceTest.java'
+      - '.github/workflows/s0-e6f-internal-session-exchange.yml'
+      - 'docs/security/S0_E6F_INTERNAL_ATOMIC_SESSION_EXCHANGE_20261029.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s0-e6f-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  atomic-refresh-session-fail-closed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: teldigi5-wq/aetheris-ai-runtime
+          ref: c0618c827b326eb6a5bd02fa2a5e9365d593b4c6
+          path: _s0_e6f_runtime
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Immutable commits, real rotation atomic-claim, no newly public token exchange
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git -C _s0_e6f_runtime rev-parse HEAD)" = "c0618c827b326eb6a5bd02fa2a5e9365d593b4c6"
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('identity-service/src')
+          svc=(root/'main/java/io/aetheris/identity/RuntimeAudienceSessionExchangeService.java').read_text()
+          for s in (
+              '@Service', '@Transactional(rollbackFor = Exception.class)',
+              'exchangeUsingSingleUseRefreshCredential(',
+              'refreshTokens.rotate(oneTimeRefreshCredential)',
+              'accounts.findById(accountId)',
+              'issuer.issueForVerifiedExchange(fresh)',
+              'if (!issuer.isConfigured())', '[A-Za-z0-9_-]{43}',
+              'Runtime session exchange denied'):
+              assert s in svc,s
+          for s in ('@RestController', '@PostMapping', '@GetMapping',
+                    'HttpServletRequest', 'FilterChain', 'request.getHeader(',
+                    '@RequestMapping', 'System.getenv(', 'System.out.print'):
+              assert s not in svc,s
+          repo=(root/'main/java/io/aetheris/identity/RefreshTokenRepository.java').read_text()
+          assert 'revokeIfActive(' in repo
+          assert 'token.revoked = false' in repo and 'token.expiresAt > :now' in repo
+          refresh=(root/'main/java/io/aetheris/identity/RefreshTokenService.java').read_text()
+          assert 'repository.revokeIfActive(tokenHash, Instant.now())' in refresh
+          assert 'repository.save(new RefreshToken(account, tokenHash' in refresh
+          for name in ['AuthController.java', 'BrowserAuthController.java']:
+              ctrl=(root/'main/java/io/aetheris/identity'/name).read_text()
+              assert 'RuntimeAudienceSessionExchangeService' not in ctrl
+              assert 'RuntimeAudienceTokenIssuer' not in ctrl
+          test=(root/'test/java/io/aetheris/identity/RuntimeAudienceSessionExchangeServiceTest.java').read_text()
+          for marker in (
+              'actualRefreshRotationCannotExchangeTheSameCredentialTwice',
+              'revokedExpiredOrRacingRefreshCredentialsNeverProduceRuntimeJwt',
+              'freshDatabaseRoleIsUsedRatherThanAnyStaleTokenAccountRole',
+              'absentSigningKeyFailsBeforeConsumingRefreshCredential',
+              'signingFailureDoesNotProduceAnyCredentialResponse'):
+              assert marker in test,marker
+          runtime=Path('_s0_e6f_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimeUncertifiedApiHttpFilter.java').read_text()
+          assert 'SC_NOT_FOUND' in runtime
+          owner=Path('_s0_e6f_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/api/OwnerlessTaskMissionHttpFilter.java').read_text()
+          assert 'SC_NOT_FOUND' in owner
+          print('AETHERIS_S0_E6F_ATOMIC_REFRESH_NO_PUBLIC_HTTP_EXCHANGE_SOURCE_PASS')
+          PY
+      - name: Compile exact Runtime verifier and test internal exchange with Platform session flows
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_SRC=_s0_e6f_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java
+          DEST=identity-service/src/test/java/io/aetheris/orchestrator/security
+          mkdir -p "$DEST"
+          cp "$RUNTIME_SRC" "$DEST/RuntimePinnedPrincipalVerifier.java"
+          cmp "$RUNTIME_SRC" "$DEST/RuntimePinnedPrincipalVerifier.java"
+          cp docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java identity-service/src/test/java/io/aetheris/identity/RuntimePlatformRuntimeCrossRepoRoundTripTest.java
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=RuntimeAudienceSessionExchangeServiceTest,RuntimePlatformRuntimeCrossRepoRoundTripTest,RuntimeAudienceTokenIssuerTest,IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest test
+          grep -Fq 'Stage45 NO_GO' docs/security/S0_E6F_INTERNAL_ATOMIC_SESSION_EXCHANGE_20261029.md
+          echo AETHERIS_S0_E6F_INTERNAL_SINGLE_USE_SESSION_AND_SOURCE_INTEROP_TESTS_PASS
+      - name: Pinned Runtime direct-port HTTP quarantine and bearer verifier remain secure
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd _s0_e6f_runtime
+            ./mvnw -B -ntp -f orchestrator-service/pom.xml \
+              -Dtest=RuntimePinnedPrincipalVerifierTest,RuntimeRealDirectPortDenialRegressionTest test
+          )
+          echo AETHERIS_S0_E6F_RUNTIME_DENY_FIRST_HTTP_STILL_LOCKED_PASS
+      - name: No live token exchange or release certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenController.java
+          echo AETHERIS_S0_E6F_NO_PUBLIC_AUTH_SESSION_WORKLOAD_GATE_STAGE45_NO_GO_PASS
