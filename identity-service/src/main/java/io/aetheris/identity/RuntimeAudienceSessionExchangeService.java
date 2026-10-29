@@ -22,7 +22,7 @@ import java.util.Objects;
  * revokes refresh credentials but does not revoke an unexpired RS256 JWT.
  */
 @Service
-public final class RuntimeAudienceSessionExchangeService {
+public class RuntimeAudienceSessionExchangeService {
     private final RefreshTokenService refreshTokens;
     private final IdentityAccountRepository accounts;
     private final RuntimeAudienceTokenIssuer issuer;
