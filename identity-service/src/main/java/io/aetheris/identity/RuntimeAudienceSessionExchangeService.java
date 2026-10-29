@@ -86,6 +86,14 @@ public final class RuntimeAudienceSessionExchangeService {
             Objects.requireNonNull(runtimeAccessToken, "runtimeAccessToken");
             Objects.requireNonNull(rotatedRefreshToken, "rotatedRefreshToken");
         }
+
+        // Java records otherwise generate a toString() that prints ALL
+        // components, including both bearer credentials. Never disclose
+        // either token through incidental structured/object logging.
+        @Override
+        public String toString() {
+            return "InternalExchangeResult[credentials=REDACTED]";
+        }
     }
 
     public static final class ExchangeRejectedException extends RuntimeException {
