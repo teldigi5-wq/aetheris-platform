@@ -58,7 +58,7 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: Exact commits, disposable test guard, no production changes or route unlock
+      - name: Exact commits, disposable test guard, transactional proxy and no route unlock
         shell: bash
         run: |
           set -euo pipefail
@@ -88,6 +88,9 @@ jobs:
                 assert s in test,s
           service=(root/'main/java/io/aetheris/identity/RuntimeAudienceSessionExchangeService.java').read_text()
           assert '@Service' in service and '@Transactional(rollbackFor = Exception.class)' in service
+          assert 'public class RuntimeAudienceSessionExchangeService {' in service
+          assert 'public final class RuntimeAudienceSessionExchangeService' not in service
+          assert 'realSpringTransactionProxyMustExistBeforeTestingDatabaseAtomicity' in test
           assert 'refreshTokens.rotate(oneTimeRefreshCredential)' in service
           assert 'accounts.findById(accountId)' in service
           assert 'credentials=REDACTED' in service
