@@ -1,0 +1,129 @@
+name: S0-E6G Real PostgreSQL Session Rotation and Rollback
+on:
+  pull_request:
+    branches:
+      - security/s0-e6f-internal-atomic-session-exchange-20261029
+    paths:
+      - 'identity-service/src/test/java/io/aetheris/identity/RuntimePostgresSessionExchangeAtomicityTest.java'
+      - '.github/workflows/s0-e6g-real-postgres-session-atomicity.yml'
+      - 'docs/security/S0_E6G_REAL_POSTGRES_SESSION_ATOMICITY_20261029.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s0-e6g-postgres-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  real-postgres-16-atomic-claims-and-rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aetheris_e6g_disposable
+          POSTGRES_USER: e6g_test_only
+          POSTGRES_PASSWORD: e6g_disposable_not_real_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U e6g_test_only -d aetheris_e6g_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      AETHERIS_E6G_DISPOSABLE_MARKER: ONLY_DISPOSABLE_E6G_POSTGRES
+      AETHERIS_E6G_JDBC_URL: jdbc:postgresql://127.0.0.1:5432/aetheris_e6g_disposable
+      SPRING_DATASOURCE_URL: jdbc:postgresql://127.0.0.1:5432/aetheris_e6g_disposable
+      SPRING_DATASOURCE_USERNAME: e6g_test_only
+      SPRING_DATASOURCE_PASSWORD: e6g_disposable_not_real_password
+    steps:
+      - name: Checkout immutable reviewed Platform head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout immutable actual Runtime regression source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: teldigi5-wq/aetheris-ai-runtime
+          ref: c0618c827b326eb6a5bd02fa2a5e9365d593b4c6
+          path: _s0_e6g_runtime
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact commits, disposable test guard, no production changes or route unlock
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git -C _s0_e6g_runtime rev-parse HEAD)" = 'c0618c827b326eb6a5bd02fa2a5e9365d593b4c6'
+          test "$AETHERIS_E6G_DISPOSABLE_MARKER" = "ONLY_DISPOSABLE_E6G_POSTGRES"
+          test "$SPRING_DATASOURCE_URL" = "jdbc:postgresql://127.0.0.1:5432/aetheris_e6g_disposable"
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('identity-service/src')
+          test=(root/'test/java/io/aetheris/identity/RuntimePostgresSessionExchangeAtomicityTest.java').read_text()
+          for s in ('@DataJpaTest(', '@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)',
+                    '@Transactional(propagation = Propagation.NOT_SUPPORTED)',
+                    'ONLY_DISPOSABLE_E6G_POSTGRES',
+                    'aetheris_e6g_disposable',
+                    'jdbc:postgresql://127.0.0.1:5432/',
+                    'spring.jpa.hibernate.ddl-auto=create-drop',
+                    'PostgreSQL 16.', 'revokeIfActive',
+                    'concurrentRealPostgresTransactionsCanClaimOneSessionOnlyOnce',
+                    'issuerFailureRollsBackRealPostgresClaimAndInsertedReplacement',
+                    'assertEquals(1, successful',
+                    'assertEquals(1, tokens.count()'):
+              if s == 'revokeIfActive':
+                source=(root/'main/java/io/aetheris/identity/RefreshTokenRepository.java').read_text()
+                assert s in source
+              else:
+                assert s in test,s
+          service=(root/'main/java/io/aetheris/identity/RuntimeAudienceSessionExchangeService.java').read_text()
+          assert '@Service' in service and '@Transactional(rollbackFor = Exception.class)' in service
+          assert 'refreshTokens.rotate(oneTimeRefreshCredential)' in service
+          assert 'accounts.findById(accountId)' in service
+          assert 'credentials=REDACTED' in service
+          for bad in ('@RestController','@PostMapping','@GetMapping',
+                      '@RequestMapping','HttpServletRequest'):
+              assert bad not in service
+          for controller in ('AuthController.java','BrowserAuthController.java'):
+              assert 'RuntimeAudienceSessionExchangeService' not in (
+                  root/'main/java/io/aetheris/identity'/controller).read_text()
+          prod=(root/'main/resources/application.yml').read_text()
+          assert 'ddl-auto: validate' in prod
+          runtime=Path('_s0_e6g_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimeUncertifiedApiHttpFilter.java').read_text()
+          assert 'SC_NOT_FOUND' in runtime
+          print('AETHERIS_S0_E6G_DISPOSABLE_DATABASE_AND_NO_HTTP_TOKEN_GRANT_SOURCE_PASS')
+          PY
+      - name: Actual PostgreSQL 16 concurrent session claim and rollback, all parent Identity regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=RuntimePostgresSessionExchangeAtomicityTest,RuntimeAudienceSessionExchangeServiceTest,RuntimeAudienceTokenIssuerTest,RuntimePlatformRuntimeCrossRepoRoundTripTest,IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest test
+          grep -Fq 'Stage45 NO_GO' docs/security/S0_E6G_REAL_POSTGRES_SESSION_ATOMICITY_20261029.md
+          echo AETHERIS_S0_E6G_ACTUAL_POSTGRES_16_TRANSACTION_TESTS_AND_IDENTITY_REGRESSIONS_PASS
+      - name: Actual Runtime original HTTP denial and verified JWT regression remains
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd _s0_e6g_runtime
+            ./mvnw -B -ntp -f orchestrator-service/pom.xml \
+              -Dtest=RuntimePinnedPrincipalVerifierTest,RuntimeRealDirectPortDenialRegressionTest test
+          )
+          echo AETHERIS_S0_E6G_REAL_RUNTIME_404_AND_RSA_REGRESSION_STILL_PASS
+      - name: Explicitly no live database, deployment, API grant or release authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenController.java
+          echo AETHERIS_S0_E6G_POSTGRES_DISPOSABLE_ONLY_STAGE45_NO_GO_PASS
