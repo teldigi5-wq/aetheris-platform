@@ -110,8 +110,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          RUNTIME_VERIFIER=_s0_e6g_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java
+          VERIFIER_TEST_DIR=identity-service/src/test/java/io/aetheris/orchestrator/security
+          mkdir -p "$VERIFIER_TEST_DIR"
+          cp "$RUNTIME_VERIFIER" "$VERIFIER_TEST_DIR/RuntimePinnedPrincipalVerifier.java"
+          cmp "$RUNTIME_VERIFIER" "$VERIFIER_TEST_DIR/RuntimePinnedPrincipalVerifier.java"
+          SRC_INTEROP=docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java
+          DEST_INTEROP=identity-service/src/test/java/io/aetheris/identity/RuntimePlatformRuntimeCrossRepoRoundTripTest.java
+          cp "$SRC_INTEROP" "$DEST_INTEROP"
+          cmp "$SRC_INTEROP" "$DEST_INTEROP"
           ./mvnw -B -ntp -f identity-service/pom.xml \
             -Dtest=RuntimePostgresSessionExchangeAtomicityTest,RuntimeAudienceSessionExchangeServiceTest,RuntimeAudienceTokenIssuerTest,RuntimePlatformRuntimeCrossRepoRoundTripTest,IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest test
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          report=Path('identity-service/target/surefire-reports/TEST-io.aetheris.identity.RuntimePlatformRuntimeCrossRepoRoundTripTest.xml')
+          assert report.is_file(), 'Missing actual cross-repository test execution report'
+          root=ET.parse(report).getroot()
+          assert int(root.attrib.get('tests',0)) == 6, 'Expected SIX actual cross-repo tests'
+          assert int(root.attrib.get('failures',-1)) == 0
+          assert int(root.attrib.get('errors',-1)) == 0
+          assert int(root.attrib.get('skipped',-1)) == 0
+          print('AETHERIS_S0_E6G_SIX_REAL_SOURCE_INTEROP_TESTS_REEXECUTED_PASS')
+          PY
           grep -Fq 'Stage45 NO_GO' docs/security/S0_E6G_REAL_POSTGRES_SESSION_ATOMICITY_20261029.md
           echo AETHERIS_S0_E6G_ACTUAL_POSTGRES_16_TRANSACTION_TESTS_AND_IDENTITY_REGRESSIONS_PASS
       - name: Actual Runtime original HTTP denial and verified JWT regression remains
