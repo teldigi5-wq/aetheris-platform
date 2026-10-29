@@ -1,0 +1,81 @@
+name: S0-E6D Dormant Runtime RS256 Audience Token Contract
+on:
+  pull_request:
+    branches:
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenIssuer.java'
+      - 'identity-service/src/test/java/io/aetheris/identity/RuntimeAudienceTokenIssuerTest.java'
+      - '.github/workflows/s0-e6d-runtime-audience-token-contract.yml'
+      - 'docs/security/S0_E6D_RUNTIME_AUDIENCE_TOKEN_COMPATIBILITY_20261029.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s0-e6d-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  dormant-issuer-compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact commit, dormant issuer, no public token-exchange endpoint or legacy mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('identity-service/src')
+          issuer=(root/'main/java/io/aetheris/identity/RuntimeAudienceTokenIssuer.java').read_text()
+          for v in (
+            '@Component', 'pkcs8-base64', 'key-id', 'issuer', 'audience',
+            'RSAPrivateCrtKey', 'MAX_PKCS8_B64_LENGTH', 'LIFETIME_SECONDS = 300',
+            'signWith(signingKey, Jwts.SIG.RS256)', '.id(UUID.randomUUID().toString())',
+            'issueForVerifiedExchange(IdentityAccount account)',
+            'if (privateKey.isEmpty() && kid.isEmpty() && iss.isEmpty() && aud.isEmpty())'
+          ):
+              assert v in issuer,v
+          for forbidden in ('@RestController', '@PostMapping', '@GetMapping', 'RequestMapping',
+                            'System.getenv(', 'JwtService(', 'http://', 'new URL(', 'chain.doFilter'):
+              assert forbidden not in issuer,forbidden
+          legacy=(root/'main/java/io/aetheris/identity/JwtService.java').read_text()
+          assert 'Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8))' in legacy
+          assert '.signWith(key)' in legacy
+          assert '.claim("scopes"' in legacy
+          auth=(root/'main/java/io/aetheris/identity/AuthController.java').read_text()
+          assert 'RuntimeAudienceTokenIssuer' not in auth
+          test=(root/'test/java/io/aetheris/identity/RuntimeAudienceTokenIssuerTest.java').read_text()
+          for v in ('rsa(1024)', 'rsa(2048)', '"RS256"',
+                    'Set.of(AUDIENCE)', 'Duration.ofMinutes(5)',
+                    'wrong' if False else 'unconfiguredAndPartialOperatorTrustNeverIssueRuntimeCredentials',
+                    'persistedAccountIdentityRequiredAndLegacyHmacJwtServiceUnchanged'):
+              assert v in test,v
+          print('AETHERIS_S0_E6D_NO_LEGACY_GATEWAY_OR_PUBLIC_TOKEN_ROUTE_CHANGE_PASS')
+          PY
+      - name: Validate PKCS8 operator pinning, RS256 Runtime claim contract and legacy compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=RuntimeAudienceTokenIssuerTest,IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest test
+          grep -Fq 'Stage45 NO_GO' docs/security/S0_E6D_RUNTIME_AUDIENCE_TOKEN_COMPATIBILITY_20261029.md
+          echo AETHERIS_S0_E6D_DORMANT_RS256_AUDIENCE_TOKEN_AND_LEGACY_AUTH_TESTS_PASS
+      - name: Explicit not an HTTP token-exchange service
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenController.java
+          echo AETHERIS_S0_E6D_NO_SESSION_BOUND_EXCHANGE_OR_RUNTIME_DEPLOY_STAGE45_NO_GO_PASS
