@@ -7,6 +7,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -52,8 +55,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
     RefreshTokenService.class,
-    RuntimeAudienceTokenIssuer.class,
-    RuntimeAudienceSessionExchangeService.class
+    RuntimeAudienceSessionExchangeService.class,
+    RuntimePostgresSessionExchangeAtomicityTest.SigningFixture.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class RuntimePostgresSessionExchangeAtomicityTest {
@@ -61,6 +64,18 @@ class RuntimePostgresSessionExchangeAtomicityTest {
     private static final String URL =
         "jdbc:postgresql://127.0.0.1:5432/" + DATABASE_NAME;
     private static final KeyPair SYNTHETIC_SIGNER = syntheticKey();
+
+    // @DataJpaTest is a deliberately narrow slice; the issuer exposes a
+    // test-clock overload in addition to its public Environment constructor.
+    // Explicitly construct the unchanged REAL production issuer from operator
+    // fixture properties, without enabling any HTTP entrypoint.
+    @TestConfiguration(proxyBeanMethods = false)
+    static class SigningFixture {
+        @Bean
+        RuntimeAudienceTokenIssuer runtimeAudienceTokenIssuer(Environment env) {
+            return new RuntimeAudienceTokenIssuer(env);
+        }
+    }
 
     @DynamicPropertySource
     static void disposableOnly(DynamicPropertyRegistry properties) {
