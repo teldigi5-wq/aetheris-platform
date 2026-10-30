@@ -114,7 +114,7 @@ jobs:
           assert 'sessions.exchangeUsingSingleUseRefreshCredential(oneTimeRefreshCredential)' in bridge
           for code in (gate,bridge):
               for bad in ('@RestController','@PostMapping','@GetMapping',
-                          '@RequestMapping','OncePerRequestFilter','X-Forwarded-Client-Cert'):
+                          '@RequestMapping','OncePerRequestFilter','getHeader('):
                   assert bad not in code,bad
           case=(root/'test/java/io/aetheris/identity/RuntimeExchangeGatewayWorkloadPolicyTest.java').read_text()
           for marker in ('exactSyntheticPeerAndHttpsPermitOnlyTheInternalAdapter',
