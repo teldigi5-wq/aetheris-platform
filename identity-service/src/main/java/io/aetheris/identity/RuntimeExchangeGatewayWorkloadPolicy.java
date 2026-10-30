@@ -32,12 +32,12 @@ public final class RuntimeExchangeGatewayWorkloadPolicy {
 
     @Autowired
     public RuntimeExchangeGatewayWorkloadPolicy(
-        @Value("\${aetheris.runtime-exchange.gateway-mtls-required:false}") boolean enabled,
-        @Value("\${aetheris.runtime-exchange.gateway-spiffe-id:}") String expectedSpiffeId,
-        @Value("\${server.ssl.enabled:false}") boolean tlsEnabled,
-        @Value("\${server.ssl.client-auth:}") String clientAuth,
-        @Value("\${server.ssl.trust-store:}") String trustStore,
-        @Value("\${server.ssl.bundle:}") String sslBundle) {
+        @Value("${aetheris.runtime-exchange.gateway-mtls-required:false}") boolean enabled,
+        @Value("${aetheris.runtime-exchange.gateway-spiffe-id:}") String expectedSpiffeId,
+        @Value("${server.ssl.enabled:false}") boolean tlsEnabled,
+        @Value("${server.ssl.client-auth:}") String clientAuth,
+        @Value("${server.ssl.trust-store:}") String trustStore,
+        @Value("${server.ssl.bundle:}") String sslBundle) {
         this.enabled = enabled;
         this.expectedSpiffeId = expectedSpiffeId;
         boolean spiffeSupplied = expectedSpiffeId != null && !expectedSpiffeId.isEmpty();
