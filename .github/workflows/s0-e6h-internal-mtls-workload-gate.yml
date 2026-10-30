@@ -2,7 +2,7 @@ name: S0-E6H Internal Gateway SPIFFE Workload Gate and Real PostgreSQL
 on:
   pull_request:
     branches:
-      - security/s0-e6h-mtls-refresh-atomicity-20261029
+      - security/s0-e6g-postgres-refresh-atomicity-20261029
     paths:
       - 'identity-service/src/main/java/io/aetheris/identity/RuntimeExchangeGatewayWorkloadPolicy.java'
       - 'identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceWorkloadBoundExchange.java'
