@@ -2,7 +2,7 @@
 # S0-E6I real disposable Identity Tomcat HTTPS mTLS lab.
 # Absolutely no live Identity server, certificates or owner database.
 set -euo pipefail
-[[ "\${AETHERIS_IDENTITY_TLS_LAB_SYNTHETIC_ONLY:-}" == "yes" ]] || {
+[[ "${AETHERIS_IDENTITY_TLS_LAB_SYNTHETIC_ONLY:-}" == "yes" ]] || {
   echo "E6I_DISPOSABLE_TLS_ONLY_REQUIRED" >&2
   exit 1
 }
