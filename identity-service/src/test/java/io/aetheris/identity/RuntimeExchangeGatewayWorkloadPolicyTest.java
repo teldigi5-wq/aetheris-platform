@@ -128,10 +128,12 @@ class RuntimeExchangeGatewayWorkloadPolicyTest {
             assertThrows(RuntimeAudienceSessionExchangeService.ExchangeRejectedException.class,
                 () -> adapter.exchangeOnlyAfterVerifiedPeer(request, "a".repeat(43)));
         }
-        var notHttps = https();
-        notHttps.setSecure(false);
-        notHttps.setAttribute(RuntimeExchangeGatewayWorkloadPolicy.PEER_CERTIFICATE_ATTRIBUTE,
-            new X509Certificate[]{peer(GATEWAY)});
+        // Use an explicit servlet mock for this condition: Spring's
+        // MockHttpServletRequest derives secure=true from the https scheme,
+        // so setSecure(false) alone is not an accurate insecure transport.
+        HttpServletRequest notHttps = mock(HttpServletRequest.class);
+        when(notHttps.isSecure()).thenReturn(false);
+        when(notHttps.getScheme()).thenReturn("https");
         assertFalse(enabled().permits(notHttps));
         var notHttpsScheme = https();
         notHttpsScheme.setScheme("http");
