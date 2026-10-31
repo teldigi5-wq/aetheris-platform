@@ -58,6 +58,40 @@ These screens do not rule out generic or low-entropy secrets, unknown
 credential formats, PII or earlier historical commits. A human must
 review the actual selected content and the existing historical findings.
 
+## Metadata, privacy and attribution-marker preflight
+
+All **44 selected Git blobs** were inspected with a limited additional
+content review at the pinned source commit. The review found:
+
+- **0 email-address matches** within these selected files. The previous
+  11 synthetic aetheris.local emails were in test files now excluded.
+- **0 local-user home-directory path matches** for Unix/macOS/Windows
+  home-path formats checked, and **0 literal password/secret assignments**
+  matching the limited signature used for the review.
+- **0 third-party copyright, SPDX header or embedded licence notices**
+  matching the selected notice patterns. This does *not* prove authorship
+  or eliminate the possibility of copied/derived source.
+- URL hosts in the reviewed files were limited to localhost and
+  development/service-name hosts such as identity-service, user-service,
+  audit-service and orchestrator-service; none was identified as an
+  external credentialed production endpoint. Source configuration values
+  use environment placeholders rather than checked-in production secrets.
+
+The workflow now includes a **second, independent, fail-closed source
+metadata review** at the immutable pin. It checks for unexpected email
+addresses, machine-specific home paths, licence/copyright markers,
+private-key headers and unreviewed URL hosts. It runs **after** the
+checksum-pinned Gitleaks scan. Its checker includes negative self-tests
+so basic patterns cannot be silently removed without failing CI.
+
+This is a **mechanical privacy/metadata indicator scan only**. It does
+not establish that a real secret was never used elsewhere, verify every
+piece of personally identifiable information, or replace human approval.
+False negatives remain possible, and every scope/pin change needs renewed
+review. The upstream XERJ contributor consent recorded for an older
+full-repository pin cannot be silently reinterpreted as consent for the
+revised 44-file version.
+
 ## Licensing and human approval
 
 GitHub currently recognizes Apache-2.0 for the source repository, and
@@ -105,6 +139,7 @@ pin may be preferable once a reviewed release lineage is merged.
 - [x] Initial 65-file screening; real Gitleaks detected one synthetic test fixture
 - [x] Curated 44-file application-only scope, without scanner ignores
 - [ ] Exact-head hosted workflow must verify Git tree/pin and Gitleaks scan
+- [ ] Exact-head content metadata/privacy CI verification (not yet signed off)
 - [ ] Human review of the pinned source for sensitive info and all licensing
 - [ ] Decide whether to publish this historical source or wait for hardened main
 - [ ] Build the actual XERJ corpus, measure indexed file/byte counts, verify
