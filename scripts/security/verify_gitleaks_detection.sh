@@ -72,4 +72,41 @@ if not any(
     raise SystemExit("ERROR: expected disposable private-key detector finding not present.")
 PY
 
-echo 'PASS: real Gitleaks accepts harmless changes and rejects disposable synthetic key material.'
+# Confirm a secret committed and later deleted is still detected in PR history.
+# Its absence from the final worktree must never suppress the finding.
+git -C "$audit_dir" rm -q disposable-private-key.pem
+git -C "$audit_dir" commit -qm 'synthetic remove private-key fixture'
+
+set +e
+(
+  cd "$audit_dir"
+  gitleaks git --redact --ignore-gitleaks-allow \
+    --log-opts="$previous..HEAD" --report-format json \
+    --report-path "$audit_dir/historical-findings.json" . >/dev/null 2>&1
+)
+history_status=$?
+set -e
+
+if [[ "$history_status" -ne 1 ]]; then
+  echo "ERROR: deleted historical secret was not detected (exit $history_status)." >&2
+  exit 1
+fi
+
+python3 - "$audit_dir/historical-findings.json" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+if not path.is_file():
+    raise SystemExit("ERROR: missing historical detector report.")
+matches = json.loads(path.read_text())
+if not any(
+    finding.get("RuleID") == "private-key"
+    and pathlib.Path(finding.get("File", "")).name == "disposable-private-key.pem"
+    for finding in matches
+):
+    raise SystemExit("ERROR: deleted historical private-key detection missing.")
+PY
+
+echo 'PASS: harmless commits accepted, private key rejected, deleted historical private key detected.'
