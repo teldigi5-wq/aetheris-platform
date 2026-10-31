@@ -69,7 +69,8 @@ jobs:
           test "${#paths[@]}" -gt 0
           git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$candidate_dir"
           file_count="$(find "$candidate_dir" -type f | wc -l)"
-          test "$file_count" -eq 65
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
+          test "$file_count" -eq "$expected_count"
           # No custom repository config, no ignore file, no inline allow comments.
           set +e
           gitleaks dir --redact --ignore-gitleaks-allow \
