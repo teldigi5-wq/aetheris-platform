@@ -54,7 +54,7 @@ class SecretScanCiTest(unittest.TestCase):
         result = self.scan(self.base)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(
-            ["git", "--redact", "--ignore-gitleaks-allow", f"--log-opts=--diff-merges=first-parent {self.base}..HEAD", "."],
+            ["git", "--redact", "--ignore-gitleaks-allow", f"--log-opts=--diff-merges=first-parent --text --no-ext-diff --no-textconv {self.base}..HEAD", "."],
             self.log.read_text().splitlines(),
         )
 
@@ -125,7 +125,28 @@ class SecretScanCiTest(unittest.TestCase):
         result = self.scan(self.base)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn(
-            f"--log-opts=--diff-merges=first-parent {self.base}..HEAD",
+            f"--log-opts=--diff-merges=first-parent --text --no-ext-diff --no-textconv {self.base}..HEAD",
+            self.log.read_text().splitlines(),
+        )
+
+    def test_gitattributes_minus_diff_cannot_hide_git_patch(self):
+        """Tracked -diff attribute must not hide newly introduced text from scanning."""
+        marker = "SYNTHETIC_ATTRIBUTE_HIDDEN_MARKER"
+        (self.repo / ".gitattributes").write_text("hidden-fixture.txt -diff\n")
+        (self.repo / "hidden-fixture.txt").write_text(marker + "\n")
+        self.git("add", ".gitattributes", "hidden-fixture.txt")
+        self.git("commit", "-qm", "synthetic suppressed diff fixture")
+        ordinary = self.git("log", "-p", f"{self.base}..HEAD")
+        forced = self.git(
+            "log", "-p", "--text", "--no-ext-diff", "--no-textconv",
+            f"{self.base}..HEAD",
+        )
+        self.assertNotIn(marker, ordinary)
+        self.assertIn(marker, forced)
+        result = self.scan(self.base)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(
+            f"--log-opts=--diff-merges=first-parent --text --no-ext-diff --no-textconv {self.base}..HEAD",
             self.log.read_text().splitlines(),
         )
 
