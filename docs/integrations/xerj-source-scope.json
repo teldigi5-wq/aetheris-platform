@@ -2,7 +2,7 @@
   "schema": "aetheris-xerj-source-plan/v1",
   "status": "DRAFT_REVIEW_ONLY_NOT_APPROVED_FOR_HUB_SUBMISSION",
   "corpus_candidate": "aetheris-java-service-boundaries",
-  "purpose": "A coding agent investigating Java microservice boundaries can cite the Aetheris Gateway, Identity, User, Audit, architecture, and token-flow source at an immutable revision; not a certified security reference.",
+  "purpose": "A coding agent investigating Java microservice integration boundaries can cite the Aetheris Gateway, Identity, User and Audit application source plus architecture/token-flow documentation; this is not a certified security reference or unit-test corpus.",
   "source": {
     "repo": "teldigi5-wq/aetheris-platform",
     "url": "https://github.com/teldigi5-wq/aetheris-platform",
@@ -11,29 +11,28 @@
   },
   "paths": [
     "architecture",
-    "gateway",
-    "identity-service",
-    "user-service",
-    "audit-service",
+    "gateway/src/main",
+    "identity-service/src/main",
+    "user-service/src/main",
+    "audit-service/src/main",
     "docs/security"
   ],
   "expected_tree": {
-    "files": 65,
-    "bytes": 129060,
+    "files": 44,
+    "bytes": 75323,
     "measurement": "GitHub recursive git tree at pinned source SHA; file blob sizes, not XERJ indexed size"
   },
   "explicit_exclusions": [
-    ".github/",
-    "build-evidence/",
-    "dashboard/",
-    "tools/",
-    "apps/",
-    "scripts/",
-    "tests/",
-    "deploy/",
-    "observability/",
-    "configs/",
-    "other root files"
+    "all unit/integration test directories",
+    "root-level runtime/deployment configurations",
+    "generated build evidence",
+    ".github workflows",
+    "dashboard",
+    "tools",
+    "apps",
+    "deploy",
+    "observability",
+    "unrelated documentation"
   ],
   "license": {
     "github_detected_spdx": "Apache-2.0",
@@ -43,9 +42,10 @@
   },
   "security": {
     "source_tree_filename_inspection": "PRELIMINARY_ONLY",
-    "heuristic_content_scan": "65/65 candidate files screened with limited indicators; no obvious key/provider token patterns; 11 synthetic @aetheris.local test references",
-    "full_gitleaks_snapshot_scan": "PENDING_HOSTED_CI",
-    "historical_findings": "Separately tracked; no assertion of no leaked secrets",
+    "heuristic_content_scan": "All 65 original candidates screened with limited indicators; selected 44 are a strict subset; no obvious private key or provider-token markers in selected files",
+    "full_gitleaks_snapshot_scan": "PENDING_EXACT_HEAD_RESCAN_OF_44_FILES",
+    "excluded_fixture": "Initial 65-file full Gitleaks scan failed with one generic-api-key finding in Gateway JWT test hard-coded synthetic signing value. Source-only curatorial selection excludes all test fixtures; no scanner exception or allowlist. Historical scan failure preserved in PR #361.",
+    "historical_findings": "Separately tracked; no assertion of absence of leaked secrets",
     "pii_review": "PENDING"
   },
   "publication": {
@@ -59,6 +59,7 @@
   "review_notes": [
     "Aetheris Platform main lacks unmerged PR #355 scanner and PR #359 tenant lifecycle hardening.",
     "Do not describe draft security fixes as part of this pinned source snapshot.",
-    "The existing Aetheris production release gate remains NO_GO; indexing source is not a deployment."
+    "The existing Aetheris production release gate remains NO_GO; indexing source is not a deployment.",
+    "Initial 65-file snapshot was blocked by real Gitleaks because of a hard-coded JWT test signing secret in a test file. This 44-file application-source-only corpus intentionally excludes all tests; exclusion is documented and is not a waiver of the finding."
   ]
 }
