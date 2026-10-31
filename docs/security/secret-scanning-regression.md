@@ -12,7 +12,7 @@ This change provides a **new-commit** secret-exposure check for every pull reque
 - A nonzero, valid ancestor base SHA and nonempty commit range are mandatory; ambiguous or missing ancestry fails closed.
 - All introduced commits are scanned, including tests and files added then removed. Inline gitleaks:allow suppressions are disabled, and repository-level .gitleaks.toml or .gitleaksignore overrides fail.
 - Output is redacted; no secret-containing JSON reports or SARIF artifacts are published.
-- After the real PR scan passes, a second **ephemeral detection proof** creates a disposable Git repository in runner-local temporary storage. It confirms that harmless commits pass and that Gitleaks flags a newly generated RSA private key. The RSA key and redacted proof report are deleted by a shell EXIT trap. No key fixture is committed to Aetheris or uploaded.
+- After the real PR scan passes, a second **ephemeral detection proof** creates a disposable Git repository in runner-local temporary storage. It confirms that harmless commits pass, Gitleaks flags a newly generated RSA private key, and the same key remains detectable after a subsequent removal commit in the scanned history. The RSA key and redacted proof report are deleted by a shell EXIT trap. No key fixture is committed to Aetheris or uploaded.
 - A synthetic seven-test offline suite then verifies shell-wrapper argument/range/ignore failure semantics.
 
 ## Acceptance and merge prerequisites
@@ -34,5 +34,5 @@ This change provides a **new-commit** secret-exposure check for every pull reque
 ## 2026-10-31 implementation checkpoints
 
 - Draft PR #353 initial exact-head run 41195078982: 7 synthetic unit tests passed; Gitleaks scanned five new commits and found no leaks.
-- Follow-up: reordered scan before repository tests; added real Gitleaks positive/negative proof using ephemeral keys. **Reverify the latest commit's CI before declaring this enhancement complete.**
+- Follow-up: reordered scan before repository tests and added real Gitleaks positive/negative proof using ephemeral keys, including an added-then-deleted secret. **Verify the latest exact-head CI before declaring this enhancement complete.**
 - Issue #354 tracks required status-check enforcement and review policy. Ruleset settings have not been changed.
