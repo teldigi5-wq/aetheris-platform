@@ -46,7 +46,11 @@
     "full_gitleaks_snapshot_scan": "PENDING_EXACT_HEAD_RESCAN_OF_44_FILES",
     "excluded_fixture": "Initial 65-file full Gitleaks scan failed with one generic-api-key finding in Gateway JWT test hard-coded synthetic signing value. Source-only curatorial selection excludes all test fixtures; no scanner exception or allowlist. Historical scan failure preserved in PR #361.",
     "historical_findings": "Separately tracked; no assertion of absence of leaked secrets",
-    "pii_review": "PENDING"
+    "pii_review": "PENDING",
+    "metadata_privacy_machine_review": "44/44 pinned source files inspected for email addresses, home paths, embedded third-party notices, literal secret assignments and public URL hostnames. No matches requiring remediation identified by these limited checks; human review pending.",
+    "metadata_privacy_ci": "PENDING_EXACT_HEAD_RUN",
+    "copyright_authorship_review": "NOT_VERIFIED_BY_HUMAN",
+    "consent_scope": "XERJ upstream draft asserts consent for older full-repo pin; not reverified for revised 44-file scope"
   },
   "publication": {
     "hub_branch": "xerj-org/xerj:corpus-hub",
@@ -60,6 +64,7 @@
     "Aetheris Platform main lacks unmerged PR #355 scanner and PR #359 tenant lifecycle hardening.",
     "Do not describe draft security fixes as part of this pinned source snapshot.",
     "The existing Aetheris production release gate remains NO_GO; indexing source is not a deployment.",
-    "Initial 65-file snapshot was blocked by real Gitleaks because of a hard-coded JWT test signing secret in a test file. This 44-file application-source-only corpus intentionally excludes all tests; exclusion is documented and is not a waiver of the finding."
+    "Initial 65-file snapshot was blocked by real Gitleaks because of a hard-coded JWT test signing secret in a test file. This 44-file application-source-only corpus intentionally excludes all tests; exclusion is documented and is not a waiver of the finding.",
+    "External XERJ draft at tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json references older SHA 908ac0a5 and unrestricted 381-file repository. Do not create duplicate or overwrite prior consent."
   ]
 }
