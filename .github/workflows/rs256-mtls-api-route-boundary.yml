@@ -9,13 +9,16 @@ on:
       - 'user-service/src/test/java/io/aetheris/users/security/**'
       - 'audit-service/src/test/java/io/aetheris/audit/security/**'
       - 'docs/security/RS256_MTLS_API_PATH_REVIEW_20261031.md'
+      - 'docs/security/RS256_MTLS_TENANT_PROOF_CHECKPOINT_20261031.md'
+      - 'scripts/security/rehearse_shared_db_three_roles.sh'
+      - 'scripts/security/run_gateway_netty_tls_lab.sh'
 permissions:
   contents: read
 jobs:
   route-boundary:
     name: rs256-mtls-api-path-boundary
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 65
     steps:
       - name: Checkout exact pull request head without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -78,3 +81,28 @@ jobs:
           set -euo pipefail
           ./mvnw -U -B -ntp -f pom.xml test
           echo 'RS256_MTLS_BACKEND_ROUTE_TESTS_PASSED_REVIEW_ONLY'
+      - name: Actual synthetic Postgres ownership isolation and role-boundary acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This existing script creates and destroys its own disposable
+          # PostgreSQL 16 container, roles, synthetic tenant bindings, and
+          # throwaway data; it never connects to a configured live database.
+          AETHERIS_THREE_ROLE_SYNTHETIC_ONLY=yes bash scripts/security/rehearse_shared_db_three_roles.sh
+          echo 'EXACT_HEAD_SYNTHETIC_TENANT_AND_DB_ROLE_PROOF_PASS'
+      - name: Actual disposable Gateway TLS socket and SPIFFE client identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AETHERIS_NETTY_MTLS_LAB_SYNTHETIC_ONLY=yes bash scripts/security/run_gateway_netty_tls_lab.sh
+          echo 'EXACT_HEAD_SYNTHETIC_MTLS_SOCKET_PROOF_PASS'
+      - name: Destroy any synthetic three-role containers after failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker ps --filter 'name=^/aetheris-three-roles-' --format '{{.Names}}' |
+            while IFS= read -r name; do
+              docker rm -f "$name" > /dev/null 2>&1 || true
+            done
+          echo 'SYNTHETIC_THREE_ROLE_CONTAINER_CLEANUP_DONE'
