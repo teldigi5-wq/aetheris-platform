@@ -1,0 +1,237 @@
+name: XERJ pinned-source safety preflight (review only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/xerj-pinned-source-preflight.yml'
+      - 'docs/integrations/xerj-source-scope.json'
+      - 'docs/integrations/xerj-corpus-review.md'
+      - 'scripts/security/verify_xerj_source_scope.py'
+      - 'scripts/security/verify_xerj_privacy_preflight.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xerj-source-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  xerj-pinned-source-scan:
+    name: xerj-pinned-source-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout review commit without stored credentials and with full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact review head and pinned source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 scripts/security/verify_xerj_source_scope.py
+
+      - name: Install checksum-verified Gitleaks v8.30.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=8.30.1
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          expected_sha=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          install_dir="${RUNNER_TEMP}/xerj-reviewed-gitleaks"
+          mkdir -p "$install_dir"
+          curl --fail --location --silent --show-error --proto '=https' \
+            --tlsv1.2 --retry 3 \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}" \
+            --output "${install_dir}/${archive}"
+          printf '%s  %s\n' "$expected_sha" "${install_dir}/${archive}" \
+            | sha256sum --check --status
+          tar -xzf "${install_dir}/${archive}" -C "$install_dir" gitleaks
+          chmod 755 "${install_dir}/gitleaks"
+          echo "$install_dir" >> "$GITHUB_PATH"
+
+      - name: Scan only immutable pinned source with default Gitleaks rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-pinned.XXXXXXXX")"
+          scanner_dir="${RUNNER_TEMP}/xerj-reviewed-gitleaks"
+          report="${RUNNER_TEMP}/xerj-pinned-sensitive-results.json"
+          output="${RUNNER_TEMP}/xerj-pinned-scan.stdout"
+          trap 'rm -rf -- "$candidate_dir" "$scanner_dir" "$report" "$output"' EXIT
+          pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
+          mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
+          test "${#paths[@]}" -gt 0
+          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$candidate_dir"
+          file_count="$(find "$candidate_dir" -type f | wc -l)"
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
+          test "$file_count" -eq "$expected_count"
+          # No custom repository config, no ignore file, no inline allow comments.
+          set +e
+          gitleaks dir --redact --ignore-gitleaks-allow \
+            --report-format json --report-path "$report" \
+            "$candidate_dir" > "$output" 2>&1
+          scan_status=$?
+          set -e
+          if [[ "$scan_status" -ne 0 ]]; then
+            echo "XERJ_PINNED_SOURCE_SCAN_FAILED: scanner_status=$scan_status" >&2
+            if [[ -f "$report" ]]; then
+              python3 - "$report" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          try:
+              findings = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          except (ValueError, OSError):
+              print("Gitleaks report unreadable; secrets withheld")
+              raise SystemExit(1)
+          print(f"Findings: {len(findings)} (values withheld)")
+          for finding in findings[:20]:
+              # Never publish matched secret, source snippet, fingerprint,
+              # or raw report. Source file paths are already public Git tree
+              # metadata; print only a known, relative archive path.
+              raw = str(finding.get('File', ''))
+              normalized = raw.replace('\\', '/')
+              allowed_roots = ('architecture/', 'gateway/', 'identity-service/',
+                               'user-service/', 'audit-service/', 'docs/security/')
+              relative = '<unrecognized-path>'
+              for root in allowed_roots:
+                  index = normalized.find(root)
+                  if index >= 0:
+                      tentative = normalized[index:]
+                      if '..' not in tentative.split('/') and '\n' not in tentative:
+                          relative = tentative[:220]
+                      break
+              print(f"Finding: rule={finding.get('RuleID', '<unknown>')} file={relative}")
+          PY
+            fi
+            exit 1
+          fi
+          echo "XERJ_PINNED_GITLEAKS_SCAN_PASS pin=$pin files=$file_count"
+          echo "XERJ_HUB_PUBLICATION_STILL_REQUIRES_OWNER_REVIEW"
+
+      - name: Verify source-only privacy metadata and attribution triggers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security/verify_xerj_privacy_preflight.py
+          echo "XERJ_HUMAN_PRIVACY_AND_LICENCE_SIGNOFF_STILL_PENDING"
+
+  xerj-local-retrieval-preview:
+    name: xerj-local-retrieval-preview
+    needs: [xerj-pinned-source-scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR head without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Build a disposable localhost-only XERJ search preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 scripts/security/verify_xerj_source_scope.py
+          test "$(uname -m)" = x86_64
+
+          # Download an exact-version binary; never execute a curl-piped installer.
+          # This is the upstream official release digest verified by GitHub API.
+          version=1.0.0-rc.100
+          target=x86_64-unknown-linux-musl
+          asset="xerj-${version}-${target}.tar.gz"
+          expected=4b12a47e8433e9d01d2b3f505b17b342a6e28d41edaabd274eba5a759e9cde1e
+          work="$(mktemp -d "${RUNNER_TEMP}/aetheris-xerj-local.XXXXXXXX")"
+          node_pid=""
+          cleanup() {
+            if [[ -n "$node_pid" ]]; then
+              kill "$node_pid" > /dev/null 2>&1 || true
+              wait "$node_pid" > /dev/null 2>&1 || true
+            fi
+            rm -rf -- "$work"
+          }
+          trap cleanup EXIT
+
+          curl --fail --location --silent --show-error --proto '=https' \
+            --tlsv1.2 --retry 3 \
+            "https://github.com/xerj-org/xerj/releases/download/v${version}/$asset" \
+            --output "$work/$asset"
+          printf '%s  %s\n' "$expected" "$work/$asset" | sha256sum --check --status
+          tar -xzf "$work/$asset" -C "$work"
+          binary="$work/xerj-${version}-${target}/xerj"
+          test -f "$binary"
+          chmod 700 "$binary"
+          "$binary" --version > "$work/version.txt"
+          echo XERJ_RELEASE_CHECKSUM_AND_BINARY_VERIFIED
+
+          pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
+          mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
+          mkdir -p "$work/source" "$work/node"
+          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$work/source"
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
+          test "$(find "$work/source" -type f | wc -l)" -eq "$expected_count"
+          echo XERJ_LOCAL_SOURCE_ARCHIVE_VERIFIED
+
+          # Insecure mode is acceptable ONLY on this disposable loopback node
+          # with public, previously scanned source. Never bind externally.
+          "$binary" --insecure --bind 127.0.0.1 --data-dir "$work/node" \
+            > "$work/node.log" 2>&1 &
+          node_pid="$!"
+          ready=0
+          for attempt in $(seq 1 75); do
+            if curl --fail --silent --max-time 2 \
+              http://127.0.0.1:8080/v1/health > /dev/null; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$node_pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [[ "$ready" -ne 1 ]]; then
+            echo 'XERJ_LOCAL_NODE_START_FAILED (logs withheld)' >&2
+            exit 1
+          fi
+          echo XERJ_DISPOSABLE_LOOPBACK_NODE_READY
+
+          export XERJ_URL=http://127.0.0.1:9200
+          "$binary" autoindex "$work/source" --url "$XERJ_URL" \
+            --prefix aetheris-xerj-review --no-semantic \
+            --workers 2 --progress none --json \
+            > "$work/index.json" 2> "$work/index.err" || {
+              echo 'XERJ_LOCAL_AUTOINDEX_FAILED (source and logs withheld)' >&2
+              exit 1
+            }
+          echo XERJ_LOCAL_AUTOINDEX_COMPLETE
+
+          # Capture passages only in temporary runner files; never log source.
+          "$binary" search "JwtAuthenticationFilter" \
+            --prefix aetheris-xerj-review > "$work/gateway-query.txt" 2>&1 || {
+              echo 'XERJ_GATEWAY_QUERY_FAILED' >&2
+              exit 1
+            }
+          "$binary" search "RefreshTokenService" \
+            --prefix aetheris-xerj-review > "$work/identity-query.txt" 2>&1 || {
+              echo 'XERJ_IDENTITY_QUERY_FAILED' >&2
+              exit 1
+            }
+          grep -Eq 'JwtAuthenticationFilter[.]java:[0-9]+' "$work/gateway-query.txt" || {
+            echo 'XERJ_GATEWAY_RETRIEVAL_EMPTY' >&2
+            exit 1
+          }
+          grep -Eq 'RefreshTokenService[.]java:[0-9]+' "$work/identity-query.txt" || {
+            echo 'XERJ_IDENTITY_RETRIEVAL_EMPTY' >&2
+            exit 1
+          }
+          echo "XERJ_LOCAL_TWO_SOURCE_LINE_CITATIONS_PASS files=$expected_count publication=NOT_AUTHORIZED"
