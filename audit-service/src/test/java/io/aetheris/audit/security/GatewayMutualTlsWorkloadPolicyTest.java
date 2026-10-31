@@ -115,6 +115,22 @@ class GatewayMutualTlsWorkloadPolicyTest {
     }
 
     @Test
+    void decoratedApiRoutesCannotSkipRequiredMutualTlsWorkloadVerification()
+            throws Exception {
+        io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
+        MockMvc mvc = api(service, enabled());
+        // A signed end-user token never substitutes for the Gateway's
+        // verified client certificate, including for matrix-parameter URLs.
+        mvc.perform(get("/api/events;variant=1")
+            .header("Authorization", "Bearer " + rsaToken()))
+            .andExpect(status().isForbidden());
+        mvc.perform(get("/api;variant=1/events")
+            .header("Authorization", "Bearer " + rsaToken()))
+            .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void enabledModeRequiresVerifiedClientCertificateAndRealSignedUserJwt()
             throws Exception {
         io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
