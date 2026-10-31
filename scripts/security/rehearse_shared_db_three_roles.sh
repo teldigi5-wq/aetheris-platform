@@ -54,6 +54,12 @@ admin "GRANT USAGE ON SCHEMA audit_stage TO audit_runtime;"
 
 run_migration() {
   local login="$1" pass="$2" schema="$3" module="$4" testname="$5" flag="$6"
+  # Optional, explicitly named synthetic lifecycle phase; never used for
+  # migrations or production configuration.
+  local phase_args=()
+  if [[ ${7:-} != "" ]]; then
+    phase_args+=("-Daetheris.membership.phase=${7}")
+  fi
   SPRING_DATASOURCE_USERNAME="$login" \
   SPRING_DATASOURCE_PASSWORD="$pass" \
   SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver \
@@ -62,7 +68,7 @@ run_migration() {
   SPRING_FLYWAY_DEFAULT_SCHEMA="$schema" \
   AETHERIS_FLYWAY_MIGRATION_ENABLED=true \
   SPRING_JPA_HIBERNATE_DDL_AUTO=validate \
-    ./mvnw -B -ntp -pl "$module" "-D$flag=true" "-Dtest=$testname" test
+    ./mvnw -B -ntp -pl "$module" "-D$flag=true" "${phase_args[@]}" "-Dtest=$testname" test
 }
 run_all_migrations() {
   run_migration identity_migrator "$idmp" identity_stage identity-service SharedDatabaseSchemaIsolationTest aetheris.flyway.shared.synthetic
@@ -158,6 +164,55 @@ echo THREE_ROLE_SYNTHETIC_CROSS_TENANT_OBJECT_OWNERSHIP_DENIALS_PASS
 run_migration user_runtime "$usrp" user_stage user-service SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic
 echo THREE_ROLE_SIGNED_TENANT_BINDING_AND_HTTP_DENY_PROOF_PASS
 
+# SYNTHETIC lifecycle rehearsal: the object binding alone is insufficient.
+# A separate, independently controlled membership must be active, unrevoked
+# and unexpired. This is not a prod table or a Flyway migration candidate.
+admin "CREATE TABLE user_stage.synthetic_identity_tenant_memberships (
+  identity_uid BIGINT NOT NULL CHECK (identity_uid > 0),
+  tenant_id UUID NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  PRIMARY KEY (identity_uid, tenant_id)
+);"
+admin "ALTER TABLE user_stage.synthetic_identity_tenant_memberships OWNER TO user_migrator;"
+admin "REVOKE ALL ON user_stage.synthetic_identity_tenant_memberships FROM PUBLIC;"
+admin "GRANT SELECT ON user_stage.synthetic_identity_tenant_memberships TO user_runtime;"
+role_sql user_migrator "$usmp" "INSERT INTO user_stage.synthetic_identity_tenant_memberships
+  (identity_uid, tenant_id, expires_at)
+  SELECT b.identity_uid, b.tenant_id, now() + interval '1 day'
+  FROM user_stage.synthetic_user_owner_bindings b;" > /dev/null
+[[ "$(admin "SELECT count(*) FROM user_stage.synthetic_identity_tenant_memberships;")" == 2 ]] || exit 1
+assert_denied user_runtime "$usrp" \
+  "UPDATE user_stage.synthetic_identity_tenant_memberships SET revoked_at=now();"
+assert_denied user_runtime "$usrp" \
+  "INSERT INTO user_stage.synthetic_identity_tenant_memberships (identity_uid,tenant_id,expires_at) VALUES (900,'11111111-1111-4111-8111-111111111111',now() + interval '1 day');"
+assert_denied user_runtime "$usrp" \
+  "DELETE FROM user_stage.synthetic_identity_tenant_memberships;"
+assert_denied identity_runtime "$idrp" \
+  "SELECT count(*) FROM user_stage.synthetic_identity_tenant_memberships;"
+run_migration user_runtime "$usrp" user_stage user-service \
+  SyntheticTenantMembershipLifecycleTest aetheris.membership.lifecycle.synthetic active
+echo THREE_ROLE_SYNTHETIC_MEMBERSHIP_ACTIVE_BOUNDARY_PASS
+
+# Only the migrator may revoke tenant A. The User runtime still has
+# SELECT-only access; the next independent JVM reads the committed revocation.
+role_sql user_migrator "$usmp" "UPDATE user_stage.synthetic_identity_tenant_memberships
+  SET revoked_at = now()
+  WHERE tenant_id = '11111111-1111-4111-8111-111111111111'::uuid;" > /dev/null
+[[ "$(admin "SELECT count(*) FROM user_stage.synthetic_identity_tenant_memberships WHERE revoked_at IS NOT NULL;")" == 1 ]] || exit 1
+run_migration user_runtime "$usrp" user_stage user-service \
+  SyntheticTenantMembershipLifecycleTest aetheris.membership.lifecycle.synthetic revoked
+echo THREE_ROLE_SYNTHETIC_MEMBERSHIP_REVOCATION_DENIED
+
+role_sql user_migrator "$usmp" "UPDATE user_stage.synthetic_identity_tenant_memberships
+  SET expires_at = now() - interval '1 day'
+  WHERE tenant_id = '22222222-2222-4222-8222-222222222222'::uuid;" > /dev/null
+[[ "$(admin "SELECT count(*) FROM user_stage.synthetic_identity_tenant_memberships WHERE expires_at <= now();")" == 1 ]] || exit 1
+run_migration user_runtime "$usrp" user_stage user-service \
+  SyntheticTenantMembershipLifecycleTest aetheris.membership.lifecycle.synthetic expired
+echo THREE_ROLE_SYNTHETIC_MEMBERSHIP_EXPIRATION_DENIED
+
+
 
 
 # Repeat real Flyway startup, preserve all synthetic DML and histories.
@@ -177,6 +232,9 @@ docker exec "$container" pg_dump -U postgres -Fc -d shared_synthetic -f /tmp/thr
 docker exec "$container" createdb -U postgres synthetic_restored
 docker exec "$container" pg_restore --exit-on-error -U postgres -d synthetic_restored /tmp/three-role-synthetic.dump
 [[ "$(docker exec "$container" psql -X -qAt -U postgres -d synthetic_restored -c "SELECT count(*) FROM audit_stage.audit_events WHERE event_id='evt-synthetic-role';")" == 1 ]] || exit 1
+[[ "$(docker exec "$container" psql -X -qAt -U postgres -d synthetic_restored -c "SELECT count(*) FROM user_stage.synthetic_identity_tenant_memberships WHERE revoked_at IS NOT NULL;")" == 1 ]] || exit 1
+[[ "$(docker exec "$container" psql -X -qAt -U postgres -d synthetic_restored -c "SELECT count(*) FROM user_stage.synthetic_identity_tenant_memberships WHERE expires_at <= now();")" == 1 ]] || exit 1
+echo THREE_ROLE_SYNTHETIC_BACKUP_RESTORE_WITH_REVOKED_MEMBERSHIP_PASS
 echo THREE_ROLE_SYNTHETIC_BACKUP_RESTORE_SUCCESS
 # Fail closed on an unknown *synthetic* legacy schema. A failed Java test
 # only counts as proof when Maven's output names Flyway's nonempty-schema
