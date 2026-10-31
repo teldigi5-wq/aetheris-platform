@@ -43,12 +43,12 @@
   "security": {
     "source_tree_filename_inspection": "PRELIMINARY_ONLY",
     "heuristic_content_scan": "All 65 original candidates screened with limited indicators; selected 44 are a strict subset; no obvious private key or provider-token markers in selected files",
-    "full_gitleaks_snapshot_scan": "PENDING_EXACT_HEAD_RESCAN_OF_44_FILES",
+    "full_gitleaks_snapshot_scan": "PASS_IN_EXACT_PIN_WORKFLOW_RUN_41211767122; new PR head must also pass workflow",
     "excluded_fixture": "Initial 65-file full Gitleaks scan failed with one generic-api-key finding in Gateway JWT test hard-coded synthetic signing value. Source-only curatorial selection excludes all test fixtures; no scanner exception or allowlist. Historical scan failure preserved in PR #361.",
     "historical_findings": "Separately tracked; no assertion of absence of leaked secrets",
     "pii_review": "PENDING",
     "metadata_privacy_machine_review": "44/44 pinned source files inspected for email addresses, home paths, embedded third-party notices, literal secret assignments and public URL hostnames. No matches requiring remediation identified by these limited checks; human review pending.",
-    "metadata_privacy_ci": "PENDING_EXACT_HEAD_RUN",
+    "metadata_privacy_ci": "PASS_IN_EXACT_PIN_WORKFLOW_RUN_41211767122; mechanical indicators only; human review pending",
     "copyright_authorship_review": "NOT_VERIFIED_BY_HUMAN",
     "consent_scope": "XERJ upstream draft asserts consent for older full-repo pin; not reverified for revised 44-file scope"
   },
@@ -66,5 +66,21 @@
     "The existing Aetheris production release gate remains NO_GO; indexing source is not a deployment.",
     "Initial 65-file snapshot was blocked by real Gitleaks because of a hard-coded JWT test signing secret in a test file. This 44-file application-source-only corpus intentionally excludes all tests; exclusion is documented and is not a waiver of the finding.",
     "External XERJ draft at tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json references older SHA 908ac0a5 and unrestricted 381-file repository. Do not create duplicate or overwrite prior consent."
-  ]
+  ],
+  "local_preview": {
+    "status": "LOCAL_AUTOINDEX_AND_TWO_FILE_LINE_CITATION_TESTS_PASS_NOT_HUB_PACK",
+    "xerj_version": "v1.0.0-rc.100",
+    "linux_release_sha256": "4b12a47e8433e9d01d2b3f505b17b342a6e28d41edaabd274eba5a759e9cde1e",
+    "execution_environment": "Disposable GitHub Actions runner; node only bound 127.0.0.1; synthetic/ephemeral data directory cleaned",
+    "source_files": 44,
+    "indexed_records": null,
+    "indexed_bytes": null,
+    "two_verified_citations": [
+      "gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java:line",
+      "identity-service/src/main/java/io/aetheris/identity/RefreshTokenService.java:line"
+    ],
+    "exact_head_ci_run": "https://github.com/teldigi5-wq/aetheris-platform/actions/runs/41211767122",
+    "full_corpus_hub_manifest_validated": false,
+    "public_pack_published": false
+  }
 }
