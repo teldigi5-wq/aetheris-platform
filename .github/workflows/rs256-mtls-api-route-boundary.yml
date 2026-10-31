@@ -43,15 +43,38 @@ jobs:
           assert result['safe_to_merge_or_deploy'] is False
           print('RELEASE_NO_GO_CONFIRMED')
           PY
+      - name: Verify immutable source policy and Maven Central parent availability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for service, name in (('user-service', 'users'), ('audit-service', 'audit')):
+              base = Path(service) / 'src/main/java/io/aetheris' / name / 'security/DirectApiJwtFilter.java'
+              contents = base.read_text()
+              assert 'return !routePath(request).startsWith("/api");' in contents
+              assert 'if (!gatewayWorkloadPolicy.permits(request))' in contents
+              assert 'rs256Verifier.verify(token)' in contents
+          print('SOURCE_API_INTERCEPTION_MTLS_RS256_GUARDS_PRESENT')
+          PY
+          artifact='https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-starter-parent/3.3.3/spring-boot-starter-parent-3.3.3.pom'
+          if curl --fail --location --silent --show-error --retry 3 \
+              --retry-all-errors --connect-timeout 10 --max-time 45 \
+              "$artifact" --output /dev/null; then
+            echo 'MAVEN_CENTRAL_PARENT_REACHABLE'
+          else
+            echo 'MAVEN_CENTRAL_PARENT_UNAVAILABLE: cannot certify Java tests on this runner' >&2
+            exit 2
+          fi
       - name: Test real User and Audit servlet JWT filter boundaries first
         shell: bash
         run: |
           set -euo pipefail
-          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=DirectApiJwtFilterTest test
-          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+          ./mvnw -U -B -ntp -f user-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+          ./mvnw -U -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest test
       - name: Retain full four-module regression and RS256 mTLS protections
         shell: bash
         run: |
           set -euo pipefail
-          ./mvnw -B -ntp -f pom.xml test
+          ./mvnw -U -B -ntp -f pom.xml test
           echo 'RS256_MTLS_BACKEND_ROUTE_TESTS_PASSED_REVIEW_ONLY'
