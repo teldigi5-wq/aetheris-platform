@@ -12,6 +12,26 @@ credential and use digest-pinned images.
   {{- fail "unsafe Helm Redis configuration: secrets.redisPassword must be independent of JWT, PostgreSQL and RabbitMQ credentials" -}}
 {{- end -}}
 {{- if not .Values.global.allowInsecureLocalDefaults -}}
+  {{- /* Reject missing/short credentials before the existing known-demo guards. */ -}}
+  {{- $requiredCredentials := dict
+    "secrets.jwtSecret" (.Values.secrets.jwtSecret | default "" | toString)
+    "secrets.postgresPassword" (.Values.secrets.postgresPassword | default "" | toString)
+    "secrets.rabbitmqPassword" (.Values.secrets.rabbitmqPassword | default "" | toString)
+  -}}
+  {{- range $name, $value := $requiredCredentials -}}
+    {{- if lt (len (trim $value)) 32 -}}
+      {{- fail (printf "unsafe Helm non-local credential: %s requires 32+ non-whitespace characters from a protected source" $name) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $jwt := .Values.secrets.jwtSecret | toString -}}
+  {{- $pg := .Values.secrets.postgresPassword | toString -}}
+  {{- $rabbit := .Values.secrets.rabbitmqPassword | toString -}}
+  {{- if or (eq $jwt $pg) (eq $jwt $rabbit) (eq $pg $rabbit) -}}
+    {{- fail "unsafe Helm non-local credentials: JWT, PostgreSQL and RabbitMQ passwords must all be independent" -}}
+  {{- end -}}
+  {{- if eq (trim (.Values.secrets.rabbitmqUsername | default "" | toString)) "" -}}
+    {{- fail "unsafe Helm non-local RabbitMQ username: a nonempty explicit username is required" -}}
+  {{- end -}}
   {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
     {{- fail "unsafe Helm default: replace secrets.jwtSecret or explicitly opt into values-local.yaml for local development" -}}
   {{- end -}}
