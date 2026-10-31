@@ -95,6 +95,20 @@ class DirectApiJwtFilterTest {
     }
 
     @Test
+    void matrixParametersCannotSkipDirectBackendAuthorization() throws Exception {
+        io.aetheris.audit.AuditEventStore service = org.mockito.Mockito.mock(io.aetheris.audit.AuditEventStore.class);
+        MockMvc api = MockMvcBuilders.standaloneSetup(new io.aetheris.audit.AuditController(service))
+            .addFilters(new DirectApiJwtFilter(SECRET)).build();
+        // MockMvc/Spring MVC can map matrix-parameter variants to the controller
+        // even when getRequestURI() does not exactly match its @RequestMapping.
+        api.perform(get("/api/events;variant=1"))
+            .andExpect(status().isUnauthorized());
+        api.perform(get("/api;variant=1/events"))
+            .andExpect(status().isUnauthorized());
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void authorizedSignedRequestsReachActualControllerOnlyWithinScope() throws Exception {
         io.aetheris.audit.AuditEventStore service = org.mockito.Mockito.mock(io.aetheris.audit.AuditEventStore.class);
         MockMvc api=MockMvcBuilders.standaloneSetup(new io.aetheris.audit.AuditController(service))
