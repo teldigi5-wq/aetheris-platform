@@ -40,9 +40,11 @@ fi
 
 echo "Scanning $count newly introduced commits (no secret values printed)."
 # Include merge-resolution diffs: ordinary git log -p omits merge commit patches.
+# Force text patches: .gitattributes -diff or Git's binary heuristic can hide secrets.
+# Disable external diff/textconv execution and preserve redacted scanner output.
 # No inline gitleaks:allow suppression; default rules apply to all paths.
 "${GITLEAKS_BIN:-gitleaks}" git \
   --redact \
   --ignore-gitleaks-allow \
-  --log-opts="--diff-merges=first-parent ${base_sha}..HEAD" \
+  --log-opts="--diff-merges=first-parent --text --no-ext-diff --no-textconv ${base_sha}..HEAD" \
   .
