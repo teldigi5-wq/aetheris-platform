@@ -22,11 +22,12 @@ A new `SyntheticTenantMembershipLifecycleTest`, opt-in under the disposable Post
 - REVOKED: once the synthetic migrator revokes tenant A, the runtime can no longer admit that previous tuple, even though the object binding remains unchanged. Tenant B remains unaffected.
 - EXPIRED: after tenant B is expired, both original memberships fail; no old permission is inferred from the still-present object rows.
 - TEMPORAL CLOCK: the synthetic membership query compares expiry against PostgreSQL `statement_timestamp()`, not `CURRENT_TIMESTAMP`, which freezes at the start of a transaction. A deliberately long-running test transaction proves that transaction time remains stale after a synthetic deadline while statement time advances. This avoids one expiry-clock defect but **does not solve transaction-snapshot visibility, cache staleness, or a concurrent revocation race**.
+- OVERLAPPING TRANSACTIONS: a separate opt-in JUnit test uses distinct PostgreSQL `user_runtime` (SELECT-only) and `user_migrator` connections to overlap an in-progress authorization read with a committed membership revocation. It must prove a fresh READ COMMITTED statement denies the revoked tuple, whereas a REPEATABLE READ transaction **continues to see its earlier authorized snapshot**; ending that snapshot restores denial. The test restores the synthetic membership in a `finally` block so the original independent lifecycle test still runs.
 - PRIVILEGE: the runtime has SELECT but not INSERT/UPDATE/DELETE/TRUNCATE on either binding or membership table. Direct role mutation attempts fail.
 - RESTORE: the disposable backup/restore retains the revoked and expired membership records.
 - Existing CI continues testing the role separation, synthetic signed-token denial, source-only release NO_GO and disposable TLS socket.
 
-**Important evidence limit:** the tests use synthetic, intentionally crossed identifiers and do not establish that the actual Identity service issued a verified tenant or that production services authorize tenants. The real endpoints remain deny-by-default for consumer object access. The tests run the lifecycle across separate Java invocations and database commits; a cache-invalidation or concurrent revocation race has **not** been certified.
+**Important evidence limit:** the tests use synthetic, intentionally crossed identifiers and do not establish that the actual Identity service issued a verified tenant or that production services authorize tenants. The real endpoints remain deny-by-default for consumer object access. The lifecycle tests run across separate Java invocations. The additional test intentionally overlaps reader and migrator transactions to demonstrate MVCC stale visibility; it does **not** certify safe in-flight cancellation, locking guarantees, cache invalidation, linearizability, or a production-safe revocation policy.
 
 ## Model choices requiring owner/DBA review before a real migration
 
@@ -41,6 +42,6 @@ A new `SyntheticTenantMembershipLifecycleTest`, opt-in under the disposable Post
 
 ## CI checkpoint
 
-The new tests and database steps must pass on the **exact head of this draft PR**, including fail-closed release preflight. Do not reuse parent PR #358 CI as evidence of this new lifecycle work. Do not report production tenant authorization as complete.
+The new tests and database steps — including `SyntheticConcurrentMembershipRevocationTest` and `THREE_ROLE_SYNTHETIC_MVCC_REVOCATION_ISOLATION_PROOF_PASS` — must pass on the **exact head of this draft PR**, including fail-closed release preflight. Do not reuse parent PR #358 CI as evidence of this new lifecycle work. Do not report production tenant authorization as complete.
 
 **No live credentials, production data, migrations, owner grants, protected branch merge, or deployment are authorized by this candidate.**
