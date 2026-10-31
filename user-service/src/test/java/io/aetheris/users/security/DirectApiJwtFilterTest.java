@@ -116,6 +116,25 @@ class DirectApiJwtFilterTest {
             .andExpect(status().isUnauthorized());
         api.perform(get("/api;variant=1/users"))
             .andExpect(status().isUnauthorized());
+        // Signed tokens cannot authorize a decorated path by skipping the
+        // exact-route policy either: reject unknown route shapes (403).
+        api.perform(get("/api/users;variant=1").header("Authorization", bearer(
+            valid("ADMIN", "users:read", 42))))
+            .andExpect(status().isForbidden());
+        api.perform(get("/api;variant=1/users").header("Authorization", bearer(
+            valid("ADMIN", "users:read", 42))))
+            .andExpect(status().isForbidden());
+        // New endpoints inside /api are private by default.
+        api.perform(get("/api/unknown-future-route"))
+            .andExpect(status().isUnauthorized());
+        // Operational diagnostics are outside this API authorization filter.
+        DirectApiJwtFilter filter = new DirectApiJwtFilter(SECRET);
+        assertFalse(filter.shouldNotFilter(new org.springframework.mock.web.MockHttpServletRequest(
+            "GET", "/api/users;variant=1")));
+        assertFalse(filter.shouldNotFilter(new org.springframework.mock.web.MockHttpServletRequest(
+            "GET", "/api;variant=1/users")));
+        assertTrue(filter.shouldNotFilter(new org.springframework.mock.web.MockHttpServletRequest(
+            "GET", "/actuator/health/liveness")));
         verifyNoInteractions(service);
     }
 
