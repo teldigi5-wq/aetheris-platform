@@ -9,6 +9,10 @@ on:
       - 'docs/integrations/xerj-corpus-review.md'
       - 'scripts/security/verify_xerj_source_scope.py'
       - 'scripts/security/verify_xerj_privacy_preflight.py'
+      - 'scripts/security/verify_xerj_fixture_reuse.py'
+      - 'scripts/security/verify_xerj_candidate_proposal.py'
+      - 'docs/integrations/xerj-upstream-amendment-draft.json'
+      - 'docs/integrations/xerj-owner-publication-approval.md'
 
 permissions:
   contents: read
@@ -123,6 +127,19 @@ jobs:
           set -euo pipefail
           python3 scripts/security/verify_xerj_privacy_preflight.py
           echo "XERJ_HUMAN_PRIVACY_AND_LICENCE_SIGNOFF_STILL_PENDING"
+
+      - name: Inspect pinned Git tree for historical JWT signing-fixture reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security/verify_xerj_fixture_reuse.py
+
+      - name: Verify no fabricated XERJ reviewer or publication manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security/verify_xerj_candidate_proposal.py
+          echo "XERJ_EXISTING_DRAFT_ONLY_PENDING_OWNER_LICENCE_REVIEW"
 
   xerj-local-retrieval-preview:
     name: xerj-local-retrieval-preview
