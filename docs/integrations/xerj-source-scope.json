@@ -50,7 +50,9 @@
     "metadata_privacy_machine_review": "44/44 pinned source files inspected for email addresses, home paths, embedded third-party notices, literal secret assignments and public URL hostnames. No matches requiring remediation identified by these limited checks; human review pending.",
     "metadata_privacy_ci": "PASS_IN_EXACT_PIN_WORKFLOW_RUN_41211767122; mechanical indicators only; human review pending",
     "copyright_authorship_review": "NOT_VERIFIED_BY_HUMAN",
-    "consent_scope": "XERJ upstream draft asserts consent for older full-repo pin; not reverified for revised 44-file scope"
+    "consent_scope": "XERJ upstream draft asserts consent for older full-repo pin; not reverified for revised 44-file scope",
+    "pinned_fixture_reuse": "PINNED_GIT_TREE_381_BLOBS: test-only 32-character Gateway HMAC fixture found only in original unit test at source SHA. PASS run 41213211081. Does not validate historical commit reachability, external production use, or credential rotation.",
+    "history_and_runtime_reuse": "NOT_VERIFIED"
   },
   "publication": {
     "hub_branch": "xerj-org/xerj:corpus-hub",
@@ -58,14 +60,17 @@
     "human_signoff": "PENDING",
     "source_snapshot_approved": false,
     "hub_submission_authorized": false,
-    "production_release_authorized": false
+    "production_release_authorized": false,
+    "existing_draft_amendment": "docs/integrations/xerj-upstream-amendment-draft.json",
+    "amendment_status": "DRAFT_UNREVIEWED_NOT_SUBMITTABLE"
   },
   "review_notes": [
     "Aetheris Platform main lacks unmerged PR #355 scanner and PR #359 tenant lifecycle hardening.",
     "Do not describe draft security fixes as part of this pinned source snapshot.",
     "The existing Aetheris production release gate remains NO_GO; indexing source is not a deployment.",
     "Initial 65-file snapshot was blocked by real Gitleaks because of a hard-coded JWT test signing secret in a test file. This 44-file application-source-only corpus intentionally excludes all tests; exclusion is documented and is not a waiver of the finding.",
-    "External XERJ draft at tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json references older SHA 908ac0a5 and unrestricted 381-file repository. Do not create duplicate or overwrite prior consent."
+    "External XERJ draft at tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json references older SHA 908ac0a5 and unrestricted 381-file repository. Do not create duplicate or overwrite prior consent.",
+    "Proposed amendment includes no reviewer identity/date, reuse classification, consent receipt, cloned_at or indexed-size metadata. Upstream authoritative validator remains pending actual reviewed manifest."
   ],
   "local_preview": {
     "status": "LOCAL_AUTOINDEX_AND_TWO_FILE_LINE_CITATION_TESTS_PASS_NOT_HUB_PACK",
