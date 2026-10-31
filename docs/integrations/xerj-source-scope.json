@@ -1,0 +1,64 @@
+{
+  "schema": "aetheris-xerj-source-plan/v1",
+  "status": "DRAFT_REVIEW_ONLY_NOT_APPROVED_FOR_HUB_SUBMISSION",
+  "corpus_candidate": "aetheris-java-service-boundaries",
+  "purpose": "A coding agent investigating Java microservice boundaries can cite the Aetheris Gateway, Identity, User, Audit, architecture, and token-flow source at an immutable revision; not a certified security reference.",
+  "source": {
+    "repo": "teldigi5-wq/aetheris-platform",
+    "url": "https://github.com/teldigi5-wq/aetheris-platform",
+    "sha": "57ad3e0e602efa6feb275328254151b959a3499b",
+    "default_branch_at_audit": "main"
+  },
+  "paths": [
+    "architecture",
+    "gateway",
+    "identity-service",
+    "user-service",
+    "audit-service",
+    "docs/security"
+  ],
+  "expected_tree": {
+    "files": 65,
+    "bytes": 129060,
+    "measurement": "GitHub recursive git tree at pinned source SHA; file blob sizes, not XERJ indexed size"
+  },
+  "explicit_exclusions": [
+    ".github/",
+    "build-evidence/",
+    "dashboard/",
+    "tools/",
+    "apps/",
+    "scripts/",
+    "tests/",
+    "deploy/",
+    "observability/",
+    "configs/",
+    "other root files"
+  ],
+  "license": {
+    "github_detected_spdx": "Apache-2.0",
+    "source_root_license_inspected": true,
+    "human_hub_review": "PENDING",
+    "third_party_and_per_file_review": "PENDING"
+  },
+  "security": {
+    "source_tree_filename_inspection": "PRELIMINARY_ONLY",
+    "heuristic_content_scan": "65/65 candidate files screened with limited indicators; no obvious key/provider token patterns; 11 synthetic @aetheris.local test references",
+    "full_gitleaks_snapshot_scan": "PENDING_HOSTED_CI",
+    "historical_findings": "Separately tracked; no assertion of no leaked secrets",
+    "pii_review": "PENDING"
+  },
+  "publication": {
+    "hub_branch": "xerj-org/xerj:corpus-hub",
+    "lane": "Lane A manifest",
+    "human_signoff": "PENDING",
+    "source_snapshot_approved": false,
+    "hub_submission_authorized": false,
+    "production_release_authorized": false
+  },
+  "review_notes": [
+    "Aetheris Platform main lacks unmerged PR #355 scanner and PR #359 tenant lifecycle hardening.",
+    "Do not describe draft security fixes as part of this pinned source snapshot.",
+    "The existing Aetheris production release gate remains NO_GO; indexing source is not a deployment."
+  ]
+}
