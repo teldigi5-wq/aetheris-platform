@@ -8,6 +8,7 @@ on:
       - 'docs/integrations/xerj-source-scope.json'
       - 'docs/integrations/xerj-corpus-review.md'
       - 'scripts/security/verify_xerj_source_scope.py'
+      - 'scripts/security/verify_xerj_privacy_preflight.py'
 
 permissions:
   contents: read
@@ -115,3 +116,11 @@ jobs:
           fi
           echo "XERJ_PINNED_GITLEAKS_SCAN_PASS pin=$pin files=$file_count"
           echo "XERJ_HUB_PUBLICATION_STILL_REQUIRES_OWNER_REVIEW"
+
+      - name: Verify source-only privacy metadata and attribution triggers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security/verify_xerj_privacy_preflight.py
+          echo "XERJ_HUMAN_PRIVACY_AND_LICENCE_SIGNOFF_STILL_PENDING"
+
