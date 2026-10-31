@@ -11,7 +11,7 @@ Proposed corpus slug: aetheris-java-service-boundaries.
 
 "An agent investigating Java microservice boundaries would query this corpus
 for Gateway, Identity, User and Audit integration decisions, event flows,
-tests and token-flow architecture, with precise file/line citations."
+application boundaries and token-flow architecture, with precise file/line citations."
 
 Source: https://github.com/teldigi5-wq/aetheris-platform
 Exact candidate commit (never use an unpinned branch):
@@ -20,35 +20,43 @@ Exact candidate commit (never use an unpinned branch):
 The proposed sparse checkout contains only these six root directories:
 
 - architecture/
-- gateway/
-- identity-service/
-- user-service/
-- audit-service/
+- gateway/src/main/
+- identity-service/src/main/
+- user-service/src/main/
+- audit-service/src/main/
 - docs/security/
 
-The GitHub recursive tree at the exact commit reported **65 Git blobs and
-129,060 aggregate Git blob bytes**. These are source-tree measurements;
+The GitHub recursive tree at the exact commit reported **44 Git blobs and
+75,323 aggregate Git blob bytes**. These are source-tree measurements;
 they are *not* a completed XERJ index build or pack size. No symlink or
 submodule was present in those paths in the initial tree inspection.
 
 Everything else is intentionally out of initial XERJ scope: build-evidence,
-dashboards, workflows, other tools, integration fixtures, observability and
-deployment manifests. A future expansion must trigger a new security and
+dashboards, workflows, unit/integration test fixtures, other tools,
+observability, root deployment files and deployment manifests. A future expansion must trigger a new security and
 licence review; don't silently include the whole repository.
 
-## Preliminary source inspection (not a Gitleaks audit)
+## Source security screen and strict re-scope
 
-The initial file-name and narrowly defined content-pattern screen covered
-65/65 selected source files at the pin. It found no obvious PEM private-key
-headers, GitHub/AWS provider token patterns, or interpolated secret fallback
-patterns among its checks. It found 11 synthetic @aetheris.local email
-references in two unit-test files and no reason to treat them as real
-customer contacts. **This inspection cannot rule out generic API keys,
-low-entropy secrets, undocumented credential formats, PII or secrets in
-previous commits.** The full checksum-pinned Gitleaks directory scan on
-the exact archived source is part of the draft CI workflow, and it must
-pass before a public submission may be considered. Scanner failures must
-fail closed, not be bypassed by ignore lists.
+An initial 65-file candidate underwent a limited file-name/regex screen.
+The first **real checksum-verified Gitleaks directory scan** failed with one
+generic-api-key finding in Gateway's JWT unit test: a hard-coded 32-character
+synthetic HMAC signing fixture. This did not establish production credential
+reuse, but it **blocked** indexing that full test-inclusive candidate.
+The failed CI evidence remains available in PR #361 (run 41209628270).
+
+The revised corpus explicitly includes **application source** and selected
+architecture/token-flow documents, not test fixtures. It uses only six
+sparse directories and does not grant a Gitleaks waiver or suppress
+findings. This is a scope and use-case change, not a declaration that
+the original fixture is a real or harmless production credential.
+All 44 selected files were previously among the 65 with limited
+regex screening. They require a fresh *real Gitleaks run* on the exact
+44-file archive before a public corpus may be proposed.
+
+These screens do not rule out generic or low-entropy secrets, unknown
+credential formats, PII or earlier historical commits. A human must
+review the actual selected content and the existing historical findings.
 
 ## Licensing and human approval
 
@@ -86,8 +94,7 @@ authoritative tenant membership or release closure. For example:
 - Production closure: PR #322, still NO_GO
 - Governance status check required on main: issue #354, still unresolved
 
-A public corpus must label this as a **historical, non-production reference
-implementation**. It must never promise secure-by-default production
+A public corpus must label this as a **historical, non-production application-source reference**, without unit-test fixtures. It must never promise secure-by-default production
 deployment or advocate copying its known-unsafe defaults. A stronger future
 pin may be preferable once a reviewed release lineage is merged.
 
@@ -95,7 +102,8 @@ pin may be preferable once a reviewed release lineage is merged.
 
 - [x] Narrow candidate source scope and immutable 40-hex Git pin selected for review
 - [x] Git tree metadata counted for selected paths
-- [x] Preliminary 65-file filename/regex screen performed (not a secret audit)
+- [x] Initial 65-file screening; real Gitleaks detected one synthetic test fixture
+- [x] Curated 44-file application-only scope, without scanner ignores
 - [ ] Exact-head hosted workflow must verify Git tree/pin and Gitleaks scan
 - [ ] Human review of the pinned source for sensitive info and all licensing
 - [ ] Decide whether to publish this historical source or wait for hardened main
