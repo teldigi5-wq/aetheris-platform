@@ -26,7 +26,7 @@ git -C "$audit_dir" commit -qm 'harmless change'
 
 (
   cd "$audit_dir"
-  if ! gitleaks git --redact --ignore-gitleaks-allow --log-opts="--diff-merges=first-parent $base..HEAD" . > /dev/null 2>&1; then
+  if ! gitleaks git --redact --ignore-gitleaks-allow --log-opts="--diff-merges=first-parent --text --no-ext-diff --no-textconv $base..HEAD" . > /dev/null 2>&1; then
     echo 'ERROR: Gitleaks rejected a harmless synthetic commit.' >&2
     exit 1
   fi
@@ -44,7 +44,7 @@ set +e
 (
   cd "$audit_dir"
   gitleaks git --redact --ignore-gitleaks-allow \
-    --log-opts="--diff-merges=first-parent $previous..HEAD" --report-format json \
+    --log-opts="--diff-merges=first-parent --text --no-ext-diff --no-textconv $previous..HEAD" --report-format json \
     --report-path "$audit_dir/findings.json" . >/dev/null 2>&1
 )
 status=$?
@@ -81,7 +81,7 @@ set +e
 (
   cd "$audit_dir"
   gitleaks git --redact --ignore-gitleaks-allow \
-    --log-opts="--diff-merges=first-parent $previous..HEAD" --report-format json \
+    --log-opts="--diff-merges=first-parent --text --no-ext-diff --no-textconv $previous..HEAD" --report-format json \
     --report-path "$audit_dir/historical-findings.json" . >/dev/null 2>&1
 )
 history_status=$?
@@ -151,7 +151,7 @@ set +e
 (
   cd "$audit_dir"
   gitleaks git --redact --ignore-gitleaks-allow \
-    --log-opts="--diff-merges=first-parent $merge_base..HEAD" \
+    --log-opts="--diff-merges=first-parent --text --no-ext-diff --no-textconv $merge_base..HEAD" \
     --report-format json --report-path "$audit_dir/merge-findings.json" \
     . >/dev/null 2>&1
 )
@@ -180,5 +180,60 @@ if not any(
     raise SystemExit("ERROR: merge-resolution-only private key was not detected.")
 PY
 
-echo 'PASS: harmless, deleted-history and merge-resolution secret-detection proofs.'
+# Git attributes can suppress patch contents for a tracked file, even when the
+# file contains ordinary text. Ensure --text defeats a malicious -diff rule.
+attribute_base="$(git -C "$audit_dir" rev-parse HEAD)"
+printf 'attribute-hidden-private-key.pem -diff\n' > "$audit_dir/.gitattributes"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+  -out "$audit_dir/attribute-hidden-private-key.pem" > /dev/null 2>&1
+git -C "$audit_dir" add .gitattributes attribute-hidden-private-key.pem
+git -C "$audit_dir" commit -qm 'synthetic diff-suppressed private key'
+
+if git -C "$audit_dir" log -p "$attribute_base..HEAD" \
+  | grep -F -- "$pem_header" > /dev/null; then
+  echo 'ERROR: synthetic -diff fixture unexpectedly visible in default Git patch.' >&2
+  exit 1
+fi
+
+if ! git -C "$audit_dir" log -p --text --no-ext-diff --no-textconv \
+  "$attribute_base..HEAD" | grep -F -- "$pem_header" > /dev/null; then
+  echo 'ERROR: --text failed to restore attribute-suppressed private-key patch.' >&2
+  exit 1
+fi
+
+set +e
+(
+  cd "$audit_dir"
+  gitleaks git --redact --ignore-gitleaks-allow \
+    --log-opts="--diff-merges=first-parent --text --no-ext-diff --no-textconv $attribute_base..HEAD" \
+    --report-format json \
+    --report-path "$audit_dir/attribute-findings.json" . > /dev/null 2>&1
+)
+attribute_status=$?
+set -e
+
+if [[ "$attribute_status" -ne 1 ]]; then
+  echo "ERROR: attribute-suppressed secret was not detected (exit $attribute_status)." >&2
+  exit 1
+fi
+
+python3 - "$audit_dir/attribute-findings.json" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+if not path.is_file():
+    raise SystemExit("ERROR: missing attribute-suppression detector report.")
+matches = json.loads(path.read_text())
+if not any(
+    finding.get("RuleID") == "private-key"
+    and pathlib.Path(finding.get("File", "")).name == "attribute-hidden-private-key.pem"
+    for finding in matches
+):
+    raise SystemExit("ERROR: attribute-hidden private-key detection missing.")
+PY
+
+echo 'PASS: harmless, deleted-history, merge-resolution and Git-attribute secret-detection proofs.'
+
 
