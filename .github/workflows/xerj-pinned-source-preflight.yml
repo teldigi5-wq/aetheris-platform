@@ -226,12 +226,12 @@ jobs:
               echo 'XERJ_IDENTITY_QUERY_FAILED' >&2
               exit 1
             }
-          grep -Fq 'JwtAuthenticationFilter' "$work/gateway-query.txt" || {
+          grep -Eq 'JwtAuthenticationFilter[.]java:[0-9]+' "$work/gateway-query.txt" || {
             echo 'XERJ_GATEWAY_RETRIEVAL_EMPTY' >&2
             exit 1
           }
-          grep -Fq 'RefreshTokenService' "$work/identity-query.txt" || {
+          grep -Eq 'RefreshTokenService[.]java:[0-9]+' "$work/identity-query.txt" || {
             echo 'XERJ_IDENTITY_RETRIEVAL_EMPTY' >&2
             exit 1
           }
-          echo "XERJ_LOCAL_TWO_DOMAIN_RETRIEVAL_PASS files=$expected_count publication=NOT_AUTHORIZED"
+          echo "XERJ_LOCAL_TWO_SOURCE_LINE_CITATIONS_PASS files=$expected_count publication=NOT_AUTHORIZED"
