@@ -21,6 +21,7 @@ A new `SyntheticTenantMembershipLifecycleTest`, opt-in under the disposable Post
 - ACTIVE: two distinct synthetic object owners can access only their explicitly linked tenant/object tuple; numeric-ID equality, wrong tenant, missing/invalid IDs and missing tenant are denied.
 - REVOKED: once the synthetic migrator revokes tenant A, the runtime can no longer admit that previous tuple, even though the object binding remains unchanged. Tenant B remains unaffected.
 - EXPIRED: after tenant B is expired, both original memberships fail; no old permission is inferred from the still-present object rows.
+- TEMPORAL CLOCK: the synthetic membership query compares expiry against PostgreSQL `statement_timestamp()`, not `CURRENT_TIMESTAMP`, which freezes at the start of a transaction. A deliberately long-running test transaction proves that transaction time remains stale after a synthetic deadline while statement time advances. This avoids one expiry-clock defect but **does not solve transaction-snapshot visibility, cache staleness, or a concurrent revocation race**.
 - PRIVILEGE: the runtime has SELECT but not INSERT/UPDATE/DELETE/TRUNCATE on either binding or membership table. Direct role mutation attempts fail.
 - RESTORE: the disposable backup/restore retains the revoked and expired membership records.
 - Existing CI continues testing the role separation, synthetic signed-token denial, source-only release NO_GO and disposable TLS socket.
@@ -31,7 +32,7 @@ A new `SyntheticTenantMembershipLifecycleTest`, opt-in under the disposable Post
 
 1. Define authoritative tenant/organization IDs and how memberships are created, approved, revoked and audited. No request-supplied or self-asserted membership is authoritative.
 2. Prefer explicit stable subject IDs and tenant membership relationships with foreign keys and unique constraints, not email matches or numerically equal unrelated table IDs. Cross-service schemas/permissions and PII boundaries need independent approval.
-3. Define whether revocation is immediate and how cached object reads, distributed replicas and in-flight transactions handle stale membership. A positive grant must not be reused past the revocation policy.
+3. Define whether revocation is immediate and how cached object reads, distributed replicas and in-flight transactions handle stale membership. PostgreSQL READ COMMITTED takes a snapshot for each statement, while REPEATABLE READ can preserve older visibility across a transaction. `statement_timestamp()` fixes the expiration clock but **cannot invalidate an older MVCC row snapshot**. Design an explicit revocation linearization point, transaction/isolation policy and cache invalidation strategy; reject the claim that this synthetic proof guarantees instantaneous cancellation of already-running operations. A positive cached grant must not outlive the approved revocation policy.
 4. Define expiry using server-side trusted time and transactional consistency. Deny missing, ambiguous, stale, expired and revoked records.
 5. Enforce object binding for **all** list, lookup, create, delete and event paths; role ceilings and mTLS do not replace resource-level authorization.
 6. Author separate, reviewed **versioned migrations**, legacy-baseline mapping, downgrade/restore procedures, and role grants. The synthetic schema must never be copied blindly into production.
