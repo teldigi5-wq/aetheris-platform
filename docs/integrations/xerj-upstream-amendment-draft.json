@@ -1,0 +1,47 @@
+{
+  "schema": "aetheris-xerj-upstream-candidate-amendment/v1",
+  "status": "DRAFT_UNREVIEWED_NOT_SUBMITTABLE",
+  "purpose": "PROPOSE_AMENDMENT_TO_EXISTING_XERJ_AUTHOR_CANDIDATE_NOT_DUPLICATE",
+  "upstream_candidate_path": "tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json",
+  "upstream_base_sha": "fbb458b6840460e41ac921f446f671a97b41d6c3",
+  "corpus": "teldigi5-wq--aetheris-platform",
+  "domain": "A coding agent tracing Java/Spring Boot Gateway, Identity, User and Audit integration boundaries can retrieve pinned Aetheris implementation details with file:line citations. Historical, not a verified secure deployment.",
+  "repo": {
+    "repo": "aetheris-platform",
+    "url": "https://github.com/teldigi5-wq/aetheris-platform",
+    "sha": "57ad3e0e602efa6feb275328254151b959a3499b",
+    "paths": [
+      "architecture",
+      "gateway/src/main",
+      "identity-service/src/main",
+      "user-service/src/main",
+      "audit-service/src/main",
+      "docs/security"
+    ],
+    "licence": "Apache-2.0 (repository root LICENSE detected; human ownership/third-party licence review pending)",
+    "review": {
+      "use": "UNREVIEWED",
+      "spdx": null,
+      "by": null,
+      "at": null,
+      "note": "No licence reviewer attestation or consent receipt collected for this revised snapshot. Do not promote to live Hub."
+    }
+  },
+  "indexed_files": null,
+  "indexed_bytes": null,
+  "cloned_at": null,
+  "consent_receipt": null,
+  "publication": {
+    "owner_approved": false,
+    "human_licence_approved": false,
+    "hub_maintainer_approved": false,
+    "external_pr_authorized": false
+  },
+  "limitations": [
+    "Update existing author-candidate and contributor ledger together only after consent; do not create duplicate",
+    "Existing upstream consent record references a different unrestricted source pin and may not be reused",
+    "Full repository production/security readiness is NO_GO",
+    "A synthetic JWT test signing fixture was found in original broader corpus scope; the curated application-only scope was scanned separately",
+    "This file cannot be used as a live Lane A manifest because review.use is UNREVIEWED"
+  ]
+}
