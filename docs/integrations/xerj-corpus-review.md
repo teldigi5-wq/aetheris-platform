@@ -92,6 +92,32 @@ review. The upstream XERJ contributor consent recorded for an older
 full-repository pin cannot be silently reinterpreted as consent for the
 revised 44-file version.
 
+## Real XERJ local indexing and retrieval proof
+
+The repository's draft GitHub Actions workflow now has a second, dependent
+review job. It requires the checksum-pinned Gitleaks and privacy preflight
+to pass before it prepares a local index. It downloads official **XERJ
+v1.0.0-rc.100** using pinned release SHA-256
+`4b12a47e8433e9d01d2b3f505b17b342a6e28d41edaabd274eba5a759e9cde1e`.
+
+The job archives **only the 44 selected files** from the immutable source
+pin, starts a disposable XERJ node on **127.0.0.1**, and runs local BM25
+autoindex without hosted answer services. The source and retrieval output
+remain runner-local and are removed afterward. Running an insecure dev-only
+node on loopback with public, reviewed source **is not** permission to
+bind that node to external networks or run it in production.
+
+**Exact-head [run 41211767122](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/41211767122)
+PASSED:** archived source count, XERJ binary release digest, local node
+readiness, actual autoindex, and two file:line lookup checks for
+`gateway/.../JwtAuthenticationFilter.java` and
+`identity-service/.../RefreshTokenService.java`.
+This is an actual local retrieval proof, not a pretend index or a mere
+source-file grep. It is not yet a **formal XERJ Lane A corpus build,
+validated registry manifest, human-reviewed licence record or published
+and signed Hub pack**. Actual XERJ indexed document/byte counts are
+not recorded and must not be replaced with Git blob counts.
+
 ## Licensing and human approval
 
 GitHub currently recognizes Apache-2.0 for the source repository, and
@@ -138,12 +164,12 @@ pin may be preferable once a reviewed release lineage is merged.
 - [x] Git tree metadata counted for selected paths
 - [x] Initial 65-file screening; real Gitleaks detected one synthetic test fixture
 - [x] Curated 44-file application-only scope, without scanner ignores
-- [ ] Exact-head hosted workflow must verify Git tree/pin and Gitleaks scan
-- [ ] Exact-head content metadata/privacy CI verification (not yet signed off)
+- [x] Exact-head Git-tree and Gitleaks scanning passed (run 41211767122; rerun after any head change)
+- [x] Exact-head metadata/privacy indicator CI passed (run 41211767122); **not human privacy signoff**
 - [ ] Human review of the pinned source for sensitive info and all licensing
 - [ ] Decide whether to publish this historical source or wait for hardened main
-- [ ] Build the actual XERJ corpus, measure indexed file/byte counts, verify
-      citations and local queries, and validate the real Hub Lane A manifest
+- [x] Disposable XERJ rc.100 local autoindex with two file:line citation checks passed
+- [ ] Build/validate the actual Lane A corpus and truthfully measure indexed record/byte counts; obtain human licence review first
 - [ ] Explicit owner approval of exact source snapshot/manifest and public
       XERJ submission; then XERJ maintainer review/approval
 
