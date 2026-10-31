@@ -194,6 +194,21 @@ run_migration user_runtime "$usrp" user_stage user-service \
   SyntheticTenantMembershipLifecycleTest aetheris.membership.lifecycle.synthetic active
 echo THREE_ROLE_SYNTHETIC_MEMBERSHIP_ACTIVE_BOUNDARY_PASS
 
+# Independent JDBC connections intentionally overlap a runtime transaction
+# and a migrator revocation transaction. This proves READ COMMITTED sees the
+# newly committed denial, while REPEATABLE READ can retain a stale MVCC grant.
+# Credentials exist only for this disposable runner invocation, not the repo.
+AETHERIS_SYNTHETIC_USER_RUNTIME_PASSWORD="$usrp" \
+AETHERIS_SYNTHETIC_USER_MIGRATOR_PASSWORD="$usmp" \
+AETHERIS_THREE_ROLE_SYNTHETIC_ONLY=yes \
+run_migration user_runtime "$usrp" user_stage user-service \
+  SyntheticConcurrentMembershipRevocationTest aetheris.membership.concurrent.synthetic
+[[ "$(admin "SELECT count(*) FROM user_stage.synthetic_identity_tenant_memberships WHERE revoked_at IS NOT NULL;")" == 0 ]] || {
+  echo THREE_ROLE_CONCURRENT_TEST_FAILED_TO_RESTORE_SYNTHETIC_MEMBERSHIP
+  exit 1
+}
+echo THREE_ROLE_SYNTHETIC_MVCC_REVOCATION_ISOLATION_PROOF_PASS
+
 # Only the migrator may revoke tenant A. The User runtime still has
 # SELECT-only access; the next independent JVM reads the committed revocation.
 role_sql user_migrator "$usmp" "UPDATE user_stage.synthetic_identity_tenant_memberships
