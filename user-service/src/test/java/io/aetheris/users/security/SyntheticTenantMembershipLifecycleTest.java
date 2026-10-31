@@ -8,6 +8,8 @@ import org.springframework.boot.test.autoconfigure.jdbc.JdbcTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.UUID;
+import java.sql.Timestamp;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -68,7 +70,7 @@ class SyntheticTenantMembershipLifecycleTest {
                 AND binding.user_id = ?
                 AND binding.tenant_id = ?::uuid
                 AND membership.revoked_at IS NULL
-                AND membership.expires_at > CURRENT_TIMESTAMP
+                AND membership.expires_at > statement_timestamp()
             )
             """,
             Boolean.class, identityUid, resourceId, authoritativeTenant.toString());
@@ -114,6 +116,30 @@ class SyntheticTenantMembershipLifecycleTest {
         assertFalse(hasActiveSyntheticGrant(-1, userA, TENANT_A));
         assertFalse(hasActiveSyntheticGrant(userB, -1, TENANT_A));
         assertFalse(hasActiveSyntheticGrant(userB, userA, null));
+    }
+
+    @Test
+    void membershipExpiryClockCannotFreezeAtTransactionStart() throws Exception {
+        // PostgreSQL CURRENT_TIMESTAMP is fixed for the entire transaction,
+        // including Spring's @JdbcTest transaction. On long-running requests,
+        // that would accept a membership after its real expiration time.
+        assumeTrue("active".equals(phase()), "One temporal proof per CI lifecycle");
+        Timestamp deadline = jdbc.queryForObject(
+            "SELECT CURRENT_TIMESTAMP + INTERVAL '750 milliseconds'",
+            Timestamp.class);
+        assertTrue(deadline != null, "Synthetic expiry timestamp required");
+        // Use a generous margin to avoid CI scheduler-timing false positives.
+        Thread.sleep(1500);
+        Boolean staleTransactionTime = jdbc.queryForObject(
+            "SELECT ?::timestamptz > CURRENT_TIMESTAMP",
+            Boolean.class, deadline);
+        Boolean currentStatementTime = jdbc.queryForObject(
+            "SELECT ?::timestamptz > statement_timestamp()",
+            Boolean.class, deadline);
+        assertTrue(Boolean.TRUE.equals(staleTransactionTime),
+            "The regression fixture must expose stale transaction time");
+        assertFalse(Boolean.TRUE.equals(currentStatementTime),
+            "New authorization statements must observe actual expiry");
     }
 
     @Test
