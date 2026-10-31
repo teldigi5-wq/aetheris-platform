@@ -118,6 +118,33 @@ validated registry manifest, human-reviewed licence record or published
 and signed Hub pack**. Actual XERJ indexed document/byte counts are
 not recorded and must not be replaced with Git blob counts.
 
+## Test signing-fixture reuse and upstream draft preparation
+
+**Exact-head [CI run 41213211081](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/41213211081)
+PASSED** additional fail-closed checks. The pinned Aetheris source Git tree
+has **381 Git blobs**. A test extracts the 32-character synthetic HMAC
+signing fixture from `gateway/src/test/java/io/aetheris/gateway/
+JwtAuthenticationFilterTest.java` **without printing it**, compares it
+to every blob in the same pinned source tree, and found **zero matches in
+other files**. This narrows the known fixture-reuse question at *that
+particular commit*. It does **not** prove that the literal was never
+used in historical commits, external systems, live databases, deployment
+secrets or runtime environments. Human verification is still required.
+
+A separate review-only manifest proposal now exists at
+`docs/integrations/xerj-upstream-amendment-draft.json`. Its `corpus`
+matches the **existing** XERJ author candidate, and its immutable source
+SHA and six sparse paths match this documented snapshot. The checker
+mirrors XERJ's upstream sparse-path rules and **requires** the draft to
+retain `review.use=UNREVIEWED`, `review.by=null`, `review.at=null`,
+`consent_receipt=null` and no invented build counts or timestamps.
+
+This is **not** a live Lane A manifest and cannot be submitted as one.
+XERJ's authoritative `corpus-hub` validator and consumer tests must
+still validate a real, human-reviewed manifest after explicit owner
+approval. Preserve the prior upstream contributor record and ledger;
+do not transplant its older consent receipt to the revised pin.
+
 ## Licensing and human approval
 
 GitHub currently recognizes Apache-2.0 for the source repository, and
@@ -166,6 +193,7 @@ pin may be preferable once a reviewed release lineage is merged.
 - [x] Curated 44-file application-only scope, without scanner ignores
 - [x] Exact-head Git-tree and Gitleaks scanning passed (run 41211767122; rerun after any head change)
 - [x] Exact-head metadata/privacy indicator CI passed (run 41211767122); **not human privacy signoff**
+- [x] Pinned-tree JWT fixture non-reuse and draft manifest path/consent preflights passed (run 41213211081)
 - [ ] Human review of the pinned source for sensitive info and all licensing
 - [ ] Decide whether to publish this historical source or wait for hardened main
 - [x] Disposable XERJ rc.100 local autoindex with two file:line citation checks passed
