@@ -145,8 +145,11 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = routePath(request);
-        return !(path.equals(PREFIX) || path.startsWith(PREFIX + "/"));
+        // Cover every /api route, including matrix-parameter variants whose
+        // raw URI differs from the Spring MVC-matched controller path.
+        // A skipped filter would bypass BOTH signed JWT and opt-in mTLS checks.
+        // Non-API Actuator diagnostics retain their independent access policy.
+        return !routePath(request).startsWith("/api");
     }
 
     @Override

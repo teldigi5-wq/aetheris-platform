@@ -1,0 +1,108 @@
+name: RS256 mTLS backend API route boundary (review only)
+on:
+  pull_request:
+    branches: [security/disposable-netty-mutual-tls-handshake-20261028]
+    paths:
+      - '.github/workflows/rs256-mtls-api-route-boundary.yml'
+      - 'user-service/src/main/java/io/aetheris/users/security/**'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/**'
+      - 'user-service/src/test/java/io/aetheris/users/security/**'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/**'
+      - 'docs/security/RS256_MTLS_API_PATH_REVIEW_20261031.md'
+      - 'docs/security/RS256_MTLS_TENANT_PROOF_CHECKPOINT_20261031.md'
+      - 'scripts/security/rehearse_shared_db_three_roles.sh'
+      - 'scripts/security/run_gateway_netty_tls_lab.sh'
+permissions:
+  contents: read
+jobs:
+  route-boundary:
+    name: rs256-mtls-api-path-boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - name: Checkout exact pull request head without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Use Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Assert exact head and release NO_GO
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 scripts/security_closure_preflight.py --assert-blocked > "$RUNNER_TEMP/aetheris-closure.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['RUNNER_TEMP']) / 'aetheris-closure.json'
+          result = json.loads(p.read_text())
+          assert result['status'] == 'NO_GO'
+          assert result['safe_to_merge_or_deploy'] is False
+          print('RELEASE_NO_GO_CONFIRMED')
+          PY
+      - name: Verify immutable source policy and Maven Central parent availability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          for service, name in (('user-service', 'users'), ('audit-service', 'audit')):
+              base = Path(service) / 'src/main/java/io/aetheris' / name / 'security/DirectApiJwtFilter.java'
+              contents = base.read_text()
+              assert 'return !routePath(request).startsWith("/api");' in contents
+              assert 'if (!gatewayWorkloadPolicy.permits(request))' in contents
+              assert 'rs256Verifier.verify(token)' in contents
+          print('SOURCE_API_INTERCEPTION_MTLS_RS256_GUARDS_PRESENT')
+          PY
+          artifact='https://repo.maven.apache.org/maven2/org/springframework/boot/spring-boot-starter-parent/3.3.3/spring-boot-starter-parent-3.3.3.pom'
+          if curl --fail --location --silent --show-error --retry 3 \
+              --retry-all-errors --connect-timeout 10 --max-time 45 \
+              "$artifact" --output /dev/null; then
+            echo 'MAVEN_CENTRAL_PARENT_REACHABLE'
+          else
+            echo 'MAVEN_CENTRAL_PARENT_UNAVAILABLE: cannot certify Java tests on this runner' >&2
+            exit 2
+          fi
+      - name: Test real User and Audit servlet JWT filter boundaries first
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -U -B -ntp -f user-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+          ./mvnw -U -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+      - name: Retain full four-module regression and RS256 mTLS protections
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -U -B -ntp -f pom.xml test
+          echo 'RS256_MTLS_BACKEND_ROUTE_TESTS_PASSED_REVIEW_ONLY'
+      - name: Actual synthetic Postgres ownership isolation and role-boundary acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This existing script creates and destroys its own disposable
+          # PostgreSQL 16 container, roles, synthetic tenant bindings, and
+          # throwaway data; it never connects to a configured live database.
+          AETHERIS_THREE_ROLE_SYNTHETIC_ONLY=yes bash scripts/security/rehearse_shared_db_three_roles.sh
+          echo 'EXACT_HEAD_SYNTHETIC_TENANT_AND_DB_ROLE_PROOF_PASS'
+      - name: Actual disposable Gateway TLS socket and SPIFFE client identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          AETHERIS_NETTY_MTLS_LAB_SYNTHETIC_ONLY=yes bash scripts/security/run_gateway_netty_tls_lab.sh
+          echo 'EXACT_HEAD_SYNTHETIC_MTLS_SOCKET_PROOF_PASS'
+      - name: Destroy any synthetic three-role containers after failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker ps --filter 'name=^/aetheris-three-roles-' --format '{{.Names}}' |
+            while IFS= read -r name; do
+              docker rm -f "$name" > /dev/null 2>&1 || true
+            done
+          echo 'SYNTHETIC_THREE_ROLE_CONTAINER_CLEANUP_DONE'

@@ -62,6 +62,21 @@ class DirectApiRs256VerificationTest {
     }
 
     @Test
+    void rsaOnlyFilterCannotSkipMatrixDecoratedApiRoutes() throws Exception {
+        KeyPair signer = pair(2048);
+        io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
+        MockMvc mvc = api(service, pem(signer));
+        mvc.perform(get("/api/events;variant=1"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api;variant=1/events"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/events;variant=1")
+            .header("Authorization", "Bearer " + jwt(signer, AUDIENCE, "ADMIN")))
+            .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void acceptsOnlySignedRs256ForApprovedIssuerAndAudience() throws Exception {
         KeyPair signer = pair(2048);
         io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
@@ -160,6 +175,35 @@ class DirectApiRs256VerificationTest {
                 .andExpect(status().isServiceUnavailable());
             verifyNoMoreInteractions(service);
         }
+    }
+
+    @Test
+    void rs256SignedUnverifiedTenantClaimCannotGrantAuditVisibility() throws Exception {
+        KeyPair signer = pair(2048);
+        io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
+        MockMvc mvc = api(service, pem(signer));
+        Instant now = Instant.now();
+
+        // A valid RSA signature does not turn a caller-asserted tenant into
+        // authorization for a privileged audit-data endpoint.
+        for (String tenant : List.of("11111111-1111-4111-8111-111111111111",
+                                     "22222222-2222-4222-8222-222222222222")) {
+            String asserted = Jwts.builder()
+                .subject("synthetic-consumer@example.invalid")
+                .claim("uid", 42L).claim("role", "API_CONSUMER")
+                .claim("scopes", List.of("services:read"))
+                .claim("tenant_id", tenant)
+                .issuer(ISSUER).claim("aud", List.of(AUDIENCE))
+                .issuedAt(Date.from(now.minusSeconds(5)))
+                .expiration(Date.from(now.plusSeconds(180)))
+                .signWith(signer.getPrivate(), Jwts.SIG.RS256).compact();
+            mvc.perform(get("/api/events")
+                .header("Authorization", "Bearer " + asserted)
+                .header("X-Aetheris-Tenant-Id", tenant)
+                .header("X-Aetheris-User-Role", "ADMIN"))
+                .andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(service);
     }
 
     @Test
