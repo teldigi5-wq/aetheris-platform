@@ -57,7 +57,8 @@ def main() -> None:
     selected = plan["paths"]
     require(plan["publication"]["hub_submission_authorized"] is False,
             "This check must never confer publication permission")
-    require(ORIGIN not in selected, "Invalid selected corpus path")
+    require(not any(ORIGIN.startswith(folder + "/") for folder in selected),
+            "Synthetic JWT test fixture must not be included in the selected corpus")
     blobs = paths_and_hashes(pin)
     by_path = dict(blobs)
     require(ORIGIN in by_path, "Expected historical JWT test fixture missing")
