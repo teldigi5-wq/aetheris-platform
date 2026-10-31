@@ -1,42 +1,51 @@
-# Secret-scanning regression gate — audit continuation
+# Aetheris secret-scanning regression — review checkpoint
 
-**Scope:** clean replacement of draft PR #353, stacked on credential-hardening PR #315. Neither candidate is approved for production release. PR #322's closure gate remains **NO_GO**.
+**Candidate:** [Draft PR #355](https://github.com/teldigi5-wq/aetheris-platform/pull/355), stacked on [credential/network hardening PR #315](https://github.com/teldigi5-wq/aetheris-platform/pull/315). The replaced draft [PR #353](https://github.com/teldigi5-wq/aetheris-platform/pull/353) was closed unmerged after its historical secret scan correctly rejected test-source PEM headers. [Release closure PR #322](https://github.com/teldigi5-wq/aetheris-platform/pull/322) remains **NO_GO**.
 
-This change provides a **new-commit** secret-exposure check for every pull request and push to main, complementing the existing Stage 22 source gate, CodeQL and GitHub provider-specific secret scanning.
+## Security objective
 
-## Controls
+Block newly introduced secrets in pull requests and pushes to main, including secrets that appear only in intermediate commits, merge-conflict resolutions, or files whose Git attributes suppress ordinary patch content. This is a **new-commit regression gate**, not proof of a complete historic, runtime, or third-party-index audit.
 
-- Gitleaks v8.30.1 is downloaded from the official upstream release and the archive SHA-256 must match the published digest before extraction.
-- Checkout fetches full Git history, does not persist checkout credentials, and uses contents:read only. The event is pull_request, **not** pull_request_target; no deployment credentials are passed to the job.
-- The actual new-commit scanner runs **before any repository-supplied Python test suite**. This avoids executing PR-modifiable tests before the scanner.
-- A nonzero, valid ancestor base SHA and nonempty commit range are mandatory; ambiguous or missing ancestry fails closed.
-- All introduced commits are scanned, including tests, files added then removed, and secrets introduced solely in merge-conflict resolution. Explicit `--diff-merges=first-parent` is required because Git omits merge patches by default. Inline gitleaks:allow suppressions are disabled, and repository-level .gitleaks.toml or .gitleaksignore overrides fail.
-- Output is redacted; no secret-containing JSON reports or SARIF artifacts are published.
-- After the real PR scan passes, a second **ephemeral detection proof** creates a disposable Git repository in runner-local temporary storage. It confirms that harmless commits pass, Gitleaks flags a newly generated RSA private key, and the same key remains detectable after a subsequent removal commit in the scanned history. The RSA key and redacted proof report are deleted by a shell EXIT trap. No key fixture is committed to Aetheris or uploaded.
-- A synthetic seven-test offline suite then verifies shell-wrapper argument/range/ignore failure semantics.
+## Threats and countermeasures
 
-## Acceptance and merge prerequisites
+| Threat | Current countermeasure | Evidence |
+| --- | --- | --- |
+| Known-format secret in an added file | Gitleaks v8.30.1 with default rules, redacted logs | Disposable generated-RSA-key detection |
+| Secret committed then removed before PR ends | Scan every newly introduced commit, not only the final worktree | Disposable add-and-delete history test |
+| Secret added only in a merge-conflict resolution | Force merge diffs with --diff-merges=first-parent | Disposable merge-only RSA-key proof; offline Git merge test |
+| Attacker adds a -diff rule or relies on binary-heuristic suppression | Force --text in Git log options | Disposable RSA key in file marked -diff; offline synthetic Git patch test |
+| External diff helper or text conversion alters diff output | Pass --no-ext-diff and --no-textconv | Flag assertion in synthetic shell-wrapper tests |
+| Incomplete fetch or invalid event base | Full checkout; validate nonzero base SHA, ancestor and nonempty range | Fail-closed regression tests |
+| Attacker adds broad Gitleaks ignore/config | Reject root .gitleaks.toml and .gitleaksignore; ignore inline gitleaks:allow | Override regression tests |
+| Malicious token exposure through CI | contents:read, no persisted checkout credentials, no production secrets, pull_request not pull_request_target | Workflow source inspection |
+| Scanner binary altered in transit | Pinned upstream release archive and checked published SHA-256 | CI install step |
 
-1. Verify exact-head GitHub Actions result for PR #353, including the real detector proof, not just a mocked scanner test.
-2. Review workflow/script diff and enforce code-owner review if an independent trusted reviewer is available. Workflows and security scripts are themselves security-critical code.
-3. Require the check named **gitleaks-new-commits** in the protected-main ruleset once the reviewed gate is integrated into the designated release lineage; retain all existing checks and strict branch freshness.
-4. Track governance enforcement in issue #354. The repository's ruleset was observed to have 13 required checks, zero required approvals and an administrator-role bypass during the 2026-10-31 audit.
-5. Preserve **NO_GO** until security closure includes operational proof of credential rotation, live deployment isolation, object/tenant authorization, approved database migrations, and the other nine documented release conditions.
+The workflow scans before running any repository-supplied Python test suite. Disposable keys and redacted detector proof reports stay under a runner-local temporary directory and are deleted by an EXIT trap. No test key material is committed to Aetheris.
 
-## Known limitations
+**Performance trade-off:** --text can include contents from binary-looking Git diffs. Time and scan-size budgets should be monitored on real pull requests; a timeout or scanner error must fail the required check rather than silently skip files.
 
-- The gate scans changes in the event's Git range. It does not certify all historic or unreachable commits, external CI artifacts, XERJ copies, or real runtime secrets.
-- The prior fetched-ref historical audit detected 11 test-related patterns; no live leak is confirmed, but reuse outside tests has not been disproven.
-- A PR author who can modify the workflow or scan script may try to undermine checks. Required independent review and guarded branch policies are essential; a successful check alone is insufficient.
-- Network failure, a digest mismatch, scan errors or an unavailable checkout ancestry must **fail**, not silently pass.
-- This is not an authorization to merge or deploy. No security workflow proves zero vulnerabilities.
+## Review and rollout gates
 
-## 2026-10-31 implementation checkpoints
+1. Verify the **latest exact-head** PR #355 workflow result, including all synthetic tests and real detector proofs. Do not reuse older head evidence after a new commit.
+2. Review the complete workflow, scripts, tests and this document. Workflow/script authors can change their own security controls until independent review and branch-policy enforcement are active.
+3. Integrate the selected reviewed candidate only through an approved release sequence. Do not independently merge the overlapping #313, #315 or #322 release candidates.
+4. **Only when the gate is available on the intended protected line**, add the exact check name **gitleaks-new-commits** to the active **Protect stable main** ruleset. Keep all existing required checks and strict up-to-date behavior. Track owner/admin work in [issue #354](https://github.com/teldigi5-wq/aetheris-platform/issues/354).
+5. Review administrator bypass permissions, independent approval and CODEOWNERS enforcement, proportionate to available trusted reviewers. Avoid a configuration that deadlocks the solo repository; document any temporary exception.
+6. Preserve **NO_GO** until external release-gate certification, live credential rotation/reuse proof, data recovery and migrations, direct service authorization, supply chain and Java/CA evidence are independently approved.
 
-- Draft PR #353 initial exact-head run 41195078982: 7 synthetic unit tests passed; Gitleaks scanned five new commits and found no leaks.
-- Follow-up: reordered scan before repository tests and added real Gitleaks positive/negative proof using ephemeral keys, including an added-then-deleted secret. **Verify the latest exact-head CI before declaring this enhancement complete.**
-- Issue #354 tracks required status-check enforcement and review policy. Ruleset settings have not been changed.
+## Audit evidence and limitations
 
-## Clean history rationale
+- Owner-run Gitleaks historical fetched-ref scan (31 October 2026): 11 findings in test-related paths (8 generic-api-key, 3 private-key). These do not establish 11 live leaks, nor certify absence of production credential reuse.
+- User screenshot: GitHub secret scanning showed zero **open** alerts at the time checked; resolved alerts and other providers need separate review.
+- Existing main-based Compose files had known credential defaults and published service ports; remediation is in PR #315, still unmerged and not deployment-verified.
+- Docker was inaccessible in the user's WSL environment. This does not establish production isolation.
+- Source-only release closure is **NO_GO**. Passing Actions or scanner checks alone is not production authorization.
+- This gate does not cover deleted/unreachable remote refs, untracked generated artifacts, previous public forks, XERJ copies, OCI images, cloud secret stores, or live operator environments. Unknown secret formats and files exceeding scanner limits may evade pattern-based detection.
 
-Previous draft PR #353's merge-resolution proof included two contiguous PEM header literals in a test source commit. Gitleaks correctly blocked that history. This replacement contains the same test logic but constructs the header at runtime from harmless fragments and commits only a clean final version, avoiding force-pushing or broad scanner exceptions. The superseded PR must not be merged.
+## Progress chronology
+
+- Initial draft #353 introduced new-commit scanner and synthetic proof. Historical scanning correctly blocked two later test-source PEM markers; draft closed **without merge or force-push**.
+- Replacement #355 created from the exact PR #315 base with one clean initial commit, retaining the guarded scanner. GitHub Actions run 41197266181 passed: 8 synthetic tests and real harmless/add-delete/merge-only detection.
+- Follow-up candidate forces textual patches despite -diff attributes and disables external diff/text conversion. A ninth synthetic regression test and fourth live detector proof were added. **Do not mark this follow-up verified until its exact-head GitHub Actions run passes.**
+
+All work remains in draft review. No protected-main merge, runtime credential rotation, or production deployment is implied.
