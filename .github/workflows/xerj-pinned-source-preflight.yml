@@ -1,0 +1,103 @@
+name: XERJ pinned-source safety preflight (review only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/xerj-pinned-source-preflight.yml'
+      - 'docs/integrations/xerj-source-scope.json'
+      - 'docs/integrations/xerj-corpus-review.md'
+      - 'scripts/security/verify_xerj_source_scope.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xerj-source-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  xerj-pinned-source-scan:
+    name: xerj-pinned-source-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout review commit without stored credentials and with full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact review head and pinned source scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 scripts/security/verify_xerj_source_scope.py
+
+      - name: Install checksum-verified Gitleaks v8.30.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=8.30.1
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          expected_sha=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          install_dir="${RUNNER_TEMP}/xerj-reviewed-gitleaks"
+          mkdir -p "$install_dir"
+          curl --fail --location --silent --show-error --proto '=https' \
+            --tlsv1.2 --retry 3 \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}" \
+            --output "${install_dir}/${archive}"
+          printf '%s  %s\n' "$expected_sha" "${install_dir}/${archive}" \
+            | sha256sum --check --status
+          tar -xzf "${install_dir}/${archive}" -C "$install_dir" gitleaks
+          chmod 755 "${install_dir}/gitleaks"
+          echo "$install_dir" >> "$GITHUB_PATH"
+
+      - name: Scan only immutable pinned source with default Gitleaks rules
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-pinned.XXXXXXXX")"
+          scanner_dir="${RUNNER_TEMP}/xerj-reviewed-gitleaks"
+          report="${RUNNER_TEMP}/xerj-pinned-sensitive-results.json"
+          output="${RUNNER_TEMP}/xerj-pinned-scan.stdout"
+          trap 'rm -rf -- "$candidate_dir" "$scanner_dir" "$report" "$output"' EXIT
+          pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
+          mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
+          test "${#paths[@]}" -gt 0
+          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$candidate_dir"
+          file_count="$(find "$candidate_dir" -type f | wc -l)"
+          test "$file_count" -eq 65
+          # No custom repository config, no ignore file, no inline allow comments.
+          set +e
+          gitleaks dir --redact --ignore-gitleaks-allow \
+            --report-format json --report-path "$report" \
+            "$candidate_dir" > "$output" 2>&1
+          scan_status=$?
+          set -e
+          if [[ "$scan_status" -ne 0 ]]; then
+            echo "XERJ_PINNED_SOURCE_SCAN_FAILED: scanner_status=$scan_status" >&2
+            if [[ -f "$report" ]]; then
+              python3 - "$report" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          try:
+              findings = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          except (ValueError, OSError):
+              print("Gitleaks report unreadable; secrets withheld")
+              raise SystemExit(1)
+          print(f"Findings: {len(findings)} (values withheld)")
+          for finding in findings[:20]:
+              # Never publish the matched secret, source snippet, full report,
+              # fingerprint or request context in the CI logs.
+              print(f"Rule: {finding.get('RuleID', '<unknown>')}")
+          PY
+            fi
+            exit 1
+          fi
+          echo "XERJ_PINNED_GITLEAKS_SCAN_PASS pin=$pin files=$file_count"
+          echo "XERJ_HUB_PUBLICATION_STILL_REQUIRES_OWNER_REVIEW"
