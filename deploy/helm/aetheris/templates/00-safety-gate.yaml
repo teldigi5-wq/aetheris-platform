@@ -12,6 +12,15 @@ credential and use digest-pinned images.
   {{- fail "unsafe Helm Redis configuration: secrets.redisPassword must be independent of JWT, PostgreSQL and RabbitMQ credentials" -}}
 {{- end -}}
 {{- if not .Values.global.allowInsecureLocalDefaults -}}
+  {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
+    {{- fail "unsafe Helm default: replace secrets.jwtSecret or explicitly opt into values-local.yaml for local development" -}}
+  {{- end -}}
+  {{- if eq .Values.secrets.postgresPassword "aetheris" -}}
+    {{- fail "unsafe Helm default: replace secrets.postgresPassword or explicitly opt into values-local.yaml for local development" -}}
+  {{- end -}}
+  {{- if eq .Values.secrets.rabbitmqPassword "aetheris" -}}
+    {{- fail "unsafe Helm default: replace secrets.rabbitmqPassword or explicitly opt into values-local.yaml for local development" -}}
+  {{- end -}}
   {{- /* Reject missing/short credentials before the existing known-demo guards. */ -}}
   {{- $requiredCredentials := dict
     "secrets.jwtSecret" (.Values.secrets.jwtSecret | default "" | toString)
@@ -31,15 +40,6 @@ credential and use digest-pinned images.
   {{- end -}}
   {{- if eq (trim (.Values.secrets.rabbitmqUsername | default "" | toString)) "" -}}
     {{- fail "unsafe Helm non-local RabbitMQ username: a nonempty explicit username is required" -}}
-  {{- end -}}
-  {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
-    {{- fail "unsafe Helm default: replace secrets.jwtSecret or explicitly opt into values-local.yaml for local development" -}}
-  {{- end -}}
-  {{- if eq .Values.secrets.postgresPassword "aetheris" -}}
-    {{- fail "unsafe Helm default: replace secrets.postgresPassword or explicitly opt into values-local.yaml for local development" -}}
-  {{- end -}}
-  {{- if eq .Values.secrets.rabbitmqPassword "aetheris" -}}
-    {{- fail "unsafe Helm default: replace secrets.rabbitmqPassword or explicitly opt into values-local.yaml for local development" -}}
   {{- end -}}
   {{- range $name, $image := .Values.images -}}
     {{- if not (contains "@sha256:" $image) -}}
