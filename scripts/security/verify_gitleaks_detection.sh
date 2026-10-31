@@ -137,12 +137,12 @@ git -C "$audit_dir" commit -qm 'resolve synthetic merge conflict'
 # Construct the PEM header at runtime, so the test itself is not flagged
 # as a leaked key in the PR history.
 pem_header="$(printf '%s%s' '-----BEGIN PRIVATE' ' KEY-----')"
-if git -C "$audit_dir" log -p "$merge_base..HEAD" | grep -q -- "$pem_header"; then
+if git -C "$audit_dir" log -p "$merge_base..HEAD" | grep -F -- "$pem_header" > /dev/null; then
   echo 'ERROR: merge-only fixture unexpectedly visible in default git log patches.' >&2
   exit 1
 fi
 if ! git -C "$audit_dir" log -p --diff-merges=first-parent \
-  "$merge_base..HEAD" | grep -q -- "$pem_header"; then
+  "$merge_base..HEAD" | grep -F -- "$pem_header" > /dev/null; then
   echo 'ERROR: merge-only fixture missing from explicit Git merge diffs.' >&2
   exit 1
 fi
