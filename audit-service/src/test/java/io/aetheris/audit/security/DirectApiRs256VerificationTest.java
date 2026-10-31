@@ -62,6 +62,21 @@ class DirectApiRs256VerificationTest {
     }
 
     @Test
+    void rsaOnlyFilterCannotSkipMatrixDecoratedApiRoutes() throws Exception {
+        KeyPair signer = pair(2048);
+        io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
+        MockMvc mvc = api(service, pem(signer));
+        mvc.perform(get("/api/events;variant=1"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api;variant=1/events"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/events;variant=1")
+            .header("Authorization", "Bearer " + jwt(signer, AUDIENCE, "ADMIN")))
+            .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void acceptsOnlySignedRs256ForApprovedIssuerAndAudience() throws Exception {
         KeyPair signer = pair(2048);
         io.aetheris.audit.AuditEventStore service = mock(io.aetheris.audit.AuditEventStore.class);
