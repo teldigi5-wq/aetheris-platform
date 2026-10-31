@@ -1,7 +1,7 @@
 name: Actual User and Audit Direct JWT HTTP Boundary (Review Only)
 on:
   pull_request:
-    branches: [release/security-closure-gate-20261027]
+    branches: [release/security-closure-gate-20261027, security/direct-backend-jwt-auth-review-20261027]
     paths:
       - '.github/workflows/direct-service-jwt-boundary.yml'
       - 'user-service/src/main/java/io/aetheris/users/security/**'
@@ -46,11 +46,6 @@ jobs:
           assert report["safe_to_merge_or_deploy"] is False
           print("DIRECT_BACKEND_SOURCE_PRESENT_RELEASE_STILL_NO_GO")
           PY
-      - name: Complete four-module Java regression on actual release candidate
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./mvnw -B -ntp -f pom.xml test
       - name: Explicit real signed token servlet filter negative/positive cases
         shell: bash
         run: |
@@ -58,3 +53,8 @@ jobs:
           ./mvnw -B -ntp -f user-service/pom.xml -Dtest=DirectApiJwtFilterTest test
           ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest test
           echo DIRECT_SERVICE_LEGACY_SIGNED_HMAC_HTTP_FILTER_PROOF_PASS
+      - name: Complete four-module Java regression on actual release candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test

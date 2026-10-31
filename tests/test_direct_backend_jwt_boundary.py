@@ -30,6 +30,12 @@ class DirectBackendAuthSourceGuard(unittest.TestCase):
             self.assertNotIn("setHeader(\"Authorization\"",s)
             self.assertNotIn('secret.length() < 32) this.key',s)
 
+    def test_api_namespace_is_protected_despite_matrix_path_variants(self):
+        for name in MODULES:
+            source = (ROOT / name).read_text()
+            self.assertIn('return !routePath(request).startsWith("/api");', source)
+            self.assertNotIn('path.equals(PREFIX) || path.startsWith(PREFIX + "/")', source)
+
     def test_implicit_cross_database_user_id_equality_never_grants_ownership(self):
         s=(ROOT/MODULES[0]).read_text()
         self.assertIn("Equal numbers DO NOT establish ownership",s)

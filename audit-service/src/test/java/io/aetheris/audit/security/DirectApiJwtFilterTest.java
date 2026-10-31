@@ -95,6 +95,39 @@ class DirectApiJwtFilterTest {
     }
 
     @Test
+    void matrixParametersCannotSkipDirectBackendAuthorization() throws Exception {
+        io.aetheris.audit.AuditEventStore service = org.mockito.Mockito.mock(io.aetheris.audit.AuditEventStore.class);
+        MockMvc api = MockMvcBuilders.standaloneSetup(new io.aetheris.audit.AuditController(service))
+            .addFilters(new DirectApiJwtFilter(SECRET)).build();
+        // MockMvc/Spring MVC can map matrix-parameter variants to the controller
+        // even when getRequestURI() does not exactly match its @RequestMapping.
+        api.perform(get("/api/events;variant=1"))
+            .andExpect(status().isUnauthorized());
+        api.perform(get("/api;variant=1/events"))
+            .andExpect(status().isUnauthorized());
+        // Signed tokens cannot authorize a decorated path by skipping the
+        // exact-route policy either: reject unknown route shapes (403).
+        api.perform(get("/api/events;variant=1").header("Authorization", bearer(
+            valid("ADMIN", "services:read", 42))))
+            .andExpect(status().isForbidden());
+        api.perform(get("/api;variant=1/events").header("Authorization", bearer(
+            valid("ADMIN", "services:read", 42))))
+            .andExpect(status().isForbidden());
+        // New endpoints inside /api are private by default.
+        api.perform(get("/api/unknown-future-route"))
+            .andExpect(status().isUnauthorized());
+        // Operational diagnostics are outside this API authorization filter.
+        DirectApiJwtFilter filter = new DirectApiJwtFilter(SECRET);
+        assertFalse(filter.shouldNotFilter(new org.springframework.mock.web.MockHttpServletRequest(
+            "GET", "/api/events;variant=1")));
+        assertFalse(filter.shouldNotFilter(new org.springframework.mock.web.MockHttpServletRequest(
+            "GET", "/api;variant=1/events")));
+        assertTrue(filter.shouldNotFilter(new org.springframework.mock.web.MockHttpServletRequest(
+            "GET", "/actuator/health/liveness")));
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void authorizedSignedRequestsReachActualControllerOnlyWithinScope() throws Exception {
         io.aetheris.audit.AuditEventStore service = org.mockito.Mockito.mock(io.aetheris.audit.AuditEventStore.class);
         MockMvc api=MockMvcBuilders.standaloneSetup(new io.aetheris.audit.AuditController(service))
