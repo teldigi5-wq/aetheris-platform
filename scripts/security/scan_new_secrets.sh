@@ -39,9 +39,10 @@ if [[ "$count" -eq 0 ]]; then
 fi
 
 echo "Scanning $count newly introduced commits (no secret values printed)."
+# Include merge-resolution diffs: ordinary git log -p omits merge commit patches.
 # No inline gitleaks:allow suppression; default rules apply to all paths.
 "${GITLEAKS_BIN:-gitleaks}" git \
   --redact \
   --ignore-gitleaks-allow \
-  --log-opts="${base_sha}..HEAD" \
+  --log-opts="--diff-merges=first-parent ${base_sha}..HEAD" \
   .
