@@ -92,9 +92,22 @@ jobs:
               raise SystemExit(1)
           print(f"Findings: {len(findings)} (values withheld)")
           for finding in findings[:20]:
-              # Never publish the matched secret, source snippet, full report,
-              # fingerprint or request context in the CI logs.
-              print(f"Rule: {finding.get('RuleID', '<unknown>')}")
+              # Never publish matched secret, source snippet, fingerprint,
+              # or raw report. Source file paths are already public Git tree
+              # metadata; print only a known, relative archive path.
+              raw = str(finding.get('File', ''))
+              normalized = raw.replace('\\', '/')
+              allowed_roots = ('architecture/', 'gateway/', 'identity-service/',
+                               'user-service/', 'audit-service/', 'docs/security/')
+              relative = '<unrecognized-path>'
+              for root in allowed_roots:
+                  index = normalized.find(root)
+                  if index >= 0:
+                      tentative = normalized[index:]
+                      if '..' not in tentative.split('/') and '\n' not in tentative:
+                          relative = tentative[:220]
+                      break
+              print(f"Finding: rule={finding.get('RuleID', '<unknown>')} file={relative}")
           PY
             fi
             exit 1
