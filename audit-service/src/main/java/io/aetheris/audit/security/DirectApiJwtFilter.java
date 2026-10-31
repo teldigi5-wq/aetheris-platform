@@ -48,8 +48,12 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = routePath(request);
-        return !(path.equals(PREFIX) || path.startsWith(PREFIX + "/"));
+        // Protect the *entire* API namespace, not just exact undecorated
+        // controller paths. Servlet getRequestURI() retains matrix parameters,
+        // while Spring MVC may route /api/users;v=1 to /api/users.
+        // Fail closed on unrecognized /api routes; leave health, docs and
+        // other non-API resources to their existing security configuration.
+        return !routePath(request).startsWith("/api");
     }
 
     @Override
