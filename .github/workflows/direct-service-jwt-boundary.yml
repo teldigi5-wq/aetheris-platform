@@ -1,7 +1,7 @@
 name: Actual User and Audit Direct JWT HTTP Boundary (Review Only)
 on:
   pull_request:
-    branches: [release/security-closure-gate-20261027]
+    branches: [release/security-closure-gate-20261027, security/direct-backend-jwt-auth-review-20261027]
     paths:
       - '.github/workflows/direct-service-jwt-boundary.yml'
       - 'user-service/src/main/java/io/aetheris/users/security/**'
