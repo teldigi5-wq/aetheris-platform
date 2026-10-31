@@ -54,7 +54,7 @@ class SecretScanCiTest(unittest.TestCase):
         result = self.scan(self.base)
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(
-            ["git", "--redact", "--ignore-gitleaks-allow", f"--log-opts={self.base}..HEAD", "."],
+            ["git", "--redact", "--ignore-gitleaks-allow", f"--log-opts=--diff-merges=first-parent {self.base}..HEAD", "."],
             self.log.read_text().splitlines(),
         )
 
@@ -96,6 +96,38 @@ class SecretScanCiTest(unittest.TestCase):
                     self.assertFalse(self.log.exists())
                 finally:
                     override.unlink()
+
+    def test_merge_resolution_diff_is_included(self):
+        """A new secret can exist only in a merge resolution (not its parents)."""
+        self.git("checkout", "-qb", "synthetic-side", self.base)
+        (self.repo / "fixture.txt").write_text("synthetic side change\n")
+        self.git("add", "fixture.txt")
+        self.git("commit", "-qm", "synthetic side")
+        self.git("checkout", "-q", self.primary_branch)
+        merge = subprocess.run(
+            ["git", "merge", "--no-ff", "synthetic-side", "-m", "synthetic merge"],
+            cwd=self.repo, capture_output=True, text=True, check=False,
+        )
+        self.assertNotEqual(0, merge.returncode, "expected a fixture merge conflict")
+        (self.repo / "fixture.txt").write_text("resolved synthetic fixture\n")
+        marker = "SYNTHETIC_MERGE_RESOLUTION_ONLY"
+        (self.repo / "merge-only.txt").write_text(marker + "\n")
+        self.git("add", "fixture.txt", "merge-only.txt")
+        self.git("commit", "-qm", "resolve synthetic merge")
+
+        ordinary = self.git("log", "-p", f"{self.base}..HEAD")
+        include_merges = self.git(
+            "log", "-p", "--diff-merges=first-parent", f"{self.base}..HEAD"
+        )
+        self.assertNotIn(marker, ordinary)
+        self.assertIn(marker, include_merges)
+
+        result = self.scan(self.base)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(
+            f"--log-opts=--diff-merges=first-parent {self.base}..HEAD",
+            self.log.read_text().splitlines(),
+        )
 
     def test_empty_range_fails_closed(self):
         result = self.scan(self.git("rev-parse", "HEAD").strip())
