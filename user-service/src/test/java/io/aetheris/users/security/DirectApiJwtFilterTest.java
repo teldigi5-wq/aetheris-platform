@@ -113,6 +113,18 @@ class DirectApiJwtFilterTest {
     }
 
     @Test
+    void matrixDecoratedApiPathRequiresJwtBeforeControllerInvocation() throws Exception {
+        io.aetheris.users.UserService service = org.mockito.Mockito.mock(io.aetheris.users.UserService.class);
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new io.aetheris.users.UserController(service))
+            .addFilters(new DirectApiJwtFilter(SECRET)).build();
+        mvc.perform(get("/api/users;variant=1"))
+            .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api;variant=1/users"))
+            .andExpect(status().isUnauthorized());
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void authorizedSignedRequestsReachActualControllerOnlyWithinScope() throws Exception {
         io.aetheris.users.UserService service = org.mockito.Mockito.mock(io.aetheris.users.UserService.class);
         MockMvc api=MockMvcBuilders.standaloneSetup(new io.aetheris.users.UserController(service))
