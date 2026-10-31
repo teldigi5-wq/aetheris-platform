@@ -178,6 +178,38 @@ class DirectApiRs256VerificationTest {
     }
 
     @Test
+    void rs256SignedUnverifiedTenantClaimCannotGrantUserObjectOwnership() throws Exception {
+        KeyPair signer = pair(2048);
+        io.aetheris.users.UserService service = mock(io.aetheris.users.UserService.class);
+        MockMvc mvc = api(service, pem(signer));
+        Instant now = Instant.now();
+
+        // Identity does not currently assign a trusted tenant_id. A cryptographically
+        // valid JWT with an injected tenant claim must NOT create object ownership.
+        for (String tenant : List.of("11111111-1111-4111-8111-111111111111",
+                                     "22222222-2222-4222-8222-222222222222")) {
+            String asserted = Jwts.builder()
+                .subject("synthetic-consumer@example.invalid")
+                .claim("uid", 42L).claim("role", "API_CONSUMER")
+                .claim("scopes", List.of("users:read"))
+                .claim("tenant_id", tenant)
+                .issuer(ISSUER).claim("aud", List.of(AUDIENCE))
+                .issuedAt(Date.from(now.minusSeconds(5)))
+                .expiration(Date.from(now.plusSeconds(180)))
+                .signWith(signer.getPrivate(), Jwts.SIG.RS256).compact();
+            for (long requestedUserId : new long[]{42L, 43L}) {
+                mvc.perform(get("/api/users/" + requestedUserId)
+                    .header("Authorization", "Bearer " + asserted)
+                    .header("X-Aetheris-Tenant-Id", tenant)
+                    .header("X-Aetheris-User-Id", String.valueOf(requestedUserId))
+                    .header("X-Aetheris-User-Role", "ADMIN"))
+                    .andExpect(status().isForbidden());
+            }
+        }
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void invalidKeyAndIncompleteTargetPolicyFailClosed() throws Exception {
         assertThrows(IllegalArgumentException.class,
             () -> new DirectApiJwtFilter(SECRET, ISSUER, AUDIENCE, "invalid", Clock.systemUTC()));
