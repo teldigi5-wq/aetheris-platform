@@ -124,3 +124,114 @@ jobs:
           python3 scripts/security/verify_xerj_privacy_preflight.py
           echo "XERJ_HUMAN_PRIVACY_AND_LICENCE_SIGNOFF_STILL_PENDING"
 
+  xerj-local-retrieval-preview:
+    name: xerj-local-retrieval-preview
+    needs: [xerj-pinned-source-scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR head without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Build a disposable localhost-only XERJ search preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 scripts/security/verify_xerj_source_scope.py
+          test "$(uname -m)" = x86_64
+
+          # Download an exact-version binary; never execute a curl-piped installer.
+          # This is the upstream official release digest verified by GitHub API.
+          version=1.0.0-rc.100
+          target=x86_64-unknown-linux-musl
+          asset="xerj-${version}-${target}.tar.gz"
+          expected=4b12a47e8433e9d01d2b3f505b17b342a6e28d41edaabd274eba5a759e9cde1e
+          work="$(mktemp -d "${RUNNER_TEMP}/aetheris-xerj-local.XXXXXXXX")"
+          node_pid=""
+          cleanup() {
+            if [[ -n "$node_pid" ]]; then
+              kill "$node_pid" > /dev/null 2>&1 || true
+              wait "$node_pid" > /dev/null 2>&1 || true
+            fi
+            rm -rf -- "$work"
+          }
+          trap cleanup EXIT
+
+          curl --fail --location --silent --show-error --proto '=https' \
+            --tlsv1.2 --retry 3 \
+            "https://github.com/xerj-org/xerj/releases/download/v${version}/$asset" \
+            --output "$work/$asset"
+          printf '%s  %s\n' "$expected" "$work/$asset" | sha256sum --check --status
+          tar -xzf "$work/$asset" -C "$work"
+          binary="$work/xerj-${version}-${target}/xerj"
+          test -f "$binary"
+          chmod 700 "$binary"
+          "$binary" --version > "$work/version.txt"
+          echo XERJ_RELEASE_CHECKSUM_AND_BINARY_VERIFIED
+
+          pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
+          mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
+          mkdir -p "$work/source" "$work/node"
+          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$work/source"
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
+          test "$(find "$work/source" -type f | wc -l)" -eq "$expected_count"
+          echo XERJ_LOCAL_SOURCE_ARCHIVE_VERIFIED
+
+          # Insecure mode is acceptable ONLY on this disposable loopback node
+          # with public, previously scanned source. Never bind externally.
+          "$binary" --insecure --bind 127.0.0.1 --data-dir "$work/node" \
+            > "$work/node.log" 2>&1 &
+          node_pid="$!"
+          ready=0
+          for attempt in $(seq 1 75); do
+            if curl --fail --silent --max-time 2 \
+              http://127.0.0.1:8080/v1/health > /dev/null; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$node_pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [[ "$ready" -ne 1 ]]; then
+            echo 'XERJ_LOCAL_NODE_START_FAILED (logs withheld)' >&2
+            exit 1
+          fi
+          echo XERJ_DISPOSABLE_LOOPBACK_NODE_READY
+
+          export XERJ_URL=http://127.0.0.1:9200
+          "$binary" autoindex "$work/source" --url "$XERJ_URL" \
+            --prefix aetheris-xerj-review --no-semantic \
+            --workers 2 --progress none --json \
+            > "$work/index.json" 2> "$work/index.err" || {
+              echo 'XERJ_LOCAL_AUTOINDEX_FAILED (source and logs withheld)' >&2
+              exit 1
+            }
+          echo XERJ_LOCAL_AUTOINDEX_COMPLETE
+
+          # Capture passages only in temporary runner files; never log source.
+          "$binary" search "JwtAuthenticationFilter" \
+            --prefix aetheris-xerj-review > "$work/gateway-query.txt" 2>&1 || {
+              echo 'XERJ_GATEWAY_QUERY_FAILED' >&2
+              exit 1
+            }
+          "$binary" search "RefreshTokenService" \
+            --prefix aetheris-xerj-review > "$work/identity-query.txt" 2>&1 || {
+              echo 'XERJ_IDENTITY_QUERY_FAILED' >&2
+              exit 1
+            }
+          grep -Fq 'JwtAuthenticationFilter' "$work/gateway-query.txt" || {
+            echo 'XERJ_GATEWAY_RETRIEVAL_EMPTY' >&2
+            exit 1
+          }
+          grep -Fq 'RefreshTokenService' "$work/identity-query.txt" || {
+            echo 'XERJ_IDENTITY_RETRIEVAL_EMPTY' >&2
+            exit 1
+          }
+          echo "XERJ_LOCAL_TWO_DOMAIN_RETRIEVAL_PASS files=$expected_count publication=NOT_AUTHORIZED"
