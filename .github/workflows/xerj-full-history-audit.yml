@@ -1,0 +1,174 @@
+name: XERJ full Git history secret audit (read-only, review only)
+
+on:
+  push:
+    branches:
+      - security/xerj-full-history-audit-20261101
+
+permissions:
+  contents: read
+
+jobs:
+  all-ref-history-scan:
+    name: xerj-full-history-${{ matrix.short }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - short: platform
+            repository: teldigi5-wq/aetheris-platform
+          - short: runtime
+            repository: teldigi5-wq/aetheris-ai-runtime
+    steps:
+      - name: Check out public repository with full branches and tags
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: ${{ matrix.repository }}
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+          path: target
+
+      - name: Verify all remote branch and tag refs were fetched
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          [[ "$(git rev-parse --is-shallow-repository)" == false ]] ||
+            { echo 'ERROR: shallow Git history'; exit 2; }
+          [[ -z "$(git for-each-ref --format='%(refname)' refs/replace)" ]] ||
+            { echo 'ERROR: Git replacement refs present'; exit 2; }
+          [[ ! -e "$(git rev-parse --git-path info/grafts)" ]] ||
+            { echo 'ERROR: Git grafts present'; exit 2; }
+          [[ ! -e .gitleaks.toml && ! -L .gitleaks.toml ]] ||
+            { echo 'ERROR: scanner override not permitted'; exit 2; }
+          [[ ! -e .gitleaksignore && ! -L .gitleaksignore ]] ||
+            { echo 'ERROR: scanner ignore file not permitted'; exit 2; }
+          python3 - <<'PY'
+          import subprocess
+          def git(*args):
+              return subprocess.check_output(["git", *args], text=True).strip()
+          remote_lines = git("ls-remote", "--heads", "--tags", "origin").splitlines()
+          refs = {}
+          for line in remote_lines:
+              sha, ref = line.split("\t", 1)
+              if ref.endswith("^{}"):
+                  continue
+              if ref.startswith("refs/heads/"):
+                  local = "refs/remotes/origin/" + ref[len("refs/heads/"):]
+              elif ref.startswith("refs/tags/"):
+                  local = ref
+              else:
+                  continue
+              refs[local] = sha
+          if not refs or not any(r.startswith("refs/remotes/origin/") for r in refs):
+              raise SystemExit("ERROR: remote branch refs missing")
+          errors = []
+          for local, expected in refs.items():
+              p = subprocess.run(["git", "show-ref", "--verify", "--hash", local],
+                                 text=True, capture_output=True, check=False)
+              if p.returncode or p.stdout.strip() != expected:
+                  errors.append(local)
+          if errors:
+              raise SystemExit(f"ERROR: {len(errors)} missing or mismatched remote refs")
+          branches = sum(x.startswith("refs/remotes/origin/") for x in refs)
+          tags = sum(x.startswith("refs/tags/") for x in refs)
+          commits = git("rev-list", "--all", "--count")
+          merges = git("rev-list", "--all", "--merges", "--count")
+          print(f"PASS: remote refs agree: branches={branches}, tags={tags}, commits={commits}, merge_commits={merges}")
+          PY
+
+      - name: Install checksum-pinned Gitleaks v8.30.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=8.30.1
+          archive="gitleaks_${version}_linux_x64.tar.gz"
+          expected=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          install_dir="${RUNNER_TEMP}/xerj-gitleaks-bin"
+          mkdir -m 700 -p "$install_dir"
+          curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 --retry 3 \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${archive}" \
+            -o "$install_dir/$archive"
+          printf '%s  %s\n' "$expected" "$install_dir/$archive" | sha256sum -c --status
+          tar -xzf "$install_dir/$archive" -C "$install_dir" gitleaks
+          chmod 755 "$install_dir/gitleaks"
+          echo "$install_dir" >> "$GITHUB_PATH"
+
+      - name: Audit complete reachable Git history (never upload raw findings)
+        shell: bash
+        env:
+          AUDIT_REPOSITORY: ${{ matrix.repository }}
+        run: |
+          set -euo pipefail
+          umask 077
+          evidence_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-full-history.XXXXXXXX")"
+          trap 'rm -rf -- "$evidence_dir"' EXIT
+          cd target
+          set +e
+          gitleaks git --redact --ignore-gitleaks-allow \
+            --log-opts="--all --diff-merges=first-parent --text --no-ext-diff --no-textconv" \
+            --report-format json --report-path "$evidence_dir/findings.json" \
+            . >"$evidence_dir/scanner.stdout" 2>"$evidence_dir/scanner.stderr"
+          scan_rc=$?
+          set -e
+          python3 - "$evidence_dir/findings.json" "$scan_rc" <<'PY'
+          import json, os, pathlib, sys
+          report = pathlib.Path(sys.argv[1])
+          code = int(sys.argv[2])
+          if code not in (0, 1):
+              raise SystemExit(f"ERROR: Gitleaks operational failure (exit={code})")
+          if not report.is_file():
+              raise SystemExit("ERROR: Gitleaks did not create a JSON report")
+          findings = json.loads(report.read_text())
+          if not isinstance(findings, list) or any(not isinstance(f, dict) for f in findings):
+              raise SystemExit("ERROR: unexpected Gitleaks report schema")
+          count = len(findings)
+          if (count > 0) != (code == 1):
+              raise SystemExit("ERROR: Gitleaks exit code and finding count disagree")
+          repo = os.environ["AUDIT_REPOSITORY"]
+          message = f"{repo}: full-history detector findings={count}; exit_code={code}"
+          print(message)
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a") as f:
+                  f.write(f"### {repo} — private full-history audit\n\n")
+                  f.write(f"Detected findings: **{count}**. No raw values or report uploaded.\n\n")
+                  f.write("Historical findings are not automatically production credentials.\n")
+          # Print ONLY narrowly selected metadata, never Line/Match/Secret/Entropy.
+          # File names come from untrusted Git history; reject unsafe path shapes.
+          import hashlib, re
+          metadata = set()
+          for finding in findings:
+              raw_path = finding.get("File", "")
+              path = str(raw_path) if isinstance(raw_path, str) else ""
+              valid_path = (bool(re.fullmatch(r"[A-Za-z0-9_./-]{1,250}", path))
+                            and not any(p in ("", ".", "..") or len(p) > 65
+                                        for p in path.split("/")))
+              safe_path = (path if valid_path else
+                           "redacted-path-" + hashlib.sha256(
+                               path.encode("utf-8", "replace")).hexdigest()[:16])
+              raw_rule = finding.get("RuleID", "")
+              rule = (raw_rule if isinstance(raw_rule, str) and
+                      re.fullmatch(r"[A-Za-z0-9_-]{1,80}", raw_rule)
+                      else "unrecognized-rule")
+              raw_commit = finding.get("Commit", "")
+              commit = (raw_commit if isinstance(raw_commit, str) and
+                        re.fullmatch(r"[0-9a-f]{40}", raw_commit)
+                        else "unresolved-commit")
+              raw_line = finding.get("StartLine", 0)
+              line = (raw_line if type(raw_line) is int and 0 < raw_line < 10000000
+                      else 0)
+              metadata.add((safe_path, commit, line, rule))
+          print("METADATA_ONLY_START")
+          for path, commit, line, rule in sorted(metadata):
+              print(json.dumps({"path": path, "commit": commit, "line": line,
+                                "rule": rule}, sort_keys=True, separators=(",", ":")))
+          print("METADATA_ONLY_END")
+          print(f"Metadata-only records={len(metadata)}; raw scanner output not retained.")
+          if count:
+              raise SystemExit("SECURITY HOLD: findings require classification; raw evidence destroyed at job exit")
+          PY
