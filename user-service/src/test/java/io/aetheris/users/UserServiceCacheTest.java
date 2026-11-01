@@ -1,6 +1,7 @@
 package io.aetheris.users;
 
 import io.aetheris.users.dto.CreateUserRequest;
+import io.aetheris.users.dto.UserResponse;
 import io.aetheris.users.events.UserEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.CacheManager;
@@ -13,6 +14,8 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -36,6 +39,28 @@ class UserServiceCacheTest {
 
             verify(repository, times(2)).findAll();
             verify(repository).existsByEmail("new@example.com");
+        }
+    }
+
+    @Test
+    void cachedUserListCannotBePoisonedByCallerMutation() {
+        try (AnnotationConfigApplicationContext context =
+                 new AnnotationConfigApplicationContext(TestConfig.class)) {
+            UserRepository repository = context.getBean(UserRepository.class);
+            UserService service = context.getBean(UserService.class);
+            when(repository.findAll()).thenReturn(
+                List.of(new User("Synthetic", "synthetic@example.invalid")));
+
+            List<UserResponse> first = service.findAll();
+            assertEquals(1, first.size());
+            assertThrows(UnsupportedOperationException.class,
+                () -> first.add(new UserResponse(777L, "Forged", "forged@example.invalid")),
+                "A caller must not be able to poison the shared cached list");
+
+            List<UserResponse> second = service.findAll();
+            assertEquals(List.of(
+                new UserResponse(null, "Synthetic", "synthetic@example.invalid")), second);
+            verify(repository, times(1)).findAll();
         }
     }
 
