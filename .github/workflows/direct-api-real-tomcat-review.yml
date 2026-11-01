@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest,DirectApiEncodedPathRealTomcatTest test
-      - name: Review boundary: no release or production certificate decision
+      - name: 'Review boundary — no release or production certificate decision'
         shell: bash
         run: |
           echo 'REAL_TOMCAT_HTTP_NEGATIVE_AND_SIGNED_POSITIVE_TESTS_PASS_REVIEW_ONLY'
