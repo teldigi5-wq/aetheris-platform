@@ -22,6 +22,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,10 +41,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @JdbcTest(properties = {"spring.flyway.enabled=false"})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 class SyntheticSignedTenantBindingTest {
-    private static final String TEST_SECRET =
-        "SYNTHETIC_TENANT_HMAC_KEY_TEST_ONLY_NOT_DEPLOYED_20261027_64_BYTES";
-    private static final String WRONG_SECRET =
-        "WRONG_SIGNING_KEY_NEVER_USED_BY_REAL_IDENTITY_SERVICE_20261027";
+    private static final String TEST_SECRET = ephemeralTestSecret();
+    private static final String WRONG_SECRET = differentEphemeralTestSecret();
+
+    private static String ephemeralTestSecret() {
+        byte[] raw = new byte[32];
+        new java.security.SecureRandom().nextBytes(raw);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+    }
+
+    private static String differentEphemeralTestSecret() {
+        String value;
+        do { value = ephemeralTestSecret(); } while (value.equals(TEST_SECRET));
+        return value;
+    }
     private static final SecretKey TEST_KEY =
         Keys.hmacShaKeyFor(TEST_SECRET.getBytes(StandardCharsets.UTF_8));
     private static final UUID TENANT_A =
@@ -80,8 +91,10 @@ class SyntheticSignedTenantBindingTest {
 
     /**
      * A candidate test-only policy, NOT an endpoint: independently verify
-     * the signature and essential consumer claims, then query an exact
-     * immutable-looking tuple. The DB role may SELECT only in this rehearsal.
+     * the signature and essential consumer claims, then query both the exact
+     * binding AND independently administered active, unrevoked, unexpired
+     * membership in one parameterized SQL statement. The DB role may SELECT
+     * only in this rehearsal.
      * An actual rollout additionally needs trusted issuer/audience/key custody,
      * authenticated tenant assignment, durable migrations and revocation.
      */
@@ -107,8 +120,20 @@ class SyntheticSignedTenantBindingTest {
             if (!parsedTenant.toString().equals(tenant)) return false;
             if (!claims.getExpiration().after(claims.getIssuedAt())) return false;
             return Boolean.TRUE.equals(jdbc.queryForObject(
-                "SELECT EXISTS (SELECT 1 FROM user_stage.synthetic_user_owner_bindings " +
-                "WHERE identity_uid=? AND user_id=? AND tenant_id=?::uuid)",
+                """
+                SELECT EXISTS (
+                  SELECT 1
+                  FROM user_stage.synthetic_user_owner_bindings binding
+                  JOIN user_stage.synthetic_identity_tenant_memberships membership
+                    ON membership.identity_uid = binding.identity_uid
+                   AND membership.tenant_id = binding.tenant_id
+                  WHERE binding.identity_uid = ?
+                    AND binding.user_id = ?
+                    AND binding.tenant_id = ?::uuid
+                    AND membership.revoked_at IS NULL
+                    AND membership.expires_at > statement_timestamp()
+                )
+                """,
                 Boolean.class, uid, requestedUserId, tenant));
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException invalid) {
             return false;
@@ -120,9 +145,18 @@ class SyntheticSignedTenantBindingTest {
         long a = user("user-role@example.invalid");
         long b = user("user-two-role@example.invalid");
         assertNotEquals(a, b);
-        // Deliberately crossed ownership rows: matching IDs must NOT pass.
-        assertTrue(admitsSyntheticObject(consumer(b, TENANT_A), a));
-        assertTrue(admitsSyntheticObject(consumer(a, TENANT_B), b));
+        // Only ACTIVE tenant membership plus the exact crossed object binding
+        // can authorize this disposable SQL witness. Signed tenant claims alone
+        // may NEVER resurrect a revoked or expired membership.
+        String phase = System.getProperty("aetheris.membership.phase", "");
+        assertTrue(List.of("active", "revoked", "expired").contains(phase),
+            "Explicit synthetic membership phase is mandatory");
+        assertEquals(phase.equals("active"),
+            admitsSyntheticObject(consumer(b, TENANT_A), a),
+            "Revoking Tenant A must deny its formerly signed object grant");
+        assertEquals(!phase.equals("expired"),
+            admitsSyntheticObject(consumer(a, TENANT_B), b),
+            "Expiring Tenant B must deny its formerly signed object grant");
         assertFalse(admitsSyntheticObject(consumer(a, TENANT_A), a));
         assertFalse(admitsSyntheticObject(consumer(b, TENANT_B), b));
         assertFalse(admitsSyntheticObject(consumer(b, TENANT_B), a));
