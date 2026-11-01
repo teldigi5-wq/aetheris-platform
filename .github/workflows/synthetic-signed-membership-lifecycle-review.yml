@@ -1,0 +1,53 @@
+name: Signed tenant membership revocation PostgreSQL proof (review only)
+on:
+  push:
+    branches: [security/synthetic-signed-tenant-revocation-20261101]
+    paths:
+      - '.github/workflows/synthetic-signed-membership-lifecycle-review.yml'
+      - 'scripts/security/rehearse_shared_db_three_roles.sh'
+      - 'user-service/src/test/java/io/aetheris/users/security/SyntheticSignedTenantBindingTest.java'
+permissions:
+  contents: read
+jobs:
+  signed-membership-revocation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Checkout isolated security branch without stored credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use pinned Java 21 toolchain
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Assert expected revision and synthetic-only source layout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test -z "$(git status --porcelain)"
+          python3 - <<'PY'
+          from pathlib import Path
+          content = Path("user-service/src/test/java/io/aetheris/users/security/SyntheticSignedTenantBindingTest.java").read_text()
+          assert "membership.revoked_at IS NULL" in content
+          assert "membership.expires_at > statement_timestamp()" in content
+          assert "JOIN user_stage.synthetic_identity_tenant_memberships" in content
+          source = Path("scripts/security/rehearse_shared_db_three_roles.sh").read_text()
+          assert source.count("SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic") == 3
+          assert source.index("CREATE TABLE user_stage.synthetic_identity_tenant_memberships") < source.index("SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic")
+          print("SYNTHETIC_SIGNED_MEMBERSHIP_SOURCE_GUARDS_PASS")
+          PY
+          bash -n scripts/security/rehearse_shared_db_three_roles.sh
+      - name: Rehearse signed and revoked/expired membership against disposable PostgreSQL16
+        shell: bash
+        run: |
+          set -euo pipefail
+          AETHERIS_THREE_ROLE_SYNTHETIC_ONLY=yes bash scripts/security/rehearse_shared_db_three_roles.sh
+          echo SIGNED_MEMBERSHIP_THREE_PHASE_POSTGRES_REHEARSAL_PASS
+      - name: Confirm review-only NO_GO
+        shell: bash
+        run: |
+          echo 'REVIEW_ONLY_NO_PRODUCTION_DB_NO_MERGE_NO_XERJ'
