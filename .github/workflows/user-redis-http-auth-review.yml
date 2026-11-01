@@ -1,0 +1,70 @@
+name: Signed User HTTP authorization before Redis reads (review only)
+on:
+  push:
+    branches: [security/user-redis-auth-http-boundary-20261101]
+    paths:
+      - '.github/workflows/user-redis-http-auth-review.yml'
+      - 'user-service/src/test/java/io/aetheris/users/security/DirectApiRedisAuthorizationRealHttpTest.java'
+      - 'user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java'
+      - 'user-service/src/main/java/io/aetheris/users/CacheConfig.java'
+      - 'user-service/src/main/java/io/aetheris/users/UserService.java'
+permissions:
+  contents: read
+jobs:
+  jwt-before-redis-real-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 16389:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 6
+    env:
+      AETHERIS_REDIS_SYNTHETIC_ONLY: 'yes'
+    steps:
+      - name: Check out exact review commit without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Assert revision, disposable Redis reachability and test isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          import socket
+          with socket.create_connection(("127.0.0.1", 16389), timeout=5) as conn:
+              conn.sendall(b"*1\r\n$4\r\nPING\r\n")
+              assert conn.recv(64).startswith(b"+PONG")
+          from pathlib import Path
+          code = Path("user-service/src/test/java/io/aetheris/users/security/DirectApiRedisAuthorizationRealHttpTest.java").read_text()
+          for guard in ("@SpringBootTest(", "UserController.class", "DirectApiJwtFilter.class", "CacheConfig.class",
+                        "API_CONSUMER", "verifyNoMoreInteractions(repository)", "tenant-alpha",
+                        "X-Aetheris-User-Role"):
+              assert guard in code, guard
+          print("REAL_HTTP_REDIS_JWT_SECURITY_TEST_GUARDS_PASS")
+          PY
+      - name: Run real Tomcat JWT denial before Redis cache plus existing regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f user-service/pom.xml \
+            -Daetheris.redis.auth.http.review=true \
+            -Daetheris.redis.integration=true \
+            -Dtest=DirectApiRedisAuthorizationRealHttpTest,DirectApiEncodedPathRealTomcatTest,DirectApiJwtFilterTest,UserServiceRedisCacheIntegrationTest,UserServiceCacheTest,UserServiceTest test
+          echo 'REAL_HTTP_REDIS_JWT_DENY_BEFORE_CACHE_PASS'
+      - name: Review-only release boundary
+        shell: bash
+        run: |
+          echo 'NO_LIVE_TENANT_GRANTS_NO_MERGE_NO_DEPLOY_NO_XERJ_STAGE45_NO_GO'
