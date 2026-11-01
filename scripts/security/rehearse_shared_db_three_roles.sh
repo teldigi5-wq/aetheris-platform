@@ -159,10 +159,8 @@ assert_denied user_runtime "$usrp" "INSERT INTO user_stage.synthetic_user_owner_
 assert_denied identity_migrator "$idmp" "SELECT * FROM user_stage.synthetic_user_owner_bindings;"
 run_migration user_runtime "$usrp" user_stage user-service SyntheticUserOwnershipBindingTest aetheris.object.binding.synthetic
 echo THREE_ROLE_SYNTHETIC_CROSS_TENANT_OBJECT_OWNERSHIP_DENIALS_PASS
-# Link synthetic JWT signature validation to the *same* disposable ownership
-# records. No live Identity token or controller permission is modified.
-run_migration user_runtime "$usrp" user_stage user-service SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic
-echo THREE_ROLE_SIGNED_TENANT_BINDING_AND_HTTP_DENY_PROOF_PASS
+# A binding alone must not authorize signed tokens; run the combined signed
+# membership tests ONLY after the independent membership fixture exists.
 
 # SYNTHETIC lifecycle rehearsal: the object binding alone is insufficient.
 # A separate, independently controlled membership must be active, unrevoked
@@ -193,6 +191,9 @@ assert_denied identity_runtime "$idrp" \
 run_migration user_runtime "$usrp" user_stage user-service \
   SyntheticTenantMembershipLifecycleTest aetheris.membership.lifecycle.synthetic active
 echo THREE_ROLE_SYNTHETIC_MEMBERSHIP_ACTIVE_BOUNDARY_PASS
+run_migration user_runtime "$usrp" user_stage user-service \
+  SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic active
+echo THREE_ROLE_SIGNED_TENANT_ACTIVE_AND_HTTP_DENY_PROOF_PASS
 
 # Independent JDBC connections intentionally overlap a runtime transaction
 # and a migrator revocation transaction. This proves READ COMMITTED sees the
@@ -218,6 +219,9 @@ role_sql user_migrator "$usmp" "UPDATE user_stage.synthetic_identity_tenant_memb
 run_migration user_runtime "$usrp" user_stage user-service \
   SyntheticTenantMembershipLifecycleTest aetheris.membership.lifecycle.synthetic revoked
 echo THREE_ROLE_SYNTHETIC_MEMBERSHIP_REVOCATION_DENIED
+run_migration user_runtime "$usrp" user_stage user-service \
+  SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic revoked
+echo THREE_ROLE_SIGNED_TENANT_REVOKED_DENY_PROOF_PASS
 
 role_sql user_migrator "$usmp" "UPDATE user_stage.synthetic_identity_tenant_memberships
   SET expires_at = now() - interval '1 day'
@@ -226,6 +230,9 @@ role_sql user_migrator "$usmp" "UPDATE user_stage.synthetic_identity_tenant_memb
 run_migration user_runtime "$usrp" user_stage user-service \
   SyntheticTenantMembershipLifecycleTest aetheris.membership.lifecycle.synthetic expired
 echo THREE_ROLE_SYNTHETIC_MEMBERSHIP_EXPIRATION_DENIED
+run_migration user_runtime "$usrp" user_stage user-service \
+  SyntheticSignedTenantBindingTest aetheris.signed.binding.synthetic expired
+echo THREE_ROLE_SIGNED_TENANT_EXPIRED_DENY_PROOF_PASS
 
 
 
