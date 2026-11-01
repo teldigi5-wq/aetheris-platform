@@ -1,0 +1,61 @@
+name: Redis user cache round-trip (review only)
+on:
+  push:
+    branches: [security/user-cache-redis-serialization-20261101]
+    paths:
+      - '.github/workflows/user-cache-redis-roundtrip-review.yml'
+      - 'user-service/src/test/java/io/aetheris/users/UserServiceRedisCacheIntegrationTest.java'
+      - 'user-service/src/main/java/io/aetheris/users/UserService.java'
+      - 'user-service/src/main/java/io/aetheris/users/CacheConfig.java'
+permissions:
+  contents: read
+jobs:
+  redis-cache-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 16389:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 6
+    env:
+      AETHERIS_REDIS_SYNTHETIC_ONLY: 'yes'
+    steps:
+      - name: Check out isolated review branch without persisted GitHub tokens
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify dedicated local Redis is reachable
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import socket
+          with socket.create_connection(('127.0.0.1', 16389), timeout=5) as conn:
+              conn.sendall(b"*1\r\n$4\r\nPING\r\n")
+              assert conn.recv(64).startswith(b"+PONG")
+          print("DISPOSABLE_REDIS_LOOPBACK_PONG")
+          PY
+      - name: Run Spring real-Redis cache and existing User tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f user-service/pom.xml \
+            -Daetheris.redis.integration=true \
+            -Dtest=UserServiceRedisCacheIntegrationTest,UserServiceCacheTest,UserServiceTest test
+      - name: Review only, XERJ and Stage45 release blocked
+        shell: bash
+        run: |
+          echo 'REDIS_USER_CACHE_ROUND_TRIP_REVIEW_ONLY'
+          echo 'NO_TENANT_GRANTS_NO_MERGE_NO_PRODUCTION_NO_XERJ'
