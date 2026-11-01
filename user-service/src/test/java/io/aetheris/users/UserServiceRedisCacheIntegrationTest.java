@@ -13,6 +13,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -57,6 +58,26 @@ class UserServiceRedisCacheIntegrationTest {
         @Bean
         UserService service(UserRepository repository, UserEventPublisher publisher) {
             return new UserService(repository, publisher);
+        }
+    }
+
+    @Test
+    void singleUserCacheMustUseTypedRecordAndUnknownCachesMustBeDisabled() {
+        UserResponse expected = new UserResponse(null, "Single Redis", "single@example.invalid");
+        try (AnnotationConfigApplicationContext firstContext = context()) {
+            assertNull(firstContext.getBean(org.springframework.cache.CacheManager.class)
+                .getCache("arbitrary-unreviewed-cache"),
+                "Only approved typed cache names may be created");
+            UserRepository repository = firstContext.getBean(UserRepository.class);
+            when(repository.findById(7L)).thenReturn(
+                Optional.of(new User("Single Redis", "single@example.invalid")));
+            assertEquals(expected, firstContext.getBean(UserService.class).findById(7L));
+            verify(repository, times(1)).findById(7L);
+        }
+        try (AnnotationConfigApplicationContext secondContext = context()) {
+            UserRepository repository = secondContext.getBean(UserRepository.class);
+            assertEquals(expected, secondContext.getBean(UserService.class).findById(7L));
+            verifyNoInteractions(repository);
         }
     }
 
