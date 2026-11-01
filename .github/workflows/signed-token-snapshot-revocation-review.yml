@@ -1,0 +1,57 @@
+name: Signed JWT revocation snapshot PostgreSQL proof (review only)
+on:
+  push:
+    branches: [security/signed-token-revocation-snapshot-20261101]
+    paths:
+      - '.github/workflows/signed-token-snapshot-revocation-review.yml'
+      - 'user-service/src/test/java/io/aetheris/users/security/SyntheticConcurrentMembershipRevocationTest.java'
+      - 'docs/security/AUTHORITATIVE_TENANT_MEMBERSHIP_CONTRACT_20261101.md'
+permissions:
+  contents: read
+jobs:
+  exact-signed-token-revocation-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - name: Check out isolated branch without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Use Java 21 for synthetic-only test
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Static safety and source assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          bash -n scripts/security/rehearse_shared_db_three_roles.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          test = Path("user-service/src/test/java/io/aetheris/users/security/SyntheticConcurrentMembershipRevocationTest.java").read_text()
+          for must in (
+              "String sameSignedToken = syntheticToken(",
+              "admitsSignedObject(reader, sameSignedToken, objectId)",
+              "changeRevocation(writer, identityUid, true)",
+              "TRANSACTION_READ_COMMITTED",
+              "TRANSACTION_REPEATABLE_READ",
+              "membership",
+          ):
+              if must == "membership":
+                  must = "synthetic_identity_tenant_memberships"
+              assert must in test, f"Missing guarded test concept: {must}"
+          print("REVIEW_ONLY_SAME_SIGNED_TOKEN_SOURCE_GUARDS_PASS")
+          PY
+      - name: Execute complete isolated PostgreSQL16 membership and migration rehearsal
+        shell: bash
+        run: |
+          set -euo pipefail
+          AETHERIS_THREE_ROLE_SYNTHETIC_ONLY=yes bash scripts/security/rehearse_shared_db_three_roles.sh
+          echo SAME_SIGNED_TOKEN_REVOCATION_SYNTHETIC_PG16_TESTS_PASS
+      - name: Keep production and XERJ blocked
+        shell: bash
+        run: |
+          echo 'REVIEW_ONLY_NO_LIVE_MEMBERSHIP_NO_MERGE_NO_XERJ_STAGE45_NO_GO'
