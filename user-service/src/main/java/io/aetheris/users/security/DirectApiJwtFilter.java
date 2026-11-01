@@ -149,7 +149,16 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         // raw URI differs from the Spring MVC-matched controller path.
         // A skipped filter would bypass BOTH signed JWT and opt-in mTLS checks.
         // Non-API Actuator diagnostics retain their independent access policy.
-        return !routePath(request).startsWith("/api");
+        // The raw request URI is not decoded, but ServletPath/PathInfo may
+        // be decoded/canonicalized by the container before MVC route mapping.
+        // Check all representations: a percent-encoded /api prefix must not
+        // bypass authentication when the controller sees a decoded /api route.
+        String rawPath = routePath(request);
+        String servletPath = request.getServletPath();
+        String pathInfo = request.getPathInfo();
+        return !((rawPath != null && rawPath.startsWith("/api"))
+                || (servletPath != null && servletPath.startsWith("/api"))
+                || (pathInfo != null && pathInfo.startsWith("/api")));
     }
 
     @Override

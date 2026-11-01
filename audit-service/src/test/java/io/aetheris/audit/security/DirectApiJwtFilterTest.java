@@ -3,6 +3,9 @@ package io.aetheris.audit.security;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -92,6 +95,33 @@ class DirectApiJwtFilterTest {
             valid("API_CONSUMER","services:read",42))))
             .andExpect(status().isForbidden());
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void decodedServletApiPathCannotSkipSignedJwtFilter() throws Exception {
+        // Servlet containers may expose encoded requestURI and separately
+        // decoded servletPath. Controller routing must never bypass auth.
+        DirectApiJwtFilter filter = new DirectApiJwtFilter(SECRET);
+        for (String rawUri : List.of("/%61pi/events", "/tenant/%61pi/events")) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", rawUri);
+            if (rawUri.startsWith("/tenant/")) request.setContextPath("/tenant");
+            request.setServletPath("/api/events");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+            filter.doFilter(request, response, chain);
+            assertEquals(401, response.getStatus(), "Fail closed for " + rawUri);
+            assertNull(chain.getRequest(), "The protected controller must not be invoked");
+        }
+        // Some servlet mappings use an empty servletPath and decoded pathInfo.
+        MockHttpServletRequest viaPathInfo = new MockHttpServletRequest(
+            "GET", "/%61pi/events");
+        viaPathInfo.setServletPath("");
+        viaPathInfo.setPathInfo("/api/events");
+        MockHttpServletResponse pathInfoResponse = new MockHttpServletResponse();
+        MockFilterChain pathInfoChain = new MockFilterChain();
+        filter.doFilter(viaPathInfo, pathInfoResponse, pathInfoChain);
+        assertEquals(401, pathInfoResponse.getStatus());
+        assertNull(pathInfoChain.getRequest());
     }
 
     @Test

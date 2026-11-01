@@ -1,0 +1,33 @@
+name: Backend encoded-path authorization regression (review only)
+on:
+  push:
+    branches:
+      - security/direct-api-decoded-path-boundary-20261101
+    paths:
+      - '.github/workflows/direct-api-decoded-path-review.yml'
+      - 'user-service/src/main/java/io/aetheris/users/security/DirectApiJwtFilter.java'
+      - 'audit-service/src/main/java/io/aetheris/audit/security/DirectApiJwtFilter.java'
+      - 'user-service/src/test/java/io/aetheris/users/security/DirectApiJwtFilterTest.java'
+      - 'audit-service/src/test/java/io/aetheris/audit/security/DirectApiJwtFilterTest.java'
+permissions:
+  contents: read
+jobs:
+  review-only-direct-servlet-filter-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Run User and Audit direct-filter regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=DirectApiJwtFilterTest test
+          echo 'REVIEW_ONLY_USER_AUDIT_DECODED_PATH_AUTH_REGRESSION_PASS'
