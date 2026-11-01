@@ -3,6 +3,9 @@ package io.aetheris.users.security;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -110,6 +113,23 @@ class DirectApiJwtFilterTest {
             valid("API_CONSUMER","users:read",42))))
             .andExpect(status().isForbidden());
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void decodedServletApiPathCannotSkipSignedJwtFilter() throws Exception {
+        // Servlet containers may expose encoded requestURI and separately
+        // decoded servletPath. Controller routing must never bypass auth.
+        DirectApiJwtFilter filter = new DirectApiJwtFilter(SECRET);
+        for (String rawUri : List.of("/%61pi/users", "/tenant/%61pi/users")) {
+            MockHttpServletRequest request = new MockHttpServletRequest("GET", rawUri);
+            if (rawUri.startsWith("/tenant/")) request.setContextPath("/tenant");
+            request.setServletPath("/api/users");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+            filter.doFilter(request, response, chain);
+            assertEquals(401, response.getStatus(), "Fail closed for " + rawUri);
+            assertNull(chain.getRequest(), "The protected controller must not be invoked");
+        }
     }
 
     @Test
