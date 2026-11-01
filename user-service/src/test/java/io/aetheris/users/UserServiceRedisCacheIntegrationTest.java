@@ -4,31 +4,26 @@ import io.aetheris.users.dto.UserResponse;
 import io.aetheris.users.events.UserEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
-import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.cache.RedisCacheConfiguration;
-import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 
 import java.util.List;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /**
  * REAL disposable Redis TCP integration, not a mock Redis or production DB.
- * Checks the exact GenericJackson2JsonRedisSerializer configured by CacheConfig.
+ * Uses CacheConfig's actual production RedisCacheManager and typed JSON serializers.
  * The cache key remains global: this test does NOT certify tenant isolation.
  */
 @EnabledIfSystemProperty(named = "aetheris.redis.integration", matches = "true")
 class UserServiceRedisCacheIntegrationTest {
-    private static final String NAMESPACE = "aetheris-review-" + UUID.randomUUID();
     private static final int SYNTHETIC_PORT = 16389;
 
     private static AnnotationConfigApplicationContext context() {
@@ -47,15 +42,6 @@ class UserServiceRedisCacheIntegrationTest {
         @Bean
         RedisConnectionFactory redisConnectionFactory() {
             return new LettuceConnectionFactory("127.0.0.1", SYNTHETIC_PORT);
-        }
-
-        @Bean
-        CacheManager cacheManager(RedisConnectionFactory factory,
-                                  RedisCacheConfiguration actualProductionConfig) {
-            // Add only a test-run namespace; retain production TTL and serializer.
-            return RedisCacheManager.builder(factory).cacheDefaults(
-                actualProductionConfig.computePrefixWith(
-                    name -> NAMESPACE + ":" + name + "::")).build();
         }
 
         @Bean
@@ -90,8 +76,8 @@ class UserServiceRedisCacheIntegrationTest {
             verify(repository, times(1)).findAll();
         }
 
-        // A completely new Spring context MUST hit Redis without touching the
-        // repository. A serialized immutable Java list must deserialize cleanly.
+        // A completely new Spring context MUST hit real Redis without touching the
+        // repository. The immutable source list must serialize and deserialize.
         try (AnnotationConfigApplicationContext secondContext = context()) {
             UserRepository repository = secondContext.getBean(UserRepository.class);
             List<UserResponse> second = secondContext.getBean(UserService.class).findAll();
