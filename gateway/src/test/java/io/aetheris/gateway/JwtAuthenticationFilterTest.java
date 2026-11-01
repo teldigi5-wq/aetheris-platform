@@ -67,6 +67,24 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void validTokenSignedByASeparateEphemeralKeyIsRejected() {
+        String foreignSecret = generateEphemeralTestSecret();
+        while (foreignSecret.equals(SECRET)) {
+            foreignSecret = generateEphemeralTestSecret();
+        }
+        String token = Jwts.builder()
+                .subject("user@example.com")
+                .claim("role", "API_CONSUMER")
+                .claim("uid", 42L)
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(300)))
+                .signWith(Keys.hmacShaKeyFor(foreignSecret.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        assertRejected("Bearer " + token, HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void malformedTokenIsRejected() {
         assertRejected("Bearer definitely-not-a-jwt", HttpStatus.UNAUTHORIZED);
     }
