@@ -33,6 +33,11 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void ephemeralSigningFixtureContains256BitsOfRandomKeyMaterial() {
+        assertEquals(32, Base64.getUrlDecoder().decode(SECRET).length);
+    }
+
+    @Test
     void validScopedTokenPassesAndVerifiedClaimsOverwriteSpoofedIdentityHeaders() {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
         String token = token(List.of("users:read"), Instant.now().plusSeconds(300));
