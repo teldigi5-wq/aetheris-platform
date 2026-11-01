@@ -138,6 +138,37 @@ jobs:
                   f.write(f"### {repo} — private full-history audit\n\n")
                   f.write(f"Detected findings: **{count}**. No raw values or report uploaded.\n\n")
                   f.write("Historical findings are not automatically production credentials.\n")
+          # Print ONLY narrowly selected metadata, never Line/Match/Secret/Entropy.
+          # File names come from untrusted Git history; reject unsafe path shapes.
+          import hashlib, re
+          metadata = set()
+          for finding in findings:
+              raw_path = finding.get("File", "")
+              path = str(raw_path) if isinstance(raw_path, str) else ""
+              valid_path = (bool(re.fullmatch(r"[A-Za-z0-9_./-]{1,250}", path))
+                            and not any(p in ("", ".", "..") or len(p) > 65
+                                        for p in path.split("/")))
+              safe_path = (path if valid_path else
+                           "redacted-path-" + hashlib.sha256(
+                               path.encode("utf-8", "replace")).hexdigest()[:16])
+              raw_rule = finding.get("RuleID", "")
+              rule = (raw_rule if isinstance(raw_rule, str) and
+                      re.fullmatch(r"[A-Za-z0-9_-]{1,80}", raw_rule)
+                      else "unrecognized-rule")
+              raw_commit = finding.get("Commit", "")
+              commit = (raw_commit if isinstance(raw_commit, str) and
+                        re.fullmatch(r"[0-9a-f]{40}", raw_commit)
+                        else "unresolved-commit")
+              raw_line = finding.get("StartLine", 0)
+              line = (raw_line if type(raw_line) is int and 0 < raw_line < 10000000
+                      else 0)
+              metadata.add((safe_path, commit, line, rule))
+          print("METADATA_ONLY_START")
+          for path, commit, line, rule in sorted(metadata):
+              print(json.dumps({"path": path, "commit": commit, "line": line,
+                                "rule": rule}, sort_keys=True, separators=(",", ":")))
+          print("METADATA_ONLY_END")
+          print(f"Metadata-only records={len(metadata)}; raw scanner output not retained.")
           if count:
               raise SystemExit("SECURITY HOLD: findings require classification; raw evidence destroyed at job exit")
           PY
