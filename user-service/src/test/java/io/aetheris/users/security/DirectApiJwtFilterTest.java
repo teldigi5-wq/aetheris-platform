@@ -130,6 +130,16 @@ class DirectApiJwtFilterTest {
             assertEquals(401, response.getStatus(), "Fail closed for " + rawUri);
             assertNull(chain.getRequest(), "The protected controller must not be invoked");
         }
+        // Some servlet mappings use an empty servletPath and decoded pathInfo.
+        MockHttpServletRequest viaPathInfo = new MockHttpServletRequest(
+            "GET", "/%61pi/users");
+        viaPathInfo.setServletPath("");
+        viaPathInfo.setPathInfo("/api/users");
+        MockHttpServletResponse pathInfoResponse = new MockHttpServletResponse();
+        MockFilterChain pathInfoChain = new MockFilterChain();
+        filter.doFilter(viaPathInfo, pathInfoResponse, pathInfoChain);
+        assertEquals(401, pathInfoResponse.getStatus());
+        assertNull(pathInfoChain.getRequest());
     }
 
     @Test
