@@ -12,7 +12,9 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,7 +22,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class JwtAuthenticationFilterTest {
-    private static final String SECRET = "0123456789abcdef0123456789abcdef";
+    // Fresh synthetic signing material for this test JVM only. Never reuse CI
+    // fixture keys as live application signing secrets.
+    private static final String SECRET = generateEphemeralTestSecret();
+
+    private static String generateEphemeralTestSecret() {
+        byte[] keyBytes = new byte[32];
+        new SecureRandom().nextBytes(keyBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(keyBytes);
+    }
 
     @Test
     void validScopedTokenPassesAndVerifiedClaimsOverwriteSpoofedIdentityHeaders() {
