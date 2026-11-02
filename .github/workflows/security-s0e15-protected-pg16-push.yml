@@ -40,7 +40,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$S0E15_EXPECTED_SHA"
           # Establish that the tag points to the CURRENT reviewed protected-base
           # head, rather than merely some other reachable commit in this repo.
-          git fetch --no-tags --depth=1 origin \
+          git fetch --no-tags origin \
             +refs/heads/test/security-four-service-db-logins-20261102:refs/remotes/origin/s0e15-verified-base
           test "$(git rev-parse refs/remotes/origin/s0e15-verified-base)" = "$S0E15_EXPECTED_SHA"
           git merge-base --is-ancestor d44d82f19d578c1c8e32b91911374a41bcea4aa8 HEAD
