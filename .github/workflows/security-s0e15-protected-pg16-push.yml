@@ -1,0 +1,89 @@
+# S0-E.15 v2 — TEST-ONLY review candidate. Requires protected-base PR review.
+# Invoked only by an explicitly approved SHA-bound test TAG after protected merge.
+# The workflow is sourced from the approved tagged commit, never a PR head.
+name: S0-E.15 Tag-Approved Disposable PG16 Four-Login Verification (NO_GO)
+on:
+  push:
+    tags:
+      - 's0e15-pg16-*'
+permissions:
+  contents: read
+concurrency:
+  group: s0e15-protected-pg16
+  cancel-in-progress: false
+jobs:
+  protected-four-service-pg16:
+    # Fail closed BEFORE runner allocation. Approval is for one exact protected
+    # commit AND the tag naming that same SHA; no green skipped push job.
+    if: >-
+      github.repository == 'teldigi5-wq/aetheris-platform' &&
+      github.event.deleted == false &&
+      github.ref == format('refs/tags/s0e15-pg16-{0}', github.sha) &&
+      vars.AETHERIS_S0E15_OWNER_APPROVED == 'YES_TEST_ONLY_PG16' &&
+      vars.AETHERIS_S0E15_APPROVED_SHA == github.sha &&
+      vars.AETHERIS_S0E15_IMAGE_DIGEST != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact protected-branch commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate exact reviewed commit and synthetic-only source
+        shell: bash
+        env:
+          S0E15_EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$S0E15_EXPECTED_SHA"
+          # Establish that the tag points to the CURRENT reviewed protected-base
+          # head, rather than merely some other reachable commit in this repo.
+          git fetch --no-tags --depth=1 origin \
+            +refs/heads/test/security-four-service-db-logins-20261102:refs/remotes/origin/s0e15-verified-base
+          test "$(git rev-parse refs/remotes/origin/s0e15-verified-base)" = "$S0E15_EXPECTED_SHA"
+          git merge-base --is-ancestor d44d82f19d578c1c8e32b91911374a41bcea4aa8 HEAD
+          test "$(git rev-parse HEAD:docker-compose.yml)" = "5f409670c960aa543a40948c57bcde86f54bb85e"
+          cd tools/security/s0e10_disposable_pg16
+          bash verify_offline.sh "$GITHUB_WORKSPACE"
+          bash -n scripts/ci_image_pin_gate.sh scripts/run_disposable_pg16_logins.sh
+          echo 'S0E15_PINNED_OFFLINE_GATE_PASS'
+      - name: Require reviewed exact image before pull
+        shell: bash
+        env:
+          S0E10_OWNER_APPROVED: ${{ vars.AETHERIS_S0E15_OWNER_APPROVED }}
+          S0E10_APPROVED_HEAD: ${{ vars.AETHERIS_S0E15_APPROVED_SHA }}
+          S0E10_ACTUAL_HEAD: ${{ github.sha }}
+          S0E10_PG16_IMAGE_DIGEST: ${{ vars.AETHERIS_S0E15_IMAGE_DIGEST }}
+        run: |
+          set -euo pipefail
+          cd tools/security/s0e10_disposable_pg16
+          # Match the harness's existing exact owner-consent string.
+          test "$S0E10_OWNER_APPROVED" = 'YES_TEST_ONLY_PG16'
+          export S0E10_OWNER_APPROVED='YES_SYNTHETIC_FOUR_LOGIN_PG16'
+          bash scripts/ci_image_pin_gate.sh
+      - name: Execute four independently authenticated disposable PostgreSQL logins
+        shell: bash
+        env:
+          S0E8_EXPLICIT_DISPOSABLE_APPROVAL: YES_FRESH_PG16_LOGIN_TEST
+          S0E8_LOCAL_DAEMON_AND_IMAGE_REVIEWED: YES
+        run: |
+          set -euo pipefail
+          cd tools/security/s0e10_disposable_pg16
+          bash scripts/run_disposable_pg16_logins.sh
+          echo 'S0E15_REAL_POSTGRES_FOUR_SERVICE_LOGIN_FIXTURE_PASS'
+      - name: Assert all production release gates remain blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security_closure_preflight.py --assert-blocked > "$RUNNER_TEMP/s0e15-closure.json"
+          python3 - "$RUNNER_TEMP/s0e15-closure.json" <<'PYTHON'
+          import json, sys
+          with open(sys.argv[1], encoding='utf-8') as source:
+              report = json.load(source)
+          assert report['status'] == 'NO_GO'
+          assert report['safe_to_merge_or_deploy'] is False
+          assert len(report['independent_release_attestations_required']) == 9
+          print('S0E15_POSTGRES_FIXTURE_PASS_IS_NOT_RELEASE_APPROVAL')
+          PYTHON
