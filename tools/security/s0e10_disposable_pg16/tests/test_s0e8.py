@@ -39,6 +39,7 @@ class EnvironmentSafety(unittest.TestCase):
         self.assertIn('S0E8_EXPLICIT_DISPOSABLE_APPROVAL', SCRIPT)
         self.assertIn('YES_FRESH_PG16_LOGIN_TEST', SCRIPT)
         self.assertIn('S0E8_LOCAL_DAEMON_AND_IMAGE_REVIEWED', SCRIPT)
+        self.assertIn('S0E8_APPROVED_IMAGE_DIGEST', SCRIPT)
         self.assertIn('[[ "${S0E8_LOCAL_DAEMON_AND_IMAGE_REVIEWED:-}" == \'YES\' ]]', SCRIPT)
 
     def test_rejects_endpoint_overrides_and_remote_context(self):
@@ -52,7 +53,9 @@ class EnvironmentSafety(unittest.TestCase):
         self.assertIn('--network none', SCRIPT)
         self.assertIn('--tmpfs /var/lib/postgresql/data:', SCRIPT)
         self.assertIn('--pull=never', SCRIPT)
-        self.assertIn('postgres:16-alpine', SCRIPT)
+        self.assertIn('docker.io/library/postgres@${S0E8_APPROVED_IMAGE_DIGEST}', SCRIPT)
+        self.assertIn('--pull=never', SCRIPT)
+        self.assertNotIn('postgres:16-alpine', SCRIPT)
         self.assertNotIn('docker compose', SCRIPT.lower())
         self.assertNotIn('aetheris_pg:', SCRIPT)
         self.assertNotIn(' -p 5432:5432', SCRIPT)

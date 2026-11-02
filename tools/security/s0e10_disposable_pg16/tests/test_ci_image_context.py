@@ -93,7 +93,7 @@ exit 0
         self.assertEqual(result.returncode, 4)
         self.assertEqual(lines, [])
 
-    def test_expected_local_context_admits_only_digest_pull_and_tag(self):
+    def test_expected_local_context_admits_only_digest_pull_and_inspect(self):
         result, lines = self.run_gate()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(lines), 4, lines)
@@ -104,8 +104,9 @@ exit 0
                          'pull docker.io/library/postgres@' +
                          self.env['S0E10_PG16_IMAGE_DIGEST'])
         self.assertEqual(lines[3],
-                         'image tag docker.io/library/postgres@' +
-                         self.env['S0E10_PG16_IMAGE_DIGEST'] + ' postgres:16-alpine')
+                         'image inspect docker.io/library/postgres@' +
+                         self.env['S0E10_PG16_IMAGE_DIGEST'])
+        self.assertFalse(any(line.startswith('image tag ') for line in lines))
 
 
 if __name__ == '__main__':

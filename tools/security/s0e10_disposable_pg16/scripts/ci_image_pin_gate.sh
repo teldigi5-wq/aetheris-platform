@@ -48,6 +48,7 @@ image="docker.io/library/postgres@${S0E10_PG16_IMAGE_DIGEST}"
 # A reviewed digest may still be unsuitable (wrong arch/version): the
 # subsequent PostgreSQL-16 bootstrap SQL guard must independently verify it.
 docker pull "$image" >/dev/null
-# E.8 harness does not pull images: tag this exact reviewed immutable image.
-docker image tag "$image" postgres:16-alpine
+# Prove the digest reference is available locally. Do not create/overwrite
+# mutable tags which could be reused by unrelated containers or swapped.
+docker image inspect "$image" >/dev/null
 printf 'S0-E.10 PINNED_IMAGE_READY: SHA256 digest supplied by owner-controlled CI variable\n'

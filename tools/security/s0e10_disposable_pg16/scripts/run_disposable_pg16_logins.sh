@@ -13,6 +13,12 @@ if [[ -n "${DOCKER_HOST:-}" || -n "${DOCKER_CONTEXT:-}" ]]; then
   echo 'S0-E.8 DENIED: Docker endpoint override; nothing started' >&2
   exit 4
 fi
+# The image reference must be the exact reviewed digest, not a mutable tag.
+if [[ ! "${S0E8_APPROVED_IMAGE_DIGEST:-}" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+  echo 'S0-E.8 DENIED: immutable reviewed image digest absent' >&2
+  exit 4
+fi
+image="docker.io/library/postgres@${S0E8_APPROVED_IMAGE_DIGEST}"
 command -v docker >/dev/null || { echo 'S0-E.8 DENIED: Docker unavailable'; exit 4; }
 command -v python3 >/dev/null || { echo 'S0-E.8 DENIED: Python unavailable'; exit 4; }
 command -v sha256sum >/dev/null || { echo 'S0-E.8 DENIED: integrity tool unavailable'; exit 4; }
@@ -33,8 +39,8 @@ endpoint="$(docker context inspect "$ctx" --format '{{ .Endpoints.docker.Host }}
   echo 'S0-E.8 DENIED: Docker daemon/image review missing'; exit 4;
 }
 # Never pull: an explicitly reviewed, pre-existing image must be used.
-docker image inspect postgres:16-alpine >/dev/null 2>&1 || {
-  echo 'S0-E.8 DENIED: reviewed local postgres:16-alpine image not present'; exit 4;
+docker image inspect "$image" >/dev/null 2>&1 || {
+  echo 'S0-E.8 DENIED: approved image digest not present locally'; exit 4;
 }
 
 id=''
@@ -62,7 +68,7 @@ id="$(docker run --detach --rm --pull=never --name "$container" \
   -e POSTGRES_DB=s0e7_disposable -e POSTGRES_USER=postgres \
   -e POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 \
   -e POSTGRES_HOST_AUTH_METHOD=scram-sha-256 \
-  -e POSTGRES_PASSWORD="$admin_password" postgres:16-alpine)"
+  -e POSTGRES_PASSWORD="$admin_password" "$image")"
 unset admin_password
 
 ready=0

@@ -68,6 +68,7 @@ jobs:
         env:
           S0E8_EXPLICIT_DISPOSABLE_APPROVAL: YES_FRESH_PG16_LOGIN_TEST
           S0E8_LOCAL_DAEMON_AND_IMAGE_REVIEWED: YES
+          S0E8_APPROVED_IMAGE_DIGEST: ${{ format('sha256:{0}', vars.AETHERIS_S0E15_APPROVED_IMAGE_DIGEST_HEX) }}
         run: |
           set -euo pipefail
           cd tools/security/s0e10_disposable_pg16
