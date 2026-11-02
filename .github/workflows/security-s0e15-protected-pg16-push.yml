@@ -1,5 +1,5 @@
 # S0-E.15 v2 — TEST-ONLY review candidate. Requires protected-base PR review.
-# Invoked only by an explicitly approved SHA-bound test TAG after protected merge.
+# Invoked only by a tag binding reviewed commit SHA AND approved PG16 image digest.
 # The workflow is sourced from the approved tagged commit, never a PR head.
 name: S0-E.15 Tag-Approved Disposable PG16 Four-Login Verification (NO_GO)
 on:
@@ -18,10 +18,10 @@ jobs:
     if: >-
       github.repository == 'teldigi5-wq/aetheris-platform' &&
       github.event.deleted == false &&
-      github.ref == format('refs/tags/s0e15-pg16-{0}', github.sha) &&
+      github.ref == format('refs/tags/s0e15-pg16-{0}-{1}', github.sha, vars.AETHERIS_S0E15_APPROVED_IMAGE_DIGEST_HEX) &&
       vars.AETHERIS_S0E15_OWNER_APPROVED == 'YES_TEST_ONLY_PG16' &&
       vars.AETHERIS_S0E15_APPROVED_SHA == github.sha &&
-      vars.AETHERIS_S0E15_IMAGE_DIGEST != ''
+      vars.AETHERIS_S0E15_APPROVED_IMAGE_DIGEST_HEX != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -55,7 +55,7 @@ jobs:
           S0E10_OWNER_APPROVED: ${{ vars.AETHERIS_S0E15_OWNER_APPROVED }}
           S0E10_APPROVED_HEAD: ${{ vars.AETHERIS_S0E15_APPROVED_SHA }}
           S0E10_ACTUAL_HEAD: ${{ github.sha }}
-          S0E10_PG16_IMAGE_DIGEST: ${{ vars.AETHERIS_S0E15_IMAGE_DIGEST }}
+          S0E10_PG16_IMAGE_DIGEST: ${{ format('sha256:{0}', vars.AETHERIS_S0E15_APPROVED_IMAGE_DIGEST_HEX) }}
         run: |
           set -euo pipefail
           cd tools/security/s0e10_disposable_pg16
