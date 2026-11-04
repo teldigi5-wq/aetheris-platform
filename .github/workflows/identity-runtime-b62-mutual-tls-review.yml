@@ -69,7 +69,14 @@ jobs:
               "B62_ALL_OLD_READER_POOL_MEMBERS_RETIRED_NEW_READER_CONTINUES",
               "pg_stat_activity", "SELECT pg_sleep(12)",
               "syntheticFixtureAction(\"terminate\", busyPid)",
-              "syntheticFixtureAction(\"terminate\", idlePid)"):
+              "syntheticFixtureAction(\"terminate\", idlePid)",
+              "httpSseRevocationRace(readPass, writerPass, auditorPass)",
+              "B62_REAL_HTTP_POST_COMMIT_REVALIDATION_DENIES_NO_PAYLOAD",
+              "B62_REAL_SSE_POST_COMMIT_REVALIDATION_CLOSES_NO_EVENT",
+              "B62_REAL_HTTP_SSE_NEW_SUBSCRIPTIONS_DENY_AND_STORE_FAILURE_DENY",
+              "B62_SYNTHETIC_HTTP_SSE_ONLY_RUNTIME_PRODUCTION_QUARANTINE_NO_GO",
+              "com.sun.net.httpserver.HttpServer",
+              "b62g_proof.b62g13_raise_epoch(?,?,?)"):
               assert required in java, required
           for required in ("clientcert=verify-full", "hostnossl", "scram-sha-256",
               "subjectAltName=DNS:localhost", "B62_MUTUAL_TLS_DISPOSABLE_CONTAINER_AND_PKI_DESTROYED",
@@ -100,10 +107,10 @@ jobs:
           test -s identity-service/target/b62-mtls-classpath.txt
           cp="identity-service/target/classes:identity-service/target/test-classes:$(cat identity-service/target/b62-mtls-classpath.txt)"
           mkdir -p identity-service/target/b62-mtls-classes
-          javac --release 21 -cp "$cp" -d identity-service/target/b62-mtls-classes \
+          javac --release 21 --add-modules jdk.httpserver -cp "$cp" -d identity-service/target/b62-mtls-classes \
             runtime-pinned/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java \
             tests/security/IdentityRuntimeB62MutualTlsJdbcProof.java
-          java -Djava.net.preferIPv4Stack=true \
+          java --add-modules jdk.httpserver -Djava.net.preferIPv4Stack=true \
             -cp "identity-service/target/b62-mtls-classes:$cp" \
             io.aetheris.identity.IdentityRuntimeB62MutualTlsJdbcProof
           echo B62_CI_REAL_SERVER_CA_AND_CLIENTCERT_AUTHORIZED_REVOCATION_PROOF_PASS
