@@ -40,7 +40,7 @@ jobs:
               "realRs256IssuerProducesUniqueSignedUuidV4ForEveryIssuedJwt",
               "onlyTheMatchingPublicKeyIssuerAndAudienceValidateTheToken",
               "unchangedLegacyHmacIssuerCannotImpersonateRs256OrCreateSessionFact",
-              "generate(3072)", "JWT", "verifyWith",
+              "keys.initialize(3072)", "JWT", "verifyWith",
               "No real Identity or Runtime deployment",
           ):
               assert marker in test, marker
