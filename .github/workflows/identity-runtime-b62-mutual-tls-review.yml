@@ -1,0 +1,106 @@
+name: Identity Runtime B62 Mutual TLS PostgreSQL - Review Only
+# Ephemeral PKI and review-only B62 fixtures, NO production traffic or routes.
+on:
+  push:
+    branches: [test/b62g13-audited-emergency-writer-contract-20261027]
+permissions:
+  contents: read
+jobs:
+  real-clientcert-and-trusted-server-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      PGHOST: 127.0.0.1
+      PGDATABASE: b62g_synthetic
+      B62_MTLS_CI_ONLY: "yes"
+      B62_CI_READER_PASSWORD: b62g8-user-synthetic-ci-only
+      B62_CI_WRITER_PASSWORD: b62g13-writer-ci-synthetic-only
+      B62_CI_AUDITOR_PASSWORD: b62g13-auditor-ci-synthetic-only
+    steps:
+      - name: Checkout exact Platform head without retaining GitHub credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Checkout immutable public Runtime verifier, independent of this PR
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: teldigi5-wq/aetheris-ai-runtime
+          ref: a772cb803539c982e6ecc7e9faa7b62a1a4a19cc
+          path: runtime-pinned
+          persist-credentials: false
+      - name: Install Java 21 with Maven cache
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Check immutable Runtime verifier, actual B62 SQL hashes, and no live admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C runtime-pinned rev-parse HEAD)" = "a772cb803539c982e6ecc7e9faa7b62a1a4a19cc"
+          test "$(git -C runtime-pinned hash-object orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java)" = "a7385acc8b67adbe8258b43f6b4b86d5340e069c"
+          test "$(git hash-object tests/security/b62g-revocation-prototype.sql)" = "f15e76206ceae81b2a68d950ee98a0c5cdafc657"
+          test "$(git hash-object tests/security/b62g2-readonly-role.sql)" = "aa3789aedc8e63d9af8776920f274535054e59c2"
+          test "$(git hash-object tests/security/b62g8-login-roles.sql)" = "f2a131cb18878711d7e07d9e24bbe2d49e52666d"
+          test "$(git hash-object tests/security/b62g13-function-only-writer.sql)" = "f5cfd8bfad620b1a65bb97ec29328507c3961de5"
+          python3 - <<'PY'
+          from pathlib import Path
+          java=Path("tests/security/IdentityRuntimeB62MutualTlsJdbcProof.java").read_text()
+          setup=Path("tests/security/b62g14-mtls-disposable-db.sh").read_text()
+          issuer=Path("identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+          verifier=Path("runtime-pinned/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java").read_text()
+          assert "builder.id(UUID.randomUUID().toString());" in issuer
+          assert "verifyBearerForRevocation(" in verifier
+          for required in ("verify-full", "bad-ca.crt", "unrelated-client",
+              "pg_stat_ssl", "missing client certificate", "non-TLS downgrade",
+              "b62g_proof.b62g13_raise_epoch",
+              "b62g_proof.b62g13_block_signer",
+              "B62_TLS_PROOF_NOT_PRODUCTION_SESSION_OR_HTTP_SSE_GRANT_NO_GO"):
+              assert required in java, required
+          for required in ("clientcert=verify-full", "hostnossl", "scram-sha-256",
+              "subjectAltName=DNS:localhost", "B62_MUTUAL_TLS_DISPOSABLE_CONTAINER_AND_PKI_DESTROYED"):
+              assert required in setup, required
+          assert "Jwts.builder()" not in java
+          assert "@RestController" not in java and "@Component" not in java
+          print("B62_MTLS_PINNED_ORIGINAL_JWT_AND_SQL_SOURCES_NO_GO_PASS")
+          PY
+          docker version >/dev/null
+      - name: Create isolated PG16 mTLS server and ephemeral per-role CA-signed certificates
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g14-mtls-disposable-db.sh prepare
+      - name: Compile original Identity and Runtime classes and exercise genuine TLS and B62 reads
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -DskipTests test-compile
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -DincludeScope=test \
+            -Dmdep.outputFile="$PWD/identity-service/target/b62-mtls-classpath.txt" \
+            dependency:build-classpath
+          test -s identity-service/target/b62-mtls-classpath.txt
+          cp="identity-service/target/classes:identity-service/target/test-classes:$(cat identity-service/target/b62-mtls-classpath.txt)"
+          mkdir -p identity-service/target/b62-mtls-classes
+          javac --release 21 -cp "$cp" -d identity-service/target/b62-mtls-classes \
+            runtime-pinned/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java \
+            tests/security/IdentityRuntimeB62MutualTlsJdbcProof.java
+          java -Djava.net.preferIPv4Stack=true \
+            -cp "identity-service/target/b62-mtls-classes:$cp" \
+            io.aetheris.identity.IdentityRuntimeB62MutualTlsJdbcProof
+          echo B62_CI_REAL_SERVER_CA_AND_CLIENTCERT_AUTHORIZED_REVOCATION_PROOF_PASS
+      - name: Explicit release no-go, immutable provenance and routes remain denied
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C runtime-pinned rev-parse HEAD)" = "a772cb803539c982e6ecc7e9faa7b62a1a4a19cc"
+          echo B62_POSTGRES_MTLS_REVIEW_ONLY_NOT_APPROVED_PRODUCTION_API_SSE_NO_GO
+      - name: Always delete the isolated PostgreSQL container and all ephemeral private keys
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/security/b62g14-mtls-disposable-db.sh cleanup
