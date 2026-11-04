@@ -1,0 +1,138 @@
+name: Identity Runtime B62 Actual Primary JDBC Contract - Review Only
+# Only disposable public fixtures. No production B62, credentials, migrations, HTTP/SSE or deployment.
+on:
+  push:
+    branches: [test/b62g13-audited-emergency-writer-contract-20261027]
+permissions:
+  contents: read
+jobs:
+  signed-runtime-b62-primary-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      PGHOST: 127.0.0.1
+      PGDATABASE: b62g_synthetic
+      B62_CROSS_REPO_CI_ONLY: "yes"
+      B62_CI_READER_PASSWORD: b62g8-user-synthetic-ci-only
+      B62_CI_WRITER_PASSWORD: b62g13-writer-ci-synthetic-only
+      B62_CI_AUDITOR_PASSWORD: b62g13-auditor-ci-synthetic-only
+      B62_CI_OWNER_PASSWORD: b62g-ci-owner-synthetic-only
+    steps:
+      - name: Checkout Platform without retained credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Checkout exact public Runtime verifier
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: teldigi5-wq/aetheris-ai-runtime
+          ref: a772cb803539c982e6ecc7e9faa7b62a1a4a19cc
+          path: runtime-pinned
+          persist-credentials: false
+      - name: Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact SHA and immutable original B62 SQL, source-only assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C runtime-pinned rev-parse HEAD)" = "a772cb803539c982e6ecc7e9faa7b62a1a4a19cc"
+          test "$(git -C runtime-pinned hash-object orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java)" = "a7385acc8b67adbe8258b43f6b4b86d5340e069c"
+          test "$(git hash-object tests/security/b62g-revocation-prototype.sql)" = "f15e76206ceae81b2a68d950ee98a0c5cdafc657"
+          test "$(git hash-object tests/security/b62g2-readonly-role.sql)" = "aa3789aedc8e63d9af8776920f274535054e59c2"
+          test "$(git hash-object tests/security/b62g8-login-roles.sql)" = "f2a131cb18878711d7e07d9e24bbe2d49e52666d"
+          test "$(git hash-object tests/security/b62g13-function-only-writer.sql)" = "f5cfd8bfad620b1a65bb97ec29328507c3961de5"
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("tests/security/IdentityRuntimeB62PrimaryJdbcProof.java").read_text()
+          issuer=Path("identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+          verifier=Path("runtime-pinned/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java").read_text()
+          assert "builder.id(UUID.randomUUID().toString());" in issuer
+          assert "verifyBearerForRevocation(" in verifier
+          for marker in ("NOT production revocation", "notEmergencyBlocked(",
+              "b62g_proof.synthetic_post_signature_allowed",
+              "b62g_proof.b62g13_raise_epoch", "b62g_proof.b62g13_block_signer",
+              "B62_CROSS_REPO_CI_ONLY", "BAD_NETWORK_URL",
+              "isDenied(", "assertBadPasswordRejected(",
+              "installBoundedPrimaryRead(",
+              "current_setting('statement_timeout') = '900ms'",
+              "current_setting('lock_timeout') = '600ms'",
+              "q.setQueryTimeout(2)",
+              "Connection.TRANSACTION_REPEATABLE_READ",
+              "LOCK TABLE b62g_proof.principal_epochs IN ACCESS EXCLUSIVE MODE",
+              "B62_CI_OWNER_PASSWORD",
+              "IDENTITY_RUNTIME_B62_JTI_IS_NOT_SESSION_GRANT_NO_GO"):
+              assert marker in s, marker
+          assert "@RestController" not in s and "@Component" not in s
+          assert "Jwts.builder()" not in s
+          print("B62_ACTUAL_SOURCES_SHA_PIN_AND_NO_GO_PASS")
+          PY
+          docker version >/dev/null
+      - name: Isolated PostgreSQL16 with actual B62 G1/G2/G8/G13 SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="b62-jdbc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker run -d --rm --name "$name" \
+            -e POSTGRES_USER=b62g_synthetic \
+            -e POSTGRES_DB=b62g_synthetic \
+            -e POSTGRES_PASSWORD=b62g-ci-owner-synthetic-only \
+            -e POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 \
+            -p 127.0.0.1:55432:5432 postgres:16 >/dev/null
+          ready=0
+          for i in $(seq 1 45); do
+            if docker exec "$name" pg_isready -U b62g_synthetic -d b62g_synthetic >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          for sql in \
+            tests/security/b62g-revocation-prototype.sql \
+            tests/security/b62g2-readonly-role.sql \
+            tests/security/b62g8-login-roles.sql \
+            tests/security/b62g13-function-only-writer.sql
+          do
+            docker exec -i "$name" psql -X -q -v ON_ERROR_STOP=1 \
+              -U b62g_synthetic -d b62g_synthetic < "$sql" >/dev/null
+          done
+          echo B62_REAL_PG16_G1_G2_G8_G13_SCHEMAS_AND_ROLES_INSTALLED
+      - name: Compile true Platform issuer and independent Runtime verifier, execute authenticated JDBC proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -DskipTests test-compile
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -DincludeScope=test \
+            -Dmdep.outputFile="$PWD/identity-service/target/b62-interop-cp.txt" \
+            dependency:build-classpath
+          test -s identity-service/target/b62-interop-cp.txt
+          cp="identity-service/target/classes:identity-service/target/test-classes:$(cat identity-service/target/b62-interop-cp.txt)"
+          mkdir -p identity-service/target/b62-interop-classes
+          javac --release 21 -cp "$cp" -d identity-service/target/b62-interop-classes \
+            runtime-pinned/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java \
+            tests/security/IdentityRuntimeB62PrimaryJdbcProof.java
+          java -cp "identity-service/target/b62-interop-classes:$cp" \
+            io.aetheris.identity.IdentityRuntimeB62PrimaryJdbcProof
+          echo B62_REAL_SIGNED_IDENTITY_AUTHENTICATED_JDBC_PRIMARY_PROOF_PASS
+      - name: Preserve hard no-go
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C runtime-pinned rev-parse HEAD)" = "a772cb803539c982e6ecc7e9faa7b62a1a4a19cc"
+          echo B62_AUTHORITY_PROTOTYPE_NOT_LIVE_SESSION_OR_RESOURCE_AUTHORIZATION_NO_GO
+      - name: Always remove only this disposable synthetic database container
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="b62-jdbc-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          test -z "$(docker ps -a --filter "name=^/$name$" --format '{{.Names}}')"
+          echo B62_SYNTHETIC_ONLY_POSTGRES_CONTAINER_DESTROYED

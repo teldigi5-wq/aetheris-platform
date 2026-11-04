@@ -15,6 +15,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * Identity is the ONLY proposed RS256 private-key holder. B59 is opt-in;
@@ -112,6 +113,12 @@ public class JwtService {
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)));
         if ("rs256".equals(mode)) {
+            // Cryptographically signed token-instance provenance required by
+            // Runtime's opt-in revocation-facts verifier. Each issue() call
+            // receives a fresh unpredictable UUIDv4. This is NOT a durable
+            // session registry or proof that a token has not been revoked.
+            // Keep legacy HMAC issuance unchanged for compatibility.
+            builder.id(UUID.randomUUID().toString());
             builder.header().keyId(rsaKid).and();
             return builder.signWith(rsaPrivateKey, Jwts.SIG.RS256).compact();
         }
