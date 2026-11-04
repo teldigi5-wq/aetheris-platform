@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # B62-G14 disposable CI only. Never use these credentials or keys in prod.
 set -eo pipefail
-test "$#" -eq 1 || exit 2
-test "$1" = prepare -o "$1" = cleanup || exit 2
+test "$#" -ge 1 -a "$#" -le 2 || exit 2
+case "$1" in prepare|cleanup|overlap|cutover|terminate) ;; *) exit 2 ;; esac
 set -u
 test "$GITHUB_ACTIONS" = true
 test "$B62_MTLS_CI_ONLY" = yes
@@ -11,6 +11,46 @@ test "$PGHOST" = 127.0.0.1
 
 name="b62-mtls-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 tls="$RUNNER_TEMP/b62-mtls-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+
+# Rotating client CA trust does not rotate the server's SAN-bound identity:
+# client SSLROOTCERT remains the original server CA. Only the disposable
+# PostgreSQL ssl_ca_file used to validate incoming client certificates changes.
+# An old already-established SSL session MUST be retired explicitly.
+if [[ "$1" == overlap || "$1" == cutover ]]; then
+  test "$#" -eq 1 || exit 2
+  test -f "$tls/next-client-ca.crt"
+  test -f "$tls/ca.crt"
+  if [[ "$1" == overlap ]]; then
+    cat "$tls/ca.crt" "$tls/next-client-ca.crt" > "$tls/trust-next.crt"
+  else
+    cp "$tls/next-client-ca.crt" "$tls/trust-next.crt"
+  fi
+  docker cp "$tls/trust-next.crt" "$name:/tmp/b62tls/ca.crt"
+  docker exec -u root "$name" sh -c     'chown postgres:postgres /tmp/b62tls/ca.crt && chmod 644 /tmp/b62tls/ca.crt'
+  docker exec "$name" psql -X -A -t -v ON_ERROR_STOP=1     -U b62g_synthetic -d b62g_synthetic     -c 'SELECT pg_reload_conf()' | grep -qx t
+  sleep 2
+  if [[ "$1" == overlap ]]; then
+    echo B62_CLIENT_CA_DUAL_TRUST_RELOADED_WITHOUT_DB_RESTART
+  else
+    echo B62_OLD_CLIENT_CA_REMOVED_WITHOUT_DB_RESTART
+  fi
+  exit 0
+fi
+
+if [[ "$1" == terminate ]]; then
+  test "$#" -eq 2 || exit 2
+  [[ "$2" =~ ^[1-9][0-9]{0,8}$ ]] || exit 2
+  pid="$2"
+  # Do not terminate anything except the explicitly selected synthetic
+  # reader session inside this run's own disposable database container.
+  terminated=$(docker exec "$name" psql -X -A -t -v ON_ERROR_STOP=1     -U b62g_synthetic -d b62g_synthetic     -c "SELECT coalesce((SELECT pg_terminate_backend(pid)
+          FROM pg_stat_activity WHERE pid=$pid
+            AND usename='b62g8_user_reader'
+            AND datname='b62g_synthetic'),false)")
+  test "$terminated" = t
+  echo B62_RETIRED_OLD_CLIENT_CERT_EXISTING_POSTGRES_SESSION
+  exit 0
+fi
 
 if [[ "$1" == cleanup ]]; then
   docker rm -f "$name" >/dev/null 2>&1 || true
@@ -51,6 +91,26 @@ for role in b62g8_user_reader b62g13_emergency_writer \
     -outform DER -out "$tls/$role.pk8"
   chmod 600 "$tls/$role.pk8"
 done
+# Create a separate client-auth CA for the NEXT workload certificate.
+# A new client must never be trusted before the explicit overlap phase.
+openssl req -x509 -newkey rsa:3072 -sha256 -nodes -days 2 \
+  -subj '/CN=B62-Next-Client-CA' \
+  -keyout "$tls/next-client-ca.key" \
+  -out "$tls/next-client-ca.crt" >/dev/null 2>&1
+openssl req -newkey rsa:3072 -sha256 -nodes \
+  -subj '/CN=b62g8_user_reader' \
+  -keyout "$tls/b62g8_user_reader.next.key" \
+  -out "$tls/b62g8_user_reader.next.csr" >/dev/null 2>&1
+openssl x509 -req -in "$tls/b62g8_user_reader.next.csr" \
+  -CA "$tls/next-client-ca.crt" -CAkey "$tls/next-client-ca.key" \
+  -CAcreateserial -days 2 -sha256 -extfile "$tls/client.ext" \
+  -out "$tls/b62g8_user_reader.next.crt" >/dev/null 2>&1
+openssl pkcs8 -topk8 -nocrypt -in "$tls/b62g8_user_reader.next.key" \
+  -outform DER -out "$tls/b62g8_user_reader.next.pk8"
+chmod 600 "$tls/b62g8_user_reader.next.pk8"
+openssl verify -CAfile "$tls/next-client-ca.crt" \
+  "$tls/b62g8_user_reader.next.crt" >/dev/null
+
 openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 2 \
   -subj '/CN=Untrusted-Synthetic-CA' \
   -keyout "$tls/bad-ca.key" -out "$tls/bad-ca.crt" >/dev/null 2>&1
