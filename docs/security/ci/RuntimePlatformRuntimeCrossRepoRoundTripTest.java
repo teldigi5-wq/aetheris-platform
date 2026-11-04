@@ -11,7 +11,9 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
@@ -201,6 +203,35 @@ class RuntimePlatformRuntimeCrossRepoRoundTripTest {
             () -> runtimeVerifier(pair).verifyBearer("Bearer " + hmac));
         // Proves legacy auth remains intentionally separate; it does not
         // authenticate any ordinary Platform user into the Runtime.
+    }
+
+    @Test
+    void retainedPlatformIssuedRuntimePrincipalLosesAuthorityAtSignedExpiry() {
+        // A real Platform-issued RS256 JWT is verified once. Keeping the
+        // returned sealed Java principal must not extend the JWT lifetime.
+        KeyPair pair = rsa();
+        String issued = issuer(pair).issueForVerifiedExchange(
+            syntheticAccount(Role.DEVELOPER, 813L));
+        AtomicReference<Instant> now = new AtomicReference<>(CLOCK.instant());
+        Clock advancing = new Clock() {
+            @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(ZoneId zone) {
+                return Clock.fixed(now.get(), zone);
+            }
+            @Override public Instant instant() { return now.get(); }
+        };
+        var verifier = new RuntimePinnedPrincipalVerifier(
+            publicKeyPem(pair), KID, ISSUER, AUDIENCE, advancing);
+        var retained = verifier.verifyBearer("Bearer " + issued);
+        assertTrue(retained.isFresh());
+        assertTrue(retained.hasScope("orchestrator:read"));
+        assertFalse(retained.scopes().isEmpty());
+        now.set(CLOCK.instant().plusSeconds(301));
+        assertFalse(retained.isFresh());
+        assertFalse(retained.hasScope("orchestrator:read"));
+        assertFalse(retained.hasScope("orchestrator:write"));
+        assertTrue(retained.scopes().isEmpty(),
+            "A retained principal must not outlive Platform's signed JWT");
     }
 
     @Test

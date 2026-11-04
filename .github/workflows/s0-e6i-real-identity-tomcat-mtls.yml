@@ -51,7 +51,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           repository: teldigi5-wq/aetheris-ai-runtime
-          ref: c0618c827b326eb6a5bd02fa2a5e9365d593b4c6
+          ref: 460b91768ead93fbb7c1fb2588e4978b0905d4cc
           path: _s0_e6i_runtime
           persist-credentials: false
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
-          test "$(git -C _s0_e6i_runtime rev-parse HEAD)" = 'c0618c827b326eb6a5bd02fa2a5e9365d593b4c6'
+          test "$(git -C _s0_e6i_runtime rev-parse HEAD)" = '460b91768ead93fbb7c1fb2588e4978b0905d4cc'
           test "$AETHERIS_E6G_DISPOSABLE_MARKER" = "ONLY_DISPOSABLE_E6G_POSTGRES"
           test "$SPRING_DATASOURCE_URL" = "jdbc:postgresql://127.0.0.1:5432/aetheris_e6g_disposable"
           python3 - <<'PY'
@@ -142,6 +142,11 @@ jobs:
           assert 'ddl-auto: validate' in prod
           runtime=Path('_s0_e6i_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimeUncertifiedApiHttpFilter.java').read_text()
           assert 'SC_NOT_FOUND' in runtime
+          pinned=Path('_s0_e6i_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java').read_text()
+          assert 'expiresAt.isAfter(clock.instant())' in pinned
+          assert 'isFresh() && scopes.contains(scope)' in pinned
+          cross=Path('docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java').read_text()
+          assert 'retainedPlatformIssuedRuntimePrincipalLosesAuthorityAtSignedExpiry' in cross
           print('AETHERIS_S0_E6I_DISPOSABLE_DATABASE_AND_NO_HTTP_TOKEN_GRANT_SOURCE_PASS')
           PY
       - name: Prospective mTLS SPIFFE checks, PostgreSQL 16 atomicity and actual JWT interop
@@ -165,11 +170,11 @@ jobs:
           report=Path('identity-service/target/surefire-reports/TEST-io.aetheris.identity.RuntimePlatformRuntimeCrossRepoRoundTripTest.xml')
           assert report.is_file(), 'Missing actual cross-repository test execution report'
           root=ET.parse(report).getroot()
-          assert int(root.attrib.get('tests',0)) == 6, 'Expected SIX actual cross-repo tests'
+          assert int(root.attrib.get('tests',0)) == 7, 'Expected SEVEN actual cross-repo tests'
           assert int(root.attrib.get('failures',-1)) == 0
           assert int(root.attrib.get('errors',-1)) == 0
           assert int(root.attrib.get('skipped',-1)) == 0
-          print('AETHERIS_S0_E6I_SIX_REAL_SOURCE_INTEROP_TESTS_REEXECUTED_PASS')
+          print('AETHERIS_S0_E6I_SEVEN_REAL_SOURCE_INTEROP_TESTS_REEXECUTED_PASS')
           PY
           grep -Fq 'Stage45 NO_GO' docs/security/S0_E6H_INTERNAL_GATEWAY_MTLS_WORKLOAD_GATE_20261030.md
           echo AETHERIS_S0_E6I_ACTUAL_POSTGRES_16_TRANSACTION_TESTS_AND_IDENTITY_REGRESSIONS_PASS

@@ -32,3 +32,31 @@ The SHA-pinned E6I CI runs four mandatory socket tests and parses their Maven Su
 - Dashboard dependency findings [Platform issue #240](https://github.com/teldigi5-wq/aetheris-platform/issues/240), Platform security [#251](https://github.com/teldigi5-wq/aetheris-platform/issues/251) and Runtime security [#23](https://github.com/teldigi5-wq/aetheris-ai-runtime/issues/23) remain OPEN.
 
 **S0-E6 remains IN PROGRESS. Six major security engineering packages E6–E11 (including unfinished E6) and all nine independent Stage45 release certifications remain; production Stage45 NO_GO.** No protected main merge, production deployment, operator/client secrets, customer tokens, API access or runtime release-pin promotion. Only a completed successful **exact-head CI** will verify this development substage.
+
+## 4 November 2026 — updated actual Runtime verifier pin and retained-token expiry (review only)
+
+The earlier immutable S0-E6I CI verified Platform's optional RS256 issuer against
+Runtime source at `c0618c827b326eb6a5bd02fa2a5e9365d593b4c6`. The newer, independently verified
+Runtime [draft PR #257](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/257)
+at exact `460b91768ead93fbb7c1fb2588e4978b0905d4cc` adds a critical retained-principal expiry check
+and a comprehensive 62-test authorization/quarantine CI result
+([Actions #41783779356](https://github.com/teldigi5-wq/aetheris-ai-runtime/actions/runs/41783779356)).
+This Platform candidate now checks out that exact newer Runtime source and
+executes the existing source-identity interop matrix plus one NEW test:
+`retainedPlatformIssuedRuntimePrincipalLosesAuthorityAtSignedExpiry`.
+The test signs a genuine Platform Runtime-audience RS256 JWT, verifies it
+once with the **real copied Runtime verifier**, then advances an injected trusted
+clock beyond the token's five-minute expiry. It demands the original retained
+principal no longer reports a fresh identity or grants `orchestrator:read`/
+`orchestrator:write` scopes, and its returned scope set is empty.
+
+The CI cross-repository Surefire XML gate therefore requires **7/7** tests,
+rather than the earlier **6/6**, and pins the updated Runtime source SHA.
+The prior 58-test result is historical evidence at the older SHA and must not
+be reused as a claim for this new head. Independent exact-head CI is required.
+
+No new token endpoint, live customer identity, session/refresh revocation,
+service permission, production release, Gateway-to-Runtime authorization grant,
+schema migration or TLS trust-anchor change. The existing minimum test-only
+HTTPS servlet and disposable Postgres/TLS labs remain intact. Parent Platform
+and Runtime production NO_GO controls are unchanged; Stage45 NO_GO.
