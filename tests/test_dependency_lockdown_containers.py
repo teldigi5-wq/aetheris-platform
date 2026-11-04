@@ -53,5 +53,48 @@ USER 10001:10001
         self.assertEqual([], lockdown.container_policy_errors("audit-service/Dockerfile", text))
 
 
+class NodeSecurityPinConsistencyTests(unittest.TestCase):
+    """Prevent partial Node security upgrades across CI, image and npm locks."""
+
+    EXPECTED_NODE = "22.23.4"
+
+    def test_node_version_matches_dashboard_and_first_boot_contract(self) -> None:
+        import json
+        version = (ROOT / ".nvmrc").read_text(encoding="utf-8").strip()
+        self.assertEqual(self.EXPECTED_NODE, version)
+        manifest = json.loads((ROOT / "dashboard/package.json").read_text("utf-8"))
+        lock = json.loads((ROOT / "dashboard/package-lock.json").read_text("utf-8"))
+        contract = json.loads((ROOT / "configs/first-boot-contract.json").read_text("utf-8"))
+        self.assertEqual(version, manifest["engines"]["node"])
+        self.assertEqual(version, lock["packages"][""]["engines"]["node"])
+        self.assertEqual(version, contract["toolchain"]["node"])
+        self.assertEqual(manifest["devDependencies"], lock["packages"][""]["devDependencies"])
+        for dependency, patched_version in (("vite", "8.3.5"), ("source-map-js", "1.2.2")):
+            entry = lock["packages"][f"node_modules/{dependency}"]
+            self.assertEqual(patched_version, entry["version"])
+            self.assertRegex(entry.get("integrity", ""), r"^sha(?:256|384|512)-")
+
+    def test_ci_node_pins_and_container_image_are_consistent(self) -> None:
+        import re
+        version = self.EXPECTED_NODE
+        checked = (
+            ".github/workflows/build.yml",
+            ".github/workflows/codeql.yml",
+            ".github/workflows/stage24-foundation-bootstrap.yml",
+            ".github/workflows/stage24-foundation-hardening.yml",
+            "scripts/check_dependency_lockdown.py",
+            "docs/first-boot-runbook.md",
+        )
+        for relative in checked:
+            with self.subTest(path=relative):
+                content = (ROOT / relative).read_text(encoding="utf-8")
+                self.assertEqual({version}, set(re.findall(r"22\.23\.\d+", content)))
+        dockerfile = (ROOT / "dashboard/Dockerfile").read_text(encoding="utf-8")
+        self.assertRegex(
+            dockerfile,
+            rf"(?m)^FROM node:{re.escape(version)}-alpine3\.24@sha256:[0-9a-f]{{64}} AS build$",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
