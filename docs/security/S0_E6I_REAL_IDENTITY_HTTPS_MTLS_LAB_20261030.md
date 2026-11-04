@@ -85,3 +85,32 @@ authenticated read-only primary source, fail-closed timeouts, no stale
 secondary fallback, reviewed signer blocks and real object ownership.
 No live HTTP exchange, API admission, migration, main merge, deployment or
 model inference. Runtime #23 and Platform #251 OPEN; Stage45 NO_GO.
+
+## 4 November 2026 — verified strict signed-session revocation facts, still NO_GO
+
+This review-only E6I cross-source lab now pins the actual current Runtime
+draft PR #257 at `6ae37dabe0bccb4365fba92f2b1b5ddde42e5c61`, independently verified with **68/68**
+real security tests and two successful exact-head checks
+([Runtime CI #41791928674](https://github.com/teldigi5-wq/aetheris-ai-runtime/actions/runs/41791928674)).
+The earlier `18d73c24c6c9e8cecf19f4ca4b13d01aa157c025` checkout is superseded in this lab.
+
+A ninth real-source Java interoperability regression invokes the ACTUAL
+Platform Runtime-audience token issuer, verifies the RS256 token in the
+actual pinned Runtime verifier with its **new strict** `verifyBearerForRevocation`,
+then checks that a sealed, private-constructed revocation fact object
+contains the exact verified UID, issuer, key ID, signed `jti` and issuance
+instant. A separately signed synthetic JWT with valid Identity claims but
+without `jti` must continue to work only in the LEGACY test principal path
+and be strictly rejected by the new revocation-bound entry. The full
+Surefire XML CI gate now requires **9/9** authentic cross-source tests.
+
+These are signed facts for a FUTURE emergency decision, **not** active
+session or key revocation. B62-G1–G13 still contains unmerged test-only
+principal epoch and blocked-signer proofs, not an operational authority.
+Production must never infer authorization merely from the strict verifier:
+a separately authenticated, strongly consistent primary revocation reader,
+signer revocation, bounded fail-closed timeouts, actual tenant/object
+ownership, independent review and availability-safe rollout are mandatory.
+Current /api, task, mission, SSE and actuator quarantine remain locked.
+No real HTTP exchange endpoint, customer session, production DB, main merge,
+deployment or model inference is authorized. Stage45 NO_GO.

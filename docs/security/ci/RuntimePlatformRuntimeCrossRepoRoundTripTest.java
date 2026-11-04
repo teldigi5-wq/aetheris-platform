@@ -268,6 +268,43 @@ class RuntimePlatformRuntimeCrossRepoRoundTripTest {
     }
 
     @Test
+    void actualPlatformJtiOpensOnlyStrictVerifiedRuntimeRevocationFactSeam() {
+        KeyPair pair = rsa();
+        var signing = issuer(pair);
+        var verifying = runtimeVerifier(pair);
+        var account = syntheticAccount(Role.DEVELOPER, 815L);
+
+        // Cryptographically verify the REAL Platform issuer's RS256 token.
+        String jwt = signing.issueForVerifiedExchange(account);
+        var signed = Jwts.parser().verifyWith(pair.getPublic())
+            .clock(() -> Date.from(CLOCK.instant()))
+            .build().parseSignedClaims(jwt);
+        var validated = verifying.verifyBearerForRevocation("Bearer " + jwt);
+        var facts = validated.requireRevocationFacts();
+        assertEquals(815L, facts.signedIdentityUid());
+        assertEquals(ISSUER, facts.verifiedIssuer());
+        assertEquals(KID, facts.verifiedKeyId());
+        assertEquals(signed.getPayload().getId(), facts.signedTokenId());
+        assertEquals(signed.getPayload().getIssuedAt().toInstant(),
+            facts.signedIssuedAt());
+
+        // No jti: a genuine RSA signature remains a valid identity, but
+        // MUST NOT qualify for future authoritative revocation lookup.
+        String missingJti = Jwts.builder().header().keyId(KID).and()
+            .subject(account.getEmail()).issuer(ISSUER)
+            .claim("aud", List.of(AUDIENCE)).claim("uid", 815L)
+            .claim("role", "DEVELOPER")
+            .claim("scopes", List.of("orchestrator:read"))
+            .issuedAt(Date.from(CLOCK.instant()))
+            .expiration(Date.from(CLOCK.instant().plusSeconds(300)))
+            .signWith(pair.getPrivate(), Jwts.SIG.RS256).compact();
+        assertTrue(verifying.verifyBearer("Bearer " + missingJti)
+            .hasScope("orchestrator:read"));
+        assertThrows(IllegalArgumentException.class,
+            () -> verifying.verifyBearerForRevocation("Bearer " + missingJti));
+    }
+
+    @Test
     void unusedIssuerCannotProduceTokenWithoutExplicitOperatorConfiguration() {
         var disabled = new RuntimeAudienceTokenIssuer(new MockEnvironment(), CLOCK);
         assertFalse(disabled.isConfigured());
