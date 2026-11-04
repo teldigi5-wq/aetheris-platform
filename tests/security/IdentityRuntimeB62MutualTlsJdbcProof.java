@@ -377,6 +377,186 @@ public final class IdentityRuntimeB62MutualTlsJdbcProof {
         }
     }
 
+    // REVIEW-ONLY: synthetic /__s0 loopback HTTP+SSE, NOT Runtime endpoints.
+    // Auth facts come from real JwtService.issue + immutable Runtime verifier.
+    // Each response boundary uses a fresh B62-G1/G8 mTLS PostgreSQL query.
+    private static void httpSseRevocationRace(String readPass, String writerPass,
+                                              String auditPass) throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(3072);
+        KeyPair ephemeral = generator.generateKeyPair();
+        String kid = "s0-http-sse-separate-identity";
+        var issuer = new JwtService("", 300, ISSUER, AUDIENCE, "rs256",
+            Base64.getEncoder().encodeToString(
+                ephemeral.getPrivate().getEncoded()), kid);
+        var verifier = new RuntimePinnedPrincipalVerifier(
+            publicPem(ephemeral), kid, ISSUER, AUDIENCE, Clock.systemUTC());
+        String token = issuer.issue(account(99L));
+        String unaffected = issuer.issue(account(100L));
+        var signed = verifier.verifyBearerForRevocation("Bearer " + token)
+            .requireRevocationFacts();
+        must(signed.signedIdentityUid() == 99L
+            && UUID.fromString(signed.signedTokenId()).version() == 4,
+            "Actual Platform-to-Runtime RS256 facts failed");
+
+        var httpStarted = new java.util.concurrent.CountDownLatch(1);
+        var httpResume = new java.util.concurrent.CountDownLatch(1);
+        var sseStarted = new java.util.concurrent.CountDownLatch(1);
+        var sseResume = new java.util.concurrent.CountDownLatch(1);
+        var sseClosed = new java.util.concurrent.CountDownLatch(1);
+        var sseDenied = new java.util.concurrent.atomic.AtomicInteger();
+        var workers = java.util.concurrent.Executors.newFixedThreadPool(6);
+        var http = com.sun.net.httpserver.HttpServer.create(
+            new java.net.InetSocketAddress(
+                java.net.InetAddress.getByName("127.0.0.1"),0),0);
+        String firstFrame = "event: ready\ndata: synthetic-only\n\n";
+
+        http.createContext("/__s0/http", exchange -> {
+            try {
+                String bearer = exchange.getRequestHeaders().getFirst("Authorization");
+                verifier.verifyBearerForRevocation(bearer).requireRevocationFacts();
+                String raw = bearer.substring(7);
+                if (!readNotBlocked(verifier, raw, readPass)) {
+                    exchange.sendResponseHeaders(404,-1);
+                } else {
+                    httpStarted.countDown();
+                    if (!httpResume.await(8,java.util.concurrent.TimeUnit.SECONDS)
+                        || !readNotBlocked(verifier, raw, readPass))
+                        exchange.sendResponseHeaders(404,-1);
+                    else exchange.sendResponseHeaders(204,-1);
+                }
+            } catch (IllegalArgumentException invalid) {
+                exchange.sendResponseHeaders(401,-1);
+            } catch (InterruptedException cancelled) {
+                Thread.currentThread().interrupt();
+                exchange.sendResponseHeaders(503,-1);
+            } finally { exchange.close(); }
+        });
+        http.createContext("/__s0/sse", exchange -> {
+            try {
+                String bearer = exchange.getRequestHeaders().getFirst("Authorization");
+                verifier.verifyBearerForRevocation(bearer).requireRevocationFacts();
+                String raw = bearer.substring(7);
+                if (!readNotBlocked(verifier, raw, readPass)) {
+                    exchange.sendResponseHeaders(404,-1);
+                    return;
+                }
+                exchange.getResponseHeaders().set("Content-Type","text/event-stream");
+                exchange.getResponseHeaders().set("Cache-Control","no-store");
+                exchange.sendResponseHeaders(200,0);
+                try (var out = exchange.getResponseBody()) {
+                    out.write(firstFrame.getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8));
+                    out.flush();
+                    sseStarted.countDown();
+                    if (!sseResume.await(8,java.util.concurrent.TimeUnit.SECONDS))
+                        return;
+                    // A 200 SSE response is already committed: revoke by
+                    // closing BEFORE another event, never by rewriting status.
+                    if (!readNotBlocked(verifier, raw, readPass)) {
+                        sseDenied.incrementAndGet();
+                        return;
+                    }
+                    out.write("event: later\ndata: synthetic-only\n\n".getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8));
+                    out.flush();
+                } finally { sseClosed.countDown(); }
+            } catch (IllegalArgumentException invalid) {
+                exchange.sendResponseHeaders(401,-1);
+            } catch (InterruptedException cancelled) {
+                Thread.currentThread().interrupt();
+            } finally { exchange.close(); }
+        });
+        http.setExecutor(workers);
+        http.start();
+        try {
+            var root = java.net.URI.create("http://127.0.0.1:"
+                + http.getAddress().getPort());
+            var client = java.net.http.HttpClient.newBuilder()
+                .connectTimeout(java.time.Duration.ofSeconds(3)).build();
+            java.util.function.BiFunction<String,String,java.net.http.HttpRequest>
+                request = (route,jwt) -> {
+                    var b = java.net.http.HttpRequest.newBuilder(root.resolve(route))
+                        .timeout(java.time.Duration.ofSeconds(18)).GET();
+                    if (jwt != null)
+                        b.header("Authorization","Bearer " + jwt);
+                    return b.build();
+                };
+
+            var runningHttp = client.sendAsync(
+                request.apply("/__s0/http",token),
+                java.net.http.HttpResponse.BodyHandlers.ofString());
+            must(httpStarted.await(6,java.util.concurrent.TimeUnit.SECONDS),
+                "Real HTTP did not complete initial B62 primary check");
+            var subscription = client.sendAsync(
+                request.apply("/__s0/sse",token),
+                java.net.http.HttpResponse.BodyHandlers.ofInputStream())
+                .get(6,java.util.concurrent.TimeUnit.SECONDS);
+            must(subscription.statusCode()==200
+                && sseStarted.await(6,java.util.concurrent.TimeUnit.SECONDS),
+                "Real SSE not initially connected and flushed");
+            try (var body = subscription.body()) {
+                byte[] ready = body.readNBytes(firstFrame.getBytes(
+                    java.nio.charset.StandardCharsets.UTF_8).length);
+                must(firstFrame.equals(new String(ready,
+                    java.nio.charset.StandardCharsets.UTF_8)),
+                    "Initial synthetic SSE frame not received via real TCP");
+                must(!runningHttp.isDone(),"HTTP completed before B62 revocation");
+
+                // An independent client-cert-authenticated G13 writer commits
+                // after both HTTP and SSE have passed their initial checks.
+                try (Connection writer=connect(correctUrl(WRITER),WRITER,writerPass)) {
+                    writer.setAutoCommit(false);
+                    try (PreparedStatement p=writer.prepareStatement(
+                        "SELECT b62g_proof.b62g13_raise_epoch(?,?,?)")) {
+                        p.setLong(1,99L);
+                        p.setLong(2,signed.signedIssuedAt().getEpochSecond());
+                        p.setString(3,"ci-" + UUID.randomUUID());
+                        try (var rows=p.executeQuery()) {
+                            must(rows.next(),"B62 G13 function-only revoke failed");
+                        }
+                    }
+                    writer.commit();
+                }
+                must(auditableEvents(auditPass)==3,
+                    "Third B62 G13 action has no independent audit");
+                must(!readNotBlocked(verifier,token,readPass),
+                    "Post-commit B62 primary returned stale allow");
+                httpResume.countDown();
+                sseResume.countDown();
+                var after=runningHttp.get(7,java.util.concurrent.TimeUnit.SECONDS);
+                must(after.statusCode()==404 && after.body().isEmpty(),
+                    "HTTP sent success or payload after committed revocation");
+                must(sseClosed.await(7,java.util.concurrent.TimeUnit.SECONDS),
+                    "Existing SSE connection not closed after committed revocation");
+                byte[] later;
+                try { later=body.readAllBytes(); }
+                catch (java.io.IOException closed) { later=new byte[0]; }
+                must(later.length==0 && sseDenied.get()==1,
+                    "SSE published another event after committed revocation");
+            }
+            System.out.println("B62_REAL_HTTP_POST_COMMIT_REVALIDATION_DENIES_NO_PAYLOAD");
+            System.out.println("B62_REAL_SSE_POST_COMMIT_REVALIDATION_CLOSES_NO_EVENT");
+            must(client.send(request.apply("/__s0/http",token),
+                java.net.http.HttpResponse.BodyHandlers.ofString())
+                .statusCode()==404,"New HTTP admitted already-revoked token");
+            must(client.send(request.apply("/__s0/sse",token),
+                java.net.http.HttpResponse.BodyHandlers.ofString())
+                .statusCode()==404,"New SSE admitted already-revoked token");
+            must(readNotBlocked(verifier,unaffected,readPass),
+                "Unrelated signed UID incorrectly blocked");
+            must(!readNotBlocked(verifier,unaffected,readPass+"-bad"),
+                "Bad DB credential returned cached allow");
+            System.out.println("B62_REAL_HTTP_SSE_NEW_SUBSCRIPTIONS_DENY_AND_STORE_FAILURE_DENY");
+            System.out.println("B62_SYNTHETIC_HTTP_SSE_ONLY_RUNTIME_PRODUCTION_QUARANTINE_NO_GO");
+        } finally {
+            httpResume.countDown();
+            sseResume.countDown();
+            http.stop(0);
+            workers.shutdownNow();
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         must(args.length == 0, "No input or endpoint overrides allowed");
         must("true".equals(env("GITHUB_ACTIONS"))
@@ -483,6 +663,7 @@ public final class IdentityRuntimeB62MutualTlsJdbcProof {
         // Preserve successful signed revocation and audit evidence BEFORE
         // rotating the certificate trust roots, then explicitly test that
         // trust-anchor removal does not retroactively cancel established TLS.
+        httpSseRevocationRace(readPass, writerPass, auditorPass);
         verifyDisposableReaderClientCaRotation(readPass);
 
         System.out.println("B62_ACTUAL_PG16_CLIENT_CERT_AND_SERVER_HOSTNAME_MTLS_PASS");
