@@ -250,7 +250,12 @@ public final class IdentityRuntimeB62PrimaryJdbcProof {
 
         // A separate authenticated G13 function-only writer commits an
         // inclusive B62-G1 UID cutoff, with an atomic, reviewer-visible audit.
-        long cutoff = signed42.signedIssuedAt().getEpochSecond();
+        // Genuine Identity issue() calls can cross a second boundary. B62-G1
+        // rejects token iat <= cutoff, not every JWT with the same UID.
+        // Choose a committed cutoff covering BOTH independently issued JTIs.
+        long cutoff = Math.max(
+            signed42.signedIssuedAt().getEpochSecond(),
+            signed42b.signedIssuedAt().getEpochSecond());
         try (Connection writer = login(WRITER, writerPassword)) {
             writer.setAutoCommit(false);
             try (PreparedStatement up = writer.prepareStatement(
