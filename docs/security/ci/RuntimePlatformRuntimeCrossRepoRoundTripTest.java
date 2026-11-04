@@ -11,10 +11,14 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -201,6 +205,103 @@ class RuntimePlatformRuntimeCrossRepoRoundTripTest {
             () -> runtimeVerifier(pair).verifyBearer("Bearer " + hmac));
         // Proves legacy auth remains intentionally separate; it does not
         // authenticate any ordinary Platform user into the Runtime.
+    }
+
+    @Test
+    void retainedPlatformIssuedRuntimePrincipalLosesAuthorityAtSignedExpiry() {
+        // A real Platform-issued RS256 JWT is verified once. Keeping the
+        // returned sealed Java principal must not extend the JWT lifetime.
+        KeyPair pair = rsa();
+        String issued = issuer(pair).issueForVerifiedExchange(
+            syntheticAccount(Role.DEVELOPER, 813L));
+        AtomicReference<Instant> now = new AtomicReference<>(CLOCK.instant());
+        Clock advancing = new Clock() {
+            @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+            @Override public Clock withZone(ZoneId zone) {
+                return Clock.fixed(now.get(), zone);
+            }
+            @Override public Instant instant() { return now.get(); }
+        };
+        var verifier = new RuntimePinnedPrincipalVerifier(
+            publicKeyPem(pair), KID, ISSUER, AUDIENCE, advancing);
+        var retained = verifier.verifyBearer("Bearer " + issued);
+        assertTrue(retained.isFresh());
+        assertTrue(retained.hasScope("orchestrator:read"));
+        assertFalse(retained.scopes().isEmpty());
+        now.set(CLOCK.instant().plusSeconds(301));
+        assertFalse(retained.isFresh());
+        assertFalse(retained.hasScope("orchestrator:read"));
+        assertFalse(retained.hasScope("orchestrator:write"));
+        assertTrue(retained.scopes().isEmpty(),
+            "A retained principal must not outlive Platform's signed JWT");
+    }
+
+    @Test
+    void platformRuntimeTokensHaveDistinctCanonicalSignedJtiWithSameIssueClock() {
+        // Actual Platform RS256 issuer, actual pinned Runtime verifier.
+        // Constant issuance clock deliberately tests multiple simultaneous
+        // synthetic sessions without depending on elapsed wall time.
+        KeyPair pair = rsa();
+        var signing = issuer(pair);
+        var verifying = runtimeVerifier(pair);
+        var account = syntheticAccount(Role.DEVELOPER, 814L);
+        var ids = new HashSet<String>();
+        for (int i = 0; i < 32; i++) {
+            String token = signing.issueForVerifiedExchange(account);
+            var signed = Jwts.parser().verifyWith(pair.getPublic())
+                .clock(() -> Date.from(CLOCK.instant()))
+                .build().parseSignedClaims(token);
+            String tokenId = signed.getPayload().getId();
+            assertNotNull(tokenId);
+            var parsedId = UUID.fromString(tokenId);
+            assertEquals(tokenId, parsedId.toString(),
+                "Require canonical signed session ID");
+            assertEquals(4, parsedId.version(), "Platform issuer requires UUIDv4 jti");
+            assertEquals(2, parsedId.variant());
+            assertTrue(ids.add(tokenId),
+                "Each new signed token must have a distinct session ID");
+            var principal = verifying.verifyBearer("Bearer " + token);
+            assertEquals(814L, principal.identityUid());
+            assertTrue(principal.hasScope("orchestrator:read"));
+        }
+        assertEquals(32, ids.size());
+    }
+
+    @Test
+    void actualPlatformJtiOpensOnlyStrictVerifiedRuntimeRevocationFactSeam() {
+        KeyPair pair = rsa();
+        var signing = issuer(pair);
+        var verifying = runtimeVerifier(pair);
+        var account = syntheticAccount(Role.DEVELOPER, 815L);
+
+        // Cryptographically verify the REAL Platform issuer's RS256 token.
+        String jwt = signing.issueForVerifiedExchange(account);
+        var signed = Jwts.parser().verifyWith(pair.getPublic())
+            .clock(() -> Date.from(CLOCK.instant()))
+            .build().parseSignedClaims(jwt);
+        var validated = verifying.verifyBearerForRevocation("Bearer " + jwt);
+        var facts = validated.requireRevocationFacts();
+        assertEquals(815L, facts.signedIdentityUid());
+        assertEquals(ISSUER, facts.verifiedIssuer());
+        assertEquals(KID, facts.verifiedKeyId());
+        assertEquals(signed.getPayload().getId(), facts.signedTokenId());
+        assertEquals(signed.getPayload().getIssuedAt().toInstant(),
+            facts.signedIssuedAt());
+
+        // No jti: a genuine RSA signature remains a valid identity, but
+        // MUST NOT qualify for future authoritative revocation lookup.
+        String missingJti = Jwts.builder().header().keyId(KID).and()
+            .subject(account.getEmail()).issuer(ISSUER)
+            .claim("aud", List.of(AUDIENCE)).claim("uid", 815L)
+            .claim("role", "DEVELOPER")
+            .claim("scopes", List.of("orchestrator:read"))
+            .issuedAt(Date.from(CLOCK.instant()))
+            .expiration(Date.from(CLOCK.instant().plusSeconds(300)))
+            .signWith(pair.getPrivate(), Jwts.SIG.RS256).compact();
+        assertTrue(verifying.verifyBearer("Bearer " + missingJti)
+            .hasScope("orchestrator:read"));
+        assertThrows(IllegalArgumentException.class,
+            () -> verifying.verifyBearerForRevocation("Bearer " + missingJti));
     }
 
     @Test
