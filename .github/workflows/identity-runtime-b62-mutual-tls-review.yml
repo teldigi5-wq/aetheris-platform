@@ -57,10 +57,18 @@ jobs:
               "pg_stat_ssl", "missing client certificate", "non-TLS downgrade",
               "b62g_proof.b62g13_raise_epoch",
               "b62g_proof.b62g13_block_signer",
-              "B62_TLS_PROOF_NOT_PRODUCTION_SESSION_OR_HTTP_SSE_GRANT_NO_GO"):
+              "B62_TLS_PROOF_NOT_PRODUCTION_SESSION_OR_HTTP_SSE_GRANT_NO_GO",
+              "B62_OLD_AND_NEW_READER_CERTS_BOTH_TRUSTED_DURING_OVERLAP",
+              "B62_REMOVED_CLIENT_CA_REJECTS_NEW_OLD_CERT_HANDSHAKES",
+              "B62_OLD_CERT_SESSION_STAYS_ACTIVE_UNTIL_EXPLICIT_RETIREMENT",
+              "B62_RETIRED_OLD_SESSION_AND_REPLACEMENT_READER_CONTINUES"):
               assert required in java, required
           for required in ("clientcert=verify-full", "hostnossl", "scram-sha-256",
-              "subjectAltName=DNS:localhost", "B62_MUTUAL_TLS_DISPOSABLE_CONTAINER_AND_PKI_DESTROYED"):
+              "subjectAltName=DNS:localhost", "B62_MUTUAL_TLS_DISPOSABLE_CONTAINER_AND_PKI_DESTROYED",
+              "next-client-ca.crt", "pg_reload_conf()", "pg_terminate_backend(pid)",
+              "B62_CLIENT_CA_DUAL_TRUST_RELOADED_WITHOUT_DB_RESTART",
+              "B62_OLD_CLIENT_CA_REMOVED_WITHOUT_DB_RESTART",
+              "B62_RETIRED_OLD_CLIENT_CERT_EXISTING_POSTGRES_SESSION"):
               assert required in setup, required
           assert "Jwts.builder()" not in java
           assert "@RestController" not in java and "@Component" not in java
