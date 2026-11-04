@@ -61,7 +61,15 @@ jobs:
               "B62_OLD_AND_NEW_READER_CERTS_BOTH_TRUSTED_DURING_OVERLAP",
               "B62_REMOVED_CLIENT_CA_REJECTS_NEW_OLD_CERT_HANDSHAKES",
               "B62_OLD_CERT_SESSION_STAYS_ACTIVE_UNTIL_EXPLICIT_RETIREMENT",
-              "B62_RETIRED_OLD_SESSION_AND_REPLACEMENT_READER_CONTINUES"):
+              "B62_RETIRED_OLD_SESSION_AND_REPLACEMENT_READER_CONTINUES",
+              "B62_TWO_OLD_POOL_MEMBERS_STILL_AUTHENTICATED_AFTER_CA_REMOVAL",
+              "B62_OLD_CERT_INFLIGHT_QUERY_OBSERVED_ACTIVE_ON_POSTGRES",
+              "B62_OLD_CERT_INFLIGHT_QUERY_TERMINATED_BY_BACKEND_RETIREMENT",
+              "B62_OTHER_POOL_MEMBER_AND_NEW_READER_SURVIVE_SINGLE_RETIREMENT",
+              "B62_ALL_OLD_READER_POOL_MEMBERS_RETIRED_NEW_READER_CONTINUES",
+              "pg_stat_activity", "SELECT pg_sleep(12)",
+              "syntheticFixtureAction(\"terminate\", busyPid)",
+              "syntheticFixtureAction(\"terminate\", idlePid)"):
               assert required in java, required
           for required in ("clientcert=verify-full", "hostnossl", "scram-sha-256",
               "subjectAltName=DNS:localhost", "B62_MUTUAL_TLS_DISPOSABLE_CONTAINER_AND_PKI_DESTROYED",
