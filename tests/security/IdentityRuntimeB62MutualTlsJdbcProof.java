@@ -174,19 +174,57 @@ public final class IdentityRuntimeB62MutualTlsJdbcProof {
                 + "the explicit synthetic backend retirement must terminate it");
     }
 
+    /**
+     * A test connection observing a RUNNING backend SQL statement, rather
+     * than merely a thread-start signal, closes the timing loophole in an
+     * in-flight pool-drain regression. Both sessions have the same synthetic
+     * reader database role; the new certificate is independently verified.
+     */
+    private static void awaitInFlightReaderSql(
+            String newClient, String password, int expectedPid) throws Exception {
+        try (Connection observer = connect(newClient, READER, password);
+             PreparedStatement query = observer.prepareStatement("""
+                SELECT EXISTS (
+                  SELECT 1 FROM pg_stat_activity
+                  WHERE pid = ? AND datname = 'b62g_synthetic'
+                    AND usename = 'b62g8_user_reader'
+                    AND state = 'active'
+                    AND query LIKE 'SELECT pg_sleep(12)%'
+                )
+                """)) {
+            query.setInt(1, expectedPid);
+            for (int i = 0; i < 40; i++) {
+                try (var row = query.executeQuery()) {
+                    if (row.next() && row.getBoolean(1)) return;
+                }
+                Thread.sleep(100);
+            }
+        }
+        throw new AssertionError(
+            "Cannot prove old-certificate SQL reached PostgreSQL ACTIVE state");
+    }
+
     private static void verifyDisposableReaderClientCaRotation(String password)
             throws Exception {
         String newClient = url("localhost", READER + ".next", "ca.crt",
             true, "verify-full");
-        // The next certificate is issued by another test CA, deliberately
-        // NOT trusted by the initial PostgreSQL client-auth bundle.
         rejects(newClient, READER, password,
             "next reader CA not yet added to server's client trust");
-        try (Connection oldSession = connect(correctUrl(READER), READER, password)) {
-            int oldPid = backendPid(oldSession);
 
-            // Two-CA overlap: both the existing and replacement reader
-            // credentials can authenticate, without restarting PostgreSQL.
+        // TWO independent, previously authenticated old-certificate
+        // connections model an idle pool member and a busy pool member.
+        // The longer socket timeout on the busy member ensures its sleep is
+        // interrupted by explicit backend retirement, not client timeout.
+        String oldBusyUrl = correctUrl(READER).replace(
+            "&socketTimeout=3", "&socketTimeout=20");
+        must(oldBusyUrl.contains("&socketTimeout=20"),
+            "In-flight query must not be confused with socket timeout");
+        try (Connection oldIdle = connect(correctUrl(READER), READER, password);
+             Connection oldBusy = connect(oldBusyUrl, READER, password)) {
+            int idlePid = backendPid(oldIdle);
+            int busyPid = backendPid(oldBusy);
+            must(idlePid != busyPid, "Pool members must use independent PostgreSQL PIDs");
+
             syntheticFixtureAction("overlap", 0);
             try (Connection oldFresh = connect(correctUrl(READER), READER, password);
                  Connection newFresh = connect(newClient, READER, password)) {
@@ -195,9 +233,6 @@ public final class IdentityRuntimeB62MutualTlsJdbcProof {
             }
             System.out.println("B62_OLD_AND_NEW_READER_CERTS_BOTH_TRUSTED_DURING_OVERLAP");
 
-            // Remove the OLD client-auth CA only. The server's old CA and
-            // SAN certificate remain valid for client verify-full, so this
-            // strictly tests workload client certificate trust rotation.
             syntheticFixtureAction("cutover", 0);
             try (Connection newAfter = connect(newClient, READER, password)) {
                 must(READER.equals(newAfter.getMetaData().getUserName()),
@@ -207,26 +242,61 @@ public final class IdentityRuntimeB62MutualTlsJdbcProof {
                 "old signed reader certificate accepted after CA removal");
             System.out.println("B62_REMOVED_CLIENT_CA_REJECTS_NEW_OLD_CERT_HANDSHAKES");
 
-            // Database certificate checks occur when a TCP/TLS session starts.
-            // IMPORTANT: an already authenticated TLS connection can still
-            // execute SELECT after its issuing CA is no longer trusted.
-            try (var query = oldSession.prepareStatement("SELECT current_user");
-                 var rows = query.executeQuery()) {
-                must(rows.next() && READER.equals(rows.getString(1)),
-                    "Expected existing session to survive CA trust change");
+            // Both old TLS connections still work until actively retired.
+            for (Connection old : new Connection[]{oldIdle, oldBusy}) {
+                try (var sql = old.prepareStatement("SELECT current_user");
+                     var row = sql.executeQuery()) {
+                    must(row.next() && READER.equals(row.getString(1)),
+                        "Prior authenticated old certificate was retroactively denied");
+                }
             }
             System.out.println("B62_OLD_CERT_SESSION_STAYS_ACTIVE_UNTIL_EXPLICIT_RETIREMENT");
+            System.out.println("B62_TWO_OLD_POOL_MEMBERS_STILL_AUTHENTICATED_AFTER_CA_REMOVAL");
 
-            // Explicitly retire only this disposable PostgreSQL reader PID
-            // using the fixture's separate local synthetic database owner.
-            syntheticFixtureAction("terminate", oldPid);
-            assertOldConnectionClosed(oldSession);
+            // Issue SQL through the second old connection and observe it
+            // actually ACTIVE in pg_stat_activity before targeted termination.
+            var running = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try (PreparedStatement sleep = oldBusy.prepareStatement(
+                        "SELECT pg_sleep(12)")) {
+                    sleep.execute();
+                    return false; // An uninterrupted old query is a test failure.
+                } catch (SQLException terminated) {
+                    return true;
+                }
+            });
+            awaitInFlightReaderSql(newClient, password, busyPid);
+            System.out.println("B62_OLD_CERT_INFLIGHT_QUERY_OBSERVED_ACTIVE_ON_POSTGRES");
+
+            syntheticFixtureAction("terminate", busyPid);
+            must(running.get(5, TimeUnit.SECONDS),
+                "An active query survived its targeted certificate-session retirement");
+            assertOldConnectionClosed(oldBusy);
+            System.out.println("B62_OLD_CERT_INFLIGHT_QUERY_TERMINATED_BY_BACKEND_RETIREMENT");
+
+            // Retiring the busy backend must not cancel unrelated old
+            // sessions or newly authenticated replacement sessions.
+            try (var query = oldIdle.prepareStatement("SELECT current_user");
+                 var rows = query.executeQuery()) {
+                must(rows.next() && READER.equals(rows.getString(1)),
+                    "Retiring one old busy session killed unrelated idle pool member");
+            }
+            try (Connection newSurvivor = connect(newClient, READER, password)) {
+                must(backendPid(newSurvivor) > 0,
+                    "Replacement mTLS reader was lost during old-session retirement");
+            }
+            System.out.println("B62_OTHER_POOL_MEMBER_AND_NEW_READER_SURVIVE_SINGLE_RETIREMENT");
+
+            // The old idle member must ALSO be explicitly retired; a pool
+            // manager cannot stop after replacing only its in-flight member.
+            syntheticFixtureAction("terminate", idlePid);
+            assertOldConnectionClosed(oldIdle);
             rejects(correctUrl(READER), READER, password,
-                "terminated prior reader can reconnect with removed CA");
+                "Old CA reader was allowed to reconnect after full retirement");
             try (Connection replacement = connect(newClient, READER, password)) {
                 must(backendPid(replacement) > 0,
-                    "New client identity must retain continuity after retirement");
+                    "New reader identity must remain usable after full pool retirement");
             }
+            System.out.println("B62_ALL_OLD_READER_POOL_MEMBERS_RETIRED_NEW_READER_CONTINUES");
             System.out.println("B62_RETIRED_OLD_SESSION_AND_REPLACEMENT_READER_CONTINUES");
         }
     }
