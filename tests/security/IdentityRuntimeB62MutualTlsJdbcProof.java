@@ -16,6 +16,8 @@ import java.sql.SQLException;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.UUID;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * CI-ONLY: Platform's real Identity issuer -> immutable Runtime RS256
@@ -113,6 +115,119 @@ public final class IdentityRuntimeB62MutualTlsJdbcProof {
         } catch (SQLException expected) {
             // Do not display errors containing certificate paths or credentials.
             // Fail-closed is sufficient for all TLS handshake failure variants.
+        }
+    }
+
+    /**
+     * Explicitly bounded, fixed-command CI fixture controller. Never accepts
+     * user-supplied shell commands, network hosts, passwords, or key material.
+     * Script independently verifies exact GitHub disposable runner constraints.
+     */
+    private static void syntheticFixtureAction(String action, int pid)
+            throws Exception {
+        must("true".equals(env("GITHUB_ACTIONS"))
+                && "yes".equals(env("B62_MTLS_CI_ONLY")),
+            "Certificate trust mutations are permitted only inside synthetic CI");
+        must(List.of("overlap", "cutover", "terminate").contains(action),
+            "Unexpected privileged synthetic fixture command");
+        var command = new java.util.ArrayList<>(List.of(
+            "bash", "tests/security/b62g14-mtls-disposable-db.sh", action));
+        if ("terminate".equals(action)) {
+            must(pid > 0 && pid < 1000000000,
+                "Refuse malformed disposable reader backend PID");
+            command.add(Integer.toString(pid));
+        } else {
+            must(pid == 0, "Unexpected PID on trust-store rotation");
+        }
+        var process = new ProcessBuilder(command).inheritIO().start();
+        if (!process.waitFor(25, TimeUnit.SECONDS)) {
+            process.destroyForcibly();
+            throw new AssertionError("Timed out changing disposable B62 client CA trust");
+        }
+        must(process.exitValue() == 0,
+            "Disposable B62 trust-rotation action did not complete");
+    }
+
+    private static int backendPid(Connection connection) throws SQLException {
+        try (var q = connection.prepareStatement("SELECT pg_backend_pid()");
+             var row = q.executeQuery()) {
+            if (!row.next()) throw new SQLException("Synthetic reader backend missing");
+            return row.getInt(1);
+        }
+    }
+
+    private static void assertOldConnectionClosed(Connection prior) throws Exception {
+        boolean terminated = false;
+        for (int i = 0; i < 15; i++) {
+            try (var check = prior.prepareStatement("SELECT current_user");
+                 var rows = check.executeQuery()) {
+                if (rows.next()) {
+                    Thread.sleep(100);
+                }
+            } catch (SQLException killed) {
+                terminated = true;
+                break;
+            }
+        }
+        must(terminated,
+            "A removed client trust root does not kill existing sessions: "
+                + "the explicit synthetic backend retirement must terminate it");
+    }
+
+    private static void verifyDisposableReaderClientCaRotation(String password)
+            throws Exception {
+        String newClient = url("localhost", READER + ".next", "ca.crt",
+            true, "verify-full");
+        // The next certificate is issued by another test CA, deliberately
+        // NOT trusted by the initial PostgreSQL client-auth bundle.
+        rejects(newClient, READER, password,
+            "next reader CA not yet added to server's client trust");
+        try (Connection oldSession = connect(correctUrl(READER), READER, password)) {
+            int oldPid = backendPid(oldSession);
+
+            // Two-CA overlap: both the existing and replacement reader
+            // credentials can authenticate, without restarting PostgreSQL.
+            syntheticFixtureAction("overlap", 0);
+            try (Connection oldFresh = connect(correctUrl(READER), READER, password);
+                 Connection newFresh = connect(newClient, READER, password)) {
+                must(backendPid(oldFresh) != backendPid(newFresh),
+                    "Old and new workload identities must have distinct TLS sessions");
+            }
+            System.out.println("B62_OLD_AND_NEW_READER_CERTS_BOTH_TRUSTED_DURING_OVERLAP");
+
+            // Remove the OLD client-auth CA only. The server's old CA and
+            // SAN certificate remain valid for client verify-full, so this
+            // strictly tests workload client certificate trust rotation.
+            syntheticFixtureAction("cutover", 0);
+            try (Connection newAfter = connect(newClient, READER, password)) {
+                must(READER.equals(newAfter.getMetaData().getUserName()),
+                    "Replacement mTLS reader identity incorrect");
+            }
+            rejects(correctUrl(READER), READER, password,
+                "old signed reader certificate accepted after CA removal");
+            System.out.println("B62_REMOVED_CLIENT_CA_REJECTS_NEW_OLD_CERT_HANDSHAKES");
+
+            // Database certificate checks occur when a TCP/TLS session starts.
+            // IMPORTANT: an already authenticated TLS connection can still
+            // execute SELECT after its issuing CA is no longer trusted.
+            try (var query = oldSession.prepareStatement("SELECT current_user");
+                 var rows = query.executeQuery()) {
+                must(rows.next() && READER.equals(rows.getString(1)),
+                    "Expected existing session to survive CA trust change");
+            }
+            System.out.println("B62_OLD_CERT_SESSION_STAYS_ACTIVE_UNTIL_EXPLICIT_RETIREMENT");
+
+            // Explicitly retire only this disposable PostgreSQL reader PID
+            // using the fixture's separate local synthetic database owner.
+            syntheticFixtureAction("terminate", oldPid);
+            assertOldConnectionClosed(oldSession);
+            rejects(correctUrl(READER), READER, password,
+                "terminated prior reader can reconnect with removed CA");
+            try (Connection replacement = connect(newClient, READER, password)) {
+                must(backendPid(replacement) > 0,
+                    "New client identity must retain continuity after retirement");
+            }
+            System.out.println("B62_RETIRED_OLD_SESSION_AND_REPLACEMENT_READER_CONTINUES");
         }
     }
 
@@ -294,6 +409,11 @@ public final class IdentityRuntimeB62MutualTlsJdbcProof {
             "Blocked signer must deny other otherwise-valid user");
         must(auditableEvents(auditorPass) == 2,
             "Signer block must create a second independent audit event");
+
+        // Preserve successful signed revocation and audit evidence BEFORE
+        // rotating the certificate trust roots, then explicitly test that
+        // trust-anchor removal does not retroactively cancel established TLS.
+        verifyDisposableReaderClientCaRotation(readPass);
 
         System.out.println("B62_ACTUAL_PG16_CLIENT_CERT_AND_SERVER_HOSTNAME_MTLS_PASS");
         System.out.println("B62_REAL_IDENTITY_RUNTIME_TLS_PRIMARY_SIGNED_REVOKE_PASS");
