@@ -7,3 +7,9 @@ target/
 node_modules/
 dist/
 coverage/
+
+# Operator-generated application log files, may contain sensitive data.
+observability/logs/
+
+# Local Helm override carrying secrets; never commit.
+deploy/helm/aetheris/values-local-private.yaml
