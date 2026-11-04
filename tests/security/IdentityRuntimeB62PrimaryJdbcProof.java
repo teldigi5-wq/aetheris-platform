@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.concurrent.TimeUnit;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
@@ -39,6 +40,10 @@ public final class IdentityRuntimeB62PrimaryJdbcProof {
     private static final String READER = "b62g8_user_reader";
     private static final String WRITER = "b62g13_emergency_writer";
     private static final String AUDITOR = "b62g13_audit_reviewer";
+    // Review-only server-side deadlines, separate from the JDBC socket bound.
+    // Each real primary authority query MUST install these on its own txn.
+    private static final String STATEMENT_TIMEOUT = "900ms";
+    private static final String LOCK_TIMEOUT = "600ms";
 
     private IdentityRuntimeB62PrimaryJdbcProof() {}
 
@@ -117,6 +122,7 @@ public final class IdentityRuntimeB62PrimaryJdbcProof {
                 c.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
                 c.setReadOnly(true);
                 c.setAutoCommit(false);
+                installBoundedPrimaryRead(c);
                 boolean result = checkReadOnlyStatement(c,
                     signed.signedIdentityUid(), signed.verifiedIssuer(),
                     signed.verifiedKeyId(),
@@ -130,6 +136,20 @@ public final class IdentityRuntimeB62PrimaryJdbcProof {
         }
     }
 
+    /** Actual server-enforced per-statement and lock wait limits; SET LOCAL
+     * is scoped to this explicit read-only transaction, never the connection
+     * pool or a production configuration. A missing bound must DENY.
+     */
+    private static void installBoundedPrimaryRead(Connection c) throws SQLException {
+        if (c == null || !c.isReadOnly() || c.getAutoCommit()) {
+            throw new IllegalStateException("Explicit read-only authority transaction required");
+        }
+        try (var configure = c.createStatement()) {
+            configure.execute("SET LOCAL statement_timeout = '" + STATEMENT_TIMEOUT + "'");
+            configure.execute("SET LOCAL lock_timeout = '" + LOCK_TIMEOUT + "'");
+        }
+    }
+
     private static boolean checkReadOnlyStatement(Connection c,
             long uid, String issuer, String kid, long signedIat) {
         try {
@@ -138,8 +158,13 @@ public final class IdentityRuntimeB62PrimaryJdbcProof {
                 SELECT current_user = 'b62g8_user_reader'
                    AND current_setting('transaction_isolation') = 'read committed'
                    AND current_setting('transaction_read_only') = 'on'
+                   AND current_setting('statement_timeout') = '900ms'
+                   AND current_setting('lock_timeout') = '600ms'
                    AND b62g_proof.synthetic_post_signature_allowed(?, ?, ?, ?)
                 """)) {
+                // Driver cancellation is an additional fallback; PostgreSQL
+                // enforces the stricter 900ms server-side statement deadline.
+                q.setQueryTimeout(2);
                 q.setLong(1, uid);
                 q.setString(2, issuer);
                 q.setString(3, kid);
@@ -186,6 +211,7 @@ public final class IdentityRuntimeB62PrimaryJdbcProof {
         String readerPassword = fixturePassword("B62_CI_READER_PASSWORD");
         String writerPassword = fixturePassword("B62_CI_WRITER_PASSWORD");
         String auditorPassword = fixturePassword("B62_CI_AUDITOR_PASSWORD");
+        String disposableOwnerPassword = fixturePassword("B62_CI_OWNER_PASSWORD");
 
         var generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(3072);
@@ -235,6 +261,46 @@ public final class IdentityRuntimeB62PrimaryJdbcProof {
             "Second real JWT unexpectedly blocked");
         check(notEmergencyBlocked(runtime, token77, URL, readerPassword),
             "Independent signed UID unexpectedly blocked");
+
+        // A stale REPEATABLE READ snapshot cannot provide a current B62
+        // authority decision even if its underlying signed token is genuine.
+        try (Connection stale = login(READER, readerPassword)) {
+            stale.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+            stale.setReadOnly(true);
+            stale.setAutoCommit(false);
+            installBoundedPrimaryRead(stale);
+            check(!checkReadOnlyStatement(stale,
+                    signed42.signedIdentityUid(), signed42.verifiedIssuer(),
+                    signed42.verifiedKeyId(),
+                    signed42.signedIssuedAt().getEpochSecond()),
+                "Long-lived stale snapshot must not authorize real signed JWT");
+            stale.rollback();
+        }
+
+        // Real contention: another independent TCP connection holds an
+        // ACCESS EXCLUSIVE table lock; the bounded restricted reader MUST
+        // time out and return DENY, not wait for the locked primary or cache
+        // an earlier successful check. Only disposable CI database owner is
+        // allowed to take this lock; never use this role in production.
+        try (Connection disposableOwner = login("b62g_synthetic",
+                disposableOwnerPassword)) {
+            disposableOwner.setAutoCommit(false);
+            try (var locking = disposableOwner.createStatement()) {
+                locking.execute("LOCK TABLE b62g_proof.principal_epochs IN ACCESS EXCLUSIVE MODE");
+            }
+            long start = System.nanoTime();
+            try {
+                check(!notEmergencyBlocked(runtime, token42a, URL, readerPassword),
+                    "Blocked authoritative primary query must fail closed");
+            } finally {
+                disposableOwner.rollback();
+            }
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+            check(elapsedMs >= 200 && elapsedMs < 5000,
+                "Primary lock must cause a bounded actual wait, not a silent bypass");
+        }
+        check(notEmergencyBlocked(runtime, token42a, URL, readerPassword),
+            "Reader must recover with a fresh query when disposable lock clears");
 
         // Database login and network failures MUST deny, despite valid JWTs.
         check(!notEmergencyBlocked(runtime, token42a, URL,
