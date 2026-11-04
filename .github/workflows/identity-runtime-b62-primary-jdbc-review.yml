@@ -16,6 +16,7 @@ jobs:
       B62_CI_READER_PASSWORD: b62g8-user-synthetic-ci-only
       B62_CI_WRITER_PASSWORD: b62g13-writer-ci-synthetic-only
       B62_CI_AUDITOR_PASSWORD: b62g13-auditor-ci-synthetic-only
+      B62_CI_OWNER_PASSWORD: b62g-ci-owner-synthetic-only
     steps:
       - name: Checkout Platform without retained credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
@@ -57,6 +58,13 @@ jobs:
               "b62g_proof.b62g13_raise_epoch", "b62g_proof.b62g13_block_signer",
               "B62_CROSS_REPO_CI_ONLY", "BAD_NETWORK_URL",
               "isDenied(", "assertBadPasswordRejected(",
+              "installBoundedPrimaryRead(",
+              "current_setting('statement_timeout') = '900ms'",
+              "current_setting('lock_timeout') = '600ms'",
+              "q.setQueryTimeout(2)",
+              "Connection.TRANSACTION_REPEATABLE_READ",
+              "LOCK TABLE b62g_proof.principal_epochs IN ACCESS EXCLUSIVE MODE",
+              "B62_CI_OWNER_PASSWORD",
               "IDENTITY_RUNTIME_B62_JTI_IS_NOT_SESSION_GRANT_NO_GO"):
               assert marker in s, marker
           assert "@RestController" not in s and "@Component" not in s
