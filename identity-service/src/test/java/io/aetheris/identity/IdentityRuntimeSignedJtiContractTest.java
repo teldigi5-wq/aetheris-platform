@@ -11,7 +11,6 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -76,8 +75,11 @@ class IdentityRuntimeSignedJtiContractTest {
             assertEquals("identity-contract@example.invalid", claims.getSubject());
             assertEquals(1, claims.getAudience().size());
             assertTrue(claims.getAudience().contains(AUDIENCE));
-            assertTrue(claims.get("scopes", Set.class) == null
-                || !claims.get("scopes", java.util.List.class).isEmpty());
+            Object signedScopes = claims.get("scopes");
+            assertInstanceOf(java.util.Collection.class, signedScopes);
+            assertTrue(((java.util.Collection<?>) signedScopes)
+                .contains("orchestrator:read"),
+                "Signed role/scopes must preserve real Identity permissions");
             assertEquals(300,
                 claims.getExpiration().toInstant().getEpochSecond()
                   - claims.getIssuedAt().toInstant().getEpochSecond());
