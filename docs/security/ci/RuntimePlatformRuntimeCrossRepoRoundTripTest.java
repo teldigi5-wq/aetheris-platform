@@ -16,7 +16,9 @@ import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -232,6 +234,37 @@ class RuntimePlatformRuntimeCrossRepoRoundTripTest {
         assertFalse(retained.hasScope("orchestrator:write"));
         assertTrue(retained.scopes().isEmpty(),
             "A retained principal must not outlive Platform's signed JWT");
+    }
+
+    @Test
+    void platformRuntimeTokensHaveDistinctCanonicalSignedJtiWithSameIssueClock() {
+        // Actual Platform RS256 issuer, actual pinned Runtime verifier.
+        // Constant issuance clock deliberately tests multiple simultaneous
+        // synthetic sessions without depending on elapsed wall time.
+        KeyPair pair = rsa();
+        var signing = issuer(pair);
+        var verifying = runtimeVerifier(pair);
+        var account = syntheticAccount(Role.DEVELOPER, 814L);
+        var ids = new HashSet<String>();
+        for (int i = 0; i < 32; i++) {
+            String token = signing.issueForVerifiedExchange(account);
+            var signed = Jwts.parser().verifyWith(pair.getPublic())
+                .clock(() -> Date.from(CLOCK.instant()))
+                .build().parseSignedClaims(token);
+            String tokenId = signed.getPayload().getId();
+            assertNotNull(tokenId);
+            var parsedId = UUID.fromString(tokenId);
+            assertEquals(tokenId, parsedId.toString(),
+                "Require canonical signed session ID");
+            assertEquals(4, parsedId.version(), "Platform issuer requires UUIDv4 jti");
+            assertEquals(2, parsedId.variant());
+            assertTrue(ids.add(tokenId),
+                "Each new signed token must have a distinct session ID");
+            var principal = verifying.verifyBearer("Bearer " + token);
+            assertEquals(814L, principal.identityUid());
+            assertTrue(principal.hasScope("orchestrator:read"));
+        }
+        assertEquals(32, ids.size());
     }
 
     @Test

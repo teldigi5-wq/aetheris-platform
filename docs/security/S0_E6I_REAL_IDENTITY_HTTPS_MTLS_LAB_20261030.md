@@ -60,3 +60,28 @@ service permission, production release, Gateway-to-Runtime authorization grant,
 schema migration or TLS trust-anchor change. The existing minimum test-only
 HTTPS servlet and disposable Postgres/TLS labs remain intact. Parent Platform
 and Runtime production NO_GO controls are unchanged; Stage45 NO_GO.
+
+## 4 November 2026 — unique signed Runtime session IDs; latest source pin
+
+This updated exact-head review test pins independently green Runtime
+[draft PR #257](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/257)
+at `18d73c24c6c9e8cecf19f4ca4b13d01aa157c025` with [67/67 real security tests](https://github.com/teldigi5-wq/aetheris-ai-runtime/actions/runs/41788118149).
+The prior Runtime pin `460b91768ead93fbb7c1fb2588e4978b0905d4cc` is superseded for this lab.
+
+The eighth real-source cross-repository test obtains **32 fresh genuine Platform
+RS256 Runtime JWTs** for the same synthetic Identity user and the *same fixed*
+issuance time. The signed JJWT claim `jti` must be present, canonical UUIDv4,
+and different on every issue, and every token must pass the actual pinned
+Runtime public-key verifier. The CI Surefire XML assertion now demands exactly
+**8/8** source-identity interoperability cases, not the previous 7/7.
+
+This proves only a bounded random-token-ID contract in synthetic test
+conditions. It **does not** prove indefinite uniqueness, JWT replay prevention,
+immediate logout invalidation or actual authoritative token revocation.
+The copied Runtime verifier is a signature/scope/expiry verifier and currently
+does not require `jti` or use the separately drafted B62 emergency revocation
+database. Session revocation must be independently integrated with an
+authenticated read-only primary source, fail-closed timeouts, no stale
+secondary fallback, reviewed signer blocks and real object ownership.
+No live HTTP exchange, API admission, migration, main merge, deployment or
+model inference. Runtime #23 and Platform #251 OPEN; Stage45 NO_GO.
