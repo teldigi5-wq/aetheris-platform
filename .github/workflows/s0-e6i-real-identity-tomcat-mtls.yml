@@ -1,13 +1,11 @@
 name: S0-E6I Real Identity Tomcat HTTPS Mutual TLS and Security Regression
+# Run all E6I tests on every review update to this exact parent branch.
+# Narrow path filters can hide stale-green evidence after inherited Identity
+# issuer, session-rotation, TLS policy or integration sources change.
 on:
   pull_request:
     branches:
       - security/s0-e6h-internal-mtls-workload-exchange-gate-20261030
-    paths:
-      - 'identity-service/src/test/java/io/aetheris/identity/RealIdentityHttpsMutualTlsWorkloadTest.java'
-      - 'scripts/security/run_identity_e6i_tls_lab.sh'
-      - '.github/workflows/s0-e6i-real-identity-tomcat-mtls.yml'
-      - 'docs/security/S0_E6I_REAL_IDENTITY_HTTPS_MTLS_LAB_20261030.md'
   workflow_dispatch:
 
 permissions:
