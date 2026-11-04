@@ -41,6 +41,10 @@ def render_compose(*filenames: str) -> dict:
 class ComposeNetworkBoundaryTests(unittest.TestCase):
     def assert_safe_ports(self, services: dict, context: str) -> None:
         for name, service in services.items():
+            # Host networking ignores Compose published-port bindings entirely.
+            self.assertNotEqual(
+                "host", service.get("network_mode"),
+                f"{context}: {name} must not share the host network namespace")
             ports = service.get("ports", [])
             if name in PRIVATE:
                 self.assertEqual([], ports,
@@ -58,6 +62,15 @@ class ComposeNetworkBoundaryTests(unittest.TestCase):
                 self.assert_safe_ports(services, compose)
                 for name in ("gateway", "dashboard"):
                     self.assertTrue(services[name].get("ports"), f"{name} must be usable locally")
+
+    def test_host_network_bypass_is_rejected_without_published_ports(self) -> None:
+        # Synthetic negative control: an empty ports list is not isolation.
+        for name in ("redis", "gateway"):
+            with self.subTest(service=name):
+                with self.assertRaisesRegex(AssertionError, "host network namespace"):
+                    self.assert_safe_ports(
+                        {name: {"network_mode": "host", "ports": []}},
+                        "synthetic host-network bypass")
 
     def test_default_compose_override_cannot_republish_stores(self) -> None:
         obj = render_compose("docker-compose.yml", "docker-compose.override.yml")
