@@ -423,3 +423,5 @@ Security-sensitive findings should follow **[SECURITY.md](SECURITY.md)** and sho
 **Built by Poojana Kaveesh Sellahewa**
 
 </div>
+
+ **Latest Runtime S-B62-A operator preflight:** [PR #282](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/282) commit `f882444cad0c15ab617aee625751e62cac03be09`, [physical PG16 and 13/13 offline security tests #42168871737](https://github.com/teldigi5-wq/aetheris-ai-runtime/actions/runs/42168871737) **SUCCESS**. The new local JSON parser rejects missing/duplicate fields, raw host/IP values, evidence hash errors, shared administrative domains and all GO claims. **Even complete self-reports remain UNVERIFIED** without independent real-host, operator and physical old-primary fencing evidence. Stage45 **NO_GO** and XERJ **HOLD**.
