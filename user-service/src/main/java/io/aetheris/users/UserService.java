@@ -96,7 +96,8 @@ public class UserService {
             throw new IllegalArgumentException("Email already exists");
         }
         User created = repository.save(new User(request.name().trim(), email, verified));
-        eventPublisher.userCreated(created.getId(), created.getName(), created.getEmail());
+        eventPublisher.userCreated(created.getId(), created.getName(), created.getEmail(),
+                created.getTenantId());
         return toResponse(created);
     }
 
@@ -109,7 +110,8 @@ public class UserService {
         User owned = repository.findByIdAndTenantId(id, Objects.requireNonNull(tenantId))
                 .orElseThrow(() -> new UserNotFoundException(id));
         repository.delete(owned);
-        eventPublisher.userDeleted(owned.getId(), owned.getName(), owned.getEmail());
+        eventPublisher.userDeleted(owned.getId(), owned.getName(), owned.getEmail(),
+                owned.getTenantId());
     }
 
     private static UserResponse toResponse(User user) {

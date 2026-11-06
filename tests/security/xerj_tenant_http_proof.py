@@ -58,6 +58,11 @@ def main():
         isinstance(admin_login.get("accessToken"),str),
         "tenant_cache_test_real_identity_admin_login")
     admin=admin_login["accessToken"]
+    code,old_events=gateway("GET","/api/events",admin)
+    baseline.verify(code==200 and isinstance(old_events,list) and any(
+        evt.get("eventType")=="user.created" and evt.get("tenantId") is None
+        for evt in old_events if isinstance(evt,dict)),
+        "legacy_global_audit_events_stay_unassigned_after_flyway_v2")
     code, warm_items = gateway("GET", "/api/users",admin)
     baseline.verify(code==200 and isinstance(warm_items,list),
         "tenant_cache_test_warms_real_admin_redis_global_list")
@@ -109,6 +114,12 @@ def main():
         import time
         time.sleep(1)
     baseline.verify(seen,"tenant_mutations_reach_real_admin_only_audit_store")
+    created_events={evt.get("userId"):evt for evt in events
+                    if isinstance(evt,dict) and evt.get("eventType")=="user.created"}
+    baseline.verify(created_events[id_a].get("tenantId")==str(tenant_a),
+        "created_audit_event_uses_server_owned_tenant_a")
+    baseline.verify(created_events[id_b].get("tenantId")==str(tenant_b),
+        "created_audit_event_uses_server_owned_tenant_b")
 
     code,items=gateway("GET","/api/users/tenant",a)
     baseline.verify(code==200 and isinstance(items,list) and
@@ -151,6 +162,24 @@ def main():
         code,_=gateway("DELETE",f"/api/users/tenant/{id}",token)
         baseline.verify(code==204,"tenant_"+label+"_can_delete_own_record")
 
+    # The delete events are eventually delivered to the administrator-only
+    # Audit service; do not expose per-tenant audit reads in this preview.
+    deletes_seen=False
+    for _ in range(20):
+        code,deleted_events=gateway("GET","/api/events",admin)
+        if code==200 and isinstance(deleted_events,list):
+            deleted={evt.get("userId"):evt for evt in deleted_events
+                     if isinstance(evt,dict) and evt.get("eventType")=="user.deleted"}
+            if id_a in deleted and id_b in deleted:
+                deletes_seen=True
+                break
+        import time
+        time.sleep(1)
+    baseline.verify(deletes_seen,"tenant_delete_events_reach_real_admin_audit_store")
+    baseline.verify(deleted[id_a].get("tenantId")==str(tenant_a) and
+        deleted[id_b].get("tenantId")==str(tenant_b),
+        "deleted_audit_events_retain_server_owned_tenant_attribution")
+
     code,remaining = gateway("GET","/api/users",admin)
     baseline.verify(code==200 and isinstance(remaining,list) and
         not ({id_a,id_b} & {item.get("id") for item in remaining}),
@@ -160,6 +189,8 @@ def main():
     report["checks"]=dict(baseline.CHECKS)
     report["account_bounded_tenant_user_api_verified"]=True
     report["tenant_global_cache_invalidation_verified"]=True
+    report["audit_tenant_attribution_verified"]=True
+    report["audit_broker_producer_identity_verified"]=False
     report["tenant_isolation_verified"]=False
     report["tenant_membership_verified"]=False
     report["production_verified"]=False
