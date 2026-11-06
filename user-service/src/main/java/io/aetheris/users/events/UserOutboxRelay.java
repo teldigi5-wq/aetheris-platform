@@ -41,8 +41,8 @@ public class UserOutboxRelay {
     public void preflight() {
         store.validateSchema();
         if (!(rabbit.getConnectionFactory() instanceof CachingConnectionFactory cf) ||
-                cf.getPublisherConfirmType() != CachingConnectionFactory.ConfirmType.CORRELATED) {
-            throw new IllegalStateException("Outbox requires correlated RabbitMQ publisher confirms");
+                !cf.isPublisherConfirms() || !cf.isPublisherReturns()) {
+            throw new IllegalStateException("Outbox requires correlated RabbitMQ confirms and returns");
         }
         rabbit.setMandatory(true);
     }
