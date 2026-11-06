@@ -21,6 +21,8 @@ spring:
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:aetheris}
     password: ${SPRING_RABBITMQ_PASSWORD:aetheris}
+    publisher-confirm-type: ${AETHERIS_RABBIT_PUBLISHER_CONFIRM_TYPE:none}
+    publisher-returns: ${AETHERIS_RABBIT_PUBLISHER_RETURNS:false}
   cache:
     type: redis
     redis:
@@ -67,6 +69,10 @@ aetheris:
     key-id: ${AETHERIS_JWT_RS256_KEY_ID:}
     issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
     audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
+  outbox:
+    enabled: ${AETHERIS_OUTBOX_ENABLED:false}
+    batch: ${AETHERIS_OUTBOX_BATCH:8}
+    poll-ms: ${AETHERIS_OUTBOX_POLL_MS:350}
   gateway:
     workload-mtls-required: ${AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED:false}
     workload-spiffe-id: ${AETHERIS_BACKEND_GATEWAY_SPIFFE_ID:}
