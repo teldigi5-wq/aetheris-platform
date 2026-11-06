@@ -41,6 +41,7 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
     private final String keyId;
     private final String issuer;
     private final String audience;
+    private final GatewayMutualTlsWorkloadPolicy gatewayWorkloadPolicy;
 
     @Autowired
     public ServiceJwtAuthorizationFilter(
@@ -49,7 +50,16 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
             @Value("${aetheris.jwt.audience:aetheris-api}") String audience,
             @Value("${aetheris.jwt.algorithm:HS256}") String algorithm,
             @Value("${aetheris.jwt.rsa-public-key-pem:}") String publicKeyPem,
-            @Value("${aetheris.jwt.key-id:}") String keyId) {
+            @Value("${aetheris.jwt.key-id:}") String keyId,
+            @Value("${aetheris.gateway.workload-mtls-required:false}") String requiredMtlsText,
+            @Value("${aetheris.gateway.workload-spiffe-id:}") String expectedSpiffeId,
+            @Value("${server.ssl.enabled:false}") boolean tlsEnabled,
+            @Value("${server.ssl.client-auth:}") String clientAuth,
+            @Value("${server.ssl.trust-store:}") String trustStore,
+            @Value("${server.ssl.bundle:}") String sslBundle) {
+        if (!"true".equals(requiredMtlsText) && !"false".equals(requiredMtlsText)) {
+            throw new IllegalArgumentException("Gateway workload mTLS opt-in must be true or false");
+        }
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience are required");
         }
@@ -75,6 +85,19 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
         }
         this.issuer = issuer;
         this.audience = audience;
+        boolean requiredMtls = "true".equals(requiredMtlsText);
+        this.gatewayWorkloadPolicy = new GatewayMutualTlsWorkloadPolicy(
+                requiredMtls, expectedSpiffeId, tlsEnabled, clientAuth, trustStore, sslBundle);
+        if (requiredMtls && this.verificationPublicKey == null) {
+            throw new IllegalArgumentException("Gateway mTLS requires pinned RS256 public-key verification");
+        }
+    }
+
+    /** Legacy HS256 and RSA-only tests remain explicitly opt-out for mTLS. */
+    public ServiceJwtAuthorizationFilter(String secret, String issuer, String audience,
+            String algorithm, String publicKeyPem, String keyId) {
+        this(secret, issuer, audience, algorithm, publicKeyPem, keyId,
+                "false", "", false, "", "", "");
     }
 
     /** Synthetic-only constructor; runtime Spring creates the annotated constructor. */
@@ -96,6 +119,12 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        // Servlet certificate attribute must originate from a TLS-authenticated
+        // connector; untrusted HTTP headers NEVER confer Gateway workload identity.
+        if (!gatewayWorkloadPolicy.permits(request)) {
+            deny(response, HttpServletResponse.SC_FORBIDDEN);
+            return;
+        }
         Enumeration<String> headers = request.getHeaders(HttpHeaders.AUTHORIZATION);
         if (headers == null || !headers.hasMoreElements()) {
             deny(response, HttpServletResponse.SC_UNAUTHORIZED);
