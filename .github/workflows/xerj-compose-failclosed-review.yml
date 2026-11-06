@@ -1,0 +1,34 @@
+name: XERJ fail-closed Compose secrets and host network bindings
+on:
+  pull_request:
+    branches: [security/xerj-real-disposable-boundary-20261106]
+    paths:
+      - 'docker-compose.yml'
+      - 'docker-compose.core.yml'
+      - 'docker-compose.integration-external.yml'
+      - 'docker-compose.override.yml'
+      - 'scripts/security/check_compose_fail_closed.py'
+      - '.github/workflows/xerj-compose-failclosed-review.yml'
+      - 'docs/security/XERJ_COMPOSE_FAILCLOSED_20261106.md'
+permissions:
+  contents: read
+jobs:
+  security-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout review only without token persistence
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Generate secret-only synthetic Compose render variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in AETHERIS_POSTGRES_PASSWORD AETHERIS_RABBIT_PASSWORD AETHERIS_JWT_SECRET AETHERIS_GRAFANA_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Verify no wildcard published TCP ports or implicit credentials
+        run: python3 scripts/security/check_compose_fail_closed.py
