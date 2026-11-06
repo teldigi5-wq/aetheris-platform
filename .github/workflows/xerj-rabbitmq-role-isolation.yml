@@ -86,6 +86,14 @@ jobs:
           set -euo pipefail
           bash -n tests/security/run_xerj_real_mtls_stack.sh
           bash -n tests/security/setup_xerj_rabbitmq_roles.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          runner=Path("tests/security/run_xerj_real_mtls_stack.sh").read_text()
+          assert runner.count("env -u SPRING_RABBITMQ_USERNAME -u SPRING_RABBITMQ_PASSWORD") == 2
+          assert runner.count("-u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD") == 1
+          assert runner.count("-u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD") == 1
+          print("XERJ_BROKER_ADMIN_SECRET_NOT_INHERITED_BY_SERVICE_JVMS_GUARD_PASS")
+          PY
           bash -n tests/security/run_xerj_tenant_migration_smoke.sh
           python3 -m py_compile tests/security/xerj_tenant_http_proof.py
           python3 - <<'PY'
