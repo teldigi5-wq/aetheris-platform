@@ -8,7 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import io.aetheris.users.UserController;
-import io.aetheris.users.UserService;;
+import io.aetheris.users.UserService;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
