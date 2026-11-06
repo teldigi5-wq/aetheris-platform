@@ -1,0 +1,16 @@
+# REVIEW-ONLY second PostgreSQL container. Dedicated Compose project and loopback.
+# NEVER add this service to production or the existing application dependency stack.
+services:
+  witness:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: xerj_witness_ci
+      POSTGRES_USER: xerj_witness_admin
+      POSTGRES_PASSWORD: ${XERJ_WITNESS_ADMIN_PASSWORD:?Synthetic witness secret only}
+    ports:
+      - "127.0.0.1:55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xerj_witness_admin -d xerj_witness_ci"]
+      interval: 3s
+      timeout: 2s
+      retries: 25
