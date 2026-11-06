@@ -53,5 +53,32 @@ class RoadmapIntegrity(unittest.TestCase):
         self.assertIn("docs/current-release-roadmap-20261025.md",README.read_text(encoding='utf-8'))
         self.assertIn("current-release-roadmap-20261025.md",MASTER.read_text(encoding='utf-8'))
 
+
+    def test_nov6_review_checkpoints_are_append_only_and_unique(self):
+        heading = "## 6 November 2026 — verified cross-repository continuation checkpoint"
+        for path in (README, MASTER, CURRENT):
+            src = path.read_text(encoding="utf-8")
+            self.assertEqual(1, src.count(heading), path.name)
+            self.assertIn("NO_GO", src, path.name)
+            self.assertIn("BLOCKED_PENDING_HARDWARE", src, path.name)
+        self.assertIn("34 / 34 COMPLETE", MASTER.read_text(encoding="utf-8"))
+        self.assertIn("There is no Stage 35", README.read_text(encoding="utf-8"))
+
+    def test_nov6_witness_and_enterprise_track_truth_not_promoted(self):
+        current = CURRENT.read_text(encoding="utf-8")
+        for marker in (
+            "S-B62-A", "B62-A", "E3.9G", "E3.9H",
+            "E4", "E5", "E6", "E7", "E8", "E9",
+            "Stage45", "nine independent release gates NOT CERTIFIED",
+            "13 unresolved safety blockers", "XERJ", "HOLD",
+            "aeee6710e14f01c231cff63272ced3018d3b2fe4",
+            "42159092287", "privileged", "old primary",
+            "BLOCKED_PENDING_HARDWARE", "NOT CERTIFIED",
+        ):
+            self.assertIn(marker, current, marker)
+        self.assertNotIn("## Stage 35", current)
+        self.assertNotIn("Stage45 GO", current)
+        self.assertNotIn("XERJ APPROVED", current)
+
 if __name__ == "__main__":
     unittest.main()
