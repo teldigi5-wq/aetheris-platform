@@ -35,6 +35,14 @@ jobs:
         run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=JwtAuthenticationFilterTest test
       - name: Test Identity token and issuer/audience contract
         run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=JwtServiceIssuerAudienceTest test
+      - name: Run existing User service unit and caching regressions
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=UserControllerTest,UserServiceTest,UserServiceCacheTest test
+      - name: Run existing Audit service regressions
+        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=AuditControllerTest,AuditEventStoreTest test
+      - name: Run Gateway rate-limit header spoof and fallback regressions
+        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=RateLimitConfigTest,FallbackControllerTest test
+      - name: Run Identity browser, login and refresh-token regressions
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=BrowserAuthControllerTest,IdentityServiceSecurityTest,RefreshTokenServiceTest test
       - name: Verify no implicit known JWT secret or missing backend Compose JWT wiring
         run: |
           python3 - <<'PY'
