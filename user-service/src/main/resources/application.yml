@@ -13,6 +13,10 @@ spring:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
   rabbitmq:
+    # CI-only least-privilege roles use pre-created topology and a dedicated vhost.
+    # The legacy runtime retains its original defaults until owner migration.
+    dynamic: ${SPRING_RABBITMQ_DYNAMIC:true}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:aetheris}
