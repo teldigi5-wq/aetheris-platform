@@ -21,7 +21,8 @@ def signed_hmac_attack():
     """Synthetic, obviously untrusted HMAC token that MUST fail under RSA-only mode."""
     now=int(time.time())
     header={"alg":"HS256","typ":"JWT","kid":os.environ["AETHERIS_JWT_RS256_KEY_ID"]}
-    claims={"iss":"aetheris-identity","aud":["aetheris-api"],
+    claims={"iss":os.environ.get("AETHERIS_JWT_ISSUER","aetheris-identity"),
+            "aud":[os.environ.get("AETHERIS_JWT_AUDIENCE","aetheris-api")],
             "sub":"not-a-real-admin@example.test","uid":1234,
             "role":"ADMIN","scopes":["users:read","users:write","services:read"],
             "iat":now-20,"exp":now+180}
