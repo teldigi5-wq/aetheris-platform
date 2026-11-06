@@ -72,7 +72,8 @@ class GatewayMutualTlsWorkloadPolicyTest {
             .issuer(ISSUER).claim("aud", List.of(AUDIENCE))
             .issuedAt(Date.from(now.minusSeconds(5)))
             .expiration(Date.from(now.plusSeconds(120)))
-            .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+            .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)),
+                Jwts.SIG.HS256)
             .compact();
     }
 
