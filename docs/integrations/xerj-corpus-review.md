@@ -1,5 +1,9 @@
 # Aetheris → XERJ Corpus Hub: pinned source review candidate
 
+**Hub reproducibility proof (2026-11-06):** The 40-file scope is independently selectable using seven *directory-only* XERJ `paths` (four Java `src/main/java` trees, Audit migration, `architecture`, `docs/security`). This avoids including configuration YAML in a normal XERJ consumer checkout. Exact Git tree equality is checked by CI; upstream author candidate remains untouched.
+
+**40-file amendment proposed 2026-11-06:** 40 pinned blobs / 66,617 bytes exclude four service application YAML files. The original 44-file CI passes are historical only: no current 40-file scanner, index, rights, or consent evidence is established by them. Owner consent and XERJ maintainer approval remain PENDING.
+
 **Status:** DRAFT. No XERJ registration, OAuth consent, external Hub pull request,
 release publication or production deployment has been performed.
 **Tracker:** https://github.com/teldigi5-wq/aetheris-platform/issues/360
