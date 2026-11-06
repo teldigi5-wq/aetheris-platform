@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -62,6 +64,52 @@ public class UserService {
         User user = repository.findById(id).orElseThrow(() -> new UserNotFoundException(id));
         repository.delete(user);
         eventPublisher.userDeleted(user.getId(), user.getName(), user.getEmail());
+    }
+
+    /**
+     * Tenant-scoped operations use a UUID obtained ONLY from the verified JWT
+     * servlet attribute. No global cache is read for these operations.
+     */
+    public List<UserResponse> findAllForTenant(UUID tenantId) {
+        return repository.findAllByTenantId(Objects.requireNonNull(tenantId))
+                .stream().map(UserService::toResponse)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    public UserResponse findByIdForTenant(Long id, UUID tenantId) {
+        User owned = repository.findByIdAndTenantId(id, Objects.requireNonNull(tenantId))
+                .orElseThrow(() -> new UserNotFoundException(id));
+        return toResponse(owned);
+    }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "usersList", allEntries = true),
+            @CacheEvict(cacheNames = "userById", allEntries = true)
+    })
+    public UserResponse createForTenant(CreateUserRequest request, UUID tenantId) {
+        UUID verified = Objects.requireNonNull(tenantId, "Verified tenant required");
+        String email = request.email().trim().toLowerCase();
+        // Legacy email unique constraint remains global; this intentionally
+        // does NOT imply tenant-isolated uniqueness across tenant domains.
+        if (repository.existsByEmail(email)) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+        User created = repository.save(new User(request.name().trim(), email, verified));
+        eventPublisher.userCreated(created.getId(), created.getName(), created.getEmail());
+        return toResponse(created);
+    }
+
+    @Transactional
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "usersList", allEntries = true),
+            @CacheEvict(cacheNames = "userById", allEntries = true)
+    })
+    public void deleteForTenant(Long id, UUID tenantId) {
+        User owned = repository.findByIdAndTenantId(id, Objects.requireNonNull(tenantId))
+                .orElseThrow(() -> new UserNotFoundException(id));
+        repository.delete(owned);
+        eventPublisher.userDeleted(owned.getId(), owned.getName(), owned.getEmail());
     }
 
     private static UserResponse toResponse(User user) {

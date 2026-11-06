@@ -82,7 +82,12 @@ for svc in identity-service user-service audit-service gateway; do
   pids+=("$!")
 done
 
-python3 tests/security/xerj_real_mtls_http_proof.py \
+proof="${XERJ_BOUNDARY_PROOF_PROGRAM:-tests/security/xerj_real_mtls_http_proof.py}"
+case "$proof" in
+  tests/security/xerj_real_mtls_http_proof.py|tests/security/xerj_tenant_http_proof.py) ;;
+  *) echo "XERJ_UNREVIEWED_SECURITY_PROOF_REFUSED" >&2; exit 2 ;;
+esac
+python3 "$proof" \
   --report "$work/report.json" --compose tests/security/xerj-disposable-deps.compose.yml
 
 python3 - "$work/report.json" <<'PY'

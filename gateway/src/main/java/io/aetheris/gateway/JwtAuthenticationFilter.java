@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
@@ -121,9 +122,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
             }
 
-            // The historical user/audit APIs contain global PII, not owner-scoped data.
-            // Only a signed ADMIN token may use them; backend services recheck independently.
-            if ((path.equals("/api/users") || path.startsWith("/api/users/") ||
+            // New tenant endpoints are separate from legacy ADMIN-only global APIs.
+            // The tenant comes ONLY from a valid Identity-signed JWT claim.
+            boolean tenantPath = isTenantUserPath(path);
+            if (tenantPath) {
+                if (!"API_CONSUMER".equals(role)) {
+                    return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Tenant account role required");
+                }
+                Object rawTid = claims.get("tid");
+                if (!(rawTid instanceof String textTid) || !validTenantId(textTid)) {
+                    return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Tenant identity required");
+                }
+            } else if ((path.equals("/api/users") || path.startsWith("/api/users/") ||
                     path.equals("/api/events") || path.startsWith("/api/events/")) &&
                     !"ADMIN".equals(role)) {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Administrator role required");
@@ -145,6 +155,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         headers.remove("X-Aetheris-User-Email");
                         headers.remove("X-Aetheris-User-Role");
                         headers.remove("X-Aetheris-Scopes");
+                        headers.remove("X-Aetheris-Tenant-Id");
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
                         headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
@@ -155,6 +166,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(authenticatedExchange);
         } catch (Exception exception) {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid or expired access token");
+        }
+    }
+
+    private static boolean isTenantUserPath(String path) {
+        return path.equals("/api/users/tenant") ||
+                path.startsWith("/api/users/tenant/");
+    }
+
+    private static boolean validTenantId(String tid) {
+        try {
+            UUID parsed = UUID.fromString(tid);
+            return parsed.toString().equals(tid);
+        } catch (IllegalArgumentException ignored) {
+            return false;
         }
     }
 
@@ -177,6 +202,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private String requiredScope(String path, HttpMethod method) {
+        if (isTenantUserPath(path)) {
+            return method != null && WRITE_METHODS.contains(method)
+                    ? "tenant:users:write" : "tenant:users:read";
+        }
         if (path.equals("/api/events") || path.startsWith("/api/events/")) {
             return "services:read";
         }

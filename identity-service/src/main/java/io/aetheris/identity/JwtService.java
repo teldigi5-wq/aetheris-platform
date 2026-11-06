@@ -95,6 +95,9 @@ public class JwtService {
                 .claim("scopes", account.getRole().scopes().stream().sorted().toList())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)));
+        if (account.getTenantId() != null) {
+            builder.claim("tid", account.getTenantId().toString());
+        }
         if (signingPrivateKey != null) {
             return builder.header().keyId(keyId).and()
                     .signWith(signingPrivateKey, Jwts.SIG.RS256).compact();
