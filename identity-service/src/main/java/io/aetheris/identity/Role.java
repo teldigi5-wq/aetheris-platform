@@ -5,7 +5,7 @@ import java.util.Set;
 public enum Role {
     ADMIN(Set.of("users:read", "users:write", "services:read", "identity:read", "identity:write", "orchestrator:read", "orchestrator:write")),
     DEVELOPER(Set.of("identity:read", "orchestrator:read", "orchestrator:write")),
-    API_CONSUMER(Set.of("orchestrator:read"));
+    API_CONSUMER(Set.of("orchestrator:read", "tenant:users:read", "tenant:users:write"));
 
     private final Set<String> scopes;
 
