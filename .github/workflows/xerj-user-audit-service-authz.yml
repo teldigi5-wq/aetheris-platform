@@ -25,7 +25,7 @@ jobs:
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
           distribution: corretto
-          java-version: '21.0.12'
+          java-version: '21'
           cache: maven
       - name: Test independent User backend authorization
         run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest test
