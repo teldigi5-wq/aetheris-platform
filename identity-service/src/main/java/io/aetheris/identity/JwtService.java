@@ -32,7 +32,8 @@ public class JwtService {
                       @Value("${aetheris.jwt.expiration-seconds:3600}") long expirationSeconds,
                       @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
                       @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
+                "change-me-local-development-secret-32chars".equals(secret)) {
             throw new IllegalArgumentException("JWT secret must be at least 32 bytes");
         }
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
