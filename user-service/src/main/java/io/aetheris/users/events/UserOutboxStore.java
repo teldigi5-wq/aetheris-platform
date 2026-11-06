@@ -54,6 +54,15 @@ public class UserOutboxStore {
     }
 
     public Optional<LeasedEvent> leaseNext() {
+        // A process can die during its final permitted lease. Move these
+        // expired, attempt-exhausted claims to explicit operator review.
+        // This cannot race with an active claim because lease_until is expired.
+        jdbc.update("""
+                UPDATE user_event_outbox
+                SET state='parked', lease_token=NULL, lease_until=NULL
+                WHERE state='leased' AND attempts >= ?
+                  AND lease_until < clock_timestamp()
+                """, MAX_ATTEMPTS);
         // One statement is an atomic claim even across multiple relay JVMs.
         UUID token = UUID.randomUUID();
         var rows = jdbc.query("""
