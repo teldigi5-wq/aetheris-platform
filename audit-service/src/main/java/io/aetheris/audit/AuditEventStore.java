@@ -47,7 +47,7 @@ public class AuditEventStore {
             throw new IllegalArgumentException("Invalid event envelope");
         }
         for (String key : message.keySet()) {
-            if (!List.of("eventId", "eventType", "occurredAt",
+            if (key == null || !List.of("eventId", "eventType", "occurredAt",
                     "userId", "name", "email", "tenantId").contains(key)) {
                 throw new IllegalArgumentException("Unrecognized event field");
             }
