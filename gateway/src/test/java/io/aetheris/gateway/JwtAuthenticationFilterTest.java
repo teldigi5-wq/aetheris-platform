@@ -47,7 +47,7 @@ class JwtAuthenticationFilterTest {
         assertNotNull(authenticated);
         assertEquals("42", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Id"));
         assertEquals("user@example.com", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Email"));
-        assertEquals("API_CONSUMER", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
+        assertEquals("ADMIN", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
         assertEquals("users:read", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-Scopes"));
     }
 
@@ -109,7 +109,7 @@ class JwtAuthenticationFilterTest {
                 .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
                 .subject("user@example.com")
                 .claim("uid", 42L)
-                .claim("role", "API_CONSUMER")
+                .claim("role", "ADMIN")
                 .claim("scopes", List.of("users:read"))
                 .expiration(Date.from(Instant.now().plusSeconds(120)))
                 .signWith(key, Jwts.SIG.HS256).compact();
@@ -118,7 +118,7 @@ class JwtAuthenticationFilterTest {
                 .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
                 .subject("user@example.com")
                 .claim("uid", 42L)
-                .claim("role", "API_CONSUMER")
+                .claim("role", "ADMIN")
                 .claim("scopes", List.of("users:read"))
                 .expiration(Date.from(Instant.now().plusSeconds(120)))
                 .signWith(key, Jwts.SIG.HS512).compact();
@@ -158,6 +158,39 @@ class JwtAuthenticationFilterTest {
         }
     }
 
+    @Test
+    void ordinaryRegisteredRoleCannotReadGlobalUserRecordsEvenWithForgedScopeInSignedJwt() {
+        assertRejected("Bearer " + signed(
+                JwtAuthenticationFilter.DEFAULT_ISSUER,
+                JwtAuthenticationFilter.DEFAULT_AUDIENCE,
+                42L), HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void ordinaryRegisteredRoleCannotReadGlobalAuditEvents() {
+        String token = Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+                .subject("consumer@example.test")
+                .claim("role", "API_CONSUMER")
+                .claim("uid", 42L)
+                .claim("scopes", List.of("services:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)))
+                .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/events")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, authenticated -> {
+            forwarded.set(authenticated);
+            return Mono.empty();
+        }).block();
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.FORBIDDEN, exchange.getResponse().getStatusCode());
+    }
+
     private static String signed(String issuer, String audience, Long uid) {
         var builder = Jwts.builder()
                 .subject("user@example.com")
@@ -192,7 +225,7 @@ class JwtAuthenticationFilterTest {
                 .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
                 .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
                 .subject("user@example.com")
-                .claim("role", "API_CONSUMER")
+                .claim("role", "ADMIN")
                 .claim("uid", 42L)
                 .claim("scopes", scopes)
                 .expiration(Date.from(expiration))

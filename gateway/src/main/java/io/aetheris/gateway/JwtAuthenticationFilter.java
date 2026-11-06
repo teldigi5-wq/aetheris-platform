@@ -89,6 +89,14 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Token is missing required claims");
             }
 
+            // The historical user/audit APIs contain global PII, not owner-scoped data.
+            // Only a signed ADMIN token may use them; backend services recheck independently.
+            if ((path.equals("/api/users") || path.startsWith("/api/users/") ||
+                    path.equals("/api/events") || path.startsWith("/api/events/")) &&
+                    !"ADMIN".equals(role)) {
+                return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Administrator role required");
+            }
+
             String requiredScope = requiredScope(path, exchange.getRequest().getMethod());
             if (requiredScope != null && !scopes.contains(requiredScope)) {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
