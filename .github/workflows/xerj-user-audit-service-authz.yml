@@ -47,9 +47,13 @@ jobs:
               for service in ("user-service", "audit-service", "identity-service", "gateway"):
                   anchor = f"  {service}:"
                   assert anchor in s, (f, service)
-                  match = re.search(rf"(?ms)^  {re.escape(service)}:\\n(.*?)(?=^  [a-z][a-z0-9-]*:|\\Z)", s)
-                  assert match, (f, service, "compose block missing")
-                  block = match.group(1)
+                  start = s.splitlines().index(anchor)
+                  lines = []
+                  for line in s.splitlines()[start + 1:]:
+                      if line.startswith("  ") and not line.startswith("    "):
+                          break
+                      lines.append(line)
+                  block = "\n".join(lines)
                   assert "AETHERIS_JWT_SECRET:" in block, (f, service, "missing JWT wiring")
           for service in ("user-service", "audit-service", "identity-service", "gateway"):
               yml = Path(service) / "src/main/resources/application.yml"
