@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
+import java.security.PrivateKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
@@ -23,6 +24,8 @@ public class JwtService {
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
 
     private final SecretKey key;
+    private final PrivateKey signingPrivateKey;
+    private final String keyId;
     private final long expirationSeconds;
     private final String issuer;
     private final String audience;
@@ -31,18 +34,37 @@ public class JwtService {
     public JwtService(@Value("${aetheris.jwt.secret}") String secret,
                       @Value("${aetheris.jwt.expiration-seconds:3600}") long expirationSeconds,
                       @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
-                      @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
-                "change-me-local-development-secret-32chars".equals(secret)) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 bytes");
-        }
+                      @Value("${aetheris.jwt.audience:aetheris-api}") String audience,
+                      @Value("${aetheris.jwt.algorithm:HS256}") String algorithm,
+                      @Value("${aetheris.jwt.rsa-private-key-pem:}") String privateKeyPem,
+                      @Value("${aetheris.jwt.key-id:}") String keyId) {
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
         }
         if (expirationSeconds <= 0 || expirationSeconds > 24 * 60 * 60) {
             throw new IllegalArgumentException("JWT expiration outside allowed bounds");
         }
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+
+        if ("RS256".equals(algorithm)) {
+            if (secret == null || !secret.isEmpty() || !JwtRs256KeySupport.validKid(keyId)) {
+                throw new IllegalArgumentException("RS256 issuer must have only its private key and pinned kid");
+            }
+            this.signingPrivateKey = JwtRs256KeySupport.privateKey(privateKeyPem);
+            this.key = null;
+            this.keyId = keyId;
+        } else if ("HS256".equals(algorithm)) {
+            if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
+                    "change-me-local-development-secret-32chars".equals(secret) ||
+                    (privateKeyPem != null && !privateKeyPem.isBlank()) ||
+                    (keyId != null && !keyId.isBlank())) {
+                throw new IllegalArgumentException("HS256 signing key configuration invalid");
+            }
+            this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+            this.signingPrivateKey = null;
+            this.keyId = null;
+        } else {
+            throw new IllegalArgumentException("Unsupported JWT signing algorithm");
+        }
         this.expirationSeconds = expirationSeconds;
         this.issuer = issuer;
         this.audience = audience;
@@ -50,7 +72,12 @@ public class JwtService {
 
     // Existing isolated unit tests can use this deterministic constructor.
     public JwtService(String secret, long expirationSeconds) {
-        this(secret, expirationSeconds, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
+        this(secret, expirationSeconds, DEFAULT_ISSUER, DEFAULT_AUDIENCE,
+             "HS256", "", "");
+    }
+
+    public JwtService(String secret, long expirationSeconds, String issuer, String audience) {
+        this(secret, expirationSeconds, issuer, audience, "HS256", "", "");
     }
 
     public String issue(IdentityAccount account) {
@@ -58,7 +85,7 @@ public class JwtService {
             throw new IllegalArgumentException("Persisted identity account required for JWT");
         }
         Instant now = Instant.now();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .issuer(issuer)
                 .audience().add(audience).and()
                 .subject(account.getEmail())
@@ -67,9 +94,12 @@ public class JwtService {
                 .claim("role", account.getRole().name())
                 .claim("scopes", account.getRole().scopes().stream().sorted().toList())
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(expirationSeconds)))
-                .signWith(key, Jwts.SIG.HS256)
-                .compact();
+                .expiration(Date.from(now.plusSeconds(expirationSeconds)));
+        if (signingPrivateKey != null) {
+            return builder.header().keyId(keyId).and()
+                    .signWith(signingPrivateKey, Jwts.SIG.RS256).compact();
+        }
+        return builder.signWith(key, Jwts.SIG.HS256).compact();
     }
 
     public long expirationSeconds() { return expirationSeconds; }
