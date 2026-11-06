@@ -1,5 +1,14 @@
 name: Current Aetheris Roadmap Source Integrity
 on:
+  push:
+    branches:
+      - docs/aetheris-roadmap-readme-sync-20261106
+    paths:
+      - 'README.md'
+      - 'docs/master-roadmap.md'
+      - 'docs/current-release-roadmap-20261025.md'
+      - 'tests/test_current_roadmap_integrity.py'
+      - '.github/workflows/current-roadmap-integrity.yml'
   pull_request:
     branches:
       - release/aetheris-observability-security-candidate-20261023
