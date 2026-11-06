@@ -6,9 +6,9 @@ services:
     environment:
       POSTGRES_DB: aetheris
       POSTGRES_USER: aetheris
-      POSTGRES_PASSWORD: aetheris
+      POSTGRES_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Required private PostgreSQL password}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - aetheris_pg:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - aetheris_redis:/data
     healthcheck:
@@ -34,10 +34,10 @@ services:
     image: rabbitmq:3-management-alpine
     environment:
       RABBITMQ_DEFAULT_USER: aetheris
-      RABBITMQ_DEFAULT_PASS: aetheris
+      RABBITMQ_DEFAULT_PASS: ${AETHERIS_RABBIT_PASSWORD:?Required private RabbitMQ password}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - aetheris_rabbitmq:/var/lib/rabbitmq
     healthcheck:
@@ -54,14 +54,14 @@ services:
       AETHERIS_JWT_AUDIENCE: ${AETHERIS_JWT_AUDIENCE:-aetheris-api}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Required private PostgreSQL password}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
-      SPRING_RABBITMQ_PASSWORD: aetheris
+      SPRING_RABBITMQ_PASSWORD: ${AETHERIS_RABBIT_PASSWORD:?Required private RabbitMQ password}
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
@@ -71,7 +71,7 @@ services:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
 
   identity-service:
     build: ./identity-service
@@ -80,16 +80,16 @@ services:
       AETHERIS_JWT_AUDIENCE: ${AETHERIS_JWT_AUDIENCE:-aetheris-api}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Required private PostgreSQL password}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set a private high-entropy JWT signing key}
-      AETHERIS_BROWSER_REFRESH_COOKIE_SECURE: "false"
+      AETHERIS_BROWSER_REFRESH_COOKIE_SECURE: "true"
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8082:8082"
+      - "127.0.0.1:8082:8082"
 
   audit-service:
     build: ./audit-service
@@ -99,11 +99,11 @@ services:
       AETHERIS_JWT_AUDIENCE: ${AETHERIS_JWT_AUDIENCE:-aetheris-api}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Required private PostgreSQL password}
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
       SPRING_RABBITMQ_USERNAME: aetheris
-      SPRING_RABBITMQ_PASSWORD: aetheris
+      SPRING_RABBITMQ_PASSWORD: ${AETHERIS_RABBIT_PASSWORD:?Required private RabbitMQ password}
       MANAGEMENT_OTLP_TRACING_ENDPOINT: http://otel-collector:4318/v1/traces
     depends_on:
       postgres:
@@ -111,7 +111,7 @@ services:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
 
   gateway:
     build: ./gateway
@@ -133,14 +133,14 @@ services:
       audit-service:
         condition: service_started
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
   dashboard:
     build: ./dashboard
     depends_on:
       - gateway
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
 
 networks:
   default:
