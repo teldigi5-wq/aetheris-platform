@@ -8,6 +8,8 @@ on:
       - 'identity-service/**'
       - 'audit-service/**'
       - 'docs/security/XERJ_SPRING4_DEPENDENCY_UPGRADE_20261106.md'
+      - 'scripts/security/osv_cyclonedx_gate.py'
+      - 'scripts/security/test_osv_cyclonedx_gate.py'
       - '.github/workflows/xerj-spring4-review.yml'
 
 permissions:
@@ -35,4 +37,16 @@ jobs:
       - name: Test and package Identity module including token and browser regressions
         run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=BrowserAuthControllerTest,IdentityServiceSecurityTest,JwtServiceIssuerAudienceTest,RefreshTokenServiceTest test
       - name: Test and package Gateway token and rate-limit regressions
-        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=JwtAuthenticationFilterTest,RateLimitConfigTest,FallbackControllerTest test
+        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=JwtAuthenticationFilterTest,RateLimitConfigTest,FallbackControllerTest,GatewayRouteConfigTest test
+      - name: Generate reproducible dependency SBOM inputs from every Maven module
+        shell: bash
+        run: |
+          set -euo pipefail
+          for svc in user-service audit-service identity-service gateway; do
+            ./mvnw -B -ntp -f "$svc/pom.xml" org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeBom -DoutputFormat=json -DincludeTestScope=false
+            test -s "$svc/target/bom.json"
+          done
+      - name: Unit test fail-closed OSV response handling
+        run: python3 -m unittest discover -s scripts/security -p 'test_osv_cyclonedx_gate.py' -v
+      - name: Compare resolved dependency SBOMs against public OSV advisories
+        run: python3 scripts/security/osv_cyclonedx_gate.py user-service/target/bom.json audit-service/target/bom.json identity-service/target/bom.json gateway/target/bom.json
