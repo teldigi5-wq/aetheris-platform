@@ -71,6 +71,9 @@ class AuditImmutableEventCollisionIT {
                     new UserDomainEvent(id, original.eventType(), occurred, 203L,
                             original.name(), "other@example.test", tenant),
                     new UserDomainEvent(id, original.eventType(), occurred.plusSeconds(60), 203L,
+                            original.name(), original.email(), tenant),
+                    new UserDomainEvent(id, original.eventType(),
+                            Instant.parse("2600-01-01T00:00:00Z"), 203L,
                             original.name(), original.email(), tenant)
             }) {
                 var denial = assertThrows(AmqpRejectAndDontRequeueException.class,
