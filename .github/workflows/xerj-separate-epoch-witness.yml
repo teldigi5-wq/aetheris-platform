@@ -1,0 +1,265 @@
+name: XERJ separate PostgreSQL epoch witness and replay rollback HOLD proof
+on:
+  pull_request:
+    branches: [security/xerj-signed-replay-admission-20261106]
+    paths:
+      - 'audit-service/**'
+      - 'gateway/**'
+      - 'user-service/**'
+      - 'docs/security/migrations/20261106_01_identity_account_tenant.sql'
+      - 'docs/security/migrations/20261106_02_user_record_tenant.sql'
+      - 'docs/security/XERJ_MULTIDB_RECOVERY_FENCE_REVIEW_20261106.md'
+      - 'tests/security/xerj_multidb_recovery_fence.py'
+      - 'tests/security/run_xerj_outbox_dr_rehearsal.sh'
+      - 'tests/security/xerj_outbox_empty_only_rollback.sql'
+      - 'tests/security/xerj_outbox_dr_legacy_seed.sql'
+      - 'tests/security/xerj_outbox_dr_recovery_seed.sql'
+      - 'docs/security/migrations/20261106_04_user_outbox_dual_control_recovery.sql'
+      - 'tests/security/setup_xerj_outbox_recovery_roles.sh'
+      - 'user-service/src/test/java/io/aetheris/users/events/UserOutboxDualControlRecoveryIT.java'
+      - 'user-service/src/test/java/io/aetheris/users/events/UserOutboxConcurrentPostgresIT.java'
+      - 'user-service/src/test/java/io/aetheris/users/events/UserOutboxAckGapIT.java'
+      - 'docs/security/migrations/20261106_03_user_transactional_outbox.sql'
+      - 'tests/security/xerj_outbox_http_proof.py'
+      - 'tests/security/prepare_xerj_outbox_schema.sh'
+      - 'tests/security/apply_xerj_dead_letter_policy.sh'
+      - 'user-service/src/test/java/io/aetheris/users/events/RabbitBrokerPoisonDeadLetterIT.java'
+      - 'tests/security/setup_xerj_rabbitmq_roles.sh'
+      - 'user-service/src/test/java/io/aetheris/users/events/RabbitBrokerRoleSeparationIT.java'
+      - 'tests/security/xerj_tenant_http_proof.py'
+      - 'tests/security/run_xerj_real_mtls_stack.sh'
+      - 'tests/security/run_xerj_tenant_migration_smoke.sh'
+      - 'user-service/src/test/java/io/aetheris/users/events/BrokerRestoreInflightIT.java'
+      - 'docs/security/XERJ_BROKER_INFLIGHT_RECOVERY_REVIEW_20261106.md'
+      - 'user-service/src/test/java/io/aetheris/users/events/BrokerVhostRecoveryCustodyIT.java'
+      - 'docs/security/XERJ_VHOST_RECOVERY_CUSTODY_REVIEW_20261106.md'
+      - 'user-service/src/test/java/io/aetheris/users/events/BrokerSignedReplayAdmissionIT.java'
+      - 'docs/security/XERJ_SIGNED_REPLAY_ADMISSION_REVIEW_20261106.md'
+      - 'user-service/src/test/java/io/aetheris/users/events/BrokerSeparateEpochWitnessIT.java'
+      - 'tests/security/xerj-witness-disposable.compose.yml'
+      - 'tests/security/provision_xerj_disposable_witness.sh'
+      - 'docs/security/XERJ_SEPARATE_EPOCH_WITNESS_REVIEW_20261106.md'
+      - '.github/workflows/xerj-separate-epoch-witness.yml'
+permissions:
+  contents: read
+
+jobs:
+  prior-identity-gateway-user-audit-security-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Exact SHA checkout without credential persistence
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Configure Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: corretto
+          java-version: '21'
+          cache: maven
+      - name: Identity tenant minting and previous RSA token regressions
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityTenantClaimTest,JwtServiceRs256ModeTest,JwtServiceIssuerAudienceTest,IdentityServiceSecurityTest test
+      - name: Gateway signed tenant scope and no-header trust, existing RSA routes
+        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=JwtTenantScopeBoundaryTest,JwtRs256ModeTest,JwtAuthenticationFilterTest,GatewayLiveRouteBindingTest test
+      - name: User outbox publish-path contract and all previous JWT/mTLS/tenant tests
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=UserOutboxPublisherTest,UserOutboxRelayTest,TenantServiceJwtAuthorizationTest,UserTenantRepositoryBoundaryTest,UserTenantAuditProvenanceTest,UserEventPublisherTenantTest,UserServiceTest,ServiceJwtAuthorizationFilterTest,ServiceJwtRs256ModeTest,GatewayMutualTlsWorkloadPolicyTest test
+      - name: Audit event attribution and global admin-only regression suite
+        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=AuditTenantAttributionTest,AuditEventStoreTest,AuditControllerTest,ServiceJwtAuthorizationFilterTest,ServiceJwtRs256ModeTest,GatewayMutualTlsWorkloadPolicyTest test
+
+  real-three-database-recovery-fence-reconciliation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - name: Review exact immutable PR head with no persisted GitHub token
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Configure Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: corretto
+          java-version: '21'
+          cache: maven
+      - name: Generate fresh synthetic secrets only in disposable runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in XERJ_TEST_PG_PASSWORD XERJ_TEST_RABBIT_PASSWORD XERJ_MTLS_KEYSTORE_PASSWORD XERJ_BROKER_PUBLISH_PASSWORD XERJ_BROKER_CONSUME_PASSWORD XERJ_WITNESS_ADMIN_PASSWORD XERJ_WITNESS_READER_PASSWORD; do
+            secret="$(openssl rand -hex 32)"
+            echo "::add-mask::$secret"
+            printf '%s=%s\n' "$name" "$secret" >> "$GITHUB_ENV"
+          done
+          echo "XERJ_COMPOSE_PROJECT=xerj-mtls-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+          echo "XERJ_BOUNDARY_PROOF_PROGRAM=tests/security/xerj_tenant_http_proof.py" >> "$GITHUB_ENV"
+          echo "XERJ_BROKER_ROLES_ENFORCED=true" >> "$GITHUB_ENV"
+          echo "XERJ_DLX_REVIEW_ENFORCED=true" >> "$GITHUB_ENV"
+          echo "XERJ_BOUNDARY_PROOF_PROGRAM=tests/security/xerj_outbox_http_proof.py" >> "$GITHUB_ENV"
+          echo "AETHERIS_OUTBOX_ENABLED=true" >> "$GITHUB_ENV"
+          echo "XERJ_OUTBOX_CONCURRENCY_REVIEW_ENABLED=true" >> "$GITHUB_ENV"
+          echo "AETHERIS_RABBIT_PUBLISHER_CONFIRM_TYPE=correlated" >> "$GITHUB_ENV"
+          echo "AETHERIS_RABBIT_PUBLISHER_RETURNS=true" >> "$GITHUB_ENV"
+          echo "AETHERIS_OUTBOX_POLL_MS=350" >> "$GITHUB_ENV"
+      - name: Generate private Identity RSA3072 issuer key and public resource verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+            -out "$RUNNER_TEMP/xerj-ci-rs256-private.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/xerj-ci-rs256-private.pem" -pubout \
+            -out "$RUNNER_TEMP/xerj-ci-rs256-public.pem" 2>/dev/null
+          test -s "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
+      - name: Generate CA signed HTTPS server certificates and SPIFFE gateway client identity
+        run: bash tests/security/generate_xerj_mtls_fixture.sh
+      - name: Syntax and zero client-supplied tenant source guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/security/run_xerj_real_mtls_stack.sh
+          bash -n tests/security/setup_xerj_rabbitmq_roles.sh
+          bash -n tests/security/apply_xerj_dead_letter_policy.sh
+          bash -n tests/security/prepare_xerj_outbox_schema.sh
+          bash -n tests/security/setup_xerj_outbox_recovery_roles.sh
+          bash -n tests/security/run_xerj_outbox_dr_rehearsal.sh
+          bash -n tests/security/provision_xerj_disposable_witness.sh
+          docker compose -f tests/security/xerj-witness-disposable.compose.yml config --quiet
+          python3 -m py_compile tests/security/xerj_outbox_http_proof.py
+          python3 -m py_compile tests/security/xerj_multidb_recovery_fence.py
+          test -s user-service/src/test/java/io/aetheris/users/events/BrokerRestoreInflightIT.java
+          test -s user-service/src/test/java/io/aetheris/users/events/BrokerVhostRecoveryCustodyIT.java
+          test -s user-service/src/test/java/io/aetheris/users/events/BrokerSignedReplayAdmissionIT.java
+          test -s user-service/src/test/java/io/aetheris/users/events/BrokerSeparateEpochWitnessIT.java
+          python3 - <<'PY'
+          from pathlib import Path
+          runner=Path("tests/security/run_xerj_real_mtls_stack.sh").read_text()
+          assert runner.count("env -u SPRING_RABBITMQ_USERNAME -u SPRING_RABBITMQ_PASSWORD") == 2
+          assert runner.count("-u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD") == 1
+          assert runner.count("-u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD") == 3
+          print("XERJ_BROKER_ADMIN_SECRET_NOT_INHERITED_BY_SERVICE_JVMS_GUARD_PASS")
+          PY
+          bash -n tests/security/run_xerj_tenant_migration_smoke.sh
+          python3 -m py_compile tests/security/xerj_tenant_http_proof.py
+          python3 - <<'PY'
+          from pathlib import Path
+          identity=Path('identity-service/src/main/java/io/aetheris/identity/JwtService.java').read_text()
+          user=Path('user-service/src/main/java/io/aetheris/users/UserService.java').read_text()
+          filt=Path('user-service/src/main/java/io/aetheris/users/security/ServiceJwtAuthorizationFilter.java').read_text()
+          controller=Path('user-service/src/main/java/io/aetheris/users/UserController.java').read_text()
+          assert '.claim("tid"' not in identity or 'builder.claim("tid"' in identity
+          assert 'UUID.randomUUID()' in Path('identity-service/src/main/java/io/aetheris/identity/IdentityAccount.java').read_text()
+          assert 'findByIdAndTenantId(' in user and 'findAllByTenantId(' in user
+          assert 'request.setAttribute(VERIFIED_TENANT_ATTRIBUTE, verifiedTid)' in filt
+          assert 'ServiceJwtAuthorizationFilter.VERIFIED_TENANT_ATTRIBUTE' in controller
+          assert 'X-Aetheris-Tenant-Id' not in filt
+          audit_migration=Path('audit-service/src/main/resources/db/migration/V2__audit_event_tenant_attribution.sql').read_text()
+          publisher=Path('user-service/src/main/java/io/aetheris/users/events/UserEventPublisher.java').read_text()
+          audit=Path('audit-service/src/main/java/io/aetheris/audit/AuditEventStore.java').read_text()
+          assert 'ADD COLUMN IF NOT EXISTS tenant_id UUID' in audit_migration
+          assert 'WHERE tenant_id IS NOT NULL' in audit_migration
+          assert 'event.put("tenantId", tenantId.toString())' in publisher
+          assert 'AmqpRejectAndDontRequeueException' in audit
+
+          print('XERJ_TENANT_IDENTITY_DB_BOUNDARY_SOURCE_GUARD_PASS')
+          PY
+          docker compose -f tests/security/xerj-disposable-deps.compose.yml config --quiet
+      - name: Launch new PostgreSQL Redis and RabbitMQ containers only
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml up -d --wait
+      - name: Provision separate ephemeral PostgreSQL witness with select-only workload role
+        run: bash tests/security/provision_xerj_disposable_witness.sh
+      - name: Create role-separated dedicated RabbitMQ vhost in disposable broker only
+        run: bash tests/security/setup_xerj_rabbitmq_roles.sh
+      - name: Prove real broker publisher cannot read and consumer cannot publish
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=RabbitBrokerRoleSeparationIT test
+      - name: Apply narrowly scoped non-destructive DLX policy to disposable existing queue
+        run: bash tests/security/apply_xerj_dead_letter_policy.sh
+      - name: Apply additive outbox schema only to disposable user database twice
+        run: bash tests/security/prepare_xerj_outbox_schema.sh
+      - name: Prove committed vs rolled-back outbox rows and stable lease IDs in actual PostgreSQL
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=UserOutboxPostgresIT test
+      - name: Eight independent relay workers race for 24 rows in actual disposable PostgreSQL
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=UserOutboxConcurrentPostgresIT test
+      - name: Provision separate ephemeral approver and operator database roles and test fail-closed rearm
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XERJ_OUTBOX_APPROVER_PASSWORD="$(openssl rand -hex 32)"
+          export XERJ_OUTBOX_OPERATOR_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$XERJ_OUTBOX_APPROVER_PASSWORD"
+          echo "::add-mask::$XERJ_OUTBOX_OPERATOR_PASSWORD"
+          bash tests/security/setup_xerj_outbox_recovery_roles.sh
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=UserOutboxDualControlRecoveryIT test
+      - name: Synthetic pre/post migration PostgreSQL custom backups, complete restore and guarded downgrade
+        run: bash tests/security/run_xerj_outbox_dr_rehearsal.sh
+      - name: Restore three synthetic service databases at a matched fence and reject mixed snapshots and tenant forgery
+        run: python3 tests/security/xerj_multidb_recovery_fence.py
+      - name: Witness RabbitMQ unacked consumer crash requeue and late delivery versus the reconciled database fence
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerRestoreInflightIT test
+      - name: Fail closed on RabbitMQ review vhost inventory DLQ unknown queues consumers and stale DB fence
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerVhostRecoveryCustodyIT test
+      - name: Verify signed replay principal scope epoch revocation tenant denial and actual broker quarantine
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerSignedReplayAdmissionIT test
+      - name: Deny old signed replay with read-only witness surviving Audit generation rollback
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerSeparateEpochWitnessIT test
+      - name: Rehearse tenant add-column migrations twice on separate legacy synthetic database
+        run: bash tests/security/run_xerj_tenant_migration_smoke.sh
+      - name: Package actual Identity Gateway User Audit services
+        shell: bash
+        run: |
+          set -euo pipefail
+          for svc in identity-service user-service audit-service gateway; do
+            ./mvnw -B -ntp -f "$svc/pom.xml" -DskipTests package
+          done
+      - name: Rerun real RSA/mTLS tenant outbox outage DLQ and ACK-gap replay after role restrictions
+        run: bash tests/security/run_xerj_real_mtls_stack.sh
+      - name: Verify only explicit account-bound security proof and NO production claims
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'xerj-real-mtls-safe-report/report.json'
+          r=json.loads(p.read_text(encoding='utf-8'))
+          assert r['source_commit']==os.environ['GITHUB_SHA']
+          assert r['status']=='PASS'
+          assert r['account_bounded_tenant_user_api_verified'] is True
+          assert r['tenant_global_cache_invalidation_verified'] is True
+          assert r['audit_tenant_attribution_verified'] is True
+          assert r['audit_broker_producer_identity_verified'] is False
+          assert r['tenant_isolation_verified'] is False
+          assert r['tenant_membership_verified'] is False
+          assert r['production_verified'] is False
+          assert r['migration_applied_to_production'] is False
+          assert r['mTLS_verified'] is True and r['production_mTLS_verified'] is False
+          assert r['outbox_disposable_rollback_replay_verified'] is True
+          assert r['outbox_disposable_broker_outage_recovery_verified'] is True
+          assert r['outbox_ack_gap_replay_verified'] is True
+          assert r['outbox_production_verified'] is False
+          assert r['outbox_exactly_once_guaranteed'] is False
+          assert len(r['checks'])>=89 and all(x=='PASS' for x in r['checks'].values())
+          print('XERJ_MULTIDB_FENCE_AND_PRIOR_SECURITY_EVIDENCE_PASS checks='+str(len(r['checks'])))
+          PY
+      - name: Upload sanitized booleans and check names only
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: xerj-multidb-fence-no-secrets
+          path: ${{ runner.temp }}/xerj-real-mtls-safe-report/report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Destroy only unique CI containers and temporary keys
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${XERJ_COMPOSE_PROJECT:-}" && "$XERJ_COMPOSE_PROJECT" == xerj-mtls-ci-* ]]; then
+            docker compose -p "${XERJ_COMPOSE_PROJECT}-witness" -f tests/security/xerj-witness-disposable.compose.yml down -v --remove-orphans || true
+            docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml down -v --remove-orphans || true
+          fi
+          rm -f "$RUNNER_TEMP/xerj-ci-rs256-private.pem" "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
+          if [[ -d "$RUNNER_TEMP/xerj-mtls-fixture" ]]; then
+            find "$RUNNER_TEMP/xerj-mtls-fixture" -maxdepth 1 -type f -delete
+            rmdir "$RUNNER_TEMP/xerj-mtls-fixture" || true
+          fi
