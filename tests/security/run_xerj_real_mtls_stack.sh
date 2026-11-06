@@ -132,6 +132,22 @@ esac
 python3 "$proof" \
   --report "$work/report.json" --compose tests/security/xerj-disposable-deps.compose.yml
 
+if [[ "${XERJ_DLX_REVIEW_ENFORCED:-false}" == "true" ]]; then
+  [[ "${XERJ_BROKER_ROLES_ENFORCED:-false}" == "true" ]] || {
+    echo "XERJ_DLX_REQUIRES_SEPARATE_BROKER_IDENTITIES" >&2; exit 2;
+  }
+  # Run against the SAME real live Audit listener, after all earlier checks.
+  # The poison probe consumes its own quarantine record via bootstrap admin
+  # and never uploads message bodies or raw application logs.
+  ./mvnw -B -ntp -f user-service/pom.xml -Dtest=RabbitBrokerPoisonDeadLetterIT test
+  count="$(docker compose -p "$XERJ_COMPOSE_PROJECT" \
+    -f tests/security/xerj-disposable-deps.compose.yml exec -T postgres \
+    psql -X -t -A -U xerj_ci -d xerj_ci \
+    -c "SELECT count(*) FROM audit_events WHERE event_id = 'xerj-ci-poison-tenant-20261106'" 2>/dev/null)"
+  [[ "$count" == "0" ]] || { echo "XERJ_POISON_EVENT_INCORRECTLY_PERSISTED" >&2; exit 1; }
+  echo "XERJ_POISON_AUDIT_DB_NOT_PERSISTED_PASS"
+fi
+
 python3 - "$work/report.json" <<'PY'
 import json,os,sys
 from pathlib import Path

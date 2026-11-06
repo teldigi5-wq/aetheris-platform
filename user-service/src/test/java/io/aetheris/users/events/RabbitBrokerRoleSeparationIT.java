@@ -55,6 +55,11 @@ class RabbitBrokerRoleSeparationIT {
             ch.exchangeDeclare(EXCHANGE, "topic", true);
             ch.queueDeclare(QUEUE, true, false, false, null);
             ch.queueBind(QUEUE, EXCHANGE, "user.*");
+            // Provision a *separate* quarantine queue. Do NOT add x-arguments
+            // to the existing durable source queue.
+            ch.exchangeDeclare("aetheris.audit.dlx", "direct", true);
+            ch.queueDeclare("aetheris.audit.poison", true, false, false, null);
+            ch.queueBind("aetheris.audit.poison", "aetheris.audit.dlx", "quarantine");
         }
 
         final byte[] synthetic = "synthetic-acl-probe-only".getBytes(StandardCharsets.UTF_8);
@@ -103,6 +108,13 @@ class RabbitBrokerRoleSeparationIT {
                     factory(username, password, "/").newConnection(),
                     username + " must have no access to the shared default vhost");
         }
+        // The regular Audit identity must not inspect quarantined payloads.
+        assertThrows(Exception.class, () -> {
+            try (Connection consumer = factory("xerj_consumer", consumerSecret, VHOST).newConnection();
+                 Channel channel = consumer.createChannel()) {
+                channel.basicGet("aetheris.audit.poison", true);
+            }
+        }, "Audit consumer must not read the operator-only poison queue");
         System.out.println("XERJ_REAL_RABBITMQ_SEPARATE_VHOST_ROLE_ACL_PASS");
     }
 }
