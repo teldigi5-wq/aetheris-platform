@@ -64,6 +64,7 @@ def main() -> None:
     rows = [entry for entry in data.split(b"\x00") if entry]
     require(rows, "No source files in pinned scope")
     file_count, size_total, seen = 0, 0, set()
+    objects = {}
     for entry in rows:
         meta, file_path = entry.split(b"\t", 1)
         mode, kind, oid, byte_size = meta.split()
@@ -72,6 +73,7 @@ def main() -> None:
         path = file_path.decode("utf-8")
         require(path not in seen, "Duplicate path in Git tree")
         seen.add(path)
+        objects[path] = (int(byte_size), oid.decode('ascii'))
         require(any(path.startswith(prefix + "/") for prefix in paths),
                 "File escaped declared corpus directories")
         require(not path.endswith((".env", ".pem", ".p12", ".pfx", ".jks", ".key")),
@@ -83,6 +85,16 @@ def main() -> None:
 
     require(file_count == expected["files"], "Pinned scope file count mismatch")
     require(size_total == expected["bytes"], "Pinned scope source byte count mismatch")
+    excluded = plan["excluded_source_files"]
+    require(len(excluded) == 4 and len({e["path"] for e in excluded}) == 4,
+            "Expected four unique pinned exclusions")
+    for row in excluded:
+        require(objects.get(row["path"]) == (row["bytes"], row["blob_sha"]),
+                "Excluded source blob identity drift")
+    filtered = plan["filtered_tree"]
+    require(file_count - 4 == filtered["files"] and
+            size_total - sum(e["bytes"] for e in excluded) == filtered["bytes"],
+            "Filtered source count/size drift")
     print(
         "XERJ_SOURCE_SCOPE_PROOF_PASS "
         f"pin={pin} files={file_count} git_blob_bytes={size_total} "

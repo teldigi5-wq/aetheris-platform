@@ -43,5 +43,16 @@
     "Full repository production/security readiness is NO_GO",
     "A synthetic JWT test signing fixture was found in original broader corpus scope; the curated application-only scope was scanned separately",
     "This file cannot be used as a live Lane A manifest because review.use is UNREVIEWED"
-  ]
+  ],
+  "proposed_filtered_scope": {
+    "files": 40,
+    "git_blob_bytes": 66617,
+    "excluded_paths": [
+      "gateway/src/main/resources/application.yml",
+      "identity-service/src/main/resources/application.yml",
+      "user-service/src/main/resources/application.yml",
+      "audit-service/src/main/resources/application.yml"
+    ],
+    "review": "PENDING_REVIEW_AND_EXACT_HEAD_SCAN"
+  }
 }

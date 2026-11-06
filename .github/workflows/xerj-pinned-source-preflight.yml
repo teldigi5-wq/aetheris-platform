@@ -2,12 +2,14 @@ name: XERJ pinned-source safety preflight (review only)
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, docs/xerj-pinned-source-preflight-20261031]
     paths:
       - '.github/workflows/xerj-pinned-source-preflight.yml'
       - 'docs/integrations/xerj-source-scope.json'
       - 'docs/integrations/xerj-corpus-review.md'
       - 'scripts/security/verify_xerj_source_scope.py'
+      - 'scripts/security/xerj_filter_40.py'
+      - 'scripts/security/test_xerj_filter_40.py'
       - 'scripts/security/verify_xerj_privacy_preflight.py'
       - 'scripts/security/verify_xerj_fixture_reuse.py'
       - 'scripts/security/verify_xerj_candidate_proposal.py'
@@ -40,6 +42,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           python3 scripts/security/verify_xerj_source_scope.py
+          python3 -m unittest discover -s scripts/security -p 'test_xerj_filter_40.py' -v
 
       - name: Install checksum-verified Gitleaks v8.30.1
         shell: bash
@@ -64,11 +67,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-pinned.XXXXXXXX")"
+          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-pinned-XXXXXXXX")"
+          filtered_dir=""
           scanner_dir="${RUNNER_TEMP}/xerj-reviewed-gitleaks"
           report="${RUNNER_TEMP}/xerj-pinned-sensitive-results.json"
           output="${RUNNER_TEMP}/xerj-pinned-scan.stdout"
-          trap 'rm -rf -- "$candidate_dir" "$scanner_dir" "$report" "$output"' EXIT
+          trap 'rm -rf -- "$candidate_dir" "${filtered_dir:-}" "$scanner_dir" "$report" "$output"' EXIT
           pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
           mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
           test "${#paths[@]}" -gt 0
@@ -76,11 +80,19 @@ jobs:
           file_count="$(find "$candidate_dir" -type f | wc -l)"
           expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
           test "$file_count" -eq "$expected_count"
+          filtered_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-filtered-XXXXXXXX")"
+          rmdir "$filtered_dir"
+          python3 scripts/security/xerj_filter_40.py \
+            --scratch "$RUNNER_TEMP" --source "$candidate_dir" \
+            --output "$filtered_dir" --source-pin "$pin"
+          file_count="$(find "$filtered_dir" -type f | wc -l)"
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["filtered_tree"]["files"])')"
+          test "$file_count" -eq "$expected_count"
           # No custom repository config, no ignore file, no inline allow comments.
           set +e
           gitleaks dir --redact --ignore-gitleaks-allow \
             --report-format json --report-path "$report" \
-            "$candidate_dir" > "$output" 2>&1
+            "$filtered_dir" > "$output" 2>&1
           scan_status=$?
           set -e
           if [[ "$scan_status" -ne 0 ]]; then
@@ -195,10 +207,15 @@ jobs:
 
           pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
           mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
-          mkdir -p "$work/source" "$work/node"
-          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$work/source"
+          mkdir -p "$work/xerj-pinned-source" "$work/node"
+          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$work/xerj-pinned-source"
           expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
-          test "$(find "$work/source" -type f | wc -l)" -eq "$expected_count"
+          test "$(find "$work/xerj-pinned-source" -type f | wc -l)" -eq "$expected_count"
+          python3 scripts/security/xerj_filter_40.py \
+            --scratch "$work" --source "$work/xerj-pinned-source" \
+            --output "$work/xerj-filtered-source" --source-pin "$pin"
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["filtered_tree"]["files"])')"
+          test "$(find "$work/xerj-filtered-source" -type f | wc -l)" -eq "$expected_count"
           echo XERJ_LOCAL_SOURCE_ARCHIVE_VERIFIED
 
           # Insecure mode is acceptable ONLY on this disposable loopback node
@@ -223,7 +240,7 @@ jobs:
           echo XERJ_DISPOSABLE_LOOPBACK_NODE_READY
 
           export XERJ_URL=http://127.0.0.1:9200
-          "$binary" autoindex "$work/source" --url "$XERJ_URL" \
+          "$binary" autoindex "$work/xerj-filtered-source" --url "$XERJ_URL" \
             --prefix aetheris-xerj-review --no-semantic \
             --workers 2 --progress none --json \
             > "$work/index.json" 2> "$work/index.err" || {

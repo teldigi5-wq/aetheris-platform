@@ -52,7 +52,8 @@
     "copyright_authorship_review": "NOT_VERIFIED_BY_HUMAN",
     "consent_scope": "XERJ upstream draft asserts consent for older full-repo pin; not reverified for revised 44-file scope",
     "pinned_fixture_reuse": "PINNED_GIT_TREE_381_BLOBS: test-only 32-character Gateway HMAC fixture found only in original unit test at source SHA. PASS run 41213211081. Does not validate historical commit reachability, external production use, or credential rotation.",
-    "history_and_runtime_reuse": "NOT_VERIFIED"
+    "history_and_runtime_reuse": "NOT_VERIFIED",
+    "filtered_40_gitleaks": "NOT_TESTED_AT_THIS_BRANCH_HEAD"
   },
   "publication": {
     "hub_branch": "xerj-org/xerj:corpus-hub",
@@ -70,7 +71,8 @@
     "The existing Aetheris production release gate remains NO_GO; indexing source is not a deployment.",
     "Initial 65-file snapshot was blocked by real Gitleaks because of a hard-coded JWT test signing secret in a test file. This 44-file application-source-only corpus intentionally excludes all tests; exclusion is documented and is not a waiver of the finding.",
     "External XERJ draft at tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json references older SHA 908ac0a5 and unrestricted 381-file repository. Do not create duplicate or overwrite prior consent.",
-    "Proposed amendment includes no reviewer identity/date, reuse classification, consent receipt, cloned_at or indexed-size metadata. Upstream authoritative validator remains pending actual reviewed manifest."
+    "Proposed amendment includes no reviewer identity/date, reuse classification, consent receipt, cloned_at or indexed-size metadata. Upstream authoritative validator remains pending actual reviewed manifest.",
+    "Filtered corpus is a proposed 40-file scope: historical 44-file scan/index proofs are NOT filtered-corpus verification."
   ],
   "local_preview": {
     "status": "LOCAL_AUTOINDEX_AND_TWO_FILE_LINE_CITATION_TESTS_PASS_NOT_HUB_PACK",
@@ -86,6 +88,34 @@
     ],
     "exact_head_ci_run": "https://github.com/teldigi5-wq/aetheris-platform/actions/runs/41211767122",
     "full_corpus_hub_manifest_validated": false,
-    "public_pack_published": false
-  }
+    "public_pack_published": false,
+    "filtered_40_index": "NOT_TESTED_AT_THIS_BRANCH_HEAD"
+  },
+  "filtered_tree": {
+    "files": 40,
+    "bytes": 66617,
+    "measurement": "verified filtered Git blob bytes, not XERJ index size"
+  },
+  "excluded_source_files": [
+    {
+      "path": "gateway/src/main/resources/application.yml",
+      "bytes": 5256,
+      "blob_sha": "41292689d047943c30f26e93211570a41edc48b1"
+    },
+    {
+      "path": "identity-service/src/main/resources/application.yml",
+      "bytes": 1134,
+      "blob_sha": "4ee43491af1b84e45a001550e6a6a44b7c15e243"
+    },
+    {
+      "path": "user-service/src/main/resources/application.yml",
+      "bytes": 1258,
+      "blob_sha": "b6894049f3b3878f047330b1e9ac042e0819a42b"
+    },
+    {
+      "path": "audit-service/src/main/resources/application.yml",
+      "bytes": 1058,
+      "blob_sha": "7c16b87fa13bce3239bdf91166ff145daa71045a"
+    }
+  ]
 }

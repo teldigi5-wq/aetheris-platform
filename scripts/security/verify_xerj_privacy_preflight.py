@@ -81,6 +81,10 @@ def main() -> int:
         if row
     ]
     assert len(entries) == plan["expected_tree"]["files"]
+    excluded = {row["path"] for row in plan["excluded_source_files"]}
+    assert len(excluded) == 4 and excluded.issubset(set(entries))
+    entries = [p for p in entries if p not in excluded]
+    assert len(entries) == plan["filtered_tree"]["files"]
     flags: dict[str, list[str]] = {}
     for path in entries:
         if not any(path.startswith(prefix + "/") for prefix in paths):
