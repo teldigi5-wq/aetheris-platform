@@ -91,7 +91,7 @@ jobs:
           runner=Path("tests/security/run_xerj_real_mtls_stack.sh").read_text()
           assert runner.count("env -u SPRING_RABBITMQ_USERNAME -u SPRING_RABBITMQ_PASSWORD") == 2
           assert runner.count("-u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD") == 1
-          assert runner.count("-u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD") == 1
+          assert runner.count("-u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD") == 3
           print("XERJ_BROKER_ADMIN_SECRET_NOT_INHERITED_BY_SERVICE_JVMS_GUARD_PASS")
           PY
           bash -n tests/security/run_xerj_tenant_migration_smoke.sh
