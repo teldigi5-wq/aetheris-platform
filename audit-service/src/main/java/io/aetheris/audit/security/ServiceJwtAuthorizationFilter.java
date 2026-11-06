@@ -66,7 +66,9 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI().substring(request.getContextPath().length());
         // Only liveness and the servlet error dispatcher are publicly reachable.
         return path.equals("/actuator/health") ||
-                path.startsWith("/actuator/health/") || path.equals("/error");
+                path.equals("/actuator/health/liveness") ||
+                path.equals("/actuator/health/readiness") ||
+                request.getDispatcherType() == jakarta.servlet.DispatcherType.ERROR;
     }
 
     @Override
