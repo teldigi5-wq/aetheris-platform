@@ -64,3 +64,14 @@ The runtime release team tracks nine separate acceptance gates; this does **not*
 ## Repository governance note
 
 CI workflows, tests, security analysis and review conventions live in the repository. GitHub-hosted rulesets/branch protection are a separate repository-administration control and are not emulated in application code.
+
+## 6 November 2026 — verified cross-repository continuation checkpoint (review-only)
+
+Preserve **34 / 34 COMPLETE** as the historical *repository blueprint*, not a production acceptance claim. Do not create Stage 35 or rename E0–E9. Execution Phase A remains BLOCKED_PENDING_HARDWARE. This append supplements the dated historical roadmap above rather than rewriting it.
+
+- **Security continuation:** Existing [Runtime PR #257](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/257) → [S-B62-A witness PR #282](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/282) are open drafts. [Actual PostgreSQL16 CI #42159092287](https://github.com/teldigi5-wq/aetheris-ai-runtime/actions/runs/42159092287) passed while showing an old primary **still writable** and privileged witness epoch reset **still possible**. Source-only [PR #281](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/281) [CI #42156885665](https://github.com/teldigi5-wq/aetheris-ai-runtime/actions/runs/42156885665) passed without providing production attestation.
+- **Platform B62 is a separate historical series:** [PR #321](https://github.com/teldigi5-wq/aetheris-platform/pull/321) contains synthetic function-only revocation/audit; its live branch additionally received an mTLS workflow update after the PR's reported head. No protected-main promotion. Do not confuse the proposed Runtime **S-B62-A** authority exercise with Platform **B62-A** JWT temporal verification.
+- **Enterprise capabilities:** [E5→E6 stacked drafts #231–#234](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/234) remain unmerged; E3.9G genuine-model and E3.9H cinematic acceptance, E4–E9 and E6's existing eight internal tasks remain as previously planned. Stage46 speech/catalog/PAPER research is separate.
+- **Release boundary:** Original Stage45 13 safety blockers and nine runtime release gates are NOT CERTIFIED. [Runtime #23](https://github.com/teldigi5-wq/aetheris-ai-runtime/issues/23), [Platform #251](https://github.com/teldigi5-wq/aetheris-platform/issues/251) remain open; [Execution Phase A #49](https://github.com/teldigi5-wq/aetheris-platform/issues/49) remains BLOCKED_PENDING_HARDWARE. S0-E [PR #372](https://github.com/teldigi5-wq/aetheris-platform/pull/372) stays unmerged, XERJ **HOLD** and Stage45 **NO_GO**.
+
+Detailed exact SHA/CI/checkpoint records are appended to the [current release roadmap](current-release-roadmap-20261025.md). **This change is only a docs-only draft stacked on the live B62 review branch**; main, security source and certified Runtime reference are untouched.
