@@ -70,5 +70,7 @@ class JwtServiceIssuerAudienceTest {
                 () -> new JwtService(SECRET, 90000));
         assertThrows(IllegalArgumentException.class,
                 () -> new JwtService("short", 3600));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtService("change-me-local-development-secret-32chars", 3600));
     }
 }

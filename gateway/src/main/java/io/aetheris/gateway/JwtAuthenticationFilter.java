@@ -25,6 +25,7 @@ import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+    static final String VERIFIED_USER_ID_ATTRIBUTE = "aetheris.gateway.verifiedUserId";
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
     public static final String DEFAULT_ISSUER = "aetheris-identity";
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
@@ -37,7 +38,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             @Value("${aetheris.jwt.secret}") String secret,
             @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
             @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
+                "change-me-local-development-secret-32chars".equals(secret)) {
             throw new IllegalArgumentException("JWT secret must be at least 32 bytes");
         }
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
@@ -101,6 +103,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             if (requiredScope != null && !scopes.contains(requiredScope)) {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
             }
+
+            // The rate limiter must only use a server-side, cryptographically
+            // verified identifier. Client X-Aetheris-User-Id headers are untrusted.
+            exchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE,
+                    Long.toString(((Number) userId).longValue()));
 
             ServerWebExchange authenticatedExchange = exchange.mutate()
                     .request(builder -> builder.headers(headers -> {

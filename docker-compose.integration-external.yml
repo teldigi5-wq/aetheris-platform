@@ -76,6 +76,8 @@ services:
   identity-service:
     build: ./identity-service
     environment:
+      AETHERIS_JWT_ISSUER: ${AETHERIS_JWT_ISSUER:-aetheris-identity}
+      AETHERIS_JWT_AUDIENCE: ${AETHERIS_JWT_AUDIENCE:-aetheris-api}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
       SPRING_DATASOURCE_PASSWORD: aetheris
@@ -131,6 +133,8 @@ services:
   gateway:
     build: ./gateway
     environment:
+      AETHERIS_JWT_ISSUER: ${AETHERIS_JWT_ISSUER:-aetheris-identity}
+      AETHERIS_JWT_AUDIENCE: ${AETHERIS_JWT_AUDIENCE:-aetheris-api}
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set a private high-entropy JWT signing key}
       AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}
       SPRING_DATA_REDIS_HOST: redis
