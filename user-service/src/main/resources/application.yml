@@ -61,8 +61,8 @@ aetheris:
     algorithm: ${AETHERIS_JWT_ALGORITHM:HS256}
     rsa-public-key-pem: ${AETHERIS_JWT_RSA_PUBLIC_KEY_PEM:}
     key-id: ${AETHERIS_JWT_RS256_KEY_ID:}
+    issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
+    audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
   gateway:
     workload-mtls-required: ${AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED:false}
     workload-spiffe-id: ${AETHERIS_BACKEND_GATEWAY_SPIFFE_ID:}
-    issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
-    audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}

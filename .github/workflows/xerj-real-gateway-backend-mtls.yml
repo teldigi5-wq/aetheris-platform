@@ -1,0 +1,131 @@
+name: XERJ real Gateway-to-Tomcat mTLS with pinned RSA
+on:
+  pull_request:
+    branches: [security/xerj-rs256-mtls-servlet-policy-20261106]
+    paths:
+      - 'gateway/src/main/resources/**'
+      - 'user-service/src/main/resources/**'
+      - 'audit-service/src/main/resources/**'
+      - 'tests/security/generate_xerj_mtls_fixture.sh'
+      - 'tests/security/run_xerj_real_mtls_stack.sh'
+      - 'tests/security/xerj_real_mtls_http_proof.py'
+      - 'tests/security/xerj_rs256_http_proof.py'
+      - '.github/workflows/xerj-real-gateway-backend-mtls.yml'
+      - 'docs/security/XERJ_REAL_GATEWAY_TOMCAT_MTLS_20261106.md'
+permissions:
+  contents: read
+jobs:
+  gateway-to-real-tomcat-mutual-tls:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout exact SHA with token persistence disabled
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Configure Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: corretto
+          java-version: '21'
+          cache: maven
+      - name: Generate synthetic secrets and ephemeral isolated review namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in XERJ_TEST_PG_PASSWORD XERJ_TEST_RABBIT_PASSWORD XERJ_MTLS_KEYSTORE_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+          echo "XERJ_COMPOSE_PROJECT=xerj-mtls-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+      - name: Generate fresh RSA-3072 private Identity key, public-only verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+            -out "$RUNNER_TEMP/xerj-ci-rs256-private.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/xerj-ci-rs256-private.pem" -pubout \
+            -out "$RUNNER_TEMP/xerj-ci-rs256-public.pem" 2>/dev/null
+          test -s "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
+      - name: Generate isolated CA server and SPIFFE identity client certificates
+        run: bash tests/security/generate_xerj_mtls_fixture.sh
+      - name: Syntax and JWT YAML path/real route overrides static checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/security/generate_xerj_mtls_fixture.sh
+          bash -n tests/security/run_xerj_real_mtls_stack.sh
+          python3 -m py_compile tests/security/xerj_real_mtls_http_proof.py tests/security/xerj_rs256_http_proof.py
+          python3 - <<'PY'
+          from pathlib import Path
+          for svc in ('user-service','audit-service'):
+              s=Path(svc+'/src/main/resources/application.yml').read_text()
+              jwt=s.split('\naetheris:\n  jwt:\n',1)[1].split('\n  gateway:\n',1)[0]
+              assert '    issuer: ${AETHERIS_JWT_ISSUER:' in jwt,svc
+              assert '    audience: ${AETHERIS_JWT_AUDIENCE:' in jwt,svc
+          g=Path('gateway/src/main/resources/application.yml').read_text()
+          assert g.count('uri: ${AETHERIS_USER_BACKEND_URI:') == 2
+          assert g.count('uri: ${AETHERIS_AUDIT_BACKEND_URI:') == 1
+          s=Path('gateway/src/main/resources/application-xerj-mtls-review.yml').read_text()
+          assert 'use-insecure-trust-manager: false' in s
+          assert 'server:\n        webflux:\n          httpclient:\n            ssl:' in s
+          print('XERJ_RS256_JWT_NESTING_AND_MTLS_PROFILE_GUARD_PASS')
+          PY
+          docker compose -f tests/security/xerj-disposable-deps.compose.yml config --quiet
+      - name: Start only new disposable PostgreSQL Redis and RabbitMQ containers
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -p "$XERJ_COMPOSE_PROJECT" \
+            -f tests/security/xerj-disposable-deps.compose.yml up -d --wait
+      - name: Build all four actual Spring Java applications at this exact SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          for svc in identity-service user-service audit-service gateway; do
+            ./mvnw -B -ntp -f "$svc/pom.xml" -DskipTests package
+          done
+      - name: Verify real HTTPS Gateway to Tomcat client-certificate handshakes
+        run: bash tests/security/run_xerj_real_mtls_stack.sh
+      - name: Verify only no-secret proof report leaves the private workspace
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          path=Path(os.environ['RUNNER_TEMP'])/'xerj-real-mtls-safe-report/report.json'
+          report=json.loads(path.read_text())
+          assert report['source_commit']==os.environ['GITHUB_SHA']
+          assert report['status']=='PASS'
+          assert report['evidence_class']=='HOSTED_DISPOSABLE_REAL_GATEWAY_TO_TOMCAT_MTLS'
+          assert report['mtls_scope']=='HOSTED_EPHEMERAL_ACTUAL_TLS_SOCKETS_ONLY'
+          assert report['mTLS_verified'] is True
+          assert report['production_mTLS_verified'] is False
+          assert report['production_verified'] is False
+          assert report['tenant_isolation_verified'] is False
+          assert len(report['checks'])>=47 and all(x=='PASS' for x in report['checks'].values())
+          print('XERJ_REAL_GATEWAY_TOMCAT_TLS_EVIDENCE_PASS checks='+str(len(report['checks'])))
+          PY
+      - name: Upload sanitized check outcomes only, not TLS/private keys or raw logs
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: xerj-real-gateway-tomcat-mtls-sanitized
+          path: ${{ runner.temp }}/xerj-real-mtls-safe-report/report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Destroy only disposable Compose project and generated keypair
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${XERJ_COMPOSE_PROJECT:-}" && "$XERJ_COMPOSE_PROJECT" == xerj-mtls-ci-* ]]; then
+            docker compose -p "$XERJ_COMPOSE_PROJECT" \
+              -f tests/security/xerj-disposable-deps.compose.yml down -v --remove-orphans || true
+          fi
+          rm -f "$RUNNER_TEMP/xerj-ci-rs256-private.pem" "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
+          if [[ -d "$RUNNER_TEMP/xerj-mtls-fixture" ]]; then
+            find "$RUNNER_TEMP/xerj-mtls-fixture" -maxdepth 1 -type f -delete
+            rmdir "$RUNNER_TEMP/xerj-mtls-fixture" || true
+          fi

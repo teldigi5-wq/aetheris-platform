@@ -1,0 +1,15 @@
+# Opt-in hosted test only; never activate in a normal deployment.
+# Gateway 5 uses spring.cloud.gateway.server.webflux for outbound Netty TLS.
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            ssl:
+              use-insecure-trust-manager: false
+              key-store: ${XERJ_MTLS_CLIENT_KEYSTORE:?Synthetic mTLS client store required}
+              key-store-type: PKCS12
+              key-store-password: ${XERJ_MTLS_KEYSTORE_PASSWORD:?Synthetic test password required}
+              trusted-x509-certificates:
+                - ${XERJ_MTLS_SERVER_CA_CERT:?Synthetic upstream CA required}
