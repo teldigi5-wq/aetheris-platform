@@ -139,6 +139,13 @@ class ServiceJwtAuthorizationFilterTest {
     }
 
     @Test
+    void nestedActuatorHealthPathCannotBypassAuthorization() throws Exception {
+        mvc.perform(get("/actuator/health/private"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void unsafeKnownLocalSigningSecretIsRejectedAtStartup() {
         assertThrows(IllegalArgumentException.class,
                 () -> new ServiceJwtAuthorizationFilter("change-me-local-development-secret-32chars"));
