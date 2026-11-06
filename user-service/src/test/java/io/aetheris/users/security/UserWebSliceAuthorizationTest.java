@@ -6,8 +6,8 @@ import io.aetheris.users.UserController;
 import io.aetheris.users.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.TestPropertySource;
@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UserWebSliceAuthorizationTest {
     private static final String SECRET = "synthetic-test-only-strong-signing-key-0123456789";
     @Autowired MockMvc mvc;
-    @MockBean UserService service;
+    @MockitoBean UserService service;
 
     private static String token(String role) {
         return Jwts.builder()
