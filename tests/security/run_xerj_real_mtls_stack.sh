@@ -59,12 +59,12 @@ for svc in identity-service user-service audit-service gateway; do
   jarfile="$(find "$svc/target" -maxdepth 1 -type f -name '*.jar' ! -name '*.original' ! -name '*sources*' ! -name '*javadoc*' | head -n 1)"
   [[ -n "$jarfile" && -s "$jarfile" ]] || { echo "XERJ_REAL_MTLS_JAR_MISSING" >&2; exit 1; }
   if [[ "$svc" == "identity-service" ]]; then
-    env -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
+    env -u SPRING_RABBITMQ_USERNAME -u SPRING_RABBITMQ_PASSWORD -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
       -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PUBLIC_KEY_PEM \
       AETHERIS_JWT_RSA_PRIVATE_KEY_PEM="$privatePem" \
       java -jar "$jarfile" > "$work/$svc.log" 2>&1 &
   elif [[ "$svc" == "gateway" ]]; then
-    env -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
+    env -u SPRING_RABBITMQ_USERNAME -u SPRING_RABBITMQ_PASSWORD -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
       -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PRIVATE_KEY_PEM \
       AETHERIS_JWT_RSA_PUBLIC_KEY_PEM="$publicPem" \
       SPRING_PROFILES_ACTIVE=xerj-mtls-review \
