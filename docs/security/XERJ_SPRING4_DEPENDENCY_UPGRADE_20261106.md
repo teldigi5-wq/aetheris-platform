@@ -29,3 +29,9 @@ Run the exact-head OSV CI to verify no remaining reported hits; any failure stay
 The exact-head CI for `9143dc6c07974464b522f7bf6b70ee53979c6824`, run [42167135190](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42167135190), still reported one advisory: `com.rabbitmq:amqp-client:5.36.0`, `GHSA-cqgh-8p3p-mx4m`. No suppression or ignore is permitted. RabbitMQ's official GitHub release and Maven Central list Java client 5.37.0, a newer maintenance release beyond the affected version range. This child draft updates User and Audit to **5.37.0**, with a new exact-head OSV and Java regression CI required to confirm the resolved dependency and advisory outcome.
 
 Earlier 79/79 Java tests passed on the prior head, but **were not run on the new 5.37.0 candidate** until its CI completes. Neither a clean OSV result nor compiling Java would be proof that Stage 45 is production-ready.
+
+## Real application route-binding and build smoke gates
+
+After the exact-head OSV scan returns no reported known advisories, the CI now starts a disposable **real Spring Boot Gateway/Netty application context** with an ephemeral synthetic JWT key and no external upstream traffic. It verifies that `RouteLocator` has five live registered upstream routes. This is stronger than parsing YAML; it is **not** yet an end-to-end proxy/Redis/HTTPS integration test.
+
+CI also runs Maven `package -DskipTests` for each module after its verified targeted tests and OSV gate, checking for `BOOT-INF/classes` and `BOOT-INF/lib` in the resulting executable JAR. Do not claim a package/build until its exact-head run is successful; no deployments are part of this workflow.
