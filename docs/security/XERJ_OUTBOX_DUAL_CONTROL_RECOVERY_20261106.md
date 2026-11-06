@@ -1,0 +1,25 @@
+# Aetheris: dual-control parked outbox recovery — isolated draft, NO_GO
+
+**Parent verified:** PR #391 at `e9dbad5fb6c7ce0eece4746db502cd35820f3892`, GitHub Actions run #42190733886 (110 targeted Java tests, 90 live checks, real 8-worker PostgreSQL concurrency, post-Rabbit-ACK replay/deduplicated Audit). This new child review adds a manual PostgreSQL recovery capability and tests, not an app endpoint or deployment.
+
+## Threat boundary
+A stale, failed, or compromised operator must **not** rearm an arbitrary outbox row by changing its state, clearing attempts, or guessing a ticket. An approval cannot be self-issued by the operator, reused twice, replayed after expiration, or used to exceed a strict recovery cap. No API client, Web user, JWT role or RabbitMQ actor is granted recovery authority.
+
+### SQL review-only mechanism
+- Additive, **manual-only**, idempotent PostgreSQL migration `20261106_04_user_outbox_dual_control_recovery.sql`. The outbox receives a `recovery_generation SMALLINT` (default 0; 0–2). The DB also receives two distinct NOLOGIN capability roles and two append-only-at-application-level metadata tables, `user_outbox_replay_approvals` and `user_outbox_replay_audit`. No historical user/tenant ownership is changed or guessed.
+- Two narrowly granted **SECURITY DEFINER** functions with `search_path=pg_catalog` and qualified public schema references: `approve_parked_user_outbox_replay(event_uuid,ticket_ref)` and `rearm_approved_parked_user_outbox(event_uuid)`. Function EXECUTE is revoked from PUBLIC and granted only to their corresponding role. Functions check actual `session_user` membership and **reject** an actor holding both duties.
+- Approver account can approve **only an existing `parked` row** with at least 12 attempts and fewer than 2 previous recoveries. A formatted external `SEC-YYYYMMDD-NNNN` or `INC-YYYYMMDD-NNNN` ticket reference and a unique approval per `(event_id,recovery_generation)` are required. The DB records real login identity (not caller-supplied text) and a 15-minute expiry.
+- Operator account can rearm **only the same individual parked UUID** with a current, unused approval from another login. One transaction locks the outbox row, consumes approval, compare-and-sets `state='retry'`, `attempts=0`, 5s release delay, increments `recovery_generation`, and appends a durable audit record linking approval/operator/ticket. Repeated calls, wrong states, expired approvals, unapproved events, and third-cycle attempts fail closed.
+- Neither login has direct SELECT or UPDATE on the User/outbox PII table or direct DML access to the approval/audit tables; the CI test proves these denials against actual PostgreSQL. Credential material is random synthetic and ephemeral.
+
+### Critically honest limits
+- **A ticket reference is not independently verified human authorization.** The DB records dual-role actions and enforces separation, but the actual identity-provider workflow, real reviewer evidence, approvals/signatures, emergency change management and ticket linkage require independent integration. Do not claim SOC2-grade or immutable compliance audit.
+- The log is **not cryptographically immutable** or protected from the DB owner/superuser, and the migration function owner remains a privileged trust point. Production should use separate schema ownership, restricted deployment privileges, append-only external evidence and monitoring. PostgreSQL role memberships, admin escalation and credential rotation require operator review.
+- Replayed events are still **at-least-once** with stable event IDs; Audit duplicate rows are avoided by PK, but not guaranteed end-to-end exactly-once delivery. A deliberately expired approval cannot be reused; ticket replacement must be a separate controlled revocation workflow, not a silent reset.
+- The approval/rearm functions exist only after a **reviewed manual migration**. This PR does not create a public HTTP endpoint, scheduled automatic rearming, CI invocation against real systems, or add recovered events into production. Outbox remains opt-in and disabled by default.
+- The two recovery cap is conservative, not proven suitable for every operational incident; parking retention, error triage, alerting, lawful erasure of PII and independent human consent are still pending.
+
+### CI evidence gate
+With a unique disposable PostgreSQL 16 container only: run migration twice; create distinct randomized approver/operator accounts; exercise denied table reads/DML, denied cross-role function execution, missing/invalid/expired approvals, single-use approvals, actual double-operator race (one success), two generation-specific recoveries, third recovery denial, linked durable audit identity. Existing 110 Java security regressions + 90 live RSA/mTLS/tenant/broker/DLQ/outbox/crash tests must pass on the exact new commit.
+
+**Stage45 NO_GO · XERJ PR #376 HOLD.** Production schema backups, release attestations, company tenancy, independent broker identity, JWT revocation, dependency scans and XERJ file rights + explicit publication consent remain unresolved. No merge, deploy, corpus repin or upstream submission is authorized.
