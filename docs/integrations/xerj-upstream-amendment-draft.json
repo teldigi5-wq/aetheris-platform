@@ -3,7 +3,7 @@
   "status": "DRAFT_UNREVIEWED_NOT_SUBMITTABLE",
   "purpose": "PROPOSE_AMENDMENT_TO_EXISTING_XERJ_AUTHOR_CANDIDATE_NOT_DUPLICATE",
   "upstream_candidate_path": "tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json",
-  "upstream_base_sha": "fbb458b6840460e41ac921f446f671a97b41d6c3",
+  "upstream_base_sha": "708e974516a4ba1ba9bfa312aff164041997cfd6",
   "corpus": "teldigi5-wq--aetheris-platform",
   "domain": "A coding agent tracing Java/Spring Boot Gateway, Identity, User and Audit integration boundaries can retrieve pinned Aetheris implementation details with file:line citations. Historical, not a verified secure deployment.",
   "repo": {
