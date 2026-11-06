@@ -66,6 +66,25 @@ class UserOutboxPostgresIT {
         } finally {
             jdbc.update("DELETE FROM user_event_outbox WHERE event_id=?",committed);
         }
+        UUID exhausted=tx.execute(status -> store.append("user.deleted",125L,
+                "Synthetic final attempt","exhausted@example.test",null));
+        assertNotNull(exhausted);
+        try {
+            jdbc.update("""
+                    UPDATE user_event_outbox
+                    SET state='leased', attempts=12,
+                        lease_token=?, lease_until=clock_timestamp()-INTERVAL '1 second'
+                    WHERE event_id=?
+                    """, UUID.randomUUID(), exhausted);
+            assertTrue(store.leaseNext().isEmpty(),
+                    "An expired exhausted claim must never be republished");
+            assertEquals("parked",jdbc.queryForObject(
+                    "SELECT state FROM user_event_outbox WHERE event_id=?",
+                    String.class,exhausted));
+        } finally {
+            jdbc.update("DELETE FROM user_event_outbox WHERE event_id=?",exhausted);
+        }
+        System.out.println("XERJ_OUTBOX_EXPIRED_FINAL_LEASE_PARKED_PASS");
         System.out.println("XERJ_REAL_POSTGRES_OUTBOX_ROLLBACK_LEASE_REPLAY_PASS");
     }
 }
