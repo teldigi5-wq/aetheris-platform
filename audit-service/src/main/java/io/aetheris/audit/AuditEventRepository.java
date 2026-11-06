@@ -66,8 +66,9 @@ public class AuditEventRepository {
         UserDomainEvent existing = prior.get(0);
         // PostgreSQL TIMESTAMPTZ has microsecond precision. Sub-microsecond
         // rounding on legacy Java-produced timestamps is not event tampering.
-        boolean sameTime = Math.abs(Duration.between(
-                existing.occurredAt(), event.occurredAt()).toNanos()) <= 1_000;
+        boolean sameTime = Duration.between(
+                existing.occurredAt(), event.occurredAt())
+                .abs().compareTo(Duration.ofNanos(1_000)) <= 0;
         if (!Objects.equals(existing.eventId(), event.eventId())
                 || !Objects.equals(existing.eventType(), event.eventType())
                 || !sameTime
