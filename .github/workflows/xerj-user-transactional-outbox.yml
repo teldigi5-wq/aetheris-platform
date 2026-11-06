@@ -76,6 +76,8 @@ jobs:
           echo "XERJ_DLX_REVIEW_ENFORCED=true" >> "$GITHUB_ENV"
           echo "XERJ_BOUNDARY_PROOF_PROGRAM=tests/security/xerj_outbox_http_proof.py" >> "$GITHUB_ENV"
           echo "AETHERIS_OUTBOX_ENABLED=true" >> "$GITHUB_ENV"
+          echo "AETHERIS_RABBIT_PUBLISHER_CONFIRM_TYPE=correlated" >> "$GITHUB_ENV"
+          echo "AETHERIS_RABBIT_PUBLISHER_RETURNS=true" >> "$GITHUB_ENV"
           echo "AETHERIS_OUTBOX_POLL_MS=350" >> "$GITHUB_ENV"
       - name: Generate private Identity RSA3072 issuer key and public resource verifier
         shell: bash
