@@ -72,7 +72,8 @@
     "Initial 65-file snapshot was blocked by real Gitleaks because of a hard-coded JWT test signing secret in a test file. This 44-file application-source-only corpus intentionally excludes all tests; exclusion is documented and is not a waiver of the finding.",
     "External XERJ draft at tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json references older SHA 908ac0a5 and unrestricted 381-file repository. Do not create duplicate or overwrite prior consent.",
     "Proposed amendment includes no reviewer identity/date, reuse classification, consent receipt, cloned_at or indexed-size metadata. Upstream authoritative validator remains pending actual reviewed manifest.",
-    "Filtered corpus is a proposed 40-file scope: historical 44-file scan/index proofs are NOT filtered-corpus verification."
+    "Filtered corpus is a proposed 40-file scope: historical 44-file scan/index proofs are NOT filtered-corpus verification.",
+    "XERJ Lane A only supports directory subpath harvesting; exactly seven pinned directories independently reproduce the same 40 blobs without YAML configs, and are required in the eventual Hub manifest."
   ],
   "local_preview": {
     "status": "LOCAL_AUTOINDEX_AND_TWO_FILE_LINE_CITATION_TESTS_PASS_NOT_HUB_PACK",
@@ -117,5 +118,19 @@
       "bytes": 1058,
       "blob_sha": "7c16b87fa13bce3239bdf91166ff145daa71045a"
     }
-  ]
+  ],
+  "hub_reproducible_paths": [
+    "architecture",
+    "gateway/src/main/java",
+    "identity-service/src/main/java",
+    "user-service/src/main/java",
+    "audit-service/src/main/java",
+    "audit-service/src/main/resources/db/migration",
+    "docs/security"
+  ],
+  "hub_reproducible_tree": {
+    "files": 40,
+    "bytes": 66617,
+    "measurement": "Git blob sizes at immutable source pin using exact seven directory paths"
+  }
 }

@@ -1,6 +1,6 @@
 # XERJ contribution: scope-specific owner review and approval
 
-> **2026-11-06 PROPOSAL — NO OWNER APPROVAL:** The 44-file source below is historical. The active proposed scope is 40 files / 66,617 Git-blob bytes after four blob-verified YAML exclusions. Its new scan/index and human approval are pending.
+> **2026-11-06 PROPOSAL — NO OWNER APPROVAL:** The eventual XERJ Lane A harvest uses seven fixed directories to reproduce exactly the 40 filtered Git files (including Audit SQL migration; excluding all four service `application.yml` files). The 44-file source below is historical. The active proposed scope is 40 files / 66,617 Git-blob bytes after four blob-verified YAML exclusions. Its new scan/index and human approval are pending.
 >
 > - [ ] Review all 40 filtered files for sensitive content and license/ownership.
 > - [ ] Verify history and live credential reuse, remediate any confirmed live keys.

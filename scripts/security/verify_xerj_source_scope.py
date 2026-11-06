@@ -95,6 +95,41 @@ def main() -> None:
     require(file_count - 4 == filtered["files"] and
             size_total - sum(e["bytes"] for e in excluded) == filtered["bytes"],
             "Filtered source count/size drift")
+    # Independently prove that Lane A directory-only manifest selectors reproduce
+    # EXACTLY the filtered archive: no hidden application YAML inclusion.
+    expected_hub_paths = [
+        "architecture", "gateway/src/main/java",
+        "identity-service/src/main/java", "user-service/src/main/java",
+        "audit-service/src/main/java",
+        "audit-service/src/main/resources/db/migration", "docs/security",
+    ]
+    hub_paths = plan["hub_reproducible_paths"]
+    require(hub_paths == expected_hub_paths,
+            "Unexpected Hub subpath harvest boundaries")
+    hub_data = git("ls-tree", "-r", "-l", "-z", pin, "--", *hub_paths)
+    hub_objects = {}
+    for item in (entry for entry in hub_data.split(b"\x00") if entry):
+        meta, raw_path = item.split(b"\t", 1)
+        mode, kind, sha, size = meta.split()
+        path = raw_path.decode("utf-8")
+        require(kind == b"blob" and mode in ALLOWED_MODES,
+                "Invalid Hub corpus Git object kind")
+        require(path not in hub_objects and
+                any(path.startswith(root + "/") for root in hub_paths),
+                "Invalid Hub subpath or duplicate")
+        hub_objects[path] = (int(size), sha.decode("ascii"))
+    filtered_objects = {
+        path: identity for path, identity in objects.items()
+        if path not in {row["path"] for row in excluded}
+    }
+    require(hub_objects == filtered_objects,
+            "Lane A Hub directory paths do not reproduce exact filtered blobs")
+    require(len(hub_objects) == plan["hub_reproducible_tree"]["files"] and
+            sum(size for size, _ in hub_objects.values()) ==
+                plan["hub_reproducible_tree"]["bytes"],
+            "Lane A Hub source accounting drift")
+    print("XERJ_HUB_REPRODUCIBLE_SUBPATHS_PASS files=40 git_blob_bytes=66617 "
+          "publication=NOT_AUTHORIZED")
     print(
         "XERJ_SOURCE_SCOPE_PROOF_PASS "
         f"pin={pin} files={file_count} git_blob_bytes={size_total} "

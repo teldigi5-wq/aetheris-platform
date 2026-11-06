@@ -74,7 +74,7 @@ def main() -> None:
     require(isinstance(paths, list) and 0 < len(paths) <= 32 and
             len(paths) == len(set(paths)) and all(map(valid_path, paths)),
             "Unsafe or changed XERJ sparse source directories")
-    require(paths == plan["paths"], "Proposal and scan-selected paths disagree")
+    require(paths == plan["hub_reproducible_paths"], "Proposal and exact Hub sparse paths disagree")
     require(repo["review"]["use"] == "UNREVIEWED",
             "Only a person who reviewed the licence can set reuse approval")
     require(repo["review"]["use"] not in REAL_LIVE_USE,
