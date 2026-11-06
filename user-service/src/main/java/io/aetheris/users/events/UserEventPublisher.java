@@ -25,7 +25,21 @@ public class UserEventPublisher {
         publish("user.deleted", id, name, email);
     }
 
+    // Only server-owned User.tenantId reaches the tenant event overload.
+    // Legacy global ADMIN mutations intentionally emit no tenant attribution.
+    public void userCreated(Long id, String name, String email, UUID tenantId) {
+        publish("user.created", id, name, email, java.util.Objects.requireNonNull(tenantId));
+    }
+
+    public void userDeleted(Long id, String name, String email, UUID tenantId) {
+        publish("user.deleted", id, name, email, java.util.Objects.requireNonNull(tenantId));
+    }
+
     private void publish(String eventType, Long id, String name, String email) {
+        publish(eventType, id, name, email, null);
+    }
+
+    private void publish(String eventType, Long id, String name, String email, UUID tenantId) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("eventId", UUID.randomUUID().toString());
         event.put("eventType", eventType);
@@ -33,6 +47,9 @@ public class UserEventPublisher {
         event.put("userId", id);
         event.put("name", name);
         event.put("email", email);
+        if (tenantId != null) {
+            event.put("tenantId", tenantId.toString());
+        }
         rabbitTemplate.convertAndSend(EXCHANGE, eventType, event);
     }
 }
