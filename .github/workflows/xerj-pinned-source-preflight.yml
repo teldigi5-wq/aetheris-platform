@@ -15,6 +15,7 @@ on:
       - 'scripts/security/verify_xerj_candidate_proposal.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
       - 'docs/integrations/xerj-owner-publication-approval.md'
+      - 'docs/integrations/xerj-40-file-review-inventory.md'
 
 permissions:
   contents: read
