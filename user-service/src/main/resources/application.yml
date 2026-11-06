@@ -57,6 +57,9 @@ info:
 # A missing signing key fails startup; never accept an implicit development secret.
 aetheris:
   jwt:
-    secret: ${AETHERIS_JWT_SECRET}
+    secret: ${AETHERIS_JWT_SECRET:}
+    algorithm: ${AETHERIS_JWT_ALGORITHM:HS256}
+    rsa-public-key-pem: ${AETHERIS_JWT_RSA_PUBLIC_KEY_PEM:}
+    key-id: ${AETHERIS_JWT_RS256_KEY_ID:}
     issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
     audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
