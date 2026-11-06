@@ -153,7 +153,8 @@ class UserOutboxDualControlRecoveryIT {
             UUID expApproval=approve(approver,expired,"SEC-20261106-1002");
             admin.update("""
                     UPDATE public.user_outbox_replay_approvals
-                    SET expires_at=clock_timestamp()-INTERVAL '1 second'
+                    SET approved_at=clock_timestamp()-INTERVAL '20 minutes',
+                        expires_at=clock_timestamp()-INTERVAL '5 minutes'
                     WHERE approval_id=?
                     """,expApproval);
             assertThrows(DataAccessException.class,()->rearm(operator,expired));
