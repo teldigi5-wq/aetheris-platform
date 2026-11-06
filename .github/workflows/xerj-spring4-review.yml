@@ -1,0 +1,66 @@
+name: XERJ Spring 4 supported dependency compatibility (review-only)
+on:
+  pull_request:
+    branches: [security/xerj-user-audit-direct-authz-20261106]
+    paths:
+      - 'gateway/**'
+      - 'user-service/**'
+      - 'identity-service/**'
+      - 'audit-service/**'
+      - 'docs/security/XERJ_SPRING4_DEPENDENCY_UPGRADE_20261106.md'
+      - 'scripts/security/osv_cyclonedx_gate.py'
+      - 'scripts/security/test_osv_cyclonedx_gate.py'
+      - '.github/workflows/xerj-spring4-review.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  spring4-four-service-compat:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact source without credential persistence
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Configure Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: corretto
+          java-version: '21'
+          cache: maven
+      - name: Test and package User module including authorization web slice
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest,UserWebSliceAuthorizationTest,UserControllerTest,UserServiceTest,UserServiceCacheTest test
+      - name: Test and package Audit module including authorization web slice
+        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest,AuditWebSliceAuthorizationTest,AuditControllerTest,AuditEventStoreTest test
+      - name: Test and package Identity module including token and browser regressions
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=BrowserAuthControllerTest,IdentityServiceSecurityTest,JwtServiceIssuerAudienceTest,RefreshTokenServiceTest test
+      - name: Test and package Gateway token and rate-limit regressions
+        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=JwtAuthenticationFilterTest,RateLimitConfigTest,FallbackControllerTest,GatewayRouteConfigTest,GatewayLiveRouteBindingTest test
+      - name: Generate reproducible dependency SBOM inputs from every Maven module
+        shell: bash
+        run: |
+          set -euo pipefail
+          for svc in user-service audit-service identity-service gateway; do
+            ./mvnw -B -ntp -f "$svc/pom.xml" org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeBom -DoutputFormat=json -DincludeTestScope=false
+            test -s "$svc/target/bom.json"
+          done
+      - name: Unit test fail-closed OSV response handling
+        run: python3 -m unittest discover -s scripts/security -p 'test_osv_cyclonedx_gate.py' -v
+      - name: Compare resolved dependency SBOMs against public OSV advisories
+        run: python3 scripts/security/osv_cyclonedx_gate.py user-service/target/bom.json audit-service/target/bom.json identity-service/target/bom.json gateway/target/bom.json
+      - name: Package all four services and verify executable Spring Boot jars
+        shell: bash
+        run: |
+          set -euo pipefail
+          for svc in user-service audit-service identity-service gateway; do
+            ./mvnw -B -ntp -f "$svc/pom.xml" -DskipTests package
+            jarfile="$(find "$svc/target" -maxdepth 1 -type f -name '*.jar' ! -name '*sources*' ! -name '*javadoc*' | head -n 1)"
+            test -n "$jarfile" && test -s "$jarfile"
+            jar tf "$jarfile" > "$svc/target/package-entries.txt"
+            grep -q '^BOOT-INF/classes/' "$svc/target/package-entries.txt"
+            grep -q '^BOOT-INF/lib/' "$svc/target/package-entries.txt"
+            printf 'XERJ_SPRING4_PACKAGE_OK service=%s\n' "$svc"
+          done
+
