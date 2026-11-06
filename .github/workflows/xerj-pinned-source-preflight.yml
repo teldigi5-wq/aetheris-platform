@@ -14,6 +14,7 @@ on:
       - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
       - 'docs/integrations/xerj-owner-publication-approval.md'
+      - 'docs/integrations/xerj-upstream-validator-dryrun.md'
 
 permissions:
   contents: read
