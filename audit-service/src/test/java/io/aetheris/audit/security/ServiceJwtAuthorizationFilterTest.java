@@ -8,7 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import io.aetheris.audit.AuditController;
-import io.aetheris.audit.AuditEventStore;;
+import io.aetheris.audit.AuditEventStore;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
