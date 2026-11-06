@@ -30,5 +30,7 @@ jobs:
             echo "::add-mask::$value"
             printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
           done
+      - name: Provide a non-pulled synthetic image identifier for external Compose validation
+        run: echo 'AETHERIS_AI_RUNTIME_IMAGE=synthetic-runtime:config-only' >> "$GITHUB_ENV"
       - name: Verify no wildcard published TCP ports or implicit credentials
         run: python3 scripts/security/check_compose_fail_closed.py
