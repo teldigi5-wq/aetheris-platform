@@ -28,9 +28,9 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Test independent User backend authorization
-        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest test
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest,UserWebSliceAuthorizationTest test
       - name: Test independent Audit backend authorization
-        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest test
+        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest,AuditWebSliceAuthorizationTest test
       - name: Test Gateway fail-closed administrator policy
         run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=JwtAuthenticationFilterTest test
       - name: Test Identity token and issuer/audience contract
