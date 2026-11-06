@@ -1,0 +1,89 @@
+name: XERJ disposable live service authorization boundary (review-only)
+on:
+  pull_request:
+    branches: [security/xerj-spring-4-1-2-compat-20261106]
+    paths:
+      - 'tests/security/xerj-disposable-deps.compose.yml'
+      - 'tests/security/run_xerj_disposable_stack.sh'
+      - 'tests/security/xerj_disposable_http_proof.py'
+      - '.github/workflows/xerj-disposable-live-boundary.yml'
+      - 'docs/security/XERJ_DISPOSABLE_BOUNDARY_20261106.md'
+permissions:
+  contents: read
+
+jobs:
+  disposable-real-postgres-redis-rabbitmq-and-java:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout review SHA without persisting GitHub token
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Setup Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: corretto
+          java-version: '21'
+          cache: maven
+      - name: Prepare fresh synthetic credentials for this disposable runner only
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET XERJ_TEST_PG_PASSWORD XERJ_TEST_RABBIT_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+          printf '%s\n' "XERJ_COMPOSE_PROJECT=xerj-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+      - name: Check CI-only Compose isolation and Python syntax
+        run: |
+          python3 -m py_compile tests/security/xerj_disposable_http_proof.py
+          bash -n tests/security/run_xerj_disposable_stack.sh
+          docker compose -f tests/security/xerj-disposable-deps.compose.yml config --quiet
+      - name: Launch only disposable backing services with loopback ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml up -d --wait
+      - name: Package the actual four-service Java application modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in identity-service user-service audit-service gateway; do
+            ./mvnw -B -ntp -f "$service/pom.xml" -DskipTests package
+          done
+      - name: Exercise real localhost Gateway, Identity, User, Audit and AMQP boundaries
+        run: bash tests/security/run_xerj_disposable_stack.sh
+      - name: Verify sanitized machine-readable hosted proof
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          p = Path(os.environ["RUNNER_TEMP"]) / "xerj-integration-evidence/report.json"
+          data = json.loads(p.read_text())
+          assert data["status"] == "PASS"
+          assert data["source_commit"] == os.environ["GITHUB_SHA"]
+          assert data["evidence_class"] == "HOSTED_DISPOSABLE_INTEGRATION"
+          assert data["production_verified"] is False
+          assert data["tenant_isolation_verified"] is False
+          assert len(data["checks"]) >= 15
+          assert all(x == "PASS" for x in data["checks"].values())
+          print("XERJ_REAL_DISPOSABLE_REPORT_PASS checks=" + str(len(data["checks"])))
+          PY
+      - name: Archive non-sensitive proof report only
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: xerj-disposable-boundary-review-proof
+          path: ${{ runner.temp }}/xerj-integration-evidence/report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Tear down only this unique disposable Compose project
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${XERJ_COMPOSE_PROJECT:-}" && "$XERJ_COMPOSE_PROJECT" == xerj-ci-* ]]; then
+            docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml down --volumes --remove-orphans || true
+          fi
