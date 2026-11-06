@@ -126,12 +126,13 @@ jobs:
           assert r['source_commit']==os.environ['GITHUB_SHA']
           assert r['status']=='PASS'
           assert r['account_bounded_tenant_user_api_verified'] is True
+          assert r['tenant_global_cache_invalidation_verified'] is True
           assert r['tenant_isolation_verified'] is False
           assert r['tenant_membership_verified'] is False
           assert r['production_verified'] is False
           assert r['migration_applied_to_production'] is False
           assert r['mTLS_verified'] is True and r['production_mTLS_verified'] is False
-          assert len(r['checks'])>=65 and all(x=='PASS' for x in r['checks'].values())
+          assert len(r['checks'])>=77 and all(x=='PASS' for x in r['checks'].values())
           print('XERJ_ACCOUNT_BOUNDARY_EVIDENCE_PASS checks='+str(len(r['checks'])))
           PY
       - name: Upload sanitized booleans and check names only

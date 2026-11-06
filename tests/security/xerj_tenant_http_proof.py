@@ -51,6 +51,17 @@ def main():
     args=parser.parse_args()
 
     mtls.main()  # Full 47 verified handshake, auth, DB and AMQP checks first.
+
+    code, admin_login = gateway("POST", "/api/auth/login", payload={
+        "email":"e2e-admin@aetheris.test", "password":"SyntheticPass123!Unique"})
+    baseline.verify(code==200 and isinstance(admin_login,dict) and
+        isinstance(admin_login.get("accessToken"),str),
+        "tenant_cache_test_real_identity_admin_login")
+    admin=admin_login["accessToken"]
+    code, warm_items = gateway("GET", "/api/users",admin)
+    baseline.verify(code==200 and isinstance(warm_items,list),
+        "tenant_cache_test_warms_real_admin_redis_global_list")
+
     a=register("Alpha")
     b=register("Beta")
     tenant_a=signed_tenant_claim(a)
@@ -78,6 +89,26 @@ def main():
                     isinstance(created_b.get("id"),int) and created_b["id"]!=id_a,
                     "tenant_b_forged_header_cannot_control_record_owner")
     id_b=created_b["id"]
+
+    code,global_items = gateway("GET","/api/users",admin)
+    baseline.verify(code==200 and isinstance(global_items,list) and
+        {id_a,id_b}.issubset({item.get("id") for item in global_items}),
+        "tenant_creates_evict_global_admin_list_cache")
+
+    # Audit remains SUPER-ADMIN-only; tenant audit attribution is a separate
+    # unresolved security schema milestone. Verify events are persisted.
+    seen=False
+    for _ in range(20):
+        code,events=gateway("GET","/api/events",admin)
+        if code==200 and isinstance(events,list):
+            created={evt.get("userId") for evt in events
+                     if isinstance(evt,dict) and evt.get("eventType")=="user.created"}
+            if {id_a,id_b}.issubset(created):
+                seen=True
+                break
+        import time
+        time.sleep(1)
+    baseline.verify(seen,"tenant_mutations_reach_real_admin_only_audit_store")
 
     code,items=gateway("GET","/api/users/tenant",a)
     baseline.verify(code==200 and isinstance(items,list) and
@@ -120,9 +151,15 @@ def main():
         code,_=gateway("DELETE",f"/api/users/tenant/{id}",token)
         baseline.verify(code==204,"tenant_"+label+"_can_delete_own_record")
 
+    code,remaining = gateway("GET","/api/users",admin)
+    baseline.verify(code==200 and isinstance(remaining,list) and
+        not ({id_a,id_b} & {item.get("id") for item in remaining}),
+        "tenant_deletes_evict_global_admin_list_cache")
+
     report=json.loads(args.report.read_text(encoding="utf-8"))
     report["checks"]=dict(baseline.CHECKS)
     report["account_bounded_tenant_user_api_verified"]=True
+    report["tenant_global_cache_invalidation_verified"]=True
     report["tenant_isolation_verified"]=False
     report["tenant_membership_verified"]=False
     report["production_verified"]=False

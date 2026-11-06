@@ -25,3 +25,6 @@ The exact-head workflow first runs targeted signed JWT, Gateway, backend and JPA
 - Real mTLS has been demonstrated only in disposable hosted CI; production TLS/cert chain, CNI/NetworkPolicy, SQL least privilege, Redis internal authentication, image scanning, Stage45 attestations, historical credential clearance and human corpus rights/consent remain OPEN.
 
 **Status:** Aetheris Stage45 `NO_GO` | XERJ #376 `HOLD`. Do not merge, deploy, repin or publish until all relevant security and rights checks pass.
+
+## Cache and event boundary extension (same isolated draft)
+A further exact-head hosted regression warms the actual Redis-backed ADMIN global User list before tenant writes. It then proves both tenant creations appear in ADMIN's refreshed global list, both tenant deletions disappear from it, and the published `user.created` events for the two tenant-scoped records reach the actual global ADMIN-only Audit store. These checks do **not** make tenant events attributable to tenants for compliance; that separate schema/authorization work remains blocked.
