@@ -13,7 +13,7 @@ rabbit=(docker compose -p "$XERJ_COMPOSE_PROJECT" \
   '^aetheris\.audit\.user-events$' \
   '{"dead-letter-exchange":"aetheris.audit.dlx","dead-letter-routing-key":"quarantine"}' \
   --apply-to queues --priority 9 >/dev/null
-policies="$("${rabbit[@]}" list_policies -p xerj_review name pattern definition --no-table-headers)"
+policies="$("${rabbit[@]}" list_policies -p xerj_review --no-table-headers)"
 [[ "$policies" == *"xerj-ci-audit-poison"* &&
    "$policies" == *"aetheris.audit.dlx"* &&
    "$policies" == *"quarantine"* ]] || {
