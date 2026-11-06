@@ -11,6 +11,7 @@ on:
       - 'scripts/security/verify_xerj_privacy_preflight.py'
       - 'scripts/security/verify_xerj_fixture_reuse.py'
       - 'scripts/security/verify_xerj_candidate_proposal.py'
+      - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
       - 'docs/integrations/xerj-owner-publication-approval.md'
 
@@ -140,6 +141,37 @@ jobs:
           set -euo pipefail
           python3 scripts/security/verify_xerj_candidate_proposal.py
           echo "XERJ_EXISTING_DRAFT_ONLY_PENDING_OWNER_LICENCE_REVIEW"
+
+  xerj-upstream-registry-schema-negative-review:
+    name: xerj-upstream-registry-schema-negative-review
+    needs: [xerj-pinned-source-scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact unapproved review head without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify current pinned upstream XERJ registry and deny unreviewed live Lane A
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          work="$(mktemp -d "${RUNNER_TEMP}/xerj-upstream-schema.XXXXXXXX")"
+          trap 'rm -rf -- "$work"' EXIT
+          git -c protocol.version=2 clone --filter=blob:none --depth=1 \
+            --single-branch --branch corpus-hub \
+            https://github.com/xerj-org/xerj.git "$work/upstream" \
+            > /dev/null 2>&1 || {
+              echo "XERJ_UPSTREAM_CHECKOUT_FAILED" >&2
+              exit 1
+            }
+          python3 scripts/security/verify_xerj_upstream_validator_dryrun.py \
+            "$work/upstream"
+          echo "XERJ_STAGE5_UPSTREAM_SCHEMA_DRY_RUN_ONLY_HUMAN_REVIEW_PENDING"
 
   xerj-local-retrieval-preview:
     name: xerj-local-retrieval-preview
