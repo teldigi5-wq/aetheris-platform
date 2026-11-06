@@ -37,6 +37,12 @@ export SPRING_RABBITMQ_HOST=127.0.0.1
 export SPRING_RABBITMQ_PORT=55672
 export SPRING_RABBITMQ_USERNAME=xerj_ci
 export SPRING_RABBITMQ_PASSWORD="$XERJ_TEST_RABBIT_PASSWORD"
+if [[ "${XERJ_BROKER_ROLES_ENFORCED:-false}" == "true" ]]; then
+  : "${XERJ_BROKER_PUBLISH_PASSWORD:?Synthetic publisher credential required}"
+  : "${XERJ_BROKER_CONSUME_PASSWORD:?Synthetic consumer credential required}"
+  export SPRING_RABBITMQ_VIRTUAL_HOST=xerj_review
+  export SPRING_RABBITMQ_DYNAMIC=false
+fi
 export MANAGEMENT_TRACING_ENABLED=false
 export MANAGEMENT_HEALTH_DB_ENABLED=true
 export MANAGEMENT_HEALTH_REDIS_ENABLED=true
@@ -53,17 +59,53 @@ for svc in identity-service user-service audit-service gateway; do
   jarfile="$(find "$svc/target" -maxdepth 1 -type f -name '*.jar' ! -name '*.original' ! -name '*sources*' ! -name '*javadoc*' | head -n 1)"
   [[ -n "$jarfile" && -s "$jarfile" ]] || { echo "XERJ_REAL_MTLS_JAR_MISSING" >&2; exit 1; }
   if [[ "$svc" == "identity-service" ]]; then
-    env -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PUBLIC_KEY_PEM \
+    env -u SPRING_RABBITMQ_USERNAME -u SPRING_RABBITMQ_PASSWORD -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
+      -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PUBLIC_KEY_PEM \
       AETHERIS_JWT_RSA_PRIVATE_KEY_PEM="$privatePem" \
       java -jar "$jarfile" > "$work/$svc.log" 2>&1 &
   elif [[ "$svc" == "gateway" ]]; then
-    env -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PRIVATE_KEY_PEM \
+    env -u SPRING_RABBITMQ_USERNAME -u SPRING_RABBITMQ_PASSWORD -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
+      -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PRIVATE_KEY_PEM \
       AETHERIS_JWT_RSA_PUBLIC_KEY_PEM="$publicPem" \
       SPRING_PROFILES_ACTIVE=xerj-mtls-review \
       AETHERIS_USER_BACKEND_URI=https://user-service:8081 \
       AETHERIS_AUDIT_BACKEND_URI=https://audit-service:8083 \
       XERJ_MTLS_CLIENT_KEYSTORE="file:$dir/gateway-client.p12" \
       XERJ_MTLS_SERVER_CA_CERT="file:$dir/ca.crt" \
+      java -jar "$jarfile" > "$work/$svc.log" 2>&1 &
+  elif [[ "${XERJ_BROKER_ROLES_ENFORCED:-false}" == "true" && "$svc" == "user-service" ]]; then
+    # Neither broker administrator nor consumer password is given to the publisher JVM.
+    env -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PRIVATE_KEY_PEM \
+      -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
+      AETHERIS_JWT_RSA_PUBLIC_KEY_PEM="$publicPem" \
+      SPRING_RABBITMQ_USERNAME=xerj_publisher \
+      SPRING_RABBITMQ_PASSWORD="$XERJ_BROKER_PUBLISH_PASSWORD" \
+      SERVER_SSL_ENABLED=true SERVER_SSL_CLIENT_AUTH=need \
+      SERVER_SSL_KEY_STORE="file:$dir/$svc.p12" \
+      SERVER_SSL_KEY_STORE_TYPE=PKCS12 \
+      SERVER_SSL_KEY_STORE_PASSWORD="$XERJ_MTLS_KEYSTORE_PASSWORD" \
+      SERVER_SSL_TRUST_STORE="file:$dir/trusted-clients.p12" \
+      SERVER_SSL_TRUST_STORE_TYPE=PKCS12 \
+      SERVER_SSL_TRUST_STORE_PASSWORD="$XERJ_MTLS_KEYSTORE_PASSWORD" \
+      AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED=true \
+      AETHERIS_BACKEND_GATEWAY_SPIFFE_ID=spiffe://aetheris.test/ns/security/sa/gateway \
+      java -jar "$jarfile" > "$work/$svc.log" 2>&1 &
+  elif [[ "${XERJ_BROKER_ROLES_ENFORCED:-false}" == "true" && "$svc" == "audit-service" ]]; then
+    # Audit consumer cannot publish or configure broker topology.
+    env -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PRIVATE_KEY_PEM \
+      -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_BROKER_PUBLISH_PASSWORD \
+      AETHERIS_JWT_RSA_PUBLIC_KEY_PEM="$publicPem" \
+      SPRING_RABBITMQ_USERNAME=xerj_consumer \
+      SPRING_RABBITMQ_PASSWORD="$XERJ_BROKER_CONSUME_PASSWORD" \
+      SERVER_SSL_ENABLED=true SERVER_SSL_CLIENT_AUTH=need \
+      SERVER_SSL_KEY_STORE="file:$dir/$svc.p12" \
+      SERVER_SSL_KEY_STORE_TYPE=PKCS12 \
+      SERVER_SSL_KEY_STORE_PASSWORD="$XERJ_MTLS_KEYSTORE_PASSWORD" \
+      SERVER_SSL_TRUST_STORE="file:$dir/trusted-clients.p12" \
+      SERVER_SSL_TRUST_STORE_TYPE=PKCS12 \
+      SERVER_SSL_TRUST_STORE_PASSWORD="$XERJ_MTLS_KEYSTORE_PASSWORD" \
+      AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED=true \
+      AETHERIS_BACKEND_GATEWAY_SPIFFE_ID=spiffe://aetheris.test/ns/security/sa/gateway \
       java -jar "$jarfile" > "$work/$svc.log" 2>&1 &
   else
     env -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PRIVATE_KEY_PEM \
