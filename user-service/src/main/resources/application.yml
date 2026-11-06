@@ -21,8 +21,8 @@ spring:
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:aetheris}
     password: ${SPRING_RABBITMQ_PASSWORD:aetheris}
-    publisher-confirm-type: ${AETHERIS_RABBIT_PUBLISHER_CONFIRM_TYPE:correlated}
-    publisher-returns: true
+    publisher-confirm-type: ${AETHERIS_RABBIT_PUBLISHER_CONFIRM_TYPE:none}
+    publisher-returns: ${AETHERIS_RABBIT_PUBLISHER_RETURNS:false}
   cache:
     type: redis
     redis:
