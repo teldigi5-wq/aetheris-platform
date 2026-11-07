@@ -44,7 +44,7 @@ class BrokerOriginCrossJvmAuditIT {
         ConnectionFactory f=new ConnectionFactory();
         f.setHost("127.0.0.1");
         f.setPort(55672);
-        f.setVirtualHost("xerj_review");
+        f.setVirtualHost("xerj_origin_review");
         f.setUsername("xerj_ci");
         f.setPassword(required("XERJ_TEST_RABBIT_PASSWORD"));
         f.setConnectionTimeout(5000);
