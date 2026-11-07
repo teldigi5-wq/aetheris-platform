@@ -47,7 +47,7 @@ class BrokerOriginCrossJvmProducerIT {
         ConnectionFactory f=new ConnectionFactory();
         f.setHost("127.0.0.1");
         f.setPort(55672);
-        f.setVirtualHost("xerj_review");
+        f.setVirtualHost("xerj_origin_review");
         f.setUsername("xerj_ci");
         f.setPassword(required("XERJ_TEST_RABBIT_PASSWORD"));
         f.setConnectionTimeout(5000);
@@ -108,7 +108,7 @@ class BrokerOriginCrossJvmProducerIT {
         // the CI-only administrator above solely provisions the test queue.
         cf.setUsername("xerj_publisher");
         cf.setPassword(required("XERJ_BROKER_PUBLISH_PASSWORD"));
-        cf.setVirtualHost("xerj_review");
+        cf.setVirtualHost("xerj_origin_review");
         try{
             RabbitTemplate rabbit=new RabbitTemplate(cf);
             rabbit.setMessageConverter(new Jackson2JsonMessageConverter());
