@@ -69,6 +69,10 @@ public final class AuditEventOriginVerifier {
         return new AuditEventOriginVerifier(false, "", "");
     }
 
+    boolean isEnabled() {
+        return publicKey != null;
+    }
+
     public void verify(Map<String, Object> envelope, UserDomainEvent event) {
         Object raw = envelope.get("originProof");
         if (publicKey == null) {

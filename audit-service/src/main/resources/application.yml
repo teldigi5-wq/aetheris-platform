@@ -48,6 +48,10 @@ info:
 
 # A missing signing key fails startup; never accept an implicit development secret.
 aetheris:
+  # OFF until an independently authenticated membership reconciler, database
+  # least-privilege roles and rollback-safe operator cutover are approved.
+  audit-membership:
+    local-fence-required: ${AETHERIS_AUDIT_LOCAL_MEMBERSHIP_FENCE_REQUIRED:false}
   # Only the public verifier key belongs in Audit; never copy the private key.
   audit-origin:
     required: ${AETHERIS_AUDIT_ORIGIN_VERIFY_REQUIRED:false}
