@@ -52,6 +52,11 @@ aetheris:
   # least-privilege roles and rollback-safe operator cutover are approved.
   audit-membership:
     local-fence-required: ${AETHERIS_AUDIT_LOCAL_MEMBERSHIP_FENCE_REQUIRED:false}
+    # Separate from User's event-origin signing key; disabled until a real
+    # owner-approved membership authority and authenticated transport exist.
+    import-enabled: ${AETHERIS_AUDIT_MEMBERSHIP_IMPORT_ENABLED:false}
+    authority-public-key-pem: ${AETHERIS_AUDIT_MEMBERSHIP_AUTHORITY_PUBLIC_KEY_PEM:}
+    authority-key-id: ${AETHERIS_AUDIT_MEMBERSHIP_AUTHORITY_KEY_ID:}
   # Only the public verifier key belongs in Audit; never copy the private key.
   audit-origin:
     required: ${AETHERIS_AUDIT_ORIGIN_VERIFY_REQUIRED:false}

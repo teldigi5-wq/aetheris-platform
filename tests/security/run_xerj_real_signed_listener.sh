@@ -115,6 +115,32 @@ for attempt in $(seq 1 100); do
   sleep 0.25
 done
 if [[ "$started" != true ]]; then
+  # Never dump raw Spring logs: they can contain JDBC URLs, tenant IDs,
+  # environment values or failed token material. Only fixed classes/codes.
+  python3 - "$work/audit-application.log" <<'PY'
+from pathlib import Path
+import re, sys
+content = Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace')
+categories = {
+    'NEW_IMPORTER_BEAN': "auditSignedMembershipImporter",
+    'MEMBERSHIP_IMPORTER_DISABLED_CONFIG': "Membership authority key supplied while importer disabled",
+    'MEMBERSHIP_IMPORTER_PIN': "Invalid membership authority public key",
+    'SIGNED_EVENT_ORIGIN_BEAN': "auditEventOriginVerifier",
+    'LOCAL_MEMBERSHIP_FENCE_BEAN': "auditLocalMembershipFence",
+    'STARTUP_FAILED': "APPLICATION FAILED TO START",
+    'DATABASE_CONNECTION': "Connection to 127.0.0.1:55432 refused",
+    'BROKER_AUTHENTICATION': "ACCESS_REFUSED",
+}
+for tag, phrase in categories.items():
+    if phrase in content:
+        print("XERJ_AUDIT_STARTUP_DIAG_" + tag, file=sys.stderr)
+classes = sorted(set(re.findall(
+    r"^\\s*(?:Caused by: )?([A-Za-z][A-Za-z0-9_.]*(?:Exception|Error))(?::|$)",
+    content, flags=re.MULTILINE)))
+for name in classes[:10]:
+    # Class identifiers only; never emit arbitrary exception messages.
+    print("XERJ_AUDIT_STARTUP_EXCEPTION_CLASS " + name, file=sys.stderr)
+PY
   echo 'XERJ_REAL_SPRING_RESTRICTED_AUDIT_CONSUMER_FAILED_TO_REGISTER' >&2
   exit 1
 fi
