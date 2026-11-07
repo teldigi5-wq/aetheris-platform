@@ -54,8 +54,12 @@ def main() -> None:
     rows = git("rev-list", "--objects", "--all").splitlines()
     oids = []
     seen = set()
+    representative_paths = {}
     for line in rows:
-        oid = line.split(b" ", 1)[0]
+        fields = line.split(b" ", 1)
+        oid = fields[0]
+        if len(fields) == 2:
+            representative_paths[oid] = fields[1]
         require(bool(re.fullmatch(rb"[0-9a-f]{40}", oid)),
                 "Unexpected historical Git object identifier")
         if oid not in seen:
@@ -102,6 +106,7 @@ def main() -> None:
     feeder = threading.Thread(target=supply, daemon=True)
     feeder.start()
     total_blobs, matches_in_blobs, wrong = 0, 0, 0
+    wrong_paths = []
     try:
         for expected in oids:
             header = process.stdout.readline()
@@ -129,6 +134,14 @@ def main() -> None:
                     matches_in_blobs += 1
                     if expected not in allowed:
                         wrong += 1
+                        raw = representative_paths.get(expected, b"")
+                        # Git tree paths are already public, but do not emit
+                        # arbitrary characters, source bytes or fixture text.
+                        if (raw and len(raw) <= 200 and
+                            re.fullmatch(rb"[A-Za-z0-9._/+-]+", raw)):
+                            wrong_paths.append(raw.decode("ascii"))
+                        else:
+                            wrong_paths.append("<path-redacted>")
             else:
                 require(not found, "Synthetic fixture in unexpected Git metadata")
         feeder.join(timeout=30)
@@ -142,6 +155,12 @@ def main() -> None:
             process.wait(timeout=5)
     require(total_blobs > 0 and matches_in_blobs > 0,
             "Historical fixture audit scanned no relevant source")
+    if wrong:
+        for path in sorted(set(wrong_paths))[:15]:
+            print("XERJ_HISTORICAL_FIXTURE_EXTRA_PATH: " + path,
+                  file=sys.stderr)
+        print(f"XERJ_HISTORICAL_FIXTURE_EXTRA_DISTINCT_BLOBS: {wrong}",
+              file=sys.stderr)
     require(wrong == 0,
             "Known synthetic signing fixture appears outside historical origin blobs")
     print(
