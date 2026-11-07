@@ -139,10 +139,12 @@ class BrokerOriginCrossJvmAuditIT {
                             Integer.class,id);
                     assertTrue(observed==0 || observed==1);
                 }
-                int persisted=jdbc.queryForObject("""
-                        SELECT count(*) FROM public.audit_events
-                        WHERE event_id=ANY(?::text[])
-                        """,Integer.class,createArray(jdbc,eventIds));
+                int persisted=0;
+                for(String id:eventIds.stream().distinct().toList()){
+                    persisted+=jdbc.queryForObject(
+                            "SELECT count(*) FROM public.audit_events WHERE event_id=?",
+                            Integer.class,id);
+                }
                 assertEquals(3,persisted);
                 // A poison is rejected with requeue=false; RabbitMQ routes the
                 // *exact* original body to an isolated test-only DLQ.
@@ -153,8 +155,9 @@ class BrokerOriginCrossJvmAuditIT {
                         if(parked==null)Thread.sleep(100);
                     }
                     assertNotNull(parked);
+                    byte[] quarantinedBytes=parked.getBody();
                     assertTrue(invalidBodies.stream().anyMatch(
-                            body->Arrays.equals(body,parked.getBody())));
+                            body->Arrays.equals(body,quarantinedBytes)));
                     channel.basicAck(parked.getEnvelope().getDeliveryTag(),false);
                 }
                 assertEquals(0,channel.queueDeclarePassive(source).getMessageCount());
@@ -182,9 +185,4 @@ class BrokerOriginCrossJvmAuditIT {
         }
     }
 
-    private static java.sql.Array createArray(JdbcTemplate jdbc,List<String> ids) {
-        // Build a PostgreSQL text[] without stitching untrusted SQL literals.
-        return jdbc.execute(connection ->
-                connection.createArrayOf("text",ids.toArray(new String[0])));
-    }
 }
