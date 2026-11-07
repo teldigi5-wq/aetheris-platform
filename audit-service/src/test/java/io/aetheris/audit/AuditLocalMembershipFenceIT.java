@@ -114,7 +114,9 @@ class AuditLocalMembershipFenceIT {
         return false;
     }
 
-    private static void remove(JdbcTemplate db,UUID tenant,long user,Map<String,Object>... events){
+    @SafeVarargs
+    private static void remove(JdbcTemplate db,UUID tenant,long user,
+                               Map<String,Object>... events){
         for(Map<String,Object> event:events) {
             if(event!=null)db.update("DELETE FROM audit_events WHERE event_id=?",event.get("eventId"));
         }
