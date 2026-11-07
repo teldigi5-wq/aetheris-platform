@@ -10,6 +10,7 @@ on:
       - 'scripts/security/verify_xerj_source_scope.py'
       - 'scripts/security/verify_xerj_privacy_preflight.py'
       - 'scripts/security/verify_xerj_fixture_reuse.py'
+      - 'scripts/security/verify_xerj_fixture_history.py'
       - 'scripts/security/verify_xerj_candidate_proposal.py'
       - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
@@ -135,6 +136,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/security/verify_xerj_fixture_reuse.py
+
+      - name: Verify known synthetic JWT fixture against reachable historical Git blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/security/verify_xerj_fixture_history.py
+          echo XERJ_HISTORICAL_RUNTIME_KEY_REUSE_STILL_REQUIRES_HUMAN_REVIEW
 
       - name: Verify no fabricated XERJ reviewer or publication manifest
         shell: bash
