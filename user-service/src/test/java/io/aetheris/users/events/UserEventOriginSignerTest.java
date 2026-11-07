@@ -3,7 +3,7 @@ package io.aetheris.users.events;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
-import org.springframework.amqp.rabbit.core.MessagePostProcessor;
+import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.security.KeyPair;
