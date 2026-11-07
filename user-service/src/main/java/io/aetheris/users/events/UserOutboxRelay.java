@@ -26,15 +26,24 @@ public class UserOutboxRelay {
     private final UserOutboxStore store;
     private final RabbitTemplate rabbit;
     private final int batch;
+    private final UserEventOriginSigner originSigner;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public UserOutboxRelay(UserOutboxStore store, RabbitTemplate rabbit,
-                           @Value("${aetheris.outbox.batch:8}") int batch) {
+                           @Value("${aetheris.outbox.batch:8}") int batch,
+                           UserEventOriginSigner originSigner) {
         this.store = store;
         this.rabbit = rabbit;
+        this.originSigner = originSigner;
         if (batch < 1 || batch > 32) {
             throw new IllegalArgumentException("Outbox relay batch must be between 1 and 32");
         }
         this.batch = batch;
+    }
+
+    /** Preserve existing unit-test and legacy constructor semantics. */
+    public UserOutboxRelay(UserOutboxStore store, RabbitTemplate rabbit, int batch) {
+        this(store, rabbit, batch, UserEventOriginSigner.disabled());
     }
 
     @PostConstruct
@@ -64,7 +73,7 @@ public class UserOutboxRelay {
             // are populated before future completion when returns are enabled.
             CorrelationData correlation = new CorrelationData(event.eventId().toString());
             rabbit.convertAndSend(UserEventPublisher.EXCHANGE, event.eventType(),
-                    event.message(), message -> {
+                    originSigner.sign(event.message()), message -> {
                         message.getMessageProperties().setDeliveryMode(MessageDeliveryMode.PERSISTENT);
                         return message;
                     }, correlation);
