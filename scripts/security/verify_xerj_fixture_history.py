@@ -156,9 +156,15 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, KeyError, OSError, subprocess.CalledProcessError,
+    except ValueError as error:
+        # Every ValueError message above is a fixed, literal classification,
+        # never an original Git/source string or signing value.
+        print("XERJ_REACHABLE_HISTORY_FIXTURE_REVIEW_BLOCKED: " +
+              str(error)[:140], file=sys.stderr)
+        raise SystemExit(1)
+    except (KeyError, OSError, subprocess.CalledProcessError,
             subprocess.TimeoutExpired) as error:
-        # Never show secret, matching contents, matched paths or Git objects.
+        # Do not print subprocess command args, source or fixture bytes.
         print("XERJ_REACHABLE_HISTORY_FIXTURE_REVIEW_BLOCKED: " +
               type(error).__name__, file=sys.stderr)
         raise SystemExit(1)
