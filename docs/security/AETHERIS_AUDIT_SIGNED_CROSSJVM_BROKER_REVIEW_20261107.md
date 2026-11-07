@@ -1,0 +1,27 @@
+# Aetheris signed User-event actual broker / PostgreSQL cross-JVM review proof
+
+**Scope:** child of PR #400 (head `f2c783b28847b4837d9848e2a7bbbc75a06708e1`). All work is **synthetic-only, draft, unmerged, NO_GO**. This is not a production migration, rollout, user consent or external XERJ corpus contribution.
+
+## Proof objective
+
+Previous PR #400 implements opt-in RS256 message signing in actual User publisher/outbox and public-key verification inside actual Audit listener, but its JUnit tests run mostly with mocked broker / repository. This child makes the first **genuine inter-module, two-JVM broker/database integration** with a real disposable **RabbitMQ4** review vhost and **PostgreSQL16** Audit database.
+
+The test intentionally invokes the real `AuditEventStore.consume` method from a JUnit consumer process after retrieving actual RabbitMQ messages. It does **not** launch the full Spring Boot Audit application context, instantiate an automatic `@RabbitListener` broker listener container, validate production queue DLX settings or demonstrate production-level source authorization. These limitations are part of the test contract.
+
+## Exact integration path
+
+1. Earlier CI steps provision unique Compose project `xerj-mtls-ci-RUN_ID-ATTEMPT`, dedicated `xerj_review` vhost and pre-existing least-privilege broker roles. The test guards that it runs **only** inside this hosted ephemeral runner and verifies the real Audit database's immutable expected recovery fence.
+2. **First Maven/JVM — real User publisher:** `BrokerOriginCrossJvmProducerIT` generates two random RSA-3072 keypairs in memory; only the trusted public key PEM is written into the runner's temporary directory with restrictive POSIX permissions. The actual `UserEventOriginSigner` signs via production `UserEventPublisher.userCreated` and for stable outbox-shaped synthetic payloads. **The RabbitTemplate sends as `xerj_publisher` with publish-only permissions**, not as the CI administrator; the administrator is used only to create a test-owned expiring source queue, DLQ and DLX and bind to disposable `aetheris.events`.
+3. Producer sends **seven messages** through real JSON conversion and the actual exchange: one legitimate signed direct event; two deliveries of a single identical signed event ID (ACK-gap analogue); one signed tenantless historical global User event; one unsigned event; one tenant-tampered signature; and one signed under the wrong RSA private key while claiming the correct KID.
+4. **Second Maven/JVM — real Audit listener:** `BrokerOriginCrossJvmAuditIT` reads those RabbitMQ messages in order, deserializes them as JSON, invokes real `AuditEventStore.consume` with enabled `AuditEventOriginVerifier` and real `AuditEventRepository` against the disposable `xerj_fence_audit` Postgres database. The listener must accept exactly three unique signed events, accept one duplicate harmlessly, reject three bad events before database effect, and preserve the pre-existing synthetic recovery-fence fixture.
+5. Invalid events are **basicReject(requeue=false)** in the actual broker and dead-lettered into the new review-only DLQ; test checks the exact original body in quarantine and confirms both source and DLQ are empty afterward. The test removes only the disposable queue/exchange and its own synthetic database rows, deletes the temporary public key. Full CI cleanup removes only the run's disposable Docker volumes and checks both inherited jobs.
+
+## Acceptance and real limitations
+
+- Exact-head CI must pass both jobs, the two new tests and the inherited **121 targeted Java security tests**, **90 existing real broker/outbox/RSA/mTLS checks**, prior 3DB restore/inflight/replay/whole-vhost custody/witness tests. Only those separately run and verified may be claimed.
+- The two test JVMs use in-memory synthetic RSA private keys, not production secrets. There is no full application-context signed-mode deployment, no independent workload mTLS verification within the broker consumer test and no real principal tenant membership service.
+- The Audit test uses CI-only admin read access for its private source queue; this does **not** attest an actual deployed least-privilege Audit consumer principal. The existing broker-role test separately checks that only the production-shaped queue is readable by the `xerj_consumer` test role. A future full-service test must use the actual listener container under real consumer role.
+- Single-key RS256 proof **does not** bind an independently witnessed monotonic recovery epoch or verify replay-time tenant ownership; a compromised private key could still forge a valid new event. Old-primary restart/fencing and cross-database TOCTOU remain unresolved. The origin verifier is off by default, so this is not an enabled production fix.
+- This fixture does not prove outbox transaction commit/relay in the same run (existing separate tests cover that), multi-key rotation, witness-availability behavior under concurrent restores, or readiness to launch Stage45. Treat the security finding as **narrowed, not closed**.
+
+**Release decision:** Aetheris Stage45 **NO_GO**, Platform issue #251 OPEN, Runtime #23 OPEN, independent anti-rollback S-B62-A OPEN. **XERJ source-publication issue #360 remains 2/6 formal stages complete; four remain.** Its historical JWT fixture appears in ten non-original reachable test blobs per latest failed PR #361 history audit; no historical-risk or licence/owner approval can be inferred here. No merge/deploy/upstream publication.
