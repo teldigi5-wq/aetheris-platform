@@ -104,8 +104,10 @@ class BrokerOriginCrossJvmProducerIT {
             channel.queueBind(source,exchange,"user.*");
         }
         CachingConnectionFactory cf=new CachingConnectionFactory("127.0.0.1",55672);
-        cf.setUsername("xerj_ci");
-        cf.setPassword(required("XERJ_TEST_RABBIT_PASSWORD"));
+        // Actual broker publication uses the least-privilege sender login;
+        // the CI-only administrator above solely provisions the test queue.
+        cf.setUsername("xerj_publisher");
+        cf.setPassword(required("XERJ_BROKER_PUBLISH_PASSWORD"));
         cf.setVirtualHost("xerj_review");
         try{
             RabbitTemplate rabbit=new RabbitTemplate(cf);
