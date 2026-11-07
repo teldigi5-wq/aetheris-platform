@@ -222,7 +222,7 @@ jobs:
         run: bash tests/security/run_xerj_outbox_dr_rehearsal.sh
       - name: Restore three synthetic service databases at a matched fence and reject mixed snapshots and tenant forgery
         run: python3 tests/security/xerj_multidb_recovery_fence.py
-      - name: Provision a distinct disposable RabbitMQ origin-proof vhost with restricted User sender
+      - name: Provision independent ephemeral RabbitMQ vhost for actual signed-origin cross-JVM proof
         shell: bash
         run: |
           set -euo pipefail
@@ -232,10 +232,6 @@ jobs:
           "${rabbit[@]}" add_vhost xerj_origin_review >/dev/null
           "${rabbit[@]}" set_permissions -p xerj_origin_review xerj_ci '.*' '.*' '.*' >/dev/null
           "${rabbit[@]}" set_permissions -p xerj_origin_review xerj_publisher '^
-        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerOriginCrossJvmProducerIT test
-      - name: Independent Audit JVM consumes RabbitMQ messages through real verifier and durable PostgreSQL
-        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=BrokerOriginCrossJvmAuditIT test
-      - name: Verify actual PostgreSQL immutable Audit event ID collisions deny poisoned replay
         run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=AuditImmutableEventCollisionIT test
       - name: Witness RabbitMQ unacked consumer crash requeue and late delivery versus the reconciled database fence
         run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerRestoreInflightIT test
@@ -305,11 +301,7 @@ jobs:
             find "$RUNNER_TEMP/xerj-mtls-fixture" -maxdepth 1 -type f -delete
             rmdir "$RUNNER_TEMP/xerj-mtls-fixture" || true
           fi
- '^aetheris\\.events
-        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerOriginCrossJvmProducerIT test
-      - name: Independent Audit JVM consumes RabbitMQ messages through real verifier and durable PostgreSQL
-        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=BrokerOriginCrossJvmAuditIT test
-      - name: Verify actual PostgreSQL immutable Audit event ID collisions deny poisoned replay
+ '^aetheris[.]events
         run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=AuditImmutableEventCollisionIT test
       - name: Witness RabbitMQ unacked consumer crash requeue and late delivery versus the reconciled database fence
         run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerRestoreInflightIT test
@@ -374,16 +366,11 @@ jobs:
             docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml down -v --remove-orphans || true
           fi
           rm -f "$RUNNER_TEMP/xerj-ci-rs256-private.pem" "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
-          rm -f "$RUNNER_TEMP/xerj-origin-review-public.pem"
           if [[ -d "$RUNNER_TEMP/xerj-mtls-fixture" ]]; then
             find "$RUNNER_TEMP/xerj-mtls-fixture" -maxdepth 1 -type f -delete
             rmdir "$RUNNER_TEMP/xerj-mtls-fixture" || true
           fi
  '^
-        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerOriginCrossJvmProducerIT test
-      - name: Independent Audit JVM consumes RabbitMQ messages through real verifier and durable PostgreSQL
-        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=BrokerOriginCrossJvmAuditIT test
-      - name: Verify actual PostgreSQL immutable Audit event ID collisions deny poisoned replay
         run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=AuditImmutableEventCollisionIT test
       - name: Witness RabbitMQ unacked consumer crash requeue and late delivery versus the reconciled database fence
         run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=BrokerRestoreInflightIT test
@@ -448,7 +435,6 @@ jobs:
             docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml down -v --remove-orphans || true
           fi
           rm -f "$RUNNER_TEMP/xerj-ci-rs256-private.pem" "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
-          rm -f "$RUNNER_TEMP/xerj-origin-review-public.pem"
           if [[ -d "$RUNNER_TEMP/xerj-mtls-fixture" ]]; then
             find "$RUNNER_TEMP/xerj-mtls-fixture" -maxdepth 1 -type f -delete
             rmdir "$RUNNER_TEMP/xerj-mtls-fixture" || true
@@ -524,7 +510,6 @@ jobs:
             docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml down -v --remove-orphans || true
           fi
           rm -f "$RUNNER_TEMP/xerj-ci-rs256-private.pem" "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
-          rm -f "$RUNNER_TEMP/xerj-origin-review-public.pem"
           if [[ -d "$RUNNER_TEMP/xerj-mtls-fixture" ]]; then
             find "$RUNNER_TEMP/xerj-mtls-fixture" -maxdepth 1 -type f -delete
             rmdir "$RUNNER_TEMP/xerj-mtls-fixture" || true
