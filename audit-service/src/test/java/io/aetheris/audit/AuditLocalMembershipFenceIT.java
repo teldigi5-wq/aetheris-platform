@@ -102,6 +102,18 @@ class AuditLocalMembershipFenceIT {
         assertEquals("Local Audit membership admission denied",failure.getMessage());
         assertNull(failure.getCause());
     }
+    private static boolean isExpectedPostgresLockTimeout(Throwable error) {
+        Throwable cause=error;
+        while(cause!=null){
+            if(cause instanceof java.sql.SQLException sql
+                    && "55P03".equals(sql.getSQLState())) {
+                return true;
+            }
+            cause=cause.getCause();
+        }
+        return false;
+    }
+
     private static void remove(JdbcTemplate db,UUID tenant,long user,Map<String,Object>... events){
         for(Map<String,Object> event:events) {
             if(event!=null)db.update("DELETE FROM audit_events WHERE event_id=?",event.get("eventId"));
@@ -182,7 +194,7 @@ class AuditLocalMembershipFenceIT {
                     });
                     return false;
                 }catch(DataAccessException lockTimeout){
-                    return true;
+                    return isExpectedPostgresLockTimeout(lockTimeout);
                 }
             });
             try{
