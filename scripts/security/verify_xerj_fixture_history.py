@@ -69,9 +69,18 @@ def main() -> None:
     for commit in commits:
         require(bool(re.fullmatch(rb"[0-9a-f]{40}", commit)),
                 "Unexpected origin commit ID")
-        oid = git("rev-parse", "--verify", commit.decode() + ":" + ORIGIN).strip()
+        revision = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--verify",
+             commit.decode() + ":" + ORIGIN],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            check=False, timeout=15
+        )
+        # A deletion commit touches the path but has no blob at its HEAD.
+        if revision.returncode != 0:
+            continue
+        oid = revision.stdout.strip()
         require(bool(re.fullmatch(rb"[0-9a-f]{40}", oid)),
-                "Unable to resolve historical fixture source blob")
+                "Unexpected historical fixture source blob identifier")
         allowed.add(oid)
     require(allowed, "No historical source blobs found")
 
