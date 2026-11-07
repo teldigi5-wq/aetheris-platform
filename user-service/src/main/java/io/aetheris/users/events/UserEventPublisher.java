@@ -16,13 +16,22 @@ public class UserEventPublisher {
     private final RabbitTemplate rabbitTemplate;
     private final UserOutboxStore outboxStore;
     private final boolean useOutbox;
+    private final UserEventOriginSigner originSigner;
 
     @Autowired
     public UserEventPublisher(RabbitTemplate rabbitTemplate, UserOutboxStore outboxStore,
-            @Value("${aetheris.outbox.enabled:false}") boolean useOutbox) {
+            @Value("${aetheris.outbox.enabled:false}") boolean useOutbox,
+            UserEventOriginSigner originSigner) {
         this.rabbitTemplate = rabbitTemplate;
         this.outboxStore = outboxStore;
         this.useOutbox = useOutbox;
+        this.originSigner = originSigner;
+    }
+
+    /** Existing synthetic tests and legacy-compatible callers. */
+    public UserEventPublisher(RabbitTemplate rabbitTemplate, UserOutboxStore outboxStore,
+            boolean useOutbox) {
+        this(rabbitTemplate, outboxStore, useOutbox, UserEventOriginSigner.disabled());
     }
 
     // Isolated legacy unit tests deliberately exercise the previous direct mode.
@@ -30,6 +39,7 @@ public class UserEventPublisher {
         this.rabbitTemplate = rabbitTemplate;
         this.outboxStore = null;
         this.useOutbox = false;
+        this.originSigner = UserEventOriginSigner.disabled();
     }
 
     public void userCreated(Long id, String name, String email) {
@@ -72,7 +82,7 @@ public class UserEventPublisher {
         } else {
             // Legacy compatibility mode remains available until a reviewed,
             // backed-up migration is explicitly enabled by an operator.
-            rabbitTemplate.convertAndSend(EXCHANGE, eventType, event);
+            rabbitTemplate.convertAndSend(EXCHANGE, eventType, originSigner.sign(event));
         }
     }
 }
