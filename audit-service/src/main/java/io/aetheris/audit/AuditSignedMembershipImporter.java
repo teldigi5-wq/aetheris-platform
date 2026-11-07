@@ -4,7 +4,6 @@ import io.jsonwebtoken.Jwts;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,12 +42,13 @@ public class AuditSignedMembershipImporter {
     private final JdbcTemplate jdbc;
 
     /**
-     * Production Spring constructor: the Audit ingestion connection can only
-     * SELECT membership, whereas the signed importer gets an entirely separate
-     * JDBC identity which cannot read/write Audit event rows.
+     * Audit Spring Boot process is a network-facing RabbitMQ consumer and
+     * HTTP API. It MUST NEVER hold the membership writer credential, even if
+     * that credential belongs to a distinct PostgreSQL role.
      *
-     * Never expose a public membership import endpoint or route external
-     * tokens directly into this component.
+     * A future reconciler must be a separately deployed process, with its
+     * own workload identity, trusted source, and owner-approved key custody.
+     * Explicit test constructor below remains available for isolated CI.
      */
     @Autowired
     public AuditSignedMembershipImporter(
@@ -62,16 +62,24 @@ public class AuditSignedMembershipImporter {
             @Value("${aetheris.audit-membership.writer-db-password:}") String writerPassword,
             @Value("${spring.datasource.url:}") String auditDbUrl,
             @Value("${spring.datasource.username:}") String auditDbUsername) {
-        this(enabled, publicPem, keyId, eventSigningKeyId,
-                enabled ? separateWriter(
-                        writerUrl, writerUsername, writerPassword,
-                        auditDbUrl, auditDbUsername)
-                        : auditJdbc);
-        if (!enabled && (hasValue(writerUrl) || hasValue(writerUsername)
-                || hasValue(writerPassword))) {
-            throw new IllegalArgumentException(
-                    "Importer writer credentials supplied while disabled");
+        this(false, publicPem, keyId, eventSigningKeyId,
+                applicationOnlyJdbc(enabled, auditJdbc, writerUrl,
+                        writerUsername, writerPassword));
+    }
+
+    private static JdbcTemplate applicationOnlyJdbc(
+            boolean importEnabled, JdbcTemplate auditJdbc,
+            String writerUrl, String writerUsername, String writerPassword) {
+        if (importEnabled || hasValue(writerUrl) || hasValue(writerUsername)
+                || hasValue(writerPassword)) {
+            // No raw credentials, URLs or claims in errors.
+            throw new IllegalStateException(
+                    "Audit process cannot host membership reconciliation");
         }
+        if (auditJdbc == null) {
+            throw new IllegalStateException("Audit database is required");
+        }
+        return auditJdbc;
     }
 
     /** Narrow explicit test-only constructor; never used for Spring wiring. */
@@ -119,32 +127,6 @@ public class AuditSignedMembershipImporter {
 
     private static boolean hasValue(String text) {
         return text != null && !text.isBlank();
-    }
-
-    private static JdbcTemplate separateWriter(
-            String writerUrl, String writerUsername, String writerPassword,
-            String auditUrl, String auditUsername) {
-        if (!hasValue(writerUrl) || !writerUrl.startsWith("jdbc:postgresql://")
-                || !writerUrl.equals(auditUrl)
-                || !hasValue(writerUsername)
-                || !writerUsername.matches("[a-z_][a-z0-9_]{2,62}")
-                || writerUsername.equals(auditUsername)
-                || !hasValue(writerPassword)
-                || writerPassword.length() < 32) {
-            // Never include URLs, user IDs or secret values in error text.
-            throw new IllegalArgumentException(
-                    "Membership importer requires distinct, scoped JDBC credentials");
-        }
-        // Does not register another Spring DataSource/JdbcTemplate bean and
-        // therefore cannot replace Boot's main Audit datasource auto-config.
-        // This dedicated connection identity must be granted membership
-        // SELECT/INSERT/UPDATE only, never Audit event read/write or DDL.
-        DriverManagerDataSource ds = new DriverManagerDataSource();
-        ds.setDriverClassName("org.postgresql.Driver");
-        ds.setUrl(writerUrl);
-        ds.setUsername(writerUsername);
-        ds.setPassword(writerPassword);
-        return new JdbcTemplate(ds);
     }
 
     /**

@@ -1,0 +1,29 @@
+# Aetheris Audit — prohibit co-resident membership writer credentials
+
+**Review-only security checkpoint. Parent: PR #405 at `c5fc31a5940fe393beab0b1d45d87bb7e4533178`. Operational Stage 45 NO_GO.**
+
+## Threat, actual repository evidence and scope
+
+PR #405 correctly gave the synthetic Audit listener and signed membership writer separate PostgreSQL roles. However, `AuditSignedMembershipImporter` is a Spring `@Component` within the same **network-facing, RabbitMQ-listening Audit application**. Before this child change, its `@Autowired` production constructor permitted `AETHERIS_AUDIT_MEMBERSHIP_IMPORT_ENABLED=true` to create a second JDBC connection holding the membership-writer password **inside that same Audit service process**. A compromised listener process with both credentials would defeat database role isolation, regardless of distinct usernames. The documentation already prohibited this deployment shape, but startup did not enforce it.
+
+The verified Identity and User service data models have **independent IDs** (`IdentityAccount.id` and `User.id`), nullable/owner-generated tenant identifiers, and no audited cross-service Identity-principal↔User-record mapping. No production system may treat an event's User record ID as a tenant-member Identity principal. The identity and membership authority contract needs independent design and owner approval.
+
+## Bounded real code fix
+
+- The actual Spring-injected `AuditSignedMembershipImporter` constructor now **unconditionally fails startup** if `audit-membership.import-enabled=true`, regardless of whether the caller supplies a distinct JDBC writer role. It **also fails** if any membership writer DB URL, username or password is present while importer is disabled. It gives a constant error classification and emits no secrets, public keys, tenant data or token contents.
+- A separate explicit `AuditSignedMembershipImporter` test constructor remains available for **synthetic, isolated unit/database tests**, including actual RS256 issuer/audience/KID/claims verification and PostgreSQL revision CAS. It is *not* an authorized production reconciler or a deployed worker. This child deliberately makes the network-facing Spring Audit service **incapable of enabling membership importing**. The extra writer connector is not instantiated in the Audit application.
+- `AuditPostgresRoleIsolationIT` still proves two actual DB users with disjoint grants: the explicit writer-only synthetic instance may apply a trusted test-signed membership revision; the restricted ingest identity cannot modify membership; the writer cannot read/write Audit events. It additionally proves that invoking the former production-style constructor with an enabled writer in a listener process is denied.
+- New `AuditMembershipProcessSeparationTest` covers enabled importer + distinct writer credentials denied, writer secrets with importer OFF denied, and safe disabled Spring constructor without writer.
+- Existing guarded `run_xerj_real_signed_listener.sh` now exercises the **real packaged Audit Spring Boot JAR twice in disposable CI**. First, with importer ON, it must exit unsuccessfully with the *specific static co-residency guard* before creating any Rabbit consumer; arbitrary unrelated boot failures do **not** count. Raw startup logs remain inside the temporary runner and are never printed. Then the same JAR with importer OFF and no writer secrets must start and successfully execute the inherited signed User→RabbitMQ→Audit PostgreSQL test under restricted ingest-only DB and read-only Rabbit credentials.
+
+## Honest boundaries
+
+This is an enforced *negative* deployment control, not the creation of a trusted membership authority. No separate production reconciler or delivery transport has been built. No Identity/User cross-table ownership reconciliation, current membership watermark, complete signed snapshot, externally monotonic anti-rollback generation, old-primary fenced revocation or hardware-backed signing trust has been established. A privileged migration/DB owner can still mutate and roll back the local membership mirror. The existing V3/V4 schema and role-grant SQL remain draft/unmerged and must not be applied to production.
+
+A future reconciler must be designed as **a separate, authenticated workload** without Audit HTTP/Rabbit ingestion, with only its own scoped DB writer identity, independently held signing authority, loss/reordering handling, signed full-state recovery snapshots, authority freshness/epoch checks and human approval before any configuration or deployment. It must **not** infer IdentityAccount IDs from User domain IDs. Even a signed `ACTIVE` row is not proof of live authority if the signer/source is not genuinely governed.
+
+## Exact-head CI acceptance and XERJ roadmap
+
+Require prior **121 targeted Java regressions**, 3/3 membership-lock tests, 4/4 signed importer revision tests, 2/2 role-isolation tests, 3/3 new process-boundary tests, actual packaged JAR startup-negative guard (expected rejection and *zero* consumer subscriptions) followed by real listener positive signed broker→DB/DLQ proof, original broker whole-vhost custody, synthetic second cluster witness, 3-DB restore and **90 inherited live mTLS/RSA/outbox/tenant checks**. No security gate may be skipped to achieve green CI. Mark verified only on exact-head completed success and reviewed logs.
+
+Keep Platform #251 OPEN, Runtime #23 OPEN, S-B62-A anti-rollback NO_GO, Stage45 NO_GO with nine historical external attestations still pending. Separate XERJ #360 remains **2/6 formal stages completed, four outstanding**, including unresolved exact-byte test JWT historical reuse found in PR #361, privacy/history review, licence/attribution approval, approved Hub metadata and owner/maintainer author consent. No merger, deployment, production migration, credential rotation, public-source repin or XERJ contribution is authorized.

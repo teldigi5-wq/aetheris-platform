@@ -116,14 +116,21 @@ class AuditPostgresRoleIsolationIT {
         long user=2500042L;
         var keys=newKey();
         try{
-            // Production-style Spring constructor uses a separate JDBC writer
-            // identity and does not create another auto-configured datasource.
+            // The real Audit Spring process must NOT be able to host a
+            // membership writer alongside its inbound Rabbit consumer.
+            assertThrows(IllegalStateException.class, () ->
+                    new AuditSignedMembershipImporter(
+                        true, publicPem(keys), "role-isolated-synthetic-authority",
+                        "unrelated-user-event-kid", ingest, url(),
+                        "xerj_membership_writer",
+                        env("XERJ_MEMBERSHIP_WRITER_DB_PASSWORD"),url(),
+                        "xerj_audit_ingest"));
+            // Only a future separately deployed reconciliation workload may
+            // create the explicit writer-only importer. This synthetic test
+            // never exposes that writer JDBC identity to the actual listener.
             var importer=new AuditSignedMembershipImporter(
                     true, publicPem(keys), "role-isolated-synthetic-authority",
-                    "unrelated-user-event-kid", ingest, url(),
-                    "xerj_membership_writer",
-                    env("XERJ_MEMBERSHIP_WRITER_DB_PASSWORD"),url(),
-                    "xerj_audit_ingest");
+                    "unrelated-user-event-kid", writer);
             importer.importSigned(signed(keys,tenant,user,"ACTIVE",1,
                     Instant.now().minusSeconds(240)));
             Boolean allowed=new TransactionTemplate(
@@ -197,22 +204,28 @@ class AuditPostgresRoleIsolationIT {
         guard();
         var ingest=jdbc("xerj_audit_ingest",env("XERJ_AUDIT_INGEST_DB_PASSWORD"));
         var keys=newKey();String pem=publicPem(keys);
-        assertThrows(IllegalArgumentException.class,()->
+        assertThrows(IllegalStateException.class,()->
                 new AuditSignedMembershipImporter(
                         true,pem,"role-isolated-synthetic-authority","event-kid",
                         ingest,"","xerj_membership_writer",
                         env("XERJ_MEMBERSHIP_WRITER_DB_PASSWORD"),url(),
                         "xerj_audit_ingest"));
-        assertThrows(IllegalArgumentException.class,()->
+        assertThrows(IllegalStateException.class,()->
                 new AuditSignedMembershipImporter(
                         true,pem,"role-isolated-synthetic-authority","event-kid",
                         ingest,url(),"xerj_audit_ingest",
                         env("XERJ_AUDIT_INGEST_DB_PASSWORD"),url(),
                         "xerj_audit_ingest"));
-        assertThrows(IllegalArgumentException.class,()->
+        assertThrows(IllegalStateException.class,()->
                 new AuditSignedMembershipImporter(
                         false,"","","event-kid",ingest,url(),
                         "xerj_membership_writer",
+                        env("XERJ_MEMBERSHIP_WRITER_DB_PASSWORD"),url(),
+                        "xerj_audit_ingest"));
+        assertThrows(IllegalStateException.class,()->
+                new AuditSignedMembershipImporter(
+                        true,pem,"role-isolated-synthetic-authority","event-kid",
+                        ingest,url(),"xerj_membership_writer",
                         env("XERJ_MEMBERSHIP_WRITER_DB_PASSWORD"),url(),
                         "xerj_audit_ingest"));
         System.out.println(
