@@ -29,7 +29,7 @@ import java.util.UUID;
  * The caller must be a separately authorized and audited reconciler.
  */
 @Component
-public final class AuditSignedMembershipImporter {
+public class AuditSignedMembershipImporter {
     static final String ISSUER = "aetheris-membership-authority";
     static final String AUDIENCE = "aetheris-audit-membership-reconciliation";
     static final String SUBJECT = "tenant-user-membership";
