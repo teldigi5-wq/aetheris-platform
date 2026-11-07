@@ -4,6 +4,7 @@ import io.jsonwebtoken.Jwts;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,13 +42,42 @@ public class AuditSignedMembershipImporter {
     private final String authorityKeyId;
     private final JdbcTemplate jdbc;
 
+    /**
+     * Production Spring constructor: the Audit ingestion connection can only
+     * SELECT membership, whereas the signed importer gets an entirely separate
+     * JDBC identity which cannot read/write Audit event rows.
+     *
+     * Never expose a public membership import endpoint or route external
+     * tokens directly into this component.
+     */
     @Autowired
     public AuditSignedMembershipImporter(
             @Value("${aetheris.audit-membership.import-enabled:false}") boolean enabled,
             @Value("${aetheris.audit-membership.authority-public-key-pem:}") String publicPem,
             @Value("${aetheris.audit-membership.authority-key-id:}") String keyId,
             @Value("${aetheris.audit-origin.key-id:}") String eventSigningKeyId,
-            JdbcTemplate jdbc) {
+            JdbcTemplate auditJdbc,
+            @Value("${aetheris.audit-membership.writer-db-url:}") String writerUrl,
+            @Value("${aetheris.audit-membership.writer-db-username:}") String writerUsername,
+            @Value("${aetheris.audit-membership.writer-db-password:}") String writerPassword,
+            @Value("${spring.datasource.url:}") String auditDbUrl,
+            @Value("${spring.datasource.username:}") String auditDbUsername) {
+        this(enabled, publicPem, keyId, eventSigningKeyId,
+                enabled ? separateWriter(
+                        writerUrl, writerUsername, writerPassword,
+                        auditDbUrl, auditDbUsername)
+                        : auditJdbc);
+        if (!enabled && (hasValue(writerUrl) || hasValue(writerUsername)
+                || hasValue(writerPassword))) {
+            throw new IllegalArgumentException(
+                    "Importer writer credentials supplied while disabled");
+        }
+    }
+
+    /** Narrow explicit test-only constructor; never used for Spring wiring. */
+    public AuditSignedMembershipImporter(boolean enabled, String publicPem,
+                                         String keyId, String eventSigningKeyId,
+                                         JdbcTemplate jdbc) {
         this.jdbc = jdbc;
         if (!enabled) {
             if ((publicPem != null && !publicPem.isBlank())
@@ -85,6 +115,36 @@ public class AuditSignedMembershipImporter {
             // Neither key material nor parsing exceptions appear in logs.
             throw new IllegalArgumentException("Invalid membership authority public key");
         }
+    }
+
+    private static boolean hasValue(String text) {
+        return text != null && !text.isBlank();
+    }
+
+    private static JdbcTemplate separateWriter(
+            String writerUrl, String writerUsername, String writerPassword,
+            String auditUrl, String auditUsername) {
+        if (!hasValue(writerUrl) || !writerUrl.startsWith("jdbc:postgresql://")
+                || !writerUrl.equals(auditUrl)
+                || !hasValue(writerUsername)
+                || !writerUsername.matches("[a-z_][a-z0-9_]{2,62}")
+                || writerUsername.equals(auditUsername)
+                || !hasValue(writerPassword)
+                || writerPassword.length() < 32) {
+            // Never include URLs, user IDs or secret values in error text.
+            throw new IllegalArgumentException(
+                    "Membership importer requires distinct, scoped JDBC credentials");
+        }
+        // Does not register another Spring DataSource/JdbcTemplate bean and
+        // therefore cannot replace Boot's main Audit datasource auto-config.
+        // This dedicated connection identity must be granted membership
+        // SELECT/INSERT/UPDATE only, never Audit event read/write or DDL.
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName("org.postgresql.Driver");
+        ds.setUrl(writerUrl);
+        ds.setUsername(writerUsername);
+        ds.setPassword(writerPassword);
+        return new JdbcTemplate(ds);
     }
 
     /**
