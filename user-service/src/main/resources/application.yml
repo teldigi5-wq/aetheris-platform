@@ -62,6 +62,11 @@ info:
 
 # A missing signing key fails startup; never accept an implicit development secret.
 aetheris:
+  # Disabled unless a reviewed operator supplies a private PKCS8 RSA3072 key.
+  audit-origin:
+    enabled: ${AETHERIS_AUDIT_ORIGIN_SIGN_ENABLED:false}
+    private-key-pem: ${AETHERIS_AUDIT_ORIGIN_PRIVATE_KEY_PEM:}
+    key-id: ${AETHERIS_AUDIT_ORIGIN_KEY_ID:}
   jwt:
     secret: ${AETHERIS_JWT_SECRET:}
     algorithm: ${AETHERIS_JWT_ALGORITHM:HS256}
