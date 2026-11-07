@@ -16,6 +16,7 @@ on:
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
       - 'docs/integrations/xerj-owner-publication-approval.md'
       - 'docs/integrations/xerj-upstream-validator-dryrun.md'
+      - 'docs/integrations/xerj-reachable-history-fixture-review.md'
 
 permissions:
   contents: read
