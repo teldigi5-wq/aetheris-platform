@@ -12,6 +12,7 @@ on:
       - 'scripts/security/test_xerj_filter_40.py'
       - 'scripts/security/verify_xerj_privacy_preflight.py'
       - 'scripts/security/verify_xerj_fixture_reuse.py'
+      - 'scripts/security/verify_xerj_fixture_history.py'
       - 'scripts/security/verify_xerj_candidate_proposal.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
       - 'docs/integrations/xerj-owner-publication-approval.md'
@@ -153,6 +154,33 @@ jobs:
           set -euo pipefail
           python3 scripts/security/verify_xerj_candidate_proposal.py
           echo "XERJ_EXISTING_DRAFT_ONLY_PENDING_OWNER_LICENCE_REVIEW"
+
+  xerj-reachable-history-review-blocker:
+    # STAGE 3 MANDATORY: real history findings must keep overall CI red.
+    # The separately vetted 40-file SOURCE snapshot and independent
+    # Stage 5 technical tests must not be skipped by a historical test
+    # fixture finding outside the selected source-only corpus.
+    # This NEVER approves XERJ publication or an upstream manifest.
+    name: xerj-reachable-history-review-blocker
+    needs: [xerj-pinned-source-scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact PR head and full reachable Git history without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fail closed on known test signing-fixture reuse in reachable history
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 scripts/security/verify_xerj_fixture_history.py
+          echo XERJ_HISTORICAL_RUNTIME_KEY_REUSE_STILL_REQUIRES_HUMAN_REVIEW
 
   xerj-local-retrieval-preview:
     name: xerj-local-retrieval-preview
