@@ -93,6 +93,20 @@ def measure(source: Path, index: dict, catalog: dict, plan: dict) -> dict:
     check(catalog_bytes > 0, "Dataset catalog returned no content bytes")
     check(catalog_bytes <= 100 * 1024 * 1024,
           "Catalog byte total is unreasonable for this review source")
+    # If the repo records measurements after a green run, CI must independently
+    # reproduce them. A previous Git blob count is NOT an index record count.
+    preview = plan.get("local_preview", {})
+    check(isinstance(preview, dict), "Invalid local preview measurement fields")
+    recorded = {
+        "indexed_records": indexed_records,
+        "measured_indexed_files": indexed_files,
+        "measured_catalog_content_bytes": catalog_bytes,
+    }
+    for key, measured in recorded.items():
+        claimed = preview.get(key)
+        if claimed is not None:
+            check(type(claimed) is int and claimed == measured,
+                  "Recorded local XERJ measurement no longer matches live output")
     return {
         "source_pin": plan["source"]["sha"],
         "selected_git_files": expected_count,
