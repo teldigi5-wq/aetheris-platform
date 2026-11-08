@@ -4,6 +4,13 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### Gateway recovery repeatability (9 November 2026, development review)
+
+- Preserve the original 17-check hosted release-proof contract and 180-second health wait, while requiring two complete fail-closed gateway stop/restart cycles with exact-image and protected-user-state checks.
+- Save allowlisted Docker status/exit/health evidence after controlled stops and restart attempts; exclude environment variables, raw health logs and credentials.
+- Add isolated snapshot-redaction unit tests, exact-head workflow assertions and issue #312 operator gates. No Compose, gateway application, infrastructure deployment or physical-PC evidence changed.
+- Reconcile README/master roadmap/release-readiness source status: Node, NGINX and fixed Alpine zlib have already been merged to protected main by PRs #407/#409, but were not production-deployed by those promotions.
+
 ### Dashboard NGINX security maintenance — development review candidate (8 November 2026)
 
 - Propose an isolated final-runtime bump from NGINX 1.31.5 to official NGINX 1.31.8 Alpine 3.24 with an immutable image index digest; retain the already-merged Node 22.23.4 builder and all proxy/application config unchanged.
