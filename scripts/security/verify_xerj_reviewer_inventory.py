@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PLAN = ROOT / "docs/integrations/xerj-source-scope.json"
 REVIEW = ROOT / "docs/integrations/xerj-44-file-review-inventory.md"
 LINE = re.compile(r"^- \[ \] \x60([^\x60]+)\x60 — ([0-9]+) B · \x60([a-f0-9]{40})\x60$")
-TREE = re.compile(rb"^(100644|100755) blob ([a-f0-9]{40}) ([0-9]+)\t(.+)$")
+TREE = re.compile(rb"^(100644|100755) blob ([a-f0-9]{40}) +([0-9]+)\t(.+)$")
 
 
 def require(ok: bool, description: str) -> None:
@@ -39,6 +39,10 @@ def inventory(lines: list[str]) -> dict[str, tuple[str, int]]:
 def main() -> None:
     testline = "- [ ] " + chr(96) + "src/main/App.java" + chr(96) \
         + " — 17 B · " + chr(96) + "a" * 40 + chr(96)
+    padded_git_row = (b"100644 blob " + b"a" * 40
+                      + b"    17\tsrc/main/App.java")
+    require(TREE.fullmatch(padded_git_row) is not None,
+            "Git ls-tree padded-size parser regression")
     require(inventory([testline]) ==
             {"src/main/App.java": ("a" * 40, 17)}, "Positive parser test failed")
     for bad in ([testline, testline],
