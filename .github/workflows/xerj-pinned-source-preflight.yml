@@ -11,6 +11,7 @@ on:
       - 'scripts/security/verify_xerj_privacy_preflight.py'
       - 'scripts/security/verify_xerj_fixture_reuse.py'
       - 'scripts/security/verify_xerj_fixture_history.py'
+      - 'scripts/security/verify_xerj_local_index_receipt.py'
       - 'scripts/security/verify_xerj_candidate_proposal.py'
       - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
@@ -314,3 +315,16 @@ jobs:
             exit 1
           }
           echo "XERJ_LOCAL_TWO_SOURCE_LINE_CITATIONS_PASS files=$expected_count publication=NOT_AUTHORIZED"
+          # Stage 5 mechanical proof only: read the actual disposable run and
+          # live XERJ catalog. Do NOT copy the 44 Git files / 75,323 blob
+          # bytes into a claimed indexed-record/byte field or Hub manifest.
+          python3 scripts/security/verify_xerj_local_index_receipt.py --self-test
+          "$binary" autoindex map --prefix aetheris-xerj-review --json \
+            > "$work/map.json" 2> "$work/map.err" || {
+              echo 'XERJ_LOCAL_CATALOG_QUERY_FAILED (logs withheld)' >&2
+              exit 1
+            }
+          python3 scripts/security/verify_xerj_local_index_receipt.py \
+            "$work/source" "$work/index.json" "$work/map.json" \
+            "docs/integrations/xerj-source-scope.json"
+          echo XERJ_STAGE5_LIVE_RECORD_AND_CATALOG_BYTE_COUNTS_PROVEN_REVIEW_ONLY
