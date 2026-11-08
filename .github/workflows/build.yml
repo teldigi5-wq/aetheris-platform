@@ -44,6 +44,34 @@ jobs:
       - name: Build dashboard
         run: npm run build
 
+      - name: Exercise the digest-pinned NGINX dashboard runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="aetheris-dashboard-nginx-security-smoke"
+          container="aetheris-dashboard-nginx-security-smoke"
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker build --pull -t "$image" .
+          # Resolve the proxy host for nginx -t without connecting to a live gateway.
+          docker run --rm -d --name "$container" --add-host gateway:192.0.2.1 -p 127.0.0.1:18080:80 "$image" >/dev/null
+          docker exec "$container" nginx -t
+          docker exec "$container" nginx -v 2>&1 | grep -Fq 'nginx/1.31.8'
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/ -o /tmp/aetheris-dashboard-nginx-index.html; then
+              break
+            fi
+            sleep 1
+          done
+          test -s /tmp/aetheris-dashboard-nginx-index.html
+          curl -fsS http://127.0.0.1:18080/__aetheris_spa_probe__/nested -o /tmp/aetheris-dashboard-nginx-spa.html
+          cmp /tmp/aetheris-dashboard-nginx-index.html /tmp/aetheris-dashboard-nginx-spa.html
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/actuator/info)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/api/auth/browser/login)" = "404"
+          curl -fsSI http://127.0.0.1:18080/ -o /tmp/aetheris-dashboard-nginx-headers.txt
+          grep -qi '^X-Content-Type-Options: nosniff' /tmp/aetheris-dashboard-nginx-headers.txt
+          grep -qi '^X-Frame-Options: DENY' /tmp/aetheris-dashboard-nginx-headers.txt
+          grep -qi '^Content-Security-Policy:' /tmp/aetheris-dashboard-nginx-headers.txt
+
   core-source-independence:
     runs-on: ubuntu-24.04
     steps:
