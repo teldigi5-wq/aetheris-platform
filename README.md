@@ -233,7 +233,7 @@ See **[docs/demo-guide.md](docs/demo-guide.md)** for the recommended reviewer se
 - stable `main` is protected and changes are promoted through pull requests and CI;
 - dependency lockdown, CodeQL and reproducibility checks provide repository-level evidence.
 
-**Dashboard runtime security maintenance (8 November 2026, development review candidate):** The final NGINX runtime image is being moved to the official digest-pinned `1.31.8-alpine3.24` image, with Alpine `zlib=1.4-r0` pinned to remediate CVE-2026-4738, separately from the Node 22.23.4 build-toolchain fix already merged into protected `main`. The Build workflow now includes an actual container `nginx -t`, static/SPA route, restricted endpoint and response-header smoke test. Until the reviewed change passes exact-head CI and is promoted, this is source work under review, **not a deployed fix**. The gateway proxy and production HTTPS path require separate integrated/operator verification.
+**Dashboard source-security checkpoint (8 November 2026):** Node 22.23.4 and digest-pinned NGINX 1.31.8 Alpine 3.24 with patched `zlib=1.4-r0` are merged into protected `main` through PRs #407 and #409, at `e357446613b0dcdb814d59b34192349f6925f606`. CI exercised the real NGINX image and generated an all-severity container scan. This is **not proof of production deployment or permanent vulnerability freedom**. Gateway/HTTPS integration, real deployed-image inventory, restart repeatability and operator release acceptance remain open under issue #312.
 
 For the detailed security model, see **[Token flow and threat model](docs/security/token-flow.md)**.
 
