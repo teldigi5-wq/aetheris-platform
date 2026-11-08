@@ -14,4 +14,4 @@ Status: **review-only / issue #312 remains NO_GO**. This is an independent post-
 3. Add deterministic unit tests for state redaction, fail-closed deadline and failure evidence, plus machine-readable CI assertion of the cycle count. Keep the 17 existing release-contract checks unchanged.
 4. Do not release solely on green hosted proof. Real gateway proxy/TLS, deployed image inventory, secrets/CA trust and stateful-service restoration require operator verification.
 
-This document is a diagnostic checkpoint. It is **not** evidence that the proposed instrumentation or two-cycle proof has been implemented, run, merged, or deployed.
+A review-only implementation has now been committed on `fix/gateway-recovery-reproducibility-20261109`: the hosted proof records allowlisted post-stop/post-restart gateway Docker state, verifies a second stop/start and protected state recovery, and retains the existing 17 checks and 180-second health gate. The new unit tests and CI assertions must pass on the exact PR head before calling this implementation tested. This document is **not** evidence of merge, production deployment or operator approval.
