@@ -96,5 +96,24 @@ class NodeSecurityPinConsistencyTests(unittest.TestCase):
         )
 
 
+class DashboardNginxRuntimePinTests(unittest.TestCase):
+    """Guard the final runtime stage independently of the Node build stage."""
+
+    EXPECTED_NGINX_IMAGE = (
+        "nginx:1.31.8-alpine3.24@sha256:"
+        "713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11"
+    )
+
+    def test_dashboard_final_stage_has_reviewed_nginx_index_digest(self) -> None:
+        import re
+
+        dockerfile = (ROOT / "dashboard/Dockerfile").read_text(encoding="utf-8")
+        stages = re.findall(r"(?m)^FROM\s+([^\r\n]+)$", dockerfile)
+        self.assertEqual(2, len(stages), "dashboard must retain its two-stage build")
+        self.assertEqual(self.EXPECTED_NGINX_IMAGE, stages[-1])
+        self.assertIn("RUN apk add --no-cache 'zlib=1.4-r0'", dockerfile)
+        self.assertIn("COPY nginx.conf /etc/nginx/conf.d/default.conf", dockerfile)
+        self.assertIn("COPY --from=build /app/dist /usr/share/nginx/html", dockerfile)
+
 if __name__ == "__main__":
     unittest.main()

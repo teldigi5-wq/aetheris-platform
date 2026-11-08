@@ -15,6 +15,12 @@ The 34-stage master blueprint is separate from the original cloud-native platfor
 **Repository status:** `PRE_PC_HARDENED + ROADMAP_34_COMPLETE`  
 **Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
 
+## Post-roadmap dashboard security maintenance — 8 November 2026
+
+This is a security-maintenance workstream, **not Stage 35**. The isolated Node 22.23.4 dashboard builder upgrade was promoted to protected `main` through PR #373 (development) and PR #407 (main); do not repeat it. The final dashboard image's NGINX 1.31.5 version remains the separate uncompleted source risk at the starting checkpoint.
+
+A narrowly scoped development review candidate proposes NGINX 1.31.8 on Alpine 3.24 with an immutable multi-platform image index digest and a fixed, version-pinned Alpine zlib 1.4-r0 package. It does not change gateway/auth proxy routing, Compose, Redis, databases, secrets, Helm, the AI runtime or deployed services. Acceptance requires exact-head CI, Docker image build, real `nginx -t` and static/SPA/security-header smoke tests, independent registry/SBOM review, canonical-development merge and a subsequent governed main promotion. Real upstream gateway/HTTPS integration, deployment inventory, backup/rollback and operator sign-off remain separate release gates under issue #312. The historical 34/34 roadmap and physical-machine `BLOCKED_PENDING_HARDWARE` status are unchanged.
+
 Stage 30 implementation details: [`stage-30-reasoning.md`](stage-30-reasoning.md).
 
 Stage 31 implementation details: [`stage-31-digital-twins-self-healing.md`](stage-31-digital-twins-self-healing.md).
