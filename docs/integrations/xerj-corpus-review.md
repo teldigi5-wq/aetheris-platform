@@ -284,3 +284,64 @@ deliberately red, with privacy, license/reuse, owner approval and
 upstream consumer/maintainer acceptance still pending. The formal
 roadmap remains **2/6 fully complete**, despite measurable Stage 5
 technical progress.
+
+### Verified sparse Lane A consumer acceptance — 2026-11-08
+
+A substantial **publication boundary** was checked using the
+exact-version **XERJ v1.0.0-rc.100** binary, verified by the pinned Linux
+archive SHA-256. The XERJ `corpus-hub` branch at
+`708e974516a4ba1ba9bfa312aff164041997cfd6`
+contains an older `read_hub_manifest`/`corpus add` source path that
+does not carry per-repo `paths`, whereas the
+`v1.0.0-rc.100` released consumer (`682d7ce072c644239cfa13ca1a9ca9a0e45d794b`)
+and current main have the validated sparse subpath support.
+The branch's standalone schema validator accepts sparse paths but
+**that by itself is not enough** to establish real client behavior.
+
+**Exact-head GitHub Actions #42458546640**, head
+`508e49eb46343dec457e465a344f269c347c4eb6`,
+ran a new live consumer acceptance
+(`scripts/security/verify_xerj_sparse_consumer.py`) which:
+
+1. Built a temporary local bare Git repository for the **same fixed
+   historical source SHA**, with no public registry modifications.
+2. Wrote a disposable `UNREVIEWED` synthetic manifest containing the
+   actual six proposed paths. It was explicitly not a live Hub entry,
+   a human review claim or a consent record.
+3. Invoked the checksum-pinned released CLI:
+   `xerj corpus add --from <disposable unreviewed local manifest>`,
+   with a separate temporary `XERJ_CODE_HOME`.
+4. Verified the resulting clone at the pinned commit and checked **every
+   materialized file path, byte size and Git blob object ID** against
+   the exact Git tree. Required **44/44 matching files**, **75,323 source
+   Git blob bytes**, and **zero other files**, including all test and
+   deployment files.
+5. Removed all generated clone, temporary manifest and synthetic local
+   index during runner cleanup.
+
+Actual log:
+`XERJ_REAL_RELEASE_CORPUS_ADD_FROM_SPARSE_CONSUMER_PASS
+files=44 git_blob_bytes=75323 outside_scope=0
+selected_source_pin=VERIFIED human_review=UNREVIEWED
+publication=NOT_AUTHORIZED`.
+
+The local `autoindex` and `map` still report **44 indexed files,
+219 searchable records, 75,323 independently measured catalog content
+bytes, one dataset**, with actual Gateway/Identity `file:line` results.
+
+**Important limit:** acceptance is verified for the pinned XERJ rc.100
+release. It is not proof that every historical client version or future
+Hub branch respects sparse paths. A real contribution must document the
+minimum supported consumer version and rerun this acceptance if that
+version or the source pin changes. An older client that ignores `paths`
+could clone the **entire** repository, so owners should not publish a
+sparse source corpus to clients without this feature.
+
+**Formal gates remain unchanged:** Stage 3's exact-match JWT fixture is
+still found in ten historic blobs at four reachable test paths (zero
+non-test paths), but real deployed-key use is not verified absent.
+Stage 4 per-file rights/privacy/owner review is unapproved.
+Stage 5 still lacks a real human-reviewed, accepted public Hub manifest;
+Stage 6 needs scope-specific owner and maintainer approval for the
+existing candidate. **XERJ 2/6 stages formally complete; no publication
+or deployment authorized.**
