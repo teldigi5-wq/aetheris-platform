@@ -14,6 +14,7 @@ on:
       - 'scripts/security/verify_xerj_reviewer_inventory.py'
       - 'docs/integrations/xerj-44-file-review-inventory.md'
       - 'scripts/security/verify_xerj_local_index_receipt.py'
+      - 'scripts/security/verify_xerj_sparse_consumer.py'
       - 'scripts/security/verify_xerj_candidate_proposal.py'
       - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
@@ -273,6 +274,13 @@ jobs:
           expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
           test "$(find "$work/source" -type f | wc -l)" -eq "$expected_count"
           echo XERJ_LOCAL_SOURCE_ARCHIVE_VERIFIED
+          # The actual pinned rc.100 consumer MUST obey the six sparse
+          # manifest paths. Older corpus-hub branch source is not sufficient
+          # evidence of client behavior, so test the checksum-verified binary
+          # against a local bare mirror of the EXACT source pin.
+          python3 scripts/security/verify_xerj_sparse_consumer.py \
+            "$binary" "$work"
+          echo XERJ_SPARSE_CONSUMER_EXCLUDES_ALL_TEST_AND_DEPLOYMENT_FILES
 
           # Insecure mode is acceptable ONLY on this disposable loopback node
           # with public, previously scanned source. Never bind externally.
