@@ -13,6 +13,13 @@ response, GitHub public visibility, or a passing security scan.
 - Paths: architecture/, gateway/src/main/, identity-service/src/main/,
   user-service/src/main/, audit-service/src/main/, docs/security/
 - Git-tree measure: **44 blobs / 75,323 bytes**
+- **New machine-assisted source-content triage:** `docs/integrations/xerj-pinned-content-review-findings.md`
+  records specific historical YAML local JWT/database/Rabbit credential
+  fallback lines, origin/CORS configuration context, token-flow cautions
+  and architecture-status caveats. This is NOT live-secret detection,
+  human copyright approval or evidence of a safe production deployment.
+  In particular, indexed YAML fallbacks must never be promoted as
+  recommended production credentials.
 - **Complete per-file human review list:** `docs/integrations/xerj-44-file-review-inventory.md`
   enumerates all 44 pinned paths, SHA-1 Git blob IDs and byte sizes,
   with **zero** human-review checkboxes approved. CI checks the full
