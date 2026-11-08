@@ -82,7 +82,24 @@ jobs:
           printf 'bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  %s\n' "$archive" | sha256sum --check --status
           tar -xzf "$archive" -C "$RUNNER_TEMP" trivy
           docker image save aetheris-dashboard-nginx-security-smoke -o "$RUNNER_TEMP/aetheris-dashboard-image.tar"
-          "$scanner" image --input "$RUNNER_TEMP/aetheris-dashboard-image.tar"             --scanners vuln --severity HIGH,CRITICAL --exit-code 1             --format json --output /tmp/aetheris-dashboard-image-vulns.json
+          "$scanner" image --input "$RUNNER_TEMP/aetheris-dashboard-image.tar" --scanners vuln --exit-code 0 --format json --output /tmp/aetheris-dashboard-image-vulns.json
+          python3 - <<'PY'
+          import collections
+          import json
+          from pathlib import Path
+
+          scan = json.loads(Path("/tmp/aetheris-dashboard-image-vulns.json").read_text())
+          results = scan.get("Results")
+          if not isinstance(results, list):
+              raise SystemExit("Trivy JSON missing Results; scanner evidence is invalid")
+          findings = [v for entry in results for v in (entry.get("Vulnerabilities") or [])]
+          counts = collections.Counter(v.get("Severity", "UNKNOWN") for v in findings)
+          print("Exact-image Trivy findings by severity:", dict(sorted(counts.items())))
+          for v in findings:
+              print(v.get("VulnerabilityID", "?"), v.get("Severity", "UNKNOWN"), v.get("PkgName", "?"), v.get("InstalledVersion", "?"), "fixed:", v.get("FixedVersion") or "not specified")
+          if any(v.get("Severity") in {"HIGH", "CRITICAL"} for v in findings):
+              raise SystemExit("High/Critical image vulnerabilities require triage before merge")
+          PY
 
       - name: Preserve dashboard image vulnerability evidence
         if: always()
