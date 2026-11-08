@@ -4,8 +4,9 @@
 
 This is a technical triage of the exact **44 source files at Git commit**
 `57ad3e0e602efa6feb275328254151b959a3499b` across the six
-sparse path prefixes, obtained from the original Git blobs. All 44 were
-inspected for candidate publication concerns. This is **not** an assertion
+sparse path prefixes, obtained from the original Git blobs. All 44 were screened for focused configuration,
+security and metadata indicators and selected risk-bearing lines were
+examined; this was **not** a human line-by-line rights or privacy review. This is **not** an assertion
 that a rights-holder independently reviewed every line or that publication
 is authorized. The file-by-file owner signoff remains in
 `docs/integrations/xerj-44-file-review-inventory.md`, all boxes unchecked.
