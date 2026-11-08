@@ -406,6 +406,40 @@ def main() -> int:
             )
         passed("rollback.state-preserved")
 
+        # Second independent stop/start on the same disposable hosted CI stack.
+        # Do not retry a failed start, extend the 180-second gate, or reuse a
+        # previous successful health reading as evidence of recovery.
+        run(["docker", "compose", "stop", "gateway"])
+        final_state["gateway_second_stop"] = capture_gateway_state(ROOT)
+        second_health, _ = http_json(
+            "GET", "http://127.0.0.1:8080/actuator/health", timeout=3
+        )
+        if second_health == 200:
+            raise AssertionError("second gateway outage was not observable")
+        second_read, _ = http_json(
+            "GET", "http://127.0.0.1:8080/api/users", headers=headers, timeout=3
+        )
+        if second_read == 200:
+            raise AssertionError("second outage did not block protected reads")
+        try:
+            run(["docker", "compose", "start", "gateway"])
+            wait_health("gateway", 8080)
+        finally:
+            final_state["gateway_second_restart"] = capture_gateway_state(ROOT)
+        if compose_image_id("gateway") != baseline["gateway_image_id"]:
+            raise AssertionError("second gateway restart changed image identity")
+        second_status, second_users = http_json(
+            "GET", "http://127.0.0.1:8080/api/users", headers=headers
+        )
+        if second_status != 200 or not isinstance(second_users, list):
+            raise AssertionError(f"second protected read did not recover: HTTP {second_status}")
+        if len(second_users) != baseline["user_count"] or not any(
+            isinstance(item, dict) and item.get("email") == profile_email
+            for item in second_users
+        ):
+            raise AssertionError("persisted profile/state changed after second restart")
+        final_state["recovery_cycles_confirmed"] = 2
+
         passed("evidence.machine-readable")
         passed("truth-boundary.hosted-runtime")
 
