@@ -10,6 +10,36 @@
 - The isolated review branch is a child of draft PR #361: https://github.com/teldigi5-wq/aetheris-platform/pull/376 . Do not merge it directly into main.
 - A passing content scan does not clear old credentials or application vulnerabilities. Runtime issue #23 and Platform issue #251 remain open; Stage 45 NO_GO; XERJ HOLD.
 
+## Current exact-head security verification (pending)
+
+The earlier 40-file [successful run #42158502931](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42158502931)
+belongs **only** to commit `107fa7ade0407c74dfc2154c64e30bfe0ce2b11a`.
+It is not proof for the newer filtered-branch head.
+
+At `01f21b7f86574b15e1301ca39a5a367e13975f95`, the existing
+branch incorporated the historical-fixture verifier from PR #361 and an
+independent required `xerj-reachable-history-review-blocker` job.
+The read-only source-scan and local retrieval jobs remain separate and
+must run on the same exact commit. **As of this note, the new head has
+no visible GitHub Actions run/check results.** Treat its CI status as
+NOT VERIFIED, not SUCCESS; do not substitute results from older commits.
+
+The known signing fixture has appeared in historical `src/test` blobs.
+Test-path provenance is not proof the fixture was never used as a live
+JWT signing key. The mandatory history job should remain fail-closed
+until a real, redacted owner-controlled provenance/use determination
+and relevant remediation are recorded. **Do not make this job optional,
+allowlist its finding, or report the complete workflow as green merely
+because the three independent mechanical jobs pass.**
+
+Even if a later exact-head run verifies the filtered corpus, Stage 3
+historical-key and privacy review and Stage 4 rights/licensing consent
+are still unapproved. All file-level checkboxes below remain blank.
+The 44-file primary review's measured 219 searchable records cannot
+be reused as an indexed record count for this distinct 40-file artifact.
+Publication, upstream amendment, branch merge and production deployment
+remain unauthorized.
+
 ## Reviewer checklist (not completed)
 
 - [ ] Privately determine whether any public development JWT, database, RabbitMQ or other fallback credential was ever deployed; rotate any confirmed live reuse through an approved operational procedure.
