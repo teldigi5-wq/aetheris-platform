@@ -203,3 +203,49 @@ pin may be preferable once a reviewed release lineage is merged.
 
 **None of these steps merge existing Aetheris release candidates or change
 production. The operational release remains NO_GO.**
+
+## 2026-11-08 Stage 5 measurable index receipt, not owner approval
+
+The pinned local preview previously demonstrated two real XERJ file:line
+citations but retained `indexed_records=null` and `indexed_bytes=null` in
+the **unapproved amendment** because Git-tree source sizes are not XERJ
+index measurements. This is a genuine technical evidence gap, independent of
+the unresolved historical JWT signing-fixture review.
+
+The read-only `xerj-local-retrieval-preview` job now obtains **two distinct
+measurement surfaces** from the same disposable localhost-only XERJ run:
+
+- `xerj autoindex ... --json` reports the real `files_indexed` and
+  `records_total` fields; the first must be positive and no greater
+  than the 44 staged source files. Any junk or unextracted archives block.
+- `xerj autoindex map --prefix ... --json` reads the actual local catalog,
+  checks its run ID and index namespace, and independently sums each dataset's
+  `record_count` and `bytes`. The record sum must equal the autoindex
+  live-record total; a paged/partial catalog cannot pass. The dataset
+  `bytes` field reflects the XERJ dataset content accounting, **not
+  on-disk index size** and **not automatically the final Hub manifest's
+  reviewed indexed-byte value**.
+- A separate traversal of the extracted, pinned files verifies **44 files /
+  75,323 source Git blob bytes**, explicitly labelled *source* and never
+  substituted for `records_total` or catalog dataset bytes. The scanner
+  checks unexpected symlinks, source size drift, and nonpositive index
+  counts. Built-in negative tests ensure a mismatching catalog and
+  unauthorized publication fields are refused.
+
+Only aggregate counts and fixed status markers are printed; actual source
+passages, signing values, raw catalog JSON and temporary index directories
+remain unshared. The resulting technical CI measurements are to be attached
+to this existing draft PR as **reproducible evidence**, not invented as final
+`cloned_at`, `review.by`, `review.at`, licence decisions, consent receipts
+or a publishable Lane A `hub/*.json` file.
+
+**Stage 3** retains its separate mandatory *failing* historical secret-reuse
+job; **Stage 4** remains human licence/attribution/owner approval; **Stage 5**
+is technical-only until a genuinely reviewed Hub manifest and upstream
+consumer validator pass; **Stage 6** requires explicit owner authorization
+and XERJ maintainer-approved reconciliation with the existing generated
+author candidate. The formal count remains **2/6**. Under XERJ's current
+`corpus-hub` guidance, direct hand edits to generated
+`candidates/authors` entries can be overwritten: use the owner-override
+process only after the maintainer has approved the specific owner request.
+No duplicate candidate or external submission is authorized.
