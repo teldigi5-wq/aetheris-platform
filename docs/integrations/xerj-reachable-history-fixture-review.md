@@ -68,3 +68,40 @@ consent. No live manifest or XERJ contribution is created.
 
 **Formal progress remains 2/6 completed**, with Stages 3, 4, 5 and 6 open.
 The 44-file pin, candidate identity and upstream author entry are unchanged.
+
+## 2026-11-08 full reachable-tree path verification: no non-test Git paths
+
+**Exact-head evidence:** [Actions #42457565175](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42457565175),
+commit `ea4a0024b3fa22b2c8ea4585c5e53ed157c5309d` (the preceding
+inventory parser-only commit on this review branch). The existing
+`verify_xerj_fixture_history.py` was extended **without relaxing its
+fail-closed historical reuse gate** to traverse the recursive contents
+of every *distinct reachable root tree*, not merely one representative
+`git rev-list --objects` path per Git blob.
+
+CI logged:
+`XERJ_HISTORICAL_FIXTURE_TREE_PROVENANCE reachable_root_trees=2631
+matched_extra_blobs=10 distinct_paths=4 test_paths=4 non_test_paths=0
+credential_use_proven_absent=NO human_review=PENDING`.
+
+This establishes within the **Git refs available to this exact CI
+checkout** that the 10 extra distinct matching Git blobs occur through
+only **four unique reachable paths**, all under service `src/test/`
+directories, and **zero** of their path occurrences are under
+`src/main/`, deployment configuration, or the selected 44-file
+corpus. The four unique paths are listed in the earlier section. This
+is a cross-root-tree path analysis, not simply reliance on Git's
+single representative blob pathname. Git path identity alone does
+not establish that test content is intrinsically safe to reuse as
+a signing secret.
+
+**Still unresolved:** whether this test HMAC value was copied into
+running development/staging/production secrets, deployment environment
+variables, previous external repositories, unreachable Git history,
+forks, distributed builds, or credential storage. Those cannot be
+proved absent from a public Git-tree scan. Existing 10-object
+historical-rule FAILURE is retained deliberately; the overall
+XERJ workflow remains **FAILED** until actual owner-controlled
+credential-use review/appropriate rotation and human privacy/licence
+approval. Do not paste the fixture's value, unredacted secret
+inventories or provider credentials into a PR or public issue.
