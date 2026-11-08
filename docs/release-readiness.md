@@ -14,7 +14,7 @@ A GitHub release is a source/distribution milestone. It must not silently become
 - Software license: **Apache License 2.0** for both Aetheris source-owner repositories
 - Physical-machine status: `BLOCKED_PENDING_HARDWARE`
 - Physical-PC validation remains pending
-- Dashboard NGINX final-runtime image security maintenance is a development review candidate as of 8 November 2026; a proposed digest pin is not evidence of deployment or operator acceptance.
+- Dashboard NGINX final-runtime image security maintenance, including pinned Alpine zlib 1.4-r0, is a development review candidate as of 8 November 2026; a proposed digest/package pin is not evidence of deployment or operator acceptance.
 
 The certified runtime checkpoint and the current runtime repository `main` are different concepts. A later runtime commit does not become platform-certified merely because it is newer or because documentation-only CI passed.
 

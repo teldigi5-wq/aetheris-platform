@@ -55,6 +55,7 @@ jobs:
           # Resolve the proxy host for nginx -t without connecting to a live gateway.
           docker run --rm -d --name "$container" --add-host gateway:192.0.2.1 -p 127.0.0.1:18080:80 "$image" >/dev/null
           docker exec "$container" nginx -t
+          docker exec "$container" apk info -v zlib | grep -Fxq 'zlib-1.4-r0'
           docker exec "$container" nginx -v 2>&1 | grep -Fq 'nginx/1.31.8'
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:18080/ -o /tmp/aetheris-dashboard-nginx-index.html; then
