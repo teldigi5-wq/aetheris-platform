@@ -13,6 +13,18 @@ response, GitHub public visibility, or a passing security scan.
 - Paths: architecture/, gateway/src/main/, identity-service/src/main/,
   user-service/src/main/, audit-service/src/main/, docs/security/
 - Git-tree measure: **44 blobs / 75,323 bytes**
+- **Complete per-file human review list:** `docs/integrations/xerj-44-file-review-inventory.md`
+  enumerates all 44 pinned paths, SHA-1 Git blob IDs and byte sizes,
+  with **zero** human-review checkboxes approved. CI checks the full
+  inventory against the immutable source, but cannot read/approve rights.
+- **Actual XERJ local index evidence:** 44 indexed files, 219 searchable
+  records, 75,323 independently catalog-accounted content bytes in one
+  dataset on a disposable loopback-only XERJ node. Physical index bytes
+  and approved Lane A manifest metadata **remain unknown/null**.
+- **Reachable Git-path classification:** 2,631 distinct root trees scanned;
+  10 additional matching historical test-signing-value blobs occur at
+  four unique `src/test` paths and **zero non-test paths**. This
+  narrows Git provenance only; live credential reuse is still unknown.
 - Source classification: historic Java application and architecture reference,
   **not** a secure/production-certified implementation or complete test suite.
 - The AI Runtime repository is a separate project and is not included.
