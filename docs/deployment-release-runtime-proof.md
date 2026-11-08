@@ -29,7 +29,7 @@ Identity-service accounts and user-service profiles are deliberately treated as 
 The workflow produces:
 
 - `deployment-release-manifest.json` — exact revision, service image IDs, and source SHA-256 values;
-- `deployment-release-runtime-report.json` — all 17 checks, baseline/final state, manifest digest, and truth boundary;
+- `deployment-release-runtime-report.json` — all 17 existing checks, sanitized Docker state after controlled stops/restarts, the confirmed recovery-cycle count, baseline/final state, manifest digest, and truth boundary;
 - Compose service/image snapshots;
 - a Docker resource snapshot; and
 - failure logs when the proof fails.
