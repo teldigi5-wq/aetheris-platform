@@ -249,3 +249,38 @@ author candidate. The formal count remains **2/6**. Under XERJ's current
 `candidates/authors` entries can be overwritten: use the owner-override
 process only after the maintainer has approved the specific owner request.
 No duplicate candidate or external submission is authorized.
+
+### Verified local-run measurement — Actions #42439199767
+
+[The exact-head run at `010cca8d34bd08ebed69cb5534b6c03eba8bb93b`](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42439199767)
+reported the following from a real ephemeral official XERJ rc.100
+`autoindex --json` and its independent live `autoindex map --json` catalog:
+
+| Measurement | Result | Precise meaning |
+|---|---:|---|
+| Selected Git blob files | **44** | Pre-pinned source inventory, separately rechecked |
+| Selected Git blob bytes | **75,323** | Byte sum of the staged files, not index bytes |
+| Real XERJ indexed files | **44** | Live run's `files_indexed` |
+| Real XERJ live records | **219** | `records_total`, equal to dataset catalog count sum |
+| XERJ catalog content bytes | **75,323** | Sum of live catalog `dataset.bytes`, **not index-on-disk size** |
+| XERJ catalog datasets | **1** | All measured datasets in the unpaged local map |
+
+The equality of Git blob bytes and catalog content bytes is a
+**measured cross-check, not a substitution or an assumption**. The
+machine-readable source-scope record retains
+`local_preview.indexed_bytes=null` because neither the index's
+physical storage bytes nor a formally reviewed and built Hub pack
+has been measured. `local_preview.indexed_records=219` is narrowly
+labelled as **local preview evidence**; it is not a signed or published
+Lane A manifest. The CI receipt parser now compares these committed
+counts with **fresh actual** index/catalog output, rejecting drift,
+wrong prefixes, missing live records, junk extraction and count
+inconsistencies.
+
+The same run finished **3/4 independent XERJ jobs successfully**;
+the mandatory Stage 3 reachable-history scan still failed on **10 extra
+distinct historical test-matching Git blobs**. The overall check is
+deliberately red, with privacy, license/reuse, owner approval and
+upstream consumer/maintainer acceptance still pending. The formal
+roadmap remains **2/6 fully complete**, despite measurable Stage 5
+technical progress.
