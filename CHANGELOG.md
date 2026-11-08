@@ -4,6 +4,13 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### Dashboard NGINX security maintenance — development review candidate (8 November 2026)
+
+- Propose an isolated final-runtime bump from NGINX 1.31.5 to official NGINX 1.31.8 Alpine 3.24 with an immutable image index digest; retain the already-merged Node 22.23.4 builder and all proxy/application config unchanged.
+- Pin Alpine runtime `zlib=1.4-r0` to remediate CVE-2026-4738, and verify that version inside the running container.
+- Add a final-stage pin regression test and an actual Docker/NGINX runtime smoke step to the existing dashboard CI job, including SPA fallback and response-header assertions; capture all-severity Trivy evidence with a fail-closed High/Critical gate.
+- Source candidate only: no protected-main promotion, production deployment, live upstream gateway/HTTPS validation or physical-PC certification is implied.
+
 ### AI-runtime extraction and release alignment
 
 - Completed the source-ownership split between `teldigi5-wq/aetheris-platform` and `teldigi5-wq/aetheris-ai-runtime`; runtime-owned roots are no longer duplicated in the platform repository.
