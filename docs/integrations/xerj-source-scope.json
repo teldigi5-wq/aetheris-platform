@@ -78,7 +78,7 @@
     "linux_release_sha256": "4b12a47e8433e9d01d2b3f505b17b342a6e28d41edaabd274eba5a759e9cde1e",
     "execution_environment": "Disposable GitHub Actions runner; node only bound 127.0.0.1; synthetic/ephemeral data directory cleaned",
     "source_files": 44,
-    "indexed_records": null,
+    "indexed_records": 219,
     "indexed_bytes": null,
     "two_verified_citations": [
       "gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java:line",
@@ -86,6 +86,15 @@
     ],
     "exact_head_ci_run": "https://github.com/teldigi5-wq/aetheris-platform/actions/runs/41211767122",
     "full_corpus_hub_manifest_validated": false,
-    "public_pack_published": false
+    "public_pack_published": false,
+    "measured_indexed_files": 44,
+    "measured_catalog_content_bytes": 75323,
+    "measurement_provenance": {
+      "run": "https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42439199767",
+      "commit": "010cca8d34bd08ebed69cb5534b6c03eba8bb93b",
+      "method": "Local XERJ v1.0.0-rc.100 autoindex --json records_total/files_indexed independently matched to autoindex map --json dataset record_count/bytes",
+      "scope": "DISPOSABLE_LOOPBACK_ONLY_NOT_LANE_A"
+    },
+    "measured_index_bytes_definition": "NOT_MEASURED: catalog dataset content bytes are not disk index bytes or an approved Hub pack size"
   }
 }
