@@ -31,6 +31,70 @@ def require(condition: bool, reason: str) -> None:
     if not condition:
         raise ValueError(reason)
 
+def verify_reachable_tree_paths(extra: set[bytes]) -> None:
+    """Resolve every matching blob through every reachable root tree, not
+    the single representative object path from git rev-list --objects.
+    Only exact public Git paths and counts are emitted. Still NOT a check
+    of deployed credentials, deleted branches or external repositories.
+    """
+    require(bool(extra), "Missing unexpected historical blob IDs")
+    roots = set(git("log", "--all", "--format=%T").splitlines())
+    require(0 < len(roots) <= 10000,
+            "Historical tree provenance budget exceeded; review manually")
+    require(all(re.fullmatch(rb"[0-9a-f]{40}", t) for t in roots),
+            "Unexpected historical tree identifier")
+    found: dict[bytes, set[bytes]] = {oid: set() for oid in extra}
+    for tree in sorted(roots):
+        result = subprocess.run(
+            ["git", "-C", str(ROOT), "ls-tree", "-r", "-z",
+             tree.decode("ascii")],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            check=False, timeout=30
+        )
+        require(result.returncode == 0 and
+                len(result.stdout) <= 32 * 1024 * 1024,
+                "Historical Git tree traversal failed or exceeded budget")
+        for entry in result.stdout.split(b"\0"):
+            if not entry:
+                continue
+            header, sep, rel = entry.partition(b"\t")
+            require(sep == b"\t" and
+                    len(header.split()) == 3 and
+                    len(rel) <= 512,
+                    "Malformed historical Git tree entry")
+            mode, kind, oid = header.split()
+            if oid not in extra:
+                continue
+            require(kind == b"blob" and
+                    bool(re.fullmatch(rb"[0-9a-f]{40}", oid)),
+                    "Unexpected historical fixture object type")
+            # No source lines, fixture bytes or unescaped terminal data.
+            require(bool(re.fullmatch(rb"[A-Za-z0-9._/+~-]+", rel)),
+                    "Historical matched path needs safe manual inspection")
+            found[oid].add(rel)
+    require(all(found.values()),
+            "Matching history blob lacks reachable path provenance")
+    paths = set().union(*found.values())
+    in_tests = {rel for rel in paths if b"/src/test/" in rel}
+    outside = paths - in_tests
+    print(
+        "XERJ_HISTORICAL_FIXTURE_TREE_PROVENANCE "
+        f"reachable_root_trees={len(roots)} matched_extra_blobs={len(extra)} "
+        f"distinct_paths={len(paths)} test_paths={len(in_tests)} "
+        f"non_test_paths={len(outside)} "
+        "credential_use_proven_absent=NO human_review=PENDING",
+        file=sys.stderr
+    )
+    for rel in sorted(outside)[:15]:
+        print(
+            "XERJ_HISTORICAL_FIXTURE_NON_TEST_PATH: " +
+            rel.decode("ascii"),
+            file=sys.stderr
+        )
+    require(not outside,
+            "Known fixture blob reachable outside test source paths")
+
+
 def main() -> None:
     plan = json.loads(PLAN.read_text(encoding="utf-8"))
     pin = plan["source"]["sha"]
@@ -107,6 +171,7 @@ def main() -> None:
     feeder.start()
     total_blobs, matches_in_blobs, wrong = 0, 0, 0
     wrong_paths = []
+    wrong_oids: set[bytes] = set()
     try:
         for expected in oids:
             header = process.stdout.readline()
@@ -134,6 +199,7 @@ def main() -> None:
                     matches_in_blobs += 1
                     if expected not in allowed:
                         wrong += 1
+                        wrong_oids.add(expected)
                         raw = representative_paths.get(expected, b"")
                         # Git tree paths are already public, but do not emit
                         # arbitrary characters, source bytes or fixture text.
@@ -156,6 +222,7 @@ def main() -> None:
     require(total_blobs > 0 and matches_in_blobs > 0,
             "Historical fixture audit scanned no relevant source")
     if wrong:
+        verify_reachable_tree_paths(wrong_oids)
         for path in sorted(set(wrong_paths))[:15]:
             print("XERJ_HISTORICAL_FIXTURE_EXTRA_PATH: " + path,
                   file=sys.stderr)
