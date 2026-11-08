@@ -17,6 +17,14 @@ on:
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
       - 'docs/integrations/xerj-owner-publication-approval.md'
       - 'docs/integrations/xerj-40-file-review-inventory.md'
+      - 'docs/integrations/xerj-44-file-review-inventory.md'
+      - 'docs/integrations/xerj-reachable-history-fixture-review.md'
+      - 'docs/integrations/xerj-pinned-content-review-findings.md'
+      - 'docs/integrations/xerj-upstream-validator-dryrun.md'
+      - 'scripts/security/verify_xerj_reviewer_inventory.py'
+      - 'scripts/security/verify_xerj_sparse_consumer.py'
+      - 'scripts/security/verify_xerj_local_index_receipt.py'
+      - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
 
 permissions:
   contents: read
@@ -45,6 +53,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           python3 scripts/security/verify_xerj_source_scope.py
           python3 -m unittest discover -s scripts/security -p 'test_xerj_filter_40.py' -v
+          python3 scripts/security/verify_xerj_reviewer_inventory.py --self-test
+          python3 scripts/security/verify_xerj_reviewer_inventory.py
+          echo XERJ_HUMAN_PER_FILE_PRIVACY_AND_RIGHTS_APPROVAL_PENDING
 
       - name: Install checksum-verified Gitleaks v8.30.1
         shell: bash
@@ -182,6 +193,37 @@ jobs:
           python3 scripts/security/verify_xerj_fixture_history.py
           echo XERJ_HISTORICAL_RUNTIME_KEY_REUSE_STILL_REQUIRES_HUMAN_REVIEW
 
+  xerj-upstream-registry-schema-negative-review:
+    name: xerj-upstream-registry-schema-negative-review
+    needs: [xerj-pinned-source-scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact unapproved review head without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify current pinned upstream XERJ registry and deny unreviewed live Lane A
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          work="$(mktemp -d "${RUNNER_TEMP}/xerj-upstream-schema.XXXXXXXX")"
+          trap 'rm -rf -- "$work"' EXIT
+          git -c protocol.version=2 clone --filter=blob:none --depth=1 \
+            --single-branch --branch corpus-hub \
+            https://github.com/xerj-org/xerj.git "$work/upstream" \
+            > /dev/null 2>&1 || {
+              echo "XERJ_UPSTREAM_CHECKOUT_FAILED" >&2
+              exit 1
+            }
+          python3 scripts/security/verify_xerj_upstream_validator_dryrun.py \
+            "$work/upstream"
+          echo "XERJ_STAGE5_UPSTREAM_SCHEMA_DRY_RUN_ONLY_HUMAN_REVIEW_PENDING"
+
   xerj-local-retrieval-preview:
     name: xerj-local-retrieval-preview
     needs: [xerj-pinned-source-scan]
@@ -246,6 +288,10 @@ jobs:
           expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["filtered_tree"]["files"])')"
           test "$(find "$work/xerj-filtered-source" -type f | wc -l)" -eq "$expected_count"
           echo XERJ_LOCAL_SOURCE_ARCHIVE_VERIFIED
+          # Verify released XERJ respects the seven 40-file Hub subpaths.
+          python3 scripts/security/verify_xerj_sparse_consumer.py \
+            "$binary" "$work"
+          echo XERJ_SPARSE_CONSUMER_EXCLUDES_UNAPPROVED_YAML
 
           # Insecure mode is acceptable ONLY on this disposable loopback node
           # with public, previously scanned source. Never bind externally.
@@ -298,3 +344,15 @@ jobs:
             exit 1
           }
           echo "XERJ_LOCAL_TWO_SOURCE_LINE_CITATIONS_PASS files=$expected_count publication=NOT_AUTHORIZED"
+          # Measure the actual 40-file index; never transplant parent 44-file
+          # 219-record counts into this distinct filtered corpus.
+          python3 scripts/security/verify_xerj_local_index_receipt.py --self-test
+          "$binary" autoindex map --prefix aetheris-xerj-review --json \
+            > "$work/map.json" 2> "$work/map.err" || {
+              echo 'XERJ_LOCAL_CATALOG_QUERY_FAILED (logs withheld)' >&2
+              exit 1
+            }
+          python3 scripts/security/verify_xerj_local_index_receipt.py \
+            "$work/xerj-filtered-source" "$work/index.json" "$work/map.json" \
+            "docs/integrations/xerj-source-scope.json"
+          echo XERJ_STAGE5_FILTERED40_LIVE_METRICS_REVIEW_ONLY

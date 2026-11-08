@@ -1,9 +1,5 @@
 # Aetheris → XERJ Corpus Hub: pinned source review candidate
 
-**Hub reproducibility proof (2026-11-06):** The 40-file scope is independently selectable using seven *directory-only* XERJ `paths` (four Java `src/main/java` trees, Audit migration, `architecture`, `docs/security`). This avoids including configuration YAML in a normal XERJ consumer checkout. Exact Git tree equality is checked by CI; upstream author candidate remains untouched.
-
-**40-file amendment proposed 2026-11-06:** 40 pinned blobs / 66,617 bytes exclude four service application YAML files. The original 44-file CI passes are historical only: no current 40-file scanner, index, rights, or consent evidence is established by them. Owner consent and XERJ maintainer approval remain PENDING.
-
 **Status:** DRAFT. No XERJ registration, OAuth consent, external Hub pull request,
 release publication or production deployment has been performed.
 **Tracker:** https://github.com/teldigi5-wq/aetheris-platform/issues/360
@@ -207,3 +203,145 @@ pin may be preferable once a reviewed release lineage is merged.
 
 **None of these steps merge existing Aetheris release candidates or change
 production. The operational release remains NO_GO.**
+
+## 2026-11-08 Stage 5 measurable index receipt, not owner approval
+
+The pinned local preview previously demonstrated two real XERJ file:line
+citations but retained `indexed_records=null` and `indexed_bytes=null` in
+the **unapproved amendment** because Git-tree source sizes are not XERJ
+index measurements. This is a genuine technical evidence gap, independent of
+the unresolved historical JWT signing-fixture review.
+
+The read-only `xerj-local-retrieval-preview` job now obtains **two distinct
+measurement surfaces** from the same disposable localhost-only XERJ run:
+
+- `xerj autoindex ... --json` reports the real `files_indexed` and
+  `records_total` fields; the first must be positive and no greater
+  than the 44 staged source files. Any junk or unextracted archives block.
+- `xerj autoindex map --prefix ... --json` reads the actual local catalog,
+  checks its run ID and index namespace, and independently sums each dataset's
+  `record_count` and `bytes`. The record sum must equal the autoindex
+  live-record total; a paged/partial catalog cannot pass. The dataset
+  `bytes` field reflects the XERJ dataset content accounting, **not
+  on-disk index size** and **not automatically the final Hub manifest's
+  reviewed indexed-byte value**.
+- A separate traversal of the extracted, pinned files verifies **44 files /
+  75,323 source Git blob bytes**, explicitly labelled *source* and never
+  substituted for `records_total` or catalog dataset bytes. The scanner
+  checks unexpected symlinks, source size drift, and nonpositive index
+  counts. Built-in negative tests ensure a mismatching catalog and
+  unauthorized publication fields are refused.
+
+Only aggregate counts and fixed status markers are printed; actual source
+passages, signing values, raw catalog JSON and temporary index directories
+remain unshared. The resulting technical CI measurements are to be attached
+to this existing draft PR as **reproducible evidence**, not invented as final
+`cloned_at`, `review.by`, `review.at`, licence decisions, consent receipts
+or a publishable Lane A `hub/*.json` file.
+
+**Stage 3** retains its separate mandatory *failing* historical secret-reuse
+job; **Stage 4** remains human licence/attribution/owner approval; **Stage 5**
+is technical-only until a genuinely reviewed Hub manifest and upstream
+consumer validator pass; **Stage 6** requires explicit owner authorization
+and XERJ maintainer-approved reconciliation with the existing generated
+author candidate. The formal count remains **2/6**. Under XERJ's current
+`corpus-hub` guidance, direct hand edits to generated
+`candidates/authors` entries can be overwritten: use the owner-override
+process only after the maintainer has approved the specific owner request.
+No duplicate candidate or external submission is authorized.
+
+### Verified local-run measurement — Actions #42439199767
+
+[The exact-head run at `010cca8d34bd08ebed69cb5534b6c03eba8bb93b`](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42439199767)
+reported the following from a real ephemeral official XERJ rc.100
+`autoindex --json` and its independent live `autoindex map --json` catalog:
+
+| Measurement | Result | Precise meaning |
+|---|---:|---|
+| Selected Git blob files | **44** | Pre-pinned source inventory, separately rechecked |
+| Selected Git blob bytes | **75,323** | Byte sum of the staged files, not index bytes |
+| Real XERJ indexed files | **44** | Live run's `files_indexed` |
+| Real XERJ live records | **219** | `records_total`, equal to dataset catalog count sum |
+| XERJ catalog content bytes | **75,323** | Sum of live catalog `dataset.bytes`, **not index-on-disk size** |
+| XERJ catalog datasets | **1** | All measured datasets in the unpaged local map |
+
+The equality of Git blob bytes and catalog content bytes is a
+**measured cross-check, not a substitution or an assumption**. The
+machine-readable source-scope record retains
+`local_preview.indexed_bytes=null` because neither the index's
+physical storage bytes nor a formally reviewed and built Hub pack
+has been measured. `local_preview.indexed_records=219` is narrowly
+labelled as **local preview evidence**; it is not a signed or published
+Lane A manifest. The CI receipt parser now compares these committed
+counts with **fresh actual** index/catalog output, rejecting drift,
+wrong prefixes, missing live records, junk extraction and count
+inconsistencies.
+
+The same run finished **3/4 independent XERJ jobs successfully**;
+the mandatory Stage 3 reachable-history scan still failed on **10 extra
+distinct historical test-matching Git blobs**. The overall check is
+deliberately red, with privacy, license/reuse, owner approval and
+upstream consumer/maintainer acceptance still pending. The formal
+roadmap remains **2/6 fully complete**, despite measurable Stage 5
+technical progress.
+
+### Verified sparse Lane A consumer acceptance — 2026-11-08
+
+A substantial **publication boundary** was checked using the
+exact-version **XERJ v1.0.0-rc.100** binary, verified by the pinned Linux
+archive SHA-256. The XERJ `corpus-hub` branch at
+`708e974516a4ba1ba9bfa312aff164041997cfd6`
+contains an older `read_hub_manifest`/`corpus add` source path that
+does not carry per-repo `paths`, whereas the
+`v1.0.0-rc.100` released consumer (`682d7ce072c644239cfa13ca1a9ca9a0e45d794b`)
+and current main have the validated sparse subpath support.
+The branch's standalone schema validator accepts sparse paths but
+**that by itself is not enough** to establish real client behavior.
+
+**Exact-head GitHub Actions #42458546640**, head
+`508e49eb46343dec457e465a344f269c347c4eb6`,
+ran a new live consumer acceptance
+(`scripts/security/verify_xerj_sparse_consumer.py`) which:
+
+1. Built a temporary local bare Git repository for the **same fixed
+   historical source SHA**, with no public registry modifications.
+2. Wrote a disposable `UNREVIEWED` synthetic manifest containing the
+   actual six proposed paths. It was explicitly not a live Hub entry,
+   a human review claim or a consent record.
+3. Invoked the checksum-pinned released CLI:
+   `xerj corpus add --from <disposable unreviewed local manifest>`,
+   with a separate temporary `XERJ_CODE_HOME`.
+4. Verified the resulting clone at the pinned commit and checked **every
+   materialized file path, byte size and Git blob object ID** against
+   the exact Git tree. Required **44/44 matching files**, **75,323 source
+   Git blob bytes**, and **zero other files**, including all test and
+   deployment files.
+5. Removed all generated clone, temporary manifest and synthetic local
+   index during runner cleanup.
+
+Actual log:
+`XERJ_REAL_RELEASE_CORPUS_ADD_FROM_SPARSE_CONSUMER_PASS
+files=44 git_blob_bytes=75323 outside_scope=0
+selected_source_pin=VERIFIED human_review=UNREVIEWED
+publication=NOT_AUTHORIZED`.
+
+The local `autoindex` and `map` still report **44 indexed files,
+219 searchable records, 75,323 independently measured catalog content
+bytes, one dataset**, with actual Gateway/Identity `file:line` results.
+
+**Important limit:** acceptance is verified for the pinned XERJ rc.100
+release. It is not proof that every historical client version or future
+Hub branch respects sparse paths. A real contribution must document the
+minimum supported consumer version and rerun this acceptance if that
+version or the source pin changes. An older client that ignores `paths`
+could clone the **entire** repository, so owners should not publish a
+sparse source corpus to clients without this feature.
+
+**Formal gates remain unchanged:** Stage 3's exact-match JWT fixture is
+still found in ten historic blobs at four reachable test paths (zero
+non-test paths), but real deployed-key use is not verified absent.
+Stage 4 per-file rights/privacy/owner review is unapproved.
+Stage 5 still lacks a real human-reviewed, accepted public Hub manifest;
+Stage 6 needs scope-specific owner and maintainer approval for the
+existing candidate. **XERJ 2/6 stages formally complete; no publication
+or deployment authorized.**
