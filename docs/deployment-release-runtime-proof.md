@@ -17,7 +17,7 @@ The GitHub Actions workflow builds the five core application images from the exa
 7. creates an explicit persisted user-service profile and confirms it through a protected gateway read;
 8. deliberately stops the gateway and proves the outage is observable;
 9. proves protected traffic is unavailable while the gateway is stopped;
-10. starts the gateway again;
+10. starts the gateway again and records only allowlisted Docker state, then performs a second bounded stop/start recovery with the same 180-second health deadline;
 11. verifies the recovered gateway uses the exact same Docker image identity recorded before the outage;
 12. proves the protected read recovers; and
 13. proves the persisted user profile and user count are unchanged across the recovery.
