@@ -379,3 +379,7 @@ Security-sensitive findings should follow **[SECURITY.md](SECURITY.md)** and sho
 **Built by Poojana Kaveesh Sellahewa**
 
 </div>
+
+## AI/developer continuation checkpoint — 9 November 2026
+
+The [verified-status handoff and next-milestone roadmap](docs/AI_CONTINUATION_2026-11-09.md) records the latest inspected draft PR, evidence boundaries, blockers, and safe recovery commands. This document is a **review proposal**, not a release approval. Re-check active PR heads before development; do not repeat completed stages or merge unverified security work.
