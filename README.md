@@ -383,3 +383,10 @@ Security-sensitive findings should follow **[SECURITY.md](SECURITY.md)** and sho
 ## AI/developer continuation checkpoint — 9 November 2026
 
 The [verified-status handoff and next-milestone roadmap](docs/AI_CONTINUATION_2026-11-09.md) records the latest inspected draft PR, evidence boundaries, blockers, and safe recovery commands. This document is a **review proposal**, not a release approval. Re-check active PR heads before development; do not repeat completed stages or merge unverified security work.
+
+### Continuation roadmap and milestone log (9 November 2026)
+- [Dated project handoff](docs/AI_CONTINUATION_2026-11-09.md)
+- [Current AI recovery roadmap](docs/AI_ROADMAP_2026-11-09.md)
+- [Milestone and evidence tracker](docs/AI_MILESTONES_2026-11-09.md)
+
+These files are **review-only** on PR #418; active implementation branches and protected main are unchanged. Use the existing domain roadmap as canonical for numbered product stages.
