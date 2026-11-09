@@ -30,8 +30,9 @@ The runtime contract covers:
 2. identity, user, audit and gateway health;
 3. registration through the gateway;
 4. protected-route rejection when no bearer token is supplied;
-5. successful authorized user reads;
-6. scope denial for an `API_CONSUMER` attempting `users:write`;
+5. a newly registered `API_CONSUMER` denied access to global User data;
+6. a separately registered synthetic account promoted to `ADMIN` only in disposable PostgreSQL, then logged in through Identity for real signed, authorized User reads;
+7. rejection of `API_CONSUMER` writes;
 7. refresh-token rotation;
 8. rejection of a previously used refresh token;
 9. refresh-token revocation through logout;
@@ -56,14 +57,9 @@ The CI workflow is:
 
 ## Why the RabbitMQ probe uses the internal service port
 
-Self-registration creates an `API_CONSUMER` identity. That role intentionally has `users:read` but not `users:write`.
+Self-registration creates an `API_CONSUMER` identity, which is **not** authorized to read or write global User records in the review branch. The runtime proof first verifies that consumer reads and writes are denied. A second synthetic account is promoted in the **disposable test database only**, then signs in through the actual Identity service to obtain a signed `ADMIN` token.
 
-The runtime proof first verifies that a write through the public gateway is rejected with `403`. It then calls the local user-service port directly inside the test environment to create a user specifically for the internal messaging probe. That user creation publishes `user.created`, which the audit service must observe through RabbitMQ.
-
-This separation demonstrates both boundaries:
-
-- the gateway enforces the external authorization policy;
-- the internal asynchronous event path works when the service operation is legitimately invoked.
+The proof uses that token for User creation and cache reads, direct Audit event retrieval, and Gateway fallback/recovery. It must never interpret local-port reachability or forged identity headers as authorization. The full production security rollout remains review-only until independent acceptance.
 
 ## Failure behavior
 
