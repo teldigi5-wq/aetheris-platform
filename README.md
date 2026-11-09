@@ -346,6 +346,7 @@ The recommended interview approach is to **defend the core platform first** and 
 - [Versioning and release classes](docs/versioning.md)
 - [Release-readiness checklist](docs/release-readiness.md)
 - [S0-E6J review-only Runtime session ledger: PostgreSQL roles, audit, revocation](docs/security/S0_E6J_RUNTIME_SESSION_LEDGER_REVIEW_20261109.md) — draft, disposable CI only, **not a production migration or HTTP activation**
+- [S0-E6K atomic RS256/JTI session enrollment and refresh rollback](docs/security/S0_E6K_ATOMIC_RUNTIME_SESSION_ENROLLMENT_20261109.md) — **review-only, no production enrollment or HTTP API activation**
 
 ---
 
