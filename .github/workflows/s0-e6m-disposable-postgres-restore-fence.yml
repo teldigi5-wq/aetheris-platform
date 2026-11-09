@@ -1,0 +1,106 @@
+name: S0-E6M PG16 Restore Fence and Role Custody Rehearsal (review only)
+on:
+  push:
+    branches: [security/s0-e6m-postgres-recovery-custody-rehearsal-20261109]
+  pull_request:
+    branches: [security/s0-e6k-atomic-runtime-session-enrollment-20261109]
+permissions:
+  contents: read
+
+jobs:
+  real-postgres16-restored-authority:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aetheris_e6m_disposable
+          POSTGRES_USER: e6m_test_only
+          POSTGRES_PASSWORD: e6m_disposable_ci_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U e6m_test_only -d aetheris_e6m_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      AETHERIS_E6M_DISPOSABLE_MARKER: ONLY_DISPOSABLE_E6M_PG16
+      AETHERIS_E6M_TRAFFIC_DISABLED: CONFIRMED_FOR_CI_RESTORE
+      GITHUB_ACTIONS: 'true'
+      PGHOST: '127.0.0.1'
+      PGPORT: '5432'
+      PGDATABASE: aetheris_e6m_disposable
+      PGUSER: e6m_test_only
+      PGPASSWORD: e6m_disposable_ci_only
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Exact-head nonproduction and schema source fingerprint gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$GITHUB_ACTIONS" = true
+          test "$PGHOST" = 127.0.0.1
+          test "$PGDATABASE" = aetheris_e6m_disposable
+          test "$PGUSER" = e6m_test_only
+          test "$AETHERIS_E6M_TRAFFIC_DISABLED" = CONFIRMED_FOR_CI_RESTORE
+          test "$(git hash-object identity-service/src/test/resources/security/e6j_runtime_session_ledger_pg16.sql)" = fcf0e61c24ab89b61f10b6d2e454742a4b0420b0
+          test ! -d identity-service/src/main/resources/db/migration
+          test -s docs/security/migrations/s0-e6m/restore_fence.sql
+          test -s tools/security/s0_e6m_disposable_pg16_rehearsal.sh
+          ! grep -Eq '@Component|@Service|@RestController' identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceAtomicRegistryExchange.java
+      - name: PostgreSQL16 transactional DDL, distinct network logins, snapshot replay and restored-session denial
+        shell: bash
+        run: bash tools/security/s0_e6m_disposable_pg16_rehearsal.sh
+      - name: Hard require every exact security marker and backup restoration status
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT count(*) FROM pg_namespace WHERE nspname='e6j_runtime_auth'")" = 0
+          test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d postgres -c "SELECT count(*) FROM pg_database WHERE datname='aetheris_e6m_restored'")" = 0
+          test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT marker FROM e6m_unrelated_record WHERE id=1")" = OWNER_DATA_UNTOUCHED
+          echo S0_E6M_SCHEMA_DRIFT_ROLE_CUSTODY_RESTORE_FENCE_CLEANUP_COMPLETE
+
+  identity-regression-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Identity prior refresh, RS256, exchange and workload guard regression
+        run: |
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest,RuntimeAudienceTokenIssuerTest,RuntimeAudienceSessionExchangeServiceTest,RuntimeExchangeGatewayWorkloadPolicyTest test
+      - name: Require six existing test classes and >=32 executed with no skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          root=Path('identity-service/target/surefire-reports')
+          names=('IdentityServiceSecurityTest','RefreshTokenServiceTest',
+                 'BrowserAuthControllerTest','RuntimeAudienceTokenIssuerTest',
+                 'RuntimeAudienceSessionExchangeServiceTest',
+                 'RuntimeExchangeGatewayWorkloadPolicyTest')
+          total=0
+          for n in names:
+              p=root/('TEST-io.aetheris.identity.'+n+'.xml')
+              r=ET.parse(p).getroot()
+              assert all(int(r.attrib.get(k,'0'))==0 for k in
+                         ('errors','failures','skipped')),(n,r.attrib)
+              total+=int(r.attrib['tests'])
+          assert total>=32,total
+          print('S0_E6M_LEGACY_AND_RUNTIME_IDENTITY_THIRTY_TWO_REGRESSIONS_NO_SKIPS_PASS')
+          PY
