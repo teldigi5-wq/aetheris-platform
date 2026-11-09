@@ -71,7 +71,7 @@ jobs:
             -f identity-service/src/test/resources/security/e6j_runtime_session_ledger_pg16.sql
       - name: Actual signed Identity token plus refresh+session same-transaction PostgreSQL16 tests
         run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=RuntimeAudienceAtomicRegistryExchangePg16IT test
-      - name: Require both 6-test PG16 suites no skips and verified cleanup
+      - name: Require six prior plus seven new PG16 tests without skips and verified cleanup
         shell: bash
         run: |
           set -euo pipefail
@@ -87,7 +87,7 @@ jobs:
               assert int(x.attrib['tests']) >= 6,(name,x.attrib)
               assert all(int(x.attrib.get(k,'0'))==0
                          for k in ('failures','errors','skipped')),(name,x.attrib)
-          print('S0_E6K_REAL_PG16_SIGNED_JTI_REFRESH_ATOMICITY_AND_LEDGER_TWELVE_TESTS_PASS')
+          print('S0_E6K_REAL_PG16_SIGNED_JTI_REFRESH_ATOMICITY_AND_LEDGER_THIRTEEN_TESTS_PASS')
           PY
           test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT count(*) FROM pg_namespace WHERE nspname='e6j_runtime_auth'")" = 0
           echo S0_E6K_NO_RUNTIME_HTTP_ROUTE_NO_PROD_MIGRATION_STAGE45_NO_GO
