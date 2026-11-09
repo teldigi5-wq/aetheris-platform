@@ -1,4 +1,8 @@
-"""Guard isolated Java container trust mitigation without changing application logic."""
+"""Keep all four core containers on the reviewed vendor-patched Temurin release.
+
+This source guard is only a pin check; the Docker CI job independently inspects
+the actual runtime truststores and verifies both negative and positive TLS.
+"""
 from __future__ import annotations
 
 import re
@@ -8,44 +12,35 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SERVICES = ("gateway", "identity-service", "user-service", "audit-service")
 JDK = (
-    "docker.io/library/amazoncorretto:21.0.13-al2023@sha256:"
-    "1a307926702559b0086a5c4d339eaafa9c992b3e8ba54201ac8ebbde31d22f0b"
+    "eclipse-temurin:21.0.13_9-jdk-noble@sha256:"
+    "114cabb73033ca4ce7ceec3deb62396bc1b716282bae051ed3c1d82e38fcab2d"
 )
 JRE = (
-    "docker.io/library/amazoncorretto:21.0.13-al2023-headless@sha256:"
-    "212faf5f8f93d8f4854a3d89528834d11ad2d685de80721d4d24ac2fdd3e379e"
-)
-COMPROMISED_ROOT_FINGERPRINTS = (
-    "40F6AF0346A99AA1CD1D555A4E9CCE62C7F9634603EE406615833DC8C8D00367",
-    "1AA0C2709E831BD6E3B5129A00BA41F7EEEF020872F1E6504BF0F6C3F24F3AF3",
-    "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B",
-    "D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4",
+    "eclipse-temurin:21.0.13_9-jre-noble@sha256:"
+    "0eda5830ed7b669abc246a8dc520ea8a23cab06f9a8d4b6964109e2f2394e46f"
 )
 
 
 class JavaContainerTrustTests(unittest.TestCase):
-    def test_every_build_and_runtime_stage_is_consistently_pinned(self):
+    def test_all_four_services_use_exact_patched_vendor_image_indices(self):
         for service in SERVICES:
             with self.subTest(service=service):
-                contents = (ROOT / service / "Dockerfile").read_text(encoding="utf-8")
-                stages = re.findall(r"(?m)^FROM ([^\r\n]+)$", contents)
+                content = (ROOT / service / "Dockerfile").read_text(encoding="utf-8")
+                stages = re.findall(r"(?m)^FROM ([^\r\n]+)$", content)
                 self.assertEqual([JDK + " AS build", JRE], stages)
-                self.assertIn("USER 10001:10001", contents)
-                self.assertIn("MAVEN_SHA512=", contents)
-                self.assertIn("sha512sum --check --strict", contents)
-                self.assertIn("2023.12.20261026", contents)
+                self.assertNotIn("amazoncorretto", content.lower())
+                self.assertNotIn("21.0.12_8", content)
 
-    def test_each_stage_removes_disallowed_aliases_and_fingerprints(self):
+    def test_maven_checksum_and_non_root_runtime_are_preserved(self):
         for service in SERVICES:
-            dockerfile = (ROOT / service / "Dockerfile").read_text(encoding="utf-8")
-            stages = re.split(r"(?m)^FROM ", dockerfile)[1:]
-            self.assertEqual(2, len(stages))
-            for stage_number, stage in enumerate(stages):
-                with self.subTest(service=service, stage=stage_number):
-                    self.assertIn("keytool -delete -cacerts", stage)
-                    self.assertIn("keytool -list -cacerts", stage)
-                    for fingerprint in COMPROMISED_ROOT_FINGERPRINTS:
-                        self.assertGreaterEqual(stage.count(fingerprint), 2)
+            with self.subTest(service=service):
+                content = (ROOT / service / "Dockerfile").read_text(encoding="utf-8")
+                self.assertIn("ARG MAVEN_VERSION=3.9.11", content)
+                self.assertIn("ARG MAVEN_SHA512=", content)
+                self.assertIn("sha512sum --check --strict", content)
+                self.assertIn("USER 10001:10001", content)
+                self.assertIn("COPY --from=build --chown=10001:10001", content)
+                self.assertEqual(2, len(re.findall(r"(?m)^FROM ", content)))
 
 
 if __name__ == "__main__":
