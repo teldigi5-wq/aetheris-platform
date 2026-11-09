@@ -148,6 +148,27 @@ if [[ "${XERJ_DLX_REVIEW_ENFORCED:-false}" == "true" ]]; then
   echo "XERJ_POISON_AUDIT_DB_NOT_PERSISTED_PASS"
 fi
 
+if [[ "${XERJ_OUTBOX_CONCURRENCY_REVIEW_ENABLED:-false}" == "true" ]]; then
+  [[ "${AETHERIS_OUTBOX_ENABLED:-false}" == "true" ]] || {
+    echo "XERJ_OUTBOX_ACK_GAP_REQUIRES_EXPLICIT_ENABLED_REVIEW" >&2; exit 2;
+  }
+  # Must run while the already verified User relay and Audit consumer remain
+  # alive, on the same synthetic PostgreSQL/RabbitMQ with exact broker ACLs.
+  ./mvnw -B -ntp -f user-service/pom.xml -Dtest=UserOutboxAckGapIT test
+  python3 - "$work/report.json" <<'PY_REPLAY'
+import json,sys
+from pathlib import Path
+p=Path(sys.argv[1])
+r=json.loads(p.read_text(encoding="utf-8"))
+assert r["status"]=="PASS" and len(r["checks"])>=90
+r["outbox_ack_gap_replay_verified"]=True
+r["outbox_production_verified"]=False
+r["outbox_exactly_once_guaranteed"]=False
+p.write_text(json.dumps(r,sort_keys=True,indent=2)+"\n", encoding="utf-8")
+print("XERJ_OUTBOX_ACK_GAP_REPORT_SANITIZED_PASS")
+PY_REPLAY
+fi
+
 python3 - "$work/report.json" <<'PY'
 import json,os,sys
 from pathlib import Path
