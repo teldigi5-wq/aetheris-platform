@@ -31,6 +31,15 @@ SELECT gen_random_uuid(), 'REVOKE_SIGNER', 'EMERGENCY_REVOKER',
 FROM e6j_runtime_auth.signer_key_states
 WHERE state = 'ACTIVE';
 
+-- Record each recovered session that will be forcibly denied. This is
+-- still DB-local audit; it does not replace external tamper-resistant logs.
+INSERT INTO e6j_runtime_auth.authority_audit
+    (request_id, action, actor_class, session_jti, identity_uid)
+SELECT gen_random_uuid(), 'REVOKE_SESSION', 'EMERGENCY_REVOKER',
+       jti, uid
+FROM e6j_runtime_auth.session_registrations
+WHERE state = 'ACTIVE';
+
 UPDATE e6j_runtime_auth.signer_key_states
    SET state = 'REVOKED'
  WHERE state = 'ACTIVE';
