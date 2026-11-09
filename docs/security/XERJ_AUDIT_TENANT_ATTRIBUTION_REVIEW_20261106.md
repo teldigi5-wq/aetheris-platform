@@ -2,6 +2,12 @@
 
 Parent security draft #386: `02bda5ef086bb4b8cff3a5d7acb670c5b322990d`, 91 targeted JUnit checks and 79 real RSA/mTLS/Gateway/Postgres/Redis/RabbitMQ checks passed on GitHub Actions run #42177088055. This change is a **new, isolated child review**, not a production deployment, not a merge of unrelated PRs, and not an XERJ source publication.
 
+## November 9, 2026 continuity verification
+
+- **Current parent PR #386:** `86b1ea7cebcfb68a8b56bffb37b94acd48f23c92`, passed both jobs in the [exact-head hosted tenant ownership workflow](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42596007671). The opening November 6 source-pin and run counts above are historical evidence, not the current parent head.
+- **Current audit review branch:** stacked on PR #386 through review-only parent synchronization commit `b2644e8899b99c738a15458cc02dd5097782cb76`. The twelve original audit-attribution changes are preserved; no protected branch or production resources were changed.
+- **Evidence status:** the inherited parent is CI-verified, but the audit-attribution changes require a fresh exact-head workflow run before this child is treated as verified. A clean mergeability signal is not test evidence. Audit tenant metadata remains unsuitable for authorization until independent broker publisher identity and provenance are established.
+
 ## Scope and trust flow
 - The server-side User service already obtains a UUID tenant identifier from a separately authenticated/signed JWT and persists it on `users.tenant_id`. Tenant-scoped User create/delete now publishes that same **stored User entity tenantId** through its typed publisher overload; client headers, JSON body or arbitrary record IDs cannot override it.
 - Legacy global administrator User mutations publish event messages without `tenantId`; historical audit records also retain a **NULL tenant_id**. No inferred ownership, backfill, or cross-table ID matching.

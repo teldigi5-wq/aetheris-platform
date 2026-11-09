@@ -14,8 +14,9 @@ The proof verifies that:
 2. registration returns access/refresh credentials and API_CONSUMER context;
 3. a protected route rejects anonymous access;
 4. forged `X-Aetheris-*` identity headers cannot bypass authentication;
-5. the legitimate API_CONSUMER access token can perform `users:read`;
-6. forged `ADMIN` / `users:write` headers cannot upgrade that token's authorization;
+5. a signed API_CONSUMER is denied global User reads by both Gateway and direct User backend;
+6. a separate synthetic account, promoted only within the disposable PostgreSQL fixture, obtains an actual Identity-issued ADMIN token that authorizes Gateway/User/Audit reads;
+7. forged `ADMIN` / `users:write` headers cannot upgrade a consumer token's authorization;
 7. a signature-tampered access JWT is rejected;
 8. an opaque refresh token cannot be reused as an access bearer token;
 9. the synthetic account password is stored as a BCrypt cost-12 hash, not plaintext;
@@ -26,7 +27,7 @@ The proof verifies that:
 14. the replacement SHA-256 hash is distinct and remains active;
 15. replay of the already-rotated raw refresh token is rejected.
 
-The machine-readable contract contains **16 checks** because service readiness is recorded separately from the security controls.
+The revised machine-readable contract defines **21 checks**, including explicit denied consumer reads and authorized synthetic ADMIN reads. This is an unmerged review change, not historical proof until CI succeeds at its exact commit.
 
 ## Files
 
@@ -45,7 +46,7 @@ It sends hostile requests through the live gateway and then queries the real Pos
 
 ## Important architecture boundary
 
-The user service is treated as an internal service behind the gateway. This proof therefore validates the public gateway boundary and does **not** claim that exposing internal service ports directly to untrusted networks is safe. Production network segmentation remains a deployment responsibility.
+The User and Audit services remain internal, but the revised preview also sends authenticated requests directly to both backend ports. Those backend checks require a correctly signed ADMIN bearer and must reject an ordinary signed consumer. Direct-port authentication does not authorize public exposure; production segmentation, mTLS, tenant ownership, and deployment review remain separate requirements.
 
 ## Truth boundary
 
