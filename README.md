@@ -379,3 +379,9 @@ Security-sensitive findings should follow **[SECURITY.md](SECURITY.md)** and sho
 **Built by Poojana Kaveesh Sellahewa**
 
 </div>
+
+---
+
+## AI continuity and next verified milestone (9 November 2026)
+
+Read [the source-pinned recovery handoff](docs/AI_HANDOFF_2026-11-09.md) before resuming. The recorded working branch is `security/s0-e6n-staging-migration-pg16-tls-20261109` (source PR #417); its code is **not on protected main** merely because a review CI passed. Re-verify the live branch HEAD and original CI before further edits. This section is documentation-only, not a release or production approval.
