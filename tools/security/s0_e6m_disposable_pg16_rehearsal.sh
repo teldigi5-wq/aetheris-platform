@@ -141,6 +141,8 @@ pg_restore -w -e --single-transaction -h "$PGHOST" -p "$PGPORT" \
   -U "$PGUSER" -d aetheris_e6m_restored "$tmp/point-in-time.custom"
 guard "$(restored -At -c "SELECT marker FROM e6m_unrelated_record WHERE id=1")" OWNER_DATA_UNTOUCHED
 guard "$(restored -At -c "SELECT pg_get_userbyid(proowner) FROM pg_proc WHERE pronamespace='e6j_runtime_auth'::regnamespace AND proname='check_signed_session'")" e6j_exec_owner
+guard "$(restored -At -c "SELECT has_table_privilege('e6m_reader_login','e6j_runtime_auth.session_registrations','SELECT')")" f
+guard "$(restored -At -c "SELECT has_function_privilege('e6m_reader_login','e6j_runtime_auth.check_signed_session(varchar,varchar,varchar,bigint,bigint)','EXECUTE')")" t
 # This TRUE proves restore WITHOUT a fence would wrongly resurrect a
 # previously revoked JWT (negative security test, NEVER an allow decision).
 guard "$(login_sql e6m_reader_login "$reader_pass" aetheris_e6m_restored "$read_query")" t
@@ -153,9 +155,9 @@ guard "$(login_sql e6m_reader_login "$reader_pass" aetheris_e6m_restored "$read_
 guard "$(restored -At -c "SELECT count(*) FROM e6j_runtime_auth.session_registrations WHERE state='ACTIVE'")" 0
 guard "$(restored -At -c "SELECT count(*) FROM e6j_runtime_auth.signer_key_states WHERE state='ACTIVE'")" 0
 guard "$(restored -At -c "SELECT count(*) FROM e6j_runtime_auth.session_registrations WHERE state='REVOKED' AND revoked_at IS NOT NULL")" 1
-guard "$(restored -At -c "SELECT count(*) FROM e6j_runtime_auth.authority_audit")" 2
+guard "$(restored -At -c "SELECT count(*) FROM e6j_runtime_auth.authority_audit")" 3
 restored -f "$fence"
-guard "$(restored -At -c "SELECT count(*) FROM e6j_runtime_auth.authority_audit")" 2
+guard "$(restored -At -c "SELECT count(*) FROM e6j_runtime_auth.authority_audit")" 3
 guard "$(restored -At -c "SELECT marker FROM e6m_unrelated_record WHERE id=1")" OWNER_DATA_UNTOUCHED
 echo S0_E6M_RESTORED_JTI_SIGNER_FENCE_IDEMPOTENT_AND_BASELINE_PRESERVED_PASS
 
