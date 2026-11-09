@@ -19,9 +19,18 @@ import java.util.UUID;
 @Service
 public class AuditEventStore {
     private final AuditEventRepository repository;
+    private final AuditEventOriginVerifier originVerifier;
 
-    public AuditEventStore(AuditEventRepository repository) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public AuditEventStore(AuditEventRepository repository,
+                           AuditEventOriginVerifier originVerifier) {
         this.repository = repository;
+        this.originVerifier = originVerifier;
+    }
+
+    /** Existing tests and legacy startup remain explicitly unsigned. */
+    public AuditEventStore(AuditEventRepository repository) {
+        this(repository, AuditEventOriginVerifier.disabled());
     }
 
     @Transactional
@@ -30,6 +39,7 @@ public class AuditEventStore {
         final UserDomainEvent event;
         try {
             event = validatedEvent(message);
+            originVerifier.verify(message, event);
         } catch (IllegalArgumentException | DateTimeParseException invalid) {
             // A permanent, malformed payload must not cause unbounded broker
             // retries. No PII, raw exception text or full payload is logged.
@@ -43,12 +53,12 @@ public class AuditEventStore {
     }
 
     private static UserDomainEvent validatedEvent(Map<String, Object> message) {
-        if (message == null || message.size() < 6 || message.size() > 7) {
+        if (message == null || message.size() < 6 || message.size() > 8) {
             throw new IllegalArgumentException("Invalid event envelope");
         }
         for (String key : message.keySet()) {
             if (key == null || !List.of("eventId", "eventType", "occurredAt",
-                    "userId", "name", "email", "tenantId").contains(key)) {
+                    "userId", "name", "email", "tenantId", "originProof").contains(key)) {
                 throw new IllegalArgumentException("Unrecognized event field");
             }
         }

@@ -48,6 +48,11 @@ info:
 
 # A missing signing key fails startup; never accept an implicit development secret.
 aetheris:
+  # Only the public verifier key belongs in Audit; never copy the private key.
+  audit-origin:
+    required: ${AETHERIS_AUDIT_ORIGIN_VERIFY_REQUIRED:false}
+    public-key-pem: ${AETHERIS_AUDIT_ORIGIN_PUBLIC_KEY_PEM:}
+    key-id: ${AETHERIS_AUDIT_ORIGIN_KEY_ID:}
   jwt:
     secret: ${AETHERIS_JWT_SECRET:}
     algorithm: ${AETHERIS_JWT_ALGORITHM:HS256}
