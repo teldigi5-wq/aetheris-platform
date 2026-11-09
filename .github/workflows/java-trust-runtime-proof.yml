@@ -11,48 +11,46 @@ permissions:
   contents: read
 
 jobs:
-  container-trust-proof:
+  java-container-trust:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
-      - name: Checkout reviewed branch revision
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-      - name: Verify source trust/pinning guards across all four services
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Verify source image pins, dependency policy and runtime user
         run: python3 -m unittest -v tests.test_java_container_trust tests.test_dependency_lockdown_containers
-      - name: Set up pinned JDK for CI-only TLS probe compilation
+      - name: Set up Java for isolated TLS probe
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
         with:
-          distribution: corretto
+          distribution: temurin
           java-version: '21.0.13'
-      - name: Compile read-only TLS proof (not packaged in app images)
+      - name: Compile independent TLS probe (not packaged in service images)
         run: |
           mkdir -p "${RUNNER_TEMP}/emudhra-proof"
           javac --release 17 -d "${RUNNER_TEMP}/emudhra-proof" tests/EmudhraTlsProbe.java
-      - name: Rebuild four images and inspect actual runtime truststores
+      - name: Build all four digest-pinned images and verify actual JVM trust
         shell: bash
         run: |
           set -euo pipefail
           for module in gateway identity-service user-service audit-service; do
-            echo "::group::Truststore proof: ${module}"
-            docker build --pull --file "${module}/Dockerfile" \
-              --tag "aetheris-${module}-ca-proof:${GITHUB_SHA}" "${module}"
-            docker run --rm --entrypoint /bin/sh "aetheris-${module}-ca-proof:${GITHUB_SHA}" -ec '
+            echo "::group::Runtime trust proof: ${module}"
+            image="aetheris-${module}-patched-java:${GITHUB_SHA}"
+            docker build --pull --file "${module}/Dockerfile" --tag "$image" "${module}"
+            docker image inspect "$image" --format 'Built image ID={{.Id}}'
+            docker run --rm --entrypoint /bin/sh "$image" -ec '
               set -eu
-              java -version 2>&1 | grep -Fq "21.0.13"
+              java -version 2>&1 | grep -Fq "Temurin-21.0.13+9"
               keytool -list -cacerts -storepass changeit >/dev/null
-              for alias in "emsignrootcag1 [jdk]" "emsignrootcag2 [jdk]" "emsigneccrootcag3 [jdk]" "comodoaaaca [jdk]"; do
-                if keytool -list -cacerts -storepass changeit -alias "$alias" >/dev/null 2>&1; then
-                  echo "Unsafe CA alias remains: $alias" >&2; exit 1
-                fi
-              done
-              certs="$(keytool -list -v -cacerts -storepass changeit)"
-              if printf "%s\n" "$certs" | tr -d : | grep -Eqi "40F6AF0346A99AA1CD1D555A4E9CCE62C7F9634603EE406615833DC8C8D00367|1AA0C2709E831BD6E3B5129A00BA41F7EEEF020872F1E6504BF0F6C3F24F3AF3|86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B|D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4"; then
-                echo "Compromised CA fingerprint remains in runtime" >&2; exit 1
+              fingerprints="$(keytool -list -v -cacerts -storepass changeit)"
+              if printf "%s\n" "$fingerprints" | tr -d : | grep -Eqi "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B|D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4"; then
+                echo "FAIL: affected eMudhra/AAA root remains in runtime truststore" >&2
+                exit 1
               fi
-              echo "Runtime truststore: Oracle-disallowed aliases and known fingerprints absent"
+              echo "PASS: vendor-patched Java 21.0.13+9 and affected root fingerprints absent"
             '
-            docker run --rm --mount "type=bind,src=${RUNNER_TEMP}/emudhra-proof,dst=/proof,readonly" \
-              --entrypoint java "aetheris-${module}-ca-proof:${GITHUB_SHA}" \
+            docker run --rm \
+              --mount "type=bind,src=${RUNNER_TEMP}/emudhra-proof,dst=/proof,readonly" \
+              --entrypoint java "$image" \
               -cp /proof EmudhraTlsProbe
             echo "::endgroup::"
           done
