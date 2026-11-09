@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import re
+import secrets
 import subprocess
 import threading
 import time
@@ -227,13 +228,65 @@ def main() -> int:
         passed("security.forged-identity-headers-rejected")
 
         auth_headers = {"Authorization": f"Bearer {access_token}"}
-        status, users = http_json(
+        status, _ = http_json(
             "GET", "http://127.0.0.1:8080/api/users", headers=auth_headers
         )
-        expect_status(status, 200, "authorized API_CONSUMER read")
+        expect_status(status, 403, "API_CONSUMER global User read must be denied")
+        passed("security.consumer-global-read-denied")
+
+        status, _ = http_json(
+            "GET", "http://127.0.0.1:8081/api/users", headers=auth_headers
+        )
+        expect_status(status, 403, "direct backend must reject API_CONSUMER global User read")
+        passed("security.direct-consumer-global-read-denied")
+
+        # CI-only, isolated account: promote a second synthetic principal in the
+        # disposable database, then obtain an actual Identity-issued ADMIN JWT.
+        # Never forge role claims or use a bypass header for the positive proof.
+        admin_email = f"security-proof-admin-{stamp}@aetheris.local"
+        admin_password = secrets.token_urlsafe(24) + "Aa1!"
+        status, _ = http_json(
+            "POST", "http://127.0.0.1:8080/api/auth/register",
+            {"name": "Synthetic Security Administrator", "email": admin_email, "password": admin_password},
+        )
+        expect_status(status, 201, "synthetic administrator account registration")
+        promoted_count = psql(
+            "with promoted as (update identity_accounts set role='ADMIN' "
+            f"where email={sql_literal(admin_email)} and role='API_CONSUMER' returning id) "
+            "select count(*) from promoted;"
+        ).strip()
+        if promoted_count != "1":
+            raise AssertionError("disposable synthetic administrator promotion did not affect exactly one account")
+        status, admin_login = http_json(
+            "POST", "http://127.0.0.1:8080/api/auth/login",
+            {"email": admin_email, "password": admin_password},
+        )
+        expect_status(status, 200, "synthetic administrator Identity login")
+        if not isinstance(admin_login, dict) or not isinstance(admin_login.get("accessToken"), str) or (
+            not isinstance(admin_login.get("account"), dict)
+            or admin_login["account"].get("role") != "ADMIN"
+        ):
+            raise AssertionError("login did not issue an Identity-authenticated ADMIN account context")
+        admin_headers = {"Authorization": f"Bearer {admin_login['accessToken']}"}
+        status, users = http_json(
+            "GET", "http://127.0.0.1:8080/api/users", headers=admin_headers
+        )
+        expect_status(status, 200, "signed ADMIN global User read through Gateway")
         if not isinstance(users, list):
-            raise AssertionError(f"authorized users read must return a list: {users!r}")
-        passed("security.valid-consumer-read")
+            raise AssertionError("authorized administrator User response was not a list")
+        passed("security.admin-global-read-allowed")
+
+        status, direct_users = http_json(
+            "GET", "http://127.0.0.1:8081/api/users", headers=admin_headers
+        )
+        expect_status(status, 200, "signed ADMIN direct User service read")
+        status, direct_events = http_json(
+            "GET", "http://127.0.0.1:8083/api/events", headers=admin_headers
+        )
+        expect_status(status, 200, "signed ADMIN direct Audit service read")
+        if not isinstance(direct_users, list) or not isinstance(direct_events, list):
+            raise AssertionError("direct administrator service responses were not lists")
+        passed("security.direct-service-admin-read-allowed")
 
         escalated_headers = {**spoof_headers, "Authorization": f"Bearer {access_token}"}
         status, body = http_json(
@@ -243,8 +296,8 @@ def main() -> int:
             headers=escalated_headers,
         )
         expect_status(status, 403, "forged ADMIN/scopes headers with consumer token")
-        if not isinstance(body, dict) or "users:write" not in str(body.get("message", "")):
-            raise AssertionError(f"scope-denial response did not identify users:write: {body!r}")
+        if not isinstance(body, dict) or body.get("error") != "Forbidden":
+            raise AssertionError("forged ADMIN headers did not produce a gateway role denial")
         passed("security.forged-admin-header-cannot-escalate")
 
         status, _ = http_json(
