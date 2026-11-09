@@ -11,6 +11,7 @@ A GitHub release is a source/distribution milestone. It must not silently become
 - Stage 27 canonical development-line marker: `feature/syntra-aetheris-foundation-v2`
 - AI runtime source owner: `teldigi5-wq/aetheris-ai-runtime`
 - Platform-recorded certified runtime checkpoint: `65a6262717adcd52ac8d8a16ed6f223e299fd74d`
+- Java service image trust mitigation (9 November 2026): isolated vendor-patched Temurin 21.0.13+9 review candidate; not yet merged, deployed or host/toolchain-verified. See `docs/java-container-trust-20261109.md`.
 - Software license: **Apache License 2.0** for both Aetheris source-owner repositories
 - Physical-machine status: `BLOCKED_PENDING_HARDWARE`
 - Physical-PC validation remains pending
