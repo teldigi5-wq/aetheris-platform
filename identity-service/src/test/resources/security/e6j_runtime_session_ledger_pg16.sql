@@ -110,7 +110,7 @@ CREATE FUNCTION e6j_runtime_auth.check_signed_session(
 RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
-AS $
+AS $$
 BEGIN
     IF p_issuer IS NULL OR p_kid IS NULL OR p_jti IS NULL
        OR p_uid IS NULL OR p_uid <= 0 OR p_iat IS NULL OR p_iat <= 0
@@ -131,7 +131,7 @@ BEGIN
      FOR SHARE OF s,k,e;
     RETURN FOUND;
 END;
-$;
+$$;
 
 CREATE FUNCTION e6j_runtime_auth.revoke_signed_session(
     p_issuer varchar, p_kid varchar, p_jti varchar, p_request uuid)
