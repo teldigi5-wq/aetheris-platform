@@ -1,0 +1,86 @@
+name: S0-E6J Runtime Session Ledger PG16 Least Privilege (review only)
+on:
+  push:
+    branches: [security/s0-e6j-durable-runtime-session-ledger-20261109]
+  pull_request:
+    branches: [security/s0-e6i-real-identity-tomcat-mtls-20261030]
+permissions:
+  contents: read
+
+jobs:
+  actual-postgres-session-ledger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aetheris_e6j_disposable
+          POSTGRES_USER: e6j_test_only
+          POSTGRES_PASSWORD: e6j_disposable_ci_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U e6j_test_only -d aetheris_e6j_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      AETHERIS_E6J_DISPOSABLE_MARKER: ONLY_DISPOSABLE_E6J_POSTGRES
+      PGHOST: 127.0.0.1
+      PGDATABASE: aetheris_e6j_disposable
+      PGUSER: e6j_test_only
+      PGPASSWORD: e6j_disposable_ci_only
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Assert exact immutable head and prevent production migration or route activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$GITHUB_ACTIONS" = true
+          test "$AETHERIS_E6J_DISPOSABLE_MARKER" = ONLY_DISPOSABLE_E6J_POSTGRES
+          test "$PGDATABASE" = aetheris_e6j_disposable
+          test "$PGHOST" = 127.0.0.1
+          test "$PGUSER" = e6j_test_only
+          test -f identity-service/src/test/resources/security/e6j_runtime_session_ledger_pg16.sql
+          test ! -f identity-service/src/main/resources/db/migration/V9999__e6j_runtime_session_ledger.sql
+          ! grep -Eq '@RestController|@PostMapping|@GetMapping|@RequestMapping' identity-service/src/test/java/io/aetheris/identity/RuntimeSessionLedgerPg16IT.java
+          test ! -f identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenController.java
+      - name: Real PostgreSQL16 session ledger, audit, revoker isolation and row locks
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=RuntimeSessionLedgerPg16IT test
+      - name: Require actual executed six PG tests without skips or stale schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          p=Path('identity-service/target/surefire-reports/TEST-io.aetheris.identity.RuntimeSessionLedgerPg16IT.xml')
+          r=ET.parse(p).getroot()
+          assert int(r.attrib['tests']) >= 6,r.attrib
+          assert all(int(r.attrib.get(k,'0')) == 0 for k in ('failures','errors','skipped')),r.attrib
+          print('S0_E6J_REAL_PG16_LEDGER_ROLE_AUDIT_REVOCATION_NO_SKIPS_PASS')
+          PY
+          echo S0_E6J_NO_PRODUCTION_MIGRATION_NO_HTTP_GRANT_STAGE45_NO_GO
+
+  existing-identity-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Legacy session and dormant Runtime issuer contract regression
+        run: |
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest,RuntimeAudienceTokenIssuerTest,RuntimeAudienceSessionExchangeServiceTest,RuntimeExchangeGatewayWorkloadPolicyTest test
+      - name: Full platform reactor regression without new HTTP routes
+        run: ./mvnw -B -ntp test
