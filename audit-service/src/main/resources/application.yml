@@ -57,6 +57,11 @@ aetheris:
     import-enabled: ${AETHERIS_AUDIT_MEMBERSHIP_IMPORT_ENABLED:false}
     authority-public-key-pem: ${AETHERIS_AUDIT_MEMBERSHIP_AUTHORITY_PUBLIC_KEY_PEM:}
     authority-key-id: ${AETHERIS_AUDIT_MEMBERSHIP_AUTHORITY_KEY_ID:}
+    # Only a separately isolated and owner-approved reconciliation worker
+    # may receive these. The Audit listener MUST NOT receive writer secrets.
+    writer-db-url: ${AETHERIS_AUDIT_MEMBERSHIP_WRITER_DB_URL:}
+    writer-db-username: ${AETHERIS_AUDIT_MEMBERSHIP_WRITER_DB_USERNAME:}
+    writer-db-password: ${AETHERIS_AUDIT_MEMBERSHIP_WRITER_DB_PASSWORD:}
   # Only the public verifier key belongs in Audit; never copy the private key.
   audit-origin:
     required: ${AETHERIS_AUDIT_ORIGIN_VERIFY_REQUIRED:false}

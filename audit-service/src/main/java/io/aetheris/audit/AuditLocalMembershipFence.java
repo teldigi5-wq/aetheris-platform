@@ -7,8 +7,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import java.sql.Timestamp;
-import java.time.Instant;
-import java.util.List;
 
 /**
  * Opt-in local membership *mirror*, not an independent membership authority.
@@ -46,28 +44,17 @@ public final class AuditLocalMembershipFence {
         if (event == null || event.tenantId() == null || event.userId() <= 0) {
             throw reject();
         }
-        List<Grant> grants = jdbc.query(
-                """
-                SELECT status, valid_since, revision
-                FROM audit_user_tenant_membership_fence
-                WHERE tenant_id = ? AND user_id = ?
-                FOR SHARE
-                """,
-                (rs, row) -> new Grant(
-                        rs.getString("status"),
-                        rs.getTimestamp("valid_since").toInstant(),
-                        rs.getLong("revision")),
-                event.tenantId(),
-                event.userId());
-        if (grants.size() != 1) throw reject();
-        Grant grant = grants.get(0);
-        if (!"ACTIVE".equals(grant.status())
-                || grant.revision() < 1
-                || event.occurredAt().isBefore(grant.validSince())) {
-            throw reject();
-        }
-        // Local transaction holds FOR SHARE until Audit event is committed.
-        // A concurrently writing REVOKED update must wait for this commit.
+        // The plain ingest JDBC role has *zero* UPDATE privilege on the
+        // membership table. PostgreSQL requires UPDATE privilege for a
+        // direct SELECT ... FOR SHARE. A fixed SECURITY DEFINER function
+        // acquires that lock instead and returns a Boolean admission verdict.
+        // Its row lock persists until the outer @Transactional Audit write
+        // commits. The ingest role has EXECUTE on this function only.
+        Boolean admitted = jdbc.queryForObject(
+                "SELECT public.audit_membership_can_ingest(?, ?, ?)",
+                Boolean.class, event.tenantId(), event.userId(),
+                Timestamp.from(event.occurredAt()));
+        if (!Boolean.TRUE.equals(admitted)) throw reject();
     }
 
     private static AmqpRejectAndDontRequeueException reject() {
@@ -76,5 +63,4 @@ public final class AuditLocalMembershipFence {
                 "Local Audit membership admission denied");
     }
 
-    private record Grant(String status, Instant validSince, long revision) {}
 }
