@@ -82,5 +82,25 @@ jobs:
         run: |
           ./mvnw -B -ntp -f identity-service/pom.xml \
             -Dtest=IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest,RuntimeAudienceTokenIssuerTest,RuntimeAudienceSessionExchangeServiceTest,RuntimeExchangeGatewayWorkloadPolicyTest test
-      - name: Full platform reactor regression without new HTTP routes
-        run: ./mvnw -B -ntp test
+      - name: Require prior Identity, issuer, refresh and mTLS policy regressions with no skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          base=Path('identity-service/target/surefire-reports')
+          names=('IdentityServiceSecurityTest','RefreshTokenServiceTest',
+                 'BrowserAuthControllerTest','RuntimeAudienceTokenIssuerTest',
+                 'RuntimeAudienceSessionExchangeServiceTest',
+                 'RuntimeExchangeGatewayWorkloadPolicyTest')
+          count=0
+          for name in names:
+              report=base/('TEST-io.aetheris.identity.'+name+'.xml')
+              root=ET.parse(report).getroot()
+              assert all(int(root.attrib.get(k,'0'))==0
+                         for k in ('failures','errors','skipped')), (name,root.attrib)
+              count+=int(root.attrib['tests'])
+          assert count >= 32,count
+          print('S0_E6J_THIRTY_TWO_IDENTITY_ISSUER_REFRESH_POLICY_REGRESSIONS_PASS')
+          PY
