@@ -44,21 +44,28 @@ class RuntimeSessionLedgerPg16IT {
         assertEquals("aetheris_e6j_disposable",System.getenv("PGDATABASE"));
         assertEquals("e6j_test_only",System.getenv("PGUSER"));
         assertNotNull(System.getenv("PGPASSWORD"));
+        // CI applies this versioned script with PostgreSQL's native psql
+        // parser, which understands PL/pgSQL dollar-quoted function bodies.
+        // Never split SECURITY DEFINER DDL on raw semicolons in JDBC.
         try(InputStream stream=RuntimeSessionLedgerPg16IT.class
                 .getResourceAsStream("/security/e6j_runtime_session_ledger_pg16.sql")) {
             assertNotNull(stream, "Versioned review DDL must exist");
             String ddl=new String(stream.readAllBytes(),StandardCharsets.UTF_8);
             assertTrue(ddl.startsWith("-- S0-E6J. DISPOSABLE"));
-            try(Connection c=admin();Statement sql=c.createStatement()) {
-                // Driver sends the complete SQL script; DO NOT split PL/pgSQL
-                // function bodies on semicolons.
-                sql.execute(ddl);
-                sql.execute("INSERT INTO "+PREFIX+"signer_key_states "+
-                    "(issuer,kid,state) VALUES ('"+ISS+"','"+KID+"','ACTIVE')");
-                sql.execute("INSERT INTO "+PREFIX+"principal_epochs "+
-                    "(principal_id,reject_issued_at_or_before_epoch) "+
-                    "VALUES (42,0),(77,0)");
+        }
+        try(Connection c=admin();Statement sql=c.createStatement()) {
+            try(var rows=sql.executeQuery("""
+                SELECT count(*) FROM pg_namespace
+                 WHERE nspname='e6j_runtime_auth'""")) {
+                assertTrue(rows.next());
+                assertEquals(1,rows.getInt(1),
+                    "Native psql must apply isolated DDL before JUnit");
             }
+            sql.execute("INSERT INTO "+PREFIX+"signer_key_states "+
+                "(issuer,kid,state) VALUES ('"+ISS+"','"+KID+"','ACTIVE')");
+            sql.execute("INSERT INTO "+PREFIX+"principal_epochs "+
+                "(principal_id,reject_issued_at_or_before_epoch) "+
+                "VALUES (42,0),(77,0)");
         }
     }
 
