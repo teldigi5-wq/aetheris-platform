@@ -1,0 +1,49 @@
+name: XERJ RS256 single-filter security reconciliation (review only)
+on:
+  pull_request:
+    branches: [security/xerj-compose-failclosed-20261106]
+    paths:
+      - 'identity-service/**'
+      - 'gateway/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - '.github/workflows/xerj-rs256-single-filter-review.yml'
+      - 'docs/security/XERJ_RS256_SINGLE_FILTER_20261106.md'
+permissions:
+  contents: read
+jobs:
+  rs256-bounded-single-filter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Exact SHA checkout, no persisted token
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: corretto
+          java-version: '21'
+          cache: maven
+      - name: Require exactly one Servlet authorization filter per service
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for svc,package in [('user-service','users'),('audit-service','audit')]:
+              folder = Path(svc)/'src/main/java/io/aetheris'/package/'security'
+              assert (folder/'ServiceJwtAuthorizationFilter.java').is_file(), svc
+              assert not (folder/'DirectApiJwtFilter.java').exists(), svc
+              filters = [p for p in folder.glob('*.java')
+                         if 'extends OncePerRequestFilter' in p.read_text()]
+              assert len(filters)==1, (svc, [x.name for x in filters])
+          print('XERJ_ONE_BACKEND_AUTHORIZATION_FILTER_PER_SERVICE_PASS')
+          PY
+      - name: Identity issue RS256 private-only and legacy HS regression
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=JwtServiceIssuerAudienceTest,JwtServiceRs256ModeTest,IdentityServiceSecurityTest,RefreshTokenServiceTest test
+      - name: Gateway RS256 public-only, signed role policy and HS regression
+        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=JwtAuthenticationFilterTest,JwtRs256ModeTest,RateLimitConfigTest,GatewayLiveRouteBindingTest test
+      - name: User direct RS256 resource enforcement plus MVC regressions
+        run: ./mvnw -B -ntp -f user-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest,ServiceJwtRs256ModeTest,UserWebSliceAuthorizationTest,UserControllerTest test
+      - name: Audit direct RS256 resource enforcement plus MVC regressions
+        run: ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=ServiceJwtAuthorizationFilterTest,ServiceJwtRs256ModeTest,AuditWebSliceAuthorizationTest,AuditControllerTest test

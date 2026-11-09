@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import javax.crypto.SecretKey;
+import java.security.PublicKey;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -36,6 +37,8 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
     static final String DEFAULT_AUDIENCE = "aetheris-api";
     private static final String UNSAFE_LOCAL_KEY = "change-me-local-development-secret-32chars";
     private final SecretKey signingKey;
+    private final PublicKey verificationPublicKey;
+    private final String keyId;
     private final String issuer;
     private final String audience;
 
@@ -43,22 +46,40 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
     public ServiceJwtAuthorizationFilter(
             @Value("${aetheris.jwt.secret}") String secret,
             @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
-            @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
-                UNSAFE_LOCAL_KEY.equals(secret)) {
-            throw new IllegalArgumentException("A non-default JWT signing key of >=32 bytes is required");
-        }
+            @Value("${aetheris.jwt.audience:aetheris-api}") String audience,
+            @Value("${aetheris.jwt.algorithm:HS256}") String algorithm,
+            @Value("${aetheris.jwt.rsa-public-key-pem:}") String publicKeyPem,
+            @Value("${aetheris.jwt.key-id:}") String keyId) {
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience are required");
         }
-        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        if ("RS256".equals(algorithm)) {
+            if (secret == null || !secret.isEmpty() || !JwtRs256KeySupport.validKid(keyId)) {
+                throw new IllegalArgumentException("RS256 backend requires pinned public key without HMAC");
+            }
+            this.verificationPublicKey = JwtRs256KeySupport.publicKey(publicKeyPem);
+            this.keyId = keyId;
+            this.signingKey = null;
+        } else if ("HS256".equals(algorithm)) {
+            if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
+                    UNSAFE_LOCAL_KEY.equals(secret) ||
+                    (publicKeyPem != null && !publicKeyPem.isBlank()) ||
+                    (keyId != null && !keyId.isBlank())) {
+                throw new IllegalArgumentException("Invalid HS256 resource server configuration");
+            }
+            this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+            this.verificationPublicKey = null;
+            this.keyId = null;
+        } else {
+            throw new IllegalArgumentException("Unsupported JWT backend verifier algorithm");
+        }
         this.issuer = issuer;
         this.audience = audience;
     }
 
     /** Synthetic-only constructor; runtime Spring creates the annotated constructor. */
     public ServiceJwtAuthorizationFilter(String secret) {
-        this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
+        this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE, "HS256", "", "");
     }
 
     @Override
@@ -90,13 +111,18 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
 
         final Claims claims;
         try {
-            var signed = Jwts.parser()
-                    .verifyWith(signingKey)
-                    .requireIssuer(issuer)
-                    .requireAudience(audience)
-                    .build()
-                    .parseSignedClaims(authorization.substring(7));
-            if (!"HS256".equals(signed.getHeader().getAlgorithm())) {
+            io.jsonwebtoken.Jws<Claims> signed = verificationPublicKey != null ?
+                    Jwts.parser().verifyWith(verificationPublicKey)
+                            .requireIssuer(issuer).requireAudience(audience)
+                            .build().parseSignedClaims(authorization.substring(7)) :
+                    Jwts.parser().verifyWith(signingKey)
+                            .requireIssuer(issuer).requireAudience(audience)
+                            .build().parseSignedClaims(authorization.substring(7));
+            if (verificationPublicKey != null ?
+                    (!"RS256".equals(signed.getHeader().getAlgorithm()) ||
+                     !keyId.equals(signed.getHeader().getKeyId())) :
+                    (!"HS256".equals(signed.getHeader().getAlgorithm()) ||
+                     signed.getHeader().getKeyId() != null)) {
                 deny(response, HttpServletResponse.SC_UNAUTHORIZED);
                 return;
             }

@@ -18,6 +18,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
+import java.security.PublicKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
@@ -30,6 +31,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public static final String DEFAULT_ISSUER = "aetheris-identity";
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
     private final SecretKey key;
+    private final PublicKey verificationPublicKey;
+    private final String keyId;
     private final String issuer;
     private final String audience;
 
@@ -37,22 +40,40 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     public JwtAuthenticationFilter(
             @Value("${aetheris.jwt.secret}") String secret,
             @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
-            @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
-        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
-                "change-me-local-development-secret-32chars".equals(secret)) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 bytes");
-        }
+            @Value("${aetheris.jwt.audience:aetheris-api}") String audience,
+            @Value("${aetheris.jwt.algorithm:HS256}") String algorithm,
+            @Value("${aetheris.jwt.rsa-public-key-pem:}") String publicKeyPem,
+            @Value("${aetheris.jwt.key-id:}") String keyId) {
         if (issuer == null || issuer.isBlank() || audience == null || audience.isBlank()) {
             throw new IllegalArgumentException("JWT issuer and audience must be configured");
         }
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        if ("RS256".equals(algorithm)) {
+            if (secret == null || !secret.isEmpty() || !JwtRs256KeySupport.validKid(keyId)) {
+                throw new IllegalArgumentException("RS256 verifier must have pinned public key only");
+            }
+            this.verificationPublicKey = JwtRs256KeySupport.publicKey(publicKeyPem);
+            this.keyId = keyId;
+            this.key = null;
+        } else if ("HS256".equals(algorithm)) {
+            if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
+                    "change-me-local-development-secret-32chars".equals(secret) ||
+                    (publicKeyPem != null && !publicKeyPem.isBlank()) ||
+                    (keyId != null && !keyId.isBlank())) {
+                throw new IllegalArgumentException("HS256 verifier configuration invalid");
+            }
+            this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+            this.verificationPublicKey = null;
+            this.keyId = null;
+        } else {
+            throw new IllegalArgumentException("Unsupported JWT verifier algorithm");
+        }
         this.issuer = issuer;
         this.audience = audience;
     }
 
     // Source-compatible deterministic constructor for existing gateway unit tests.
     public JwtAuthenticationFilter(String secret) {
-        this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
+        this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE, "HS256", "", "");
     }
 
     @Override
@@ -63,20 +84,29 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        java.util.List<String> authorizations = exchange.getRequest().getHeaders().get(HttpHeaders.AUTHORIZATION);
+        String authorization = authorizations != null && authorizations.size() == 1 ?
+                authorizations.get(0) : null;
+        if (authorization == null || !authorization.startsWith("Bearer ") ||
+                authorization.length() <= 7 || authorization.length() > 8199 ||
+                !authorization.substring(7).equals(authorization.substring(7).trim())) {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Missing bearer token");
         }
 
         String token = authorization.substring(7).trim();
         try {
-            var verified = Jwts.parser()
-                    .verifyWith(key)
-                    .requireIssuer(issuer)
-                    .requireAudience(audience)
-                    .build()
-                    .parseSignedClaims(token);
-            if (!"HS256".equals(verified.getHeader().getAlgorithm())) {
+            io.jsonwebtoken.Jws<Claims> verified = verificationPublicKey != null ?
+                    Jwts.parser().verifyWith(verificationPublicKey)
+                            .requireIssuer(issuer).requireAudience(audience)
+                            .build().parseSignedClaims(token) :
+                    Jwts.parser().verifyWith(key)
+                            .requireIssuer(issuer).requireAudience(audience)
+                            .build().parseSignedClaims(token);
+            if (verificationPublicKey != null ?
+                    (!"RS256".equals(verified.getHeader().getAlgorithm()) ||
+                     !keyId.equals(verified.getHeader().getKeyId())) :
+                    (!"HS256".equals(verified.getHeader().getAlgorithm()) ||
+                     verified.getHeader().getKeyId() != null)) {
                 return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid access token algorithm");
             }
             Claims claims = verified.getPayload();

@@ -17,7 +17,10 @@ aetheris:
   browser-auth:
     secure-cookie: ${AETHERIS_BROWSER_REFRESH_COOKIE_SECURE:true}
   jwt:
-    secret: ${AETHERIS_JWT_SECRET}
+    secret: ${AETHERIS_JWT_SECRET:}
+    algorithm: ${AETHERIS_JWT_ALGORITHM:HS256}
+    rsa-private-key-pem: ${AETHERIS_JWT_RSA_PRIVATE_KEY_PEM:}
+    key-id: ${AETHERIS_JWT_RS256_KEY_ID:}
     issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
     audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
     expiration-seconds: ${AETHERIS_JWT_EXPIRATION_SECONDS:3600}
