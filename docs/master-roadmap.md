@@ -31,6 +31,10 @@ Stage 33 implementation details: [`stage-33-governance-approvals.md`](stage-33-g
 
 Stage 34 canonical continuation/build specification: [`master-build-spec.md`](master-build-spec.md).
 
+## Post-roadmap Java container trust review — 9 November 2026
+
+A separate, review-only change proposes patched Eclipse Temurin 21.0.13+9 for the retained Gateway, Identity, User and Audit service JDK/JRE images, without merging stale integrated draft PR #309 or changing host Java pins. Real container truststore and positive/negative TLS proof is required before any promotion. This is not Stage 35; Stage 34/34 and `BLOCKED_PENDING_HARDWARE` remain unchanged. See [Java container trust review](java-container-trust-20261109.md) and operational issue #312.
+
 ## Stage 34 result
 
 Stage 34 converts the Master Blueprint v2.0 build prompt into a repository-native constitution. It records product identity, target environment, performance intent, the Stage 33 action lifecycle, canonical owner-rule integration, Zero-Cost/Private/emergency invariants, model/voice/agent/security/tool/memory boundaries, build order, current evidence map, physical-PC truth boundary, validation gates, eventual physical-product definition of done and a concise continuation prompt.

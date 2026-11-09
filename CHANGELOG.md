@@ -4,6 +4,12 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### Java container eMudhra trust maintenance — development review (9 November 2026)
+
+- Isolate patched official Temurin 21.0.13+9 base-image digests for the four Java service JDK/JRE stages without merging unrelated, conflicting PR #309 changes.
+- Add actual container-version/truststore and positive/negative Java HTTPS verification; retain Maven checksum, non-root service and historical source-ownership contracts.
+- Leave existing Java 21.0.12 host/CI version pins and deployed operator image inventory for a separately reviewed update. This source candidate is not production deployment or certification.
+
 ### Gateway recovery repeatability (9 November 2026, development review)
 
 - Preserve the original 17-check hosted release-proof contract and 180-second health wait, while requiring two complete fail-closed gateway stop/restart cycles with exact-image and protected-user-state checks.
