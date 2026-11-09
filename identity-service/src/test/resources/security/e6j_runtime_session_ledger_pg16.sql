@@ -2,11 +2,12 @@
 -- NOT a Flyway migration; never apply to production or shared databases.
 -- The executor must first prove an isolated CI database and review this DDL.
 BEGIN;
+CREATE ROLE e6j_exec_owner NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE;
 CREATE ROLE e6j_reader NOLOGIN;
 CREATE ROLE e6j_issuer NOLOGIN;
 CREATE ROLE e6j_revoker NOLOGIN;
 CREATE ROLE e6j_outsider NOLOGIN;
-CREATE SCHEMA e6j_runtime_auth;
+CREATE SCHEMA e6j_runtime_auth AUTHORIZATION e6j_exec_owner;
 REVOKE ALL ON SCHEMA e6j_runtime_auth FROM PUBLIC;
 
 CREATE TABLE e6j_runtime_auth.signer_key_states (
@@ -50,6 +51,12 @@ CREATE TABLE e6j_runtime_auth.authority_audit (
     occurred_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- SECURITY DEFINER execution is owned by this restricted NOLOGIN role,
+-- not the test's disposable PostgreSQL superuser.
+ALTER TABLE e6j_runtime_auth.signer_key_states OWNER TO e6j_exec_owner;
+ALTER TABLE e6j_runtime_auth.principal_epochs OWNER TO e6j_exec_owner;
+ALTER TABLE e6j_runtime_auth.session_registrations OWNER TO e6j_exec_owner;
+ALTER TABLE e6j_runtime_auth.authority_audit OWNER TO e6j_exec_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA e6j_runtime_auth FROM PUBLIC;
 
 -- In production these SECURITY DEFINER functions must be owned by a
@@ -93,6 +100,38 @@ BEGIN
     RETURN true;
 END;
 $$;
+
+-- A PostgreSQL FOR SHARE query requires row-lock privilege. The reader
+-- gets EXECUTE of only this SECURITY DEFINER function, not table UPDATE
+-- (or even raw SELECT), eliminating a direct table-mutation capability.
+CREATE FUNCTION e6j_runtime_auth.check_signed_session(
+    p_issuer varchar, p_kid varchar, p_jti varchar,
+    p_uid bigint, p_iat bigint)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $
+BEGIN
+    IF p_issuer IS NULL OR p_kid IS NULL OR p_jti IS NULL
+       OR p_uid IS NULL OR p_uid <= 0 OR p_iat IS NULL OR p_iat <= 0
+       THEN RETURN false; END IF;
+    PERFORM 1
+      FROM e6j_runtime_auth.session_registrations s
+      JOIN e6j_runtime_auth.signer_key_states k
+        ON k.issuer=s.issuer AND k.kid=s.kid
+      JOIN e6j_runtime_auth.principal_epochs e
+        ON e.principal_id=s.uid
+     WHERE s.issuer=p_issuer AND s.kid=p_kid AND s.jti=p_jti
+       AND s.uid=p_uid AND s.iat_seconds=p_iat
+       AND s.state='ACTIVE' AND k.state='ACTIVE'
+       AND s.exp_seconds > extract(epoch FROM clock_timestamp())::bigint
+       AND s.iat_seconds > e.reject_issued_at_or_before_epoch
+       AND NOT pg_is_in_recovery()
+       AND current_setting('transaction_read_only')='off'
+     FOR SHARE OF s,k,e;
+    RETURN FOUND;
+END;
+$;
 
 CREATE FUNCTION e6j_runtime_auth.revoke_signed_session(
     p_issuer varchar, p_kid varchar, p_jti varchar, p_request uuid)
@@ -160,12 +199,28 @@ END;
 $$;
 
 -- PUBLIC executes functions by default in PostgreSQL: explicitly revoke.
+ALTER FUNCTION e6j_runtime_auth.enroll_signed_session(
+  varchar,varchar,varchar,bigint,bigint,bigint,uuid)
+  OWNER TO e6j_exec_owner;
+ALTER FUNCTION e6j_runtime_auth.check_signed_session(
+  varchar,varchar,varchar,bigint,bigint)
+  OWNER TO e6j_exec_owner;
+ALTER FUNCTION e6j_runtime_auth.revoke_signed_session(
+  varchar,varchar,varchar,uuid)
+  OWNER TO e6j_exec_owner;
+ALTER FUNCTION e6j_runtime_auth.block_signing_key(
+  varchar,varchar,uuid)
+  OWNER TO e6j_exec_owner;
+ALTER FUNCTION e6j_runtime_auth.advance_principal_epoch(
+  bigint,bigint,uuid)
+  OWNER TO e6j_exec_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA e6j_runtime_auth FROM PUBLIC;
 GRANT USAGE ON SCHEMA e6j_runtime_auth
   TO e6j_reader,e6j_issuer,e6j_revoker;
-GRANT SELECT ON e6j_runtime_auth.session_registrations,
-  e6j_runtime_auth.signer_key_states,
-  e6j_runtime_auth.principal_epochs TO e6j_reader;
+
+-- No raw SELECT or UPDATE/DELETE privileges to the Runtime verifier.
+GRANT EXECUTE ON FUNCTION e6j_runtime_auth.check_signed_session(
+  varchar,varchar,varchar,bigint,bigint) TO e6j_reader;
 GRANT EXECUTE ON FUNCTION e6j_runtime_auth.enroll_signed_session(
   varchar,varchar,varchar,bigint,bigint,bigint,uuid) TO e6j_issuer;
 GRANT EXECUTE ON FUNCTION e6j_runtime_auth.revoke_signed_session(
