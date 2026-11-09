@@ -1,0 +1,11 @@
+# Gateway-client mTLS workload identity — backend servlet policy preview
+
+Child of draft #383, exact parent source `6b97cabad326ae284b4481d9b5eadfe82674899c`. Reuses the existing PR #346 `GatewayMutualTlsWorkloadPolicy` certificate validation concept, but **does not add or replace any backend filter**: the sole `ServiceJwtAuthorizationFilter` now optionally requires two independently validated proofs.
+
+When opt-in `AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED=true` is enabled, startup requires: pinned **RS256** public verification mode (no HS256), valid canonical gateway SPIFFE ID, `server.ssl.enabled=true`, `server.ssl.client-auth=need`, and explicit non-empty operator trust-store or SSL bundle. Invalid/incomplete config blocks startup. Direct protected requests without a container-authenticated client certificate matching that precise SPIFFE identity are denied `403` even if they carry a signed admin JWT. Wrong user JWT remains `401` despite matching certificate. The servlet never trusts `X-Forwarded-Client-Cert`, spoofed gateway identity headers or unauthenticated client-declared SANs.
+
+A valid certificate's leaf must be current, not a CA, have clientAuth EKU and DigitalSignature usage and exactly one expected URI SAN. This is copied from the already reviewed source policy in #346 with no external runtime key material.
+
+**Test evidence scope:** JUnit/MockMvc supplies a *synthetic* `jakarta.servlet.request.X509Certificate` request attribute to exercise the real servlet filter and controller. These tests **do not** constitute a cryptographic handshake or establish CA chain verification, hostname validation, certificate revocation, real workload identity or TLS network isolation. The servlet/container's TLS peer verification is a necessary precondition for interpreting that attribute.
+
+This preview intentionally preserves default `mTLS=false` to keep prior HS and RSA real-loopback tests passing while live HTTPS Gateway-to-backend transport is built as a separate isolated stage. **Never enable required mTLS in production without setting up both TLS sides with reviewed roots and certificates.** No production/primary branch, real key, XERJ corpus or service was touched. Stage45 NO_GO; XERJ #376 HOLD.
