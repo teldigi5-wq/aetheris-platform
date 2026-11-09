@@ -54,3 +54,7 @@ Only then may the canonical development line report Stage 34 merged.
 ## Repository governance note
 
 CI workflows, tests, security analysis and review conventions live in the repository. GitHub-hosted rulesets/branch protection are a separate repository-administration control and are not emulated in application code.
+
+## Parallel S0 security research — separate from the 34-stage blueprint
+
+The stacked [S0-E6J review-only PostgreSQL Runtime session-ledger contract](security/S0_E6J_RUNTIME_SESSION_LEDGER_REVIEW_20261109.md) follows existing draft E6D–E6I Identity/Runtime compatibility and mTLS research; it does **not** reopen Stage 34 or create Stage 35. Disposable CI verifies restricted session enrollment, read, revocation, audit and locking behavior, **not** a deployed production registry or user-accessible Runtime API. The next S0-E6K integration/migration approval remains pending. Preserve **34 / 34 COMPLETE**, Runtime #23 / Platform #251 OPEN, Stage45 NO_GO, XERJ HOLD and physical-PC `BLOCKED_PENDING_HARDWARE` until independently verified.
