@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.interfaces.RSAPublicKey;
+import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Clock;
 import java.time.Instant;
@@ -88,6 +90,67 @@ public final class RuntimeAudienceTokenIssuer {
     }
 
     public boolean isConfigured() { return signingKey != null; }
+
+    /**
+     * S0-E6K: extract registration facts ONLY from our actually signed,
+     * independently verified RS256 Runtime-audience token. Not an HTTP API
+     * and not permission to register caller-supplied identity claims.
+     * The verified tuple contains no token or refresh credentials.
+     */
+    record VerifiedRegistration(
+        String issuer, String kid, String jti, long uid,
+        long issuedAtSeconds, long expiresAtSeconds) {}
+
+    VerifiedRegistration verifyOwnSignedTokenForEnrollment(String compact) {
+        if (signingKey == null || compact == null || compact.length() > 8192) {
+            throw new IllegalStateException("Runtime session provenance unavailable");
+        }
+        try {
+            RSAPublicKey publicKey = (RSAPublicKey) KeyFactory.getInstance("RSA")
+                .generatePublic(new RSAPublicKeySpec(
+                    signingKey.getModulus(), signingKey.getPublicExponent()));
+            var signed = Jwts.parser().verifyWith(publicKey)
+                .clock(() -> Date.from(clock.instant()))
+                .build().parseSignedClaims(compact);
+            var claims = signed.getPayload();
+            if (!"RS256".equals(signed.getHeader().getAlgorithm())
+                    || !keyId.equals(signed.getHeader().getKeyId())
+                    || !issuer.equals(claims.getIssuer())
+                    || !java.util.Set.of(audience).equals(claims.getAudience())
+                    || !(claims.get("uid") instanceof Number uidValue)
+                    || uidValue.longValue() <= 0
+                    || claims.getId() == null
+                    || !UUID.fromString(claims.getId()).toString().equals(claims.getId())
+                    || claims.getIssuedAt() == null
+                    || claims.getExpiration() == null
+                    || !(claims.get("role") instanceof String roleName)
+                    || !(claims.get("scopes") instanceof List<?> signedScopes)) {
+                throw new IllegalArgumentException("Invalid signed Runtime token");
+            }
+            Role role = Role.valueOf(roleName);
+            List<String> expectedScopes = role.scopes().stream()
+                .filter(scope -> scope.equals("orchestrator:read")
+                    || scope.equals("orchestrator:write"))
+                .sorted().toList();
+            if (expectedScopes.isEmpty()
+                    || !expectedScopes.equals(signedScopes)) {
+                throw new IllegalArgumentException("Invalid signed Runtime scopes");
+            }
+            long issued = claims.getIssuedAt().toInstant().getEpochSecond();
+            long expires = claims.getExpiration().toInstant().getEpochSecond();
+            if (issued <= 0 || expires <= issued
+                    || expires - issued > LIFETIME_SECONDS
+                    || !claims.getExpiration().toInstant().isAfter(clock.instant())) {
+                throw new IllegalArgumentException("Invalid signed Runtime lifetime");
+            }
+            return new VerifiedRegistration(
+                issuer, keyId, claims.getId(), uidValue.longValue(), issued, expires);
+        } catch (Exception rejected) {
+            // Never disclose any JWT, signing key, subject or verification detail.
+            throw new IllegalStateException("Runtime session provenance rejected");
+        }
+    }
+
 
     /**
      * This method is NOT exposed by any HTTP controller, login or refresh.
