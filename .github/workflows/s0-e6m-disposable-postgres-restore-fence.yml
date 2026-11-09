@@ -52,6 +52,22 @@ jobs:
           test ! -d identity-service/src/main/resources/db/migration
           test -s docs/security/migrations/s0-e6m/restore_fence.sql
           test -s tools/security/s0_e6m_disposable_pg16_rehearsal.sh
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('docs/security/migrations/s0-e6m/review_manifest.json')
+          d=json.loads(p.read_text())
+          assert d['classification']=='DISPOSABLE_CI_REVIEW_ONLY'
+          assert d['pinned_platform_parent_sha']=='53d55135181ef89d3ff402f46b835d4b3a0f8ac5'
+          assert d['pinned_runtime_interop_sha']=='816dccdaffb7e5dc1e0a86707dc3829af2ed3b70'
+          assert d['source_contract_git_blob']=='fcf0e61c24ab89b61f10b6d2e454742a4b0420b0'
+          assert d['production_migration_installed'] is False
+          assert d['production_role_credentials_provisioned'] is False
+          assert d['real_transport_tls_or_mtls_proven'] is False
+          assert d['canary_and_operator_approval_granted'] is False
+          assert d['release']=='STAGE45_NO_GO'
+          print('S0_E6M_MACHINE_READABLE_NO_PRODUCTION_MIGRATION_APPROVAL_PASS')
+          PY
           ! grep -Eq '@Component|@Service|@RestController' identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceAtomicRegistryExchange.java
       - name: PostgreSQL16 transactional DDL, distinct network logins, snapshot replay and restored-session denial
         shell: bash
