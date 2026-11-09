@@ -1,0 +1,126 @@
+name: S0-E6K Atomic Signed Runtime Session Enrollment (review only)
+on:
+  push:
+    branches: [security/s0-e6k-atomic-runtime-session-enrollment-20261109]
+  pull_request:
+    branches: [security/s0-e6j-durable-runtime-session-ledger-20261109]
+permissions:
+  contents: read
+
+jobs:
+  real-atomic-session-enrollment-pg16:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aetheris_e6j_disposable
+          POSTGRES_USER: e6j_test_only
+          POSTGRES_PASSWORD: e6j_disposable_ci_only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U e6j_test_only -d aetheris_e6j_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      AETHERIS_E6J_DISPOSABLE_MARKER: ONLY_DISPOSABLE_E6J_POSTGRES
+      PGHOST: '127.0.0.1'
+      PGDATABASE: aetheris_e6j_disposable
+      PGUSER: e6j_test_only
+      PGPASSWORD: e6j_disposable_ci_only
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Only disposable SQL and no auto-wiring, route or production migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$GITHUB_ACTIONS" = true
+          test "$AETHERIS_E6J_DISPOSABLE_MARKER" = ONLY_DISPOSABLE_E6J_POSTGRES
+          test "$PGHOST" = 127.0.0.1
+          test "$PGDATABASE" = aetheris_e6j_disposable
+          test "$PGUSER" = e6j_test_only
+          test ! -f identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenController.java
+          test ! -f identity-service/src/main/resources/db/migration/V9999__e6j_runtime_session_ledger.sql
+          for f in RuntimeAudienceAtomicRegistryExchange RuntimePg16SessionEnrollment; do
+            ! grep -Eq '@Service|@Component|@RestController|@Bean|@Configuration' "identity-service/src/main/java/io/aetheris/identity/${f}.java"
+          done
+          grep -Fq '@Transactional(rollbackFor = Exception.class)' identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceAtomicRegistryExchange.java
+          test -f identity-service/src/test/resources/security/e6j_runtime_session_ledger_pg16.sql
+      - name: Apply disposable schema with native PostgreSQL interpreter
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -w -v ON_ERROR_STOP=1 -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" \
+            -f identity-service/src/test/resources/security/e6j_runtime_session_ledger_pg16.sql
+      - name: Existing ledger role, audit, revocation and row-lock regressions
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=RuntimeSessionLedgerPg16IT test
+      - name: Reapply fixture after parent suite verified teardown
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT count(*) FROM pg_namespace WHERE nspname='e6j_runtime_auth'")" = 0
+          psql -X -w -v ON_ERROR_STOP=1 -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" \
+            -f identity-service/src/test/resources/security/e6j_runtime_session_ledger_pg16.sql
+      - name: Actual signed Identity token plus refresh+session same-transaction PostgreSQL16 tests
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=RuntimeAudienceAtomicRegistryExchangePg16IT test
+      - name: Require both 6-test PG16 suites no skips and verified cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          base=Path('identity-service/target/surefire-reports')
+          for name in ('RuntimeSessionLedgerPg16IT',
+                       'RuntimeAudienceAtomicRegistryExchangePg16IT'):
+              p=base/('TEST-io.aetheris.identity.'+name+'.xml')
+              assert p.exists(),p
+              x=ET.parse(p).getroot()
+              assert int(x.attrib['tests']) >= 6,(name,x.attrib)
+              assert all(int(x.attrib.get(k,'0'))==0
+                         for k in ('failures','errors','skipped')),(name,x.attrib)
+          print('S0_E6K_REAL_PG16_SIGNED_JTI_REFRESH_ATOMICITY_AND_LEDGER_TWELVE_TESTS_PASS')
+          PY
+          test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT count(*) FROM pg_namespace WHERE nspname='e6j_runtime_auth'")" = 0
+          echo S0_E6K_NO_RUNTIME_HTTP_ROUTE_NO_PROD_MIGRATION_STAGE45_NO_GO
+
+  identity-non-database-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {ref: ${{ github.event.pull_request.head.sha || github.sha }}, persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Verify legacy login/refresh, dormant issuer and SPIFFE mTLS-policy contracts
+        run: |
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest,RuntimeAudienceTokenIssuerTest,RuntimeAudienceSessionExchangeServiceTest,RuntimeExchangeGatewayWorkloadPolicyTest test
+      - name: Require at least 32 existing Identity tests with no skips
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          names=('IdentityServiceSecurityTest','RefreshTokenServiceTest',
+                 'BrowserAuthControllerTest','RuntimeAudienceTokenIssuerTest',
+                 'RuntimeAudienceSessionExchangeServiceTest',
+                 'RuntimeExchangeGatewayWorkloadPolicyTest')
+          n=0
+          for name in names:
+              p=Path('identity-service/target/surefire-reports')/('TEST-io.aetheris.identity.'+name+'.xml')
+              x=ET.parse(p).getroot()
+              assert all(int(x.attrib.get(k,'0'))==0 for k in ('failures','errors','skipped')),(name,x.attrib)
+              n+=int(x.attrib['tests'])
+          assert n >= 32,n
+          print('S0_E6K_IDENTITY_THIRTY_TWO_LEGACY_JWT_REFRESH_MTLS_POLICY_TESTS_PASS')
+          PY
