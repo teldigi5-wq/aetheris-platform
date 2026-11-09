@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import secrets
 import subprocess
 import time
 import urllib.error
@@ -83,6 +84,10 @@ def expect_status(actual: int, expected: int, context: str) -> None:
         raise AssertionError(f"{context}: expected HTTP {expected}, got {actual}")
 
 
+def sql_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
 def wait_health(name: str, port: int, timeout: int = 180) -> None:
     deadline = time.monotonic() + timeout
     last: str = "not attempted"
@@ -99,11 +104,11 @@ def wait_health(name: str, port: int, timeout: int = 180) -> None:
     raise AssertionError(f"{name} did not become healthy: {last}")
 
 
-def wait_for_event(email: str, timeout: int = 30) -> None:
+def wait_for_event(email: str, headers: dict[str, str], timeout: int = 30) -> None:
     deadline = time.monotonic() + timeout
     last: Any = None
     while time.monotonic() < deadline:
-        status, body = http_json("GET", "http://127.0.0.1:8083/api/events")
+        status, body = http_json("GET", "http://127.0.0.1:8083/api/events", headers=headers)
         last = body
         if status == 200 and isinstance(body, list):
             if any(
@@ -208,11 +213,46 @@ def main() -> int:
         passed("auth.gateway-rejects-missing-token")
 
         auth_headers = {"Authorization": f"Bearer {access_token}"}
-        status, users = http_json("GET", "http://127.0.0.1:8080/api/users", headers=auth_headers)
-        expect_status(status, 200, "authorized users read")
+        status, _ = http_json("GET", "http://127.0.0.1:8080/api/users", headers=auth_headers)
+        expect_status(status, 403, "API_CONSUMER denied global User read")
+        passed("auth.gateway-consumer-global-read-denied")
+
+        # This remains a disposable CI-only admin. No application route can
+        # grant ADMIN; promote one synthetic account in the isolated PG fixture.
+        admin_email = f"runtime-proof-admin-{int(time.time())}@aetheris.local"
+        admin_password = secrets.token_urlsafe(24) + "Aa1!"
+        status, _ = http_json(
+            "POST", "http://127.0.0.1:8080/api/auth/register",
+            {"name": "Core Runtime Test Administrator", "email": admin_email, "password": admin_password},
+        )
+        expect_status(status, 201, "synthetic administrator registration")
+        promoted = run_command([
+            "docker", "compose", "exec", "-T", "postgres",
+            "psql", "-U", "aetheris", "-d", "aetheris", "-tA", "-c",
+            "update identity_accounts set role='ADMIN' "
+            f"where email={sql_literal(admin_email)} and role='API_CONSUMER' returning role;",
+        ]).strip()
+        if promoted != "ADMIN":
+            raise AssertionError("synthetic administrator promotion affected no unique account")
+        status, admin_login = http_json(
+            "POST", "http://127.0.0.1:8080/api/auth/login",
+            {"email": admin_email, "password": admin_password},
+        )
+        expect_status(status, 200, "Identity-admin login")
+        if not isinstance(admin_login, dict) or not isinstance(admin_login.get("accessToken"), str) or (
+            not isinstance(admin_login.get("account"), dict)
+            or admin_login["account"].get("role") != "ADMIN"
+        ):
+            raise AssertionError("Identity login did not issue a signed ADMIN account")
+        admin_token = admin_login["accessToken"]
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+        status, users = http_json(
+            "GET", "http://127.0.0.1:8080/api/users", headers=admin_headers
+        )
+        expect_status(status, 200, "authorized administrator global User read")
         if not isinstance(users, list):
-            raise AssertionError("authorized users read did not return a list")
-        passed("auth.gateway-authorized-read")
+            raise AssertionError("authorized administrator User read did not return a list")
+        passed("auth.gateway-authorized-admin-read")
 
         status, _ = http_json(
             "POST",
@@ -264,13 +304,14 @@ def main() -> int:
             "POST",
             "http://127.0.0.1:8081/api/users",
             {"name": "Runtime User", "email": runtime_user_email},
+            headers=admin_headers,
         )
-        expect_status(status, 201, "internal user create")
+        expect_status(status, 201, "authenticated internal user create")
         if not isinstance(created_user, dict) or not created_user.get("id"):
             raise AssertionError("created user response missing id")
         user_id = created_user["id"]
 
-        status, _ = http_json("GET", f"http://127.0.0.1:8081/api/users/{user_id}")
+        status, _ = http_json("GET", f"http://127.0.0.1:8081/api/users/{user_id}", headers=admin_headers)
         expect_status(status, 200, "userById cache population")
         cache_keys = run_command(
             ["docker", "compose", "exec", "-T", "redis", "redis-cli", "--scan", "--pattern", "userById::*"]
@@ -279,7 +320,7 @@ def main() -> int:
             raise AssertionError(f"userById cache key not materialized; keys={cache_keys!r}")
         passed("cache.user-by-id-materialized")
 
-        status, _ = http_json("GET", "http://127.0.0.1:8081/api/users")
+        status, _ = http_json("GET", "http://127.0.0.1:8081/api/users", headers=admin_headers)
         expect_status(status, 200, "usersList cache population")
         list_cache_keys = run_command(
             ["docker", "compose", "exec", "-T", "redis", "redis-cli", "--scan", "--pattern", "usersList::*"]
@@ -288,10 +329,10 @@ def main() -> int:
             raise AssertionError(f"usersList cache key not materialized; keys={list_cache_keys!r}")
         passed("cache.users-list-materialized")
 
-        wait_for_event(runtime_user_email)
+        wait_for_event(runtime_user_email, admin_headers)
         compose("restart", "-t", "10", "audit-service", timeout=60)
         wait_health("audit-service", 8083)
-        wait_for_event(runtime_user_email)
+        wait_for_event(runtime_user_email, admin_headers)
         passed("messaging.user-created-audit-event")
 
         # Resilience: force user-service unavailable, require gateway fallback, then recover.
@@ -299,7 +340,7 @@ def main() -> int:
         status, fallback = http_json(
             "GET",
             "http://127.0.0.1:8080/api/users",
-            headers=auth_headers,
+            headers=admin_headers,
             timeout=20,
         )
         expect_status(status, 503, "gateway fallback while user-service stopped")
@@ -309,7 +350,7 @@ def main() -> int:
 
         compose("start", "user-service", timeout=30)
         wait_health("user-service", 8081)
-        wait_gateway_users(access_token)
+        wait_gateway_users(admin_token)
         passed("resilience.user-service-recovery")
 
         missing = sorted(set(required_checks) - set(checks))
