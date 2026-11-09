@@ -143,3 +143,44 @@ Stage 45 is separate and remains NO_GO.
 | 40 | [`user-service/src/main/java/io/aetheris/users/UserService.java`](https://github.com/teldigi5-wq/aetheris-platform/blob/57ad3e0e602efa6feb275328254151b959a3499b/user-service/src/main/java/io/aetheris/users/UserService.java) | 2659 | `25e69343093a1a9ad44f52c9176bf6674f9d17a6` | User API/authorization | ☐ Pending |
 
 **Evidence limitation:** Git blob SHA-1, file byte counts, automated scanner outputs and public repository licensing are not proof that an individual file's intellectual-property rights, sensitive content, deployability or historical key exposure has been independently cleared. No secrets are stored here.
+
+## 2026-11-09 Git path-history provenance screen (NOT human approval)
+
+At the immutable **40-file historical source pin**
+`57ad3e0e602efa6feb275328254151b959a3499b`, GitHub REST
+`/repos/teldigi5-wq/aetheris-platform/commits` was queried read-only
+for **each of the 40 selected file paths** using the same `sha` pin
+and exact filename `path` filter (100 results per page).
+Every query returned **1–5 commit records**; none filled a page.
+
+| Exact-pin category | File histories examined | Recorded Git commit-author names |
+| --- | ---: | --- |
+| Architecture JSON | 2 | Poojana Kaveesh Sellahewa |
+| Audit Java and SQL migration | 7 | Poojana Kaveesh Sellahewa |
+| Token-flow security document | 1 | Poojana Kaveesh Sellahewa |
+| Gateway Java | 4 | Poojana Kaveesh Sellahewa |
+| Identity Java | 12 | Poojana Kaveesh Sellahewa |
+| User Java | 14 | Poojana Kaveesh Sellahewa |
+| **Total** | **40** | **One distinct recorded author name** |
+
+This is **Git-path metadata**, not proof of legal ownership,
+originality, independent identity authentication, or redistribution
+permission. Git author fields can be self-asserted; path-scoped
+history does not rule out renames, copied code, generated material,
+third-party templates, contractual restrictions or work before Git
+tracking. The source-pin repository root has an Apache-2.0 `LICENSE`,
+but a root licence is not a file-by-file rightsholder attestation.
+No additional individual in-file ownership claims are inferred.
+
+**Owner review remains required** to inspect all exact 40 file bodies,
+identify any copied/generated/third-party components and necessary
+notices, confirm the acceptable historical/non-production use
+classification, resolve the known historical JWT test fixture's
+possible live reuse privately, and provide **specific new consent**
+for the exact source pin and paths. This screen must **not** be
+interpreted as human attestation, legal opinion, security clearance
+or public XERJ submission approval.
+
+All 40 individual review markers remain unchecked and the original
+source selection is unchanged. The mandatory historical provenance
+security gate remains in force; **XERJ HOLD — 2/6 completed, 4 pending**.
