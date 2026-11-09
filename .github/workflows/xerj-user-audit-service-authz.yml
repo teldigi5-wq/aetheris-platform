@@ -1,7 +1,7 @@
 name: XERJ Candidate User Audit Service Authorization Security Gate
 on:
   pull_request:
-    branches: [release/identity-jwt-audience-20261013]
+    branches: [release/identity-jwt-audience-20261013, feature/syntra-aetheris-foundation-v2]
     paths:
       - 'user-service/**'
       - 'audit-service/**'
@@ -43,6 +43,8 @@ jobs:
         run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=RateLimitConfigTest,FallbackControllerTest test
       - name: Run Identity browser, login and refresh-token regressions
         run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=BrowserAuthControllerTest,IdentityServiceSecurityTest,RefreshTokenServiceTest test
+      - name: Run complete four-service Maven reactor regression against current development baseline
+        run: ./mvnw -B -ntp test
       - name: Verify no implicit known JWT secret or missing backend Compose JWT wiring
         run: |
           python3 - <<'PY'
