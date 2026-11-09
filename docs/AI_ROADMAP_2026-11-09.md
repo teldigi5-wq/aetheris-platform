@@ -12,8 +12,14 @@
 **Phase A — Inventory (read-only):** confirm GitHub account/repo, default branch SHA, all open PRs, branch counts with pagination, feature branch lineage, issues, recent Actions, security alerts and existing project roadmap. Record missing access or pages; distinguish development branches from archives.
 
 **Phase B — Resume latest incomplete milestone:**
-1. **First pending checkpoint** — Re-fetch protected main, PR #406 and its entire stacked base chain; identify independent merge gates and do not cherry-pick blindly.
-   - Gate: capture current branch and commit SHA; existing evidence links; a reproducible negative/positive test; risks; explicitly report blocked/unverified outcomes.
+1. **M1** — Re-fetch protected main, PR #406 and its entire stacked base chain; identify independent merge gates and do not cherry-pick blindly.
+   - Gate: confirm active branch and exact source SHA, prior test provenance, relevant failure/negative tests, and explicit blocked state.
+2. **M2** — Review JWT/RS256 tenant authority, RabbitMQ producer/listener role separation, PG16 signed membership and revocation tests against exact proposed head.
+   - Gate: confirm active branch and exact source SHA, prior test provenance, relevant failure/negative tests, and explicit blocked state.
+3. **M3** — Re-run relevant CI, CodeQL and two-cycle gateway recovery checks on the actual integration commit; investigate issue #312 and Java trust source/host mismatch.
+   - Gate: confirm active branch and exact source SHA, prior test provenance, relevant failure/negative tests, and explicit blocked state.
+4. **M4** — Obtain owner-controlled deployment/TLS/credential/DR and physical-hardware evidence before any release promotion.
+   - Gate: confirm active branch and exact source SHA, prior test provenance, relevant failure/negative tests, and explicit blocked state.
 
 **Phase C — Consolidation:** only after Phase B gates, review a minimal integration branch/PR. Check independent CI, CodeQL, dependency and secret scanning, reversibility and whether a newer PR supersedes an older one. Never blindly merge a stacked chain, disable gates or force-push.
 
