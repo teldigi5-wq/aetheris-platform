@@ -250,12 +250,13 @@ def main() -> int:
             {"name": "Synthetic Security Administrator", "email": admin_email, "password": admin_password},
         )
         expect_status(status, 201, "synthetic administrator account registration")
-        promoted = psql(
-            "update identity_accounts set role='ADMIN' "
-            f"where email={sql_literal(admin_email)} and role='API_CONSUMER' returning role;"
+        promoted_count = psql(
+            "with promoted as (update identity_accounts set role='ADMIN' "
+            f"where email={sql_literal(admin_email)} and role='API_CONSUMER' returning id) "
+            "select count(*) from promoted;"
         ).strip()
-        if promoted != "ADMIN":
-            raise AssertionError("disposable synthetic administrator promotion did not affect one account")
+        if promoted_count != "1":
+            raise AssertionError("disposable synthetic administrator promotion did not affect exactly one account")
         status, admin_login = http_json(
             "POST", "http://127.0.0.1:8080/api/auth/login",
             {"email": admin_email, "password": admin_password},
