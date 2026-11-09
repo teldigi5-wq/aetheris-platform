@@ -10,35 +10,83 @@
 - The isolated review branch is a child of draft PR #361: https://github.com/teldigi5-wq/aetheris-platform/pull/376 . Do not merge it directly into main.
 - A passing content scan does not clear old credentials or application vulnerabilities. Runtime issue #23 and Platform issue #251 remain open; Stage 45 NO_GO; XERJ HOLD.
 
-## Current exact-head security verification (pending)
+## 2026-11-09 verified exact-head security status (review only)
 
-The earlier 40-file [successful run #42158502931](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42158502931)
-belongs **only** to commit `107fa7ade0407c74dfc2154c64e30bfe0ce2b11a`.
-It is not proof for the newer filtered-branch head.
+The existing child draft PR #376 reconciled with parent PR #361 and its
+historical-fixture controls at commit `0567ddb5b91940da30f4fe90fa68169b20c5087a`.
+[Actions run #42499854080](https://github.com/teldigi5-wq/aetheris-platform/actions/runs/42499854080)
+completed on **that exact commit** with **3 successful jobs and 1 deliberately
+failed mandatory historical-key review**:
 
-At `01f21b7f86574b15e1301ca39a5a367e13975f95`, the existing
-branch incorporated the historical-fixture verifier from PR #361 and an
-independent required `xerj-reachable-history-review-blocker` job.
-The read-only source-scan and local retrieval jobs remain separate and
-must run on the same exact commit. **As of this note, the new head has
-no visible GitHub Actions run/check results.** Treat its CI status as
-NOT VERIFIED, not SUCCESS; do not substitute results from older commits.
+- **PASS — `xerj-pinned-source-scan`:** original immutable pin has 44 files /
+  75,323 Git-blob bytes; seven safe directory selectors reproduce the proposed
+  **40 files / 66,617 Git-blob bytes**, excluding all four service
+  `application.yml` files. Gitleaks v8.30.1, metadata/privacy preflight
+  and four source-filter failure-mode tests passed on that filtered scope.
+- **PASS — `xerj-local-retrieval-preview`:** actual XERJ rc.100 sparse consumer
+  harvested **40/40** filtered files, indexed **213 searchable records** in
+  one dataset, and passed two source file:line retrieval checks. The 66,617
+  catalog-accounted content bytes are **not a physical index-size measurement**.
+- **PASS — `xerj-upstream-registry-schema-negative-review`:** real upstream
+  validator accepted its pristine registry and correctly rejected an
+  unreviewed disposable manifest. This is not acceptance of an approved
+  manifest or amendment to the existing upstream author candidate.
+- **EXPECTED FAIL — `xerj-reachable-history-review-blocker`:** 10 additional
+  distinct historical Git blob revisions matched the known synthetic JWT
+  signing fixture across four test-only paths (zero detected non-test paths).
+  Neither Git-path classification nor missing current Docker data establishes
+  that the value was never a live signing key. **Do not waive or remove this
+  failure without a defensible, owner-controlled disposition.**
 
-The known signing fixture has appeared in historical `src/test` blobs.
-Test-path provenance is not proof the fixture was never used as a live
-JWT signing key. The mandatory history job should remain fail-closed
-until a real, redacted owner-controlled provenance/use determination
-and relevant remediation are recorded. **Do not make this job optional,
-allowlist its finding, or report the complete workflow as green merely
-because the three independent mechanical jobs pass.**
+Machine-screened source remains **NOT APPROVED** for publication. Root
+Apache-2.0 licence text does not establish third-party rights or authorize
+worldwide indexing; the historical-source and production-NO_GO limitations
+are mandatory. Prior 44-file / 219-record results belong to a **different**
+corpus scope and must not be substituted here.
 
-Even if a later exact-head run verifies the filtered corpus, Stage 3
-historical-key and privacy review and Stage 4 rights/licensing consent
-are still unapproved. All file-level checkboxes below remain blank.
-The 44-file primary review's measured 219 searchable records cannot
-be reused as an indexed record count for this distinct 40-file artifact.
-Publication, upstream amendment, branch merge and production deployment
-remain unauthorized.
+## 2026-11-09 owner scope decision packet (all choices unapproved)
+
+**Recommendation for consideration: retain the existing 40-file filtered
+candidate**, rather than reverting to the 44-file version with local
+development JWT/database/RabbitMQ configuration fallbacks. This is a
+technical risk-reduction recommendation, **not owner consent or a legal
+licence decision**. Before deciding, review these exact inclusion risks:
+
+| Source category | Inclusion decision requiring owner review | Important limitation |
+| --- | --- | --- |
+| `gateway/src/main/java` (4 files) | Keep historical JWT/scope boundary logic for citations? | Gateway filters do not prove direct internal-service access is isolated in a real deployment; rate-limit identity assumptions need context. |
+| `identity-service/src/main/java` (12 files) | Keep historical JWT and refresh-token contracts? | Runtime signing-key provenance is unknown; browser cookie protections depend on proxy/TLS configuration. |
+| `user-service/src/main/java` (14 files) | Keep UserController and event/data DTOs? | Direct UserController has no independent method-level authorization annotations in this pin; user/event schemas include name and email fields, not live records. |
+| `audit-service/src/main/java` and migration (7 files) | Keep AuditController and audit persistence/event schema? | Direct AuditController lacks independent method-level authorization annotations; audit schema stores user IDs, names and emails. |
+| `architecture` (2 JSON manifests) | Keep internal extraction/certification reference metadata? | `CERTIFIED` refers to internal CI/source claims, not external certification, image registry publication or production readiness. |
+| `docs/security/token-flow.md` (1 file) | Keep explanatory threat model and non-production caveats? | Described controls are historical source contracts; real deployed protection was not verified. |
+
+**Owner-only decisions, all pending:**
+
+- [ ] **Source scope:** retain exact 40 files / seven directory-only paths
+      at source SHA `57ad3e0e602efa6feb275328254151b959a3499b`,
+      *or* request specific additional exclusions and regenerate the manifest.
+- [ ] **Public-use semantics:** explicitly classify this as **historical,
+      non-production-certified reference source**, and document direct
+      internal-service exposure, privacy/event-schema and JWT limitations.
+- [ ] **Attribution and intellectual-property rights:** personally verify
+      ownership/originality, any copied/generated or third-party material,
+      licences and attribution across all 40 paths in the worksheet below.
+- [ ] **Historical signing-key deployment disposition:** verify with
+      owner-controlled evidence whether the known fixture was ever live;
+      if live, coordinate credential rotation, session invalidation and
+      incident assessment without disclosing a secret.
+- [ ] **Exact-scope consent:** separately and explicitly authorize worldwide
+      XERJ indexing/reuse for the reviewed snapshot. Do not reuse the older
+      email-consent assertion for a different repository pin/scope.
+- [ ] **Upstream handoff:** after the above, produce a real reviewed Lane A
+      manifest and reconcile the **existing** XERJ author-candidate through
+      maintainer review; do not create a duplicate or assert fake approvals.
+
+No choice above is checked or inferred from a user's generic "NEXT"
+instruction. Formal project status remains **2/6 XERJ stages completed;
+four stages pending; public publication HOLD**. Production Aetheris
+Stage 45 is separate and remains NO_GO.
 
 ## Reviewer checklist (not completed)
 
