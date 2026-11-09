@@ -1,6 +1,7 @@
 package io.aetheris.identity;
 
 import jakarta.persistence.*;
+import java.util.UUID;
 
 @Entity
 @Table(name = "identity_accounts", uniqueConstraints = @UniqueConstraint(columnNames = "email"))
@@ -22,6 +23,11 @@ public class IdentityAccount {
     @Column(nullable = false, length = 32)
     private Role role = Role.API_CONSUMER;
 
+    // Account-bounded tenant identifier. Existing identities remain NULL
+    // until reviewed ownership migration; never infer links from numeric IDs.
+    @Column(name = "tenant_id", columnDefinition = "uuid")
+    private UUID tenantId;
+
     protected IdentityAccount() {}
 
     public IdentityAccount(String name, String email, String passwordHash, Role role) {
@@ -29,6 +35,7 @@ public class IdentityAccount {
         this.email = email;
         this.passwordHash = passwordHash;
         this.role = role;
+        this.tenantId = UUID.randomUUID();
     }
 
     public Long getId() { return id; }
@@ -36,4 +43,5 @@ public class IdentityAccount {
     public String getEmail() { return email; }
     public String getPasswordHash() { return passwordHash; }
     public Role getRole() { return role; }
+    public UUID getTenantId() { return tenantId; }
 }

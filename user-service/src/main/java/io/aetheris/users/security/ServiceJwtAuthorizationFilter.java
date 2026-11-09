@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.UUID;
 
 /**
  * Independent service-side enforcement. No X-Aetheris-* header is trusted.
@@ -35,6 +36,7 @@ import java.util.Enumeration;
 public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
     static final String DEFAULT_ISSUER = "aetheris-identity";
     static final String DEFAULT_AUDIENCE = "aetheris-api";
+    public static final String VERIFIED_TENANT_ATTRIBUTE = "aetheris.user.signedTenant";
     private static final String UNSAFE_LOCAL_KEY = "change-me-local-development-secret-32chars";
     private final SecretKey signingKey;
     private final PublicKey verificationPublicKey;
@@ -175,17 +177,39 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String needed = switch (request.getMethod()) {
-            case "GET", "HEAD" -> "users:read";
-            case "POST", "PUT", "PATCH", "DELETE" -> "users:write";
-            default -> "users:write";
-        };
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        boolean tenantPath = path.equals("/api/users/tenant") ||
+                path.startsWith("/api/users/tenant/");
+        boolean read = "GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod());
+        String needed = tenantPath ? (read ? "tenant:users:read" : "tenant:users:write") :
+                (read ? "users:read" : "users:write");
         Object scopes = claims.get("scopes");
-        if (!"ADMIN".equals(claims.get("role", String.class)) ||
-                !(scopes instanceof Collection<?> values) ||
-                !values.contains(needed)) {
+        String role = claims.get("role", String.class);
+        if (!(scopes instanceof Collection<?> values) || !values.contains(needed) ||
+                !(tenantPath ? "API_CONSUMER".equals(role) : "ADMIN".equals(role))) {
             deny(response, HttpServletResponse.SC_FORBIDDEN);
             return;
+        }
+        if (tenantPath) {
+            Object rawTid = claims.get("tid");
+            if (!(rawTid instanceof String textTid)) {
+                deny(response, HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+            final UUID verifiedTid;
+            try {
+                verifiedTid = UUID.fromString(textTid);
+                if (!verifiedTid.toString().equals(textTid)) {
+                    deny(response, HttpServletResponse.SC_UNAUTHORIZED);
+                    return;
+                }
+            } catch (IllegalArgumentException badTenant) {
+                deny(response, HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+            // A Servlet request attribute is set *after* signature and scope
+            // verification. Header/query/body tenant IDs are never authoritative.
+            request.setAttribute(VERIFIED_TENANT_ATTRIBUTE, verifiedTid);
         }
         // Authorization comes from the cryptographically verified bearer only.
         // Forwarded role/user headers are never treated as evidence.
