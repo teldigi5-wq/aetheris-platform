@@ -74,7 +74,7 @@ origin_public="$(cat "$work/public.pem")"
 
 # No broker administrator, publisher password, JWT issuer private key or
 # User event signing private PEM path is inherited by the Audit application.
-env -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_TEST_PG_PASSWORD \
+audit_env=( env -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_TEST_PG_PASSWORD \
     -u XERJ_BROKER_PUBLISH_PASSWORD -u XERJ_BROKER_CONSUME_PASSWORD \
     -u XERJ_MEMBERSHIP_WRITER_DB_PASSWORD -u XERJ_AUDIT_INGEST_DB_PASSWORD \
     -u AETHERIS_AUDIT_MEMBERSHIP_WRITER_DB_PASSWORD \
@@ -82,11 +82,10 @@ env -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_TEST_PG_PASSWORD \
     -u AETHERIS_AUDIT_MEMBERSHIP_WRITER_DB_URL \
     -u XERJ_ORIGIN_PRIVATE_PEM_PATH \
     -u AETHERIS_JWT_SECRET -u AETHERIS_JWT_RSA_PRIVATE_KEY_PEM \
-    SERVER_ADDRESS=127.0.0.1 SERVER_PORT=19083 \
+    SERVER_ADDRESS=127.0.0.1 \
     SPRING_DATASOURCE_URL='jdbc:postgresql://127.0.0.1:55432/xerj_fence_audit' \
     SPRING_DATASOURCE_USERNAME=xerj_audit_ingest \
     SPRING_DATASOURCE_PASSWORD="$XERJ_AUDIT_INGEST_DB_PASSWORD" \
-    AETHERIS_AUDIT_MEMBERSHIP_IMPORT_ENABLED=false \
     SPRING_FLYWAY_ENABLED=false \
     SPRING_RABBITMQ_HOST=127.0.0.1 \
     SPRING_RABBITMQ_PORT=55672 \
@@ -105,7 +104,43 @@ env -u XERJ_TEST_RABBIT_PASSWORD -u XERJ_TEST_PG_PASSWORD \
     AETHERIS_BACKEND_GATEWAY_MTLS_REQUIRED=false \
     MANAGEMENT_TRACING_SAMPLING_PROBABILITY=0 \
     LOGGING_LEVEL_ROOT=WARN \
-    java -jar "$jarfile" > "$work/audit-application.log" 2>&1 &
+    )
+# Negative control: with the normal Audit application and its Rabbit listener
+# present, membership importer opt-in MUST terminate Spring startup before any
+# consumer can subscribe. A distinct JDBC account alone is insufficient.
+"${audit_env[@]}" AETHERIS_AUDIT_MEMBERSHIP_IMPORT_ENABLED=true \
+    SERVER_PORT=19084 java -jar "$jarfile" > "$work/rejected-importer.log" 2>&1 &
+unsafe_pid="$!"
+for attempt in $(seq 1 100); do
+  kill -0 "$unsafe_pid" >/dev/null 2>&1 || break
+  sleep 0.1
+done
+if kill -0 "$unsafe_pid" >/dev/null 2>&1; then
+  kill "$unsafe_pid" >/dev/null 2>&1 || true
+  wait "$unsafe_pid" >/dev/null 2>&1 || true
+  echo 'XERJ_UNSAFE_COMBINED_AUDIT_IMPORTER_PROCESS_WAS_ALLOWED' >&2
+  exit 1
+fi
+unsafe_exit=0
+wait "$unsafe_pid" >/dev/null 2>&1 || unsafe_exit="$?"
+if [[ "$unsafe_exit" -eq 0 ]] || \
+    ! grep -Fq 'Audit process cannot host membership reconciliation' \
+         "$work/rejected-importer.log"; then
+  echo 'XERJ_UNSAFE_COMBINED_AUDIT_IMPORTER_STARTUP_NOT_PROVEN_DENIED' >&2
+  exit 1
+fi
+if "${rabbit[@]}" list_consumers -p xerj_origin_listener queue_name \
+    2>/dev/null | grep -F 'aetheris.audit.user-events' > /dev/null; then
+  echo 'XERJ_UNSAFE_AUDIT_IMPORTER_CONSUMED_UNTRUSTED_BROKER_EVENT' >&2
+  exit 1
+fi
+echo XERJ_AUDIT_IMPORTER_CORESIDENT_STARTUP_DENIED_PASS
+
+# Positive control: the real HTTP/Rabbit Audit service can operate when the
+# importer is disabled and no writer credential is inherited.
+"${audit_env[@]}" AETHERIS_AUDIT_MEMBERSHIP_IMPORT_ENABLED=false \
+    SERVER_PORT=19083 java -jar "$jarfile" \
+    > "$work/audit-application.log" 2>&1 &
 app_pid="$!"
 
 # Verify an actual Spring Rabbit listener's broker consumer registration.
