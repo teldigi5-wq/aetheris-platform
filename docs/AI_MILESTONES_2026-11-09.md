@@ -10,10 +10,22 @@
 - [ ] Merge or production release accepted (NOT asserted).
 
 ## Milestones from the existing handoff
-- [ ] **M1 — pending verification:** Re-fetch protected main, PR #406 and its entire stacked base chain; identify independent merge gates and do not cherry-pick blindly.
-  - Source branch/PR/commit: _to fill after live re-check_
-  - Result, negative cases and evidence: _not run as part of this docs update_
-  - Decision: **UNVERIFIED** until recorded; retain any applicable NO_GO.
+- [ ] **M1 — revalidate:** Re-fetch protected main, PR #406 and its entire stacked base chain; identify independent merge gates and do not cherry-pick blindly.
+  - Source branch/commit: _check current GitHub_
+  - Results and evidence: _no new code tests in documentation-only PR_
+  - Decision: **NOT ACCEPTED** without exact-source evidence; preserve any NO_GO.
+- [ ] **M2 — revalidate:** Review JWT/RS256 tenant authority, RabbitMQ producer/listener role separation, PG16 signed membership and revocation tests against exact proposed head.
+  - Source branch/commit: _check current GitHub_
+  - Results and evidence: _no new code tests in documentation-only PR_
+  - Decision: **NOT ACCEPTED** without exact-source evidence; preserve any NO_GO.
+- [ ] **M3 — revalidate:** Re-run relevant CI, CodeQL and two-cycle gateway recovery checks on the actual integration commit; investigate issue #312 and Java trust source/host mismatch.
+  - Source branch/commit: _check current GitHub_
+  - Results and evidence: _no new code tests in documentation-only PR_
+  - Decision: **NOT ACCEPTED** without exact-source evidence; preserve any NO_GO.
+- [ ] **M4 — revalidate:** Obtain owner-controlled deployment/TLS/credential/DR and physical-hardware evidence before any release promotion.
+  - Source branch/commit: _check current GitHub_
+  - Results and evidence: _no new code tests in documentation-only PR_
+  - Decision: **NOT ACCEPTED** without exact-source evidence; preserve any NO_GO.
 
 ## Operator checklist
 - [ ] Re-read protected main, feature PR base/head, conflicts and review threads.
