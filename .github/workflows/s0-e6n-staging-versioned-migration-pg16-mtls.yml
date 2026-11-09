@@ -1,0 +1,123 @@
+name: S0-E6N Staging-Only Versioned PG16 Migration and mTLS (review only)
+on:
+  push:
+    branches: [security/s0-e6n-staging-migration-pg16-tls-20261109]
+  pull_request:
+    branches: [security/s0-e6m-postgres-recovery-custody-rehearsal-20261109]
+permissions:
+  contents: read
+
+jobs:
+  isolated-pg16-migration-and-cert-auth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: aetheris_e6n_disposable
+          POSTGRES_USER: e6n_ci_root
+          POSTGRES_PASSWORD: e6n_ci_only_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U e6n_ci_root -d aetheris_e6n_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      GITHUB_ACTIONS: 'true'
+      AETHERIS_E6N_DISPOSABLE_MARKER: ONLY_DISPOSABLE_E6N_PG16
+      AETHERIS_E6N_APPROVAL_SCOPE: CI_ISOLATED_REVIEW_ONLY
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: aetheris_e6n_disposable
+      PGUSER: e6n_ci_root
+      PGPASSWORD: e6n_ci_only_password
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Require immutable reviewed schema and non-activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$GITHUB_ACTIONS" = true
+          test "$AETHERIS_E6N_DISPOSABLE_MARKER" = ONLY_DISPOSABLE_E6N_PG16
+          test "$AETHERIS_E6N_APPROVAL_SCOPE" = CI_ISOLATED_REVIEW_ONLY
+          test "$PGHOST" = 127.0.0.1
+          test "$PGDATABASE" = aetheris_e6n_disposable
+          test "$PGUSER" = e6n_ci_root
+          test "$(git hash-object identity-service/src/test/resources/security/e6j_runtime_session_ledger_pg16.sql)" = fcf0e61c24ab89b61f10b6d2e454742a4b0420b0
+          test ! -d identity-service/src/main/resources/db/migration
+          test -s tools/security/s0_e6n_versioned_review_migration.sh
+          test -s tools/security/s0_e6n_disposable_pg16_mtls_rehearsal.sh
+          ! grep -Eq '@Component|@Service|@RestController' identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceAtomicRegistryExchange.java
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('docs/security/migrations/s0-e6n/review_manifest.json')
+          assert p.is_file()
+          d=json.loads(p.read_text())
+          assert d['mode']=='CI_STAGING_REHEARSAL_ONLY',d
+          assert d['parent_sha']=='625a6eea416605c33e9faf9ae02e525af19f1f08'
+          assert d['pinned_e6j_git_blob']=='fcf0e61c24ab89b61f10b6d2e454742a4b0420b0'
+          assert d['production_migration_installed'] is False
+          assert d['production_tls_certificates_created'] is False
+          assert d['owner_approved'] is False
+          assert d['activation_authorized'] is False
+          assert d['stage45']=='NO_GO'
+          print('S0_E6N_MANIFEST_PIN_AND_NO_PROD_APPROVAL_PASS')
+          PY
+      - name: Actual PostgreSQL16 verified TLS/mTLS roles and pinned versioned schema
+        shell: bash
+        run: bash tools/security/s0_e6n_disposable_pg16_mtls_rehearsal.sh
+      - name: Final safety proof no auth registry schema, scoped roles or application migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT count(*) FROM pg_namespace WHERE nspname IN ('e6j_runtime_auth','e6n_review_meta')")" = 0
+          test "$(psql -X -w -At -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" -c "SELECT count(*) FROM pg_roles WHERE rolname LIKE 'e6n_%_login'")" = 0
+          test ! -d identity-service/src/main/resources/db/migration
+          echo S0_E6N_CI_ONLY_NO_APPLICATION_SCHEMA_MIGRATION_STAGE45_NO_GO
+
+  existing-platform-identity-regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Preserve Identity, refresh, Runtime RS256 and workload policy regression
+        run: |
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest,RuntimeAudienceTokenIssuerTest,RuntimeAudienceSessionExchangeServiceTest,RuntimeExchangeGatewayWorkloadPolicyTest test
+      - name: Require at least thirty-two executed tests, none skipped
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          base=Path('identity-service/target/surefire-reports')
+          names=('IdentityServiceSecurityTest','RefreshTokenServiceTest',
+                 'BrowserAuthControllerTest','RuntimeAudienceTokenIssuerTest',
+                 'RuntimeAudienceSessionExchangeServiceTest',
+                 'RuntimeExchangeGatewayWorkloadPolicyTest')
+          total=0
+          for n in names:
+              p=base/('TEST-io.aetheris.identity.'+n+'.xml')
+              x=ET.parse(p).getroot()
+              assert all(int(x.attrib.get(k,'0'))==0 for k in
+                         ('errors','failures','skipped')),(n,x.attrib)
+              total+=int(x.attrib['tests'])
+          assert total>=32,total
+          print('S0_E6N_IDENTITY_THIRTY_TWO_REGRESSIONS_NO_SKIPS_PASS')
+          PY
