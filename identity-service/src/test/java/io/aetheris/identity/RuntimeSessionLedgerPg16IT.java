@@ -69,6 +69,7 @@ class RuntimeSessionLedgerPg16IT {
         try(Connection c=admin();Statement s=c.createStatement()) {
             s.execute("DROP SCHEMA IF EXISTS e6j_runtime_auth CASCADE");
             s.execute("DROP ROLE IF EXISTS e6j_reader");
+            s.execute("DROP ROLE IF EXISTS e6j_exec_owner");
             s.execute("DROP ROLE IF EXISTS e6j_issuer");
             s.execute("DROP ROLE IF EXISTS e6j_revoker");
             s.execute("DROP ROLE IF EXISTS e6j_outsider");
@@ -132,28 +133,20 @@ class RuntimeSessionLedgerPg16IT {
         }
     }
 
-    // This is the SQL contract a FUTURE Runtime read-only principal verifier
-    // must use; no Java production authority is auto-wired by this test.
+    // Runtime uses this restricted SECURITY DEFINER lookup, not raw table
+    // SELECT ... FOR SHARE, which would need elevated table privileges.
     private static boolean active(Connection c,String id,long uid,long iat)
             throws SQLException {
-        try(PreparedStatement p=c.prepareStatement("""
-            SELECT 1 FROM e6j_runtime_auth.session_registrations s
-              JOIN e6j_runtime_auth.signer_key_states k
-                ON k.issuer=s.issuer AND k.kid=s.kid
-              JOIN e6j_runtime_auth.principal_epochs e
-                ON e.principal_id=s.uid
-             WHERE s.issuer=? AND s.kid=? AND s.jti=?
-               AND s.uid=? AND s.iat_seconds=?
-               AND s.state='ACTIVE' AND k.state='ACTIVE'
-               AND s.exp_seconds > extract(epoch FROM clock_timestamp())::bigint
-               AND s.iat_seconds > e.reject_issued_at_or_before_epoch
-               AND NOT pg_is_in_recovery()
-               AND current_setting('transaction_read_only')='off'
-             FOR SHARE OF s,k,e
-            """)) {
+        try(PreparedStatement p=c.prepareStatement(
+                "SELECT "+PREFIX+"check_signed_session(?,?,?,?,?)")) {
             p.setString(1,ISS);p.setString(2,KID);p.setString(3,id);
             p.setLong(4,uid);p.setLong(5,iat);
-            try(var rows=p.executeQuery()) {return rows.next();}
+            try(var rows=p.executeQuery()) {
+                assertTrue(rows.next());
+                boolean granted=rows.getBoolean(1);
+                assertFalse(rows.next());
+                return granted;
+            }
         }
     }
 
@@ -167,6 +160,13 @@ class RuntimeSessionLedgerPg16IT {
                 ()->reader.createStatement().execute(
                     "DELETE FROM "+PREFIX+"session_registrations"));
             assertEquals("42501",direct.getSQLState());
+            reader.rollback();
+        }
+        try(Connection reader=tx("e6j_reader")) {
+            SQLException rawSelect=assertThrows(SQLException.class,
+                ()->reader.createStatement().execute(
+                    "SELECT * FROM "+PREFIX+"session_registrations"));
+            assertEquals("42501",rawSelect.getSQLState());
             reader.rollback();
         }
         try(Connection reader=tx("e6j_reader")) {
