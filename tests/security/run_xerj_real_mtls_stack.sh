@@ -126,7 +126,7 @@ done
 
 proof="${XERJ_BOUNDARY_PROOF_PROGRAM:-tests/security/xerj_real_mtls_http_proof.py}"
 case "$proof" in
-  tests/security/xerj_real_mtls_http_proof.py|tests/security/xerj_tenant_http_proof.py) ;;
+  tests/security/xerj_real_mtls_http_proof.py|tests/security/xerj_tenant_http_proof.py|tests/security/xerj_outbox_http_proof.py) ;;
   *) echo "XERJ_UNREVIEWED_SECURITY_PROOF_REFUSED" >&2; exit 2 ;;
 esac
 python3 "$proof" \
