@@ -1,0 +1,93 @@
+name: XERJ RS256 disposable real service proof
+on:
+  pull_request:
+    branches: [security/xerj-rs256-single-filter-20261106]
+    paths:
+      - 'tests/security/run_xerj_rs256_disposable_stack.sh'
+      - 'tests/security/xerj_rs256_http_proof.py'
+      - 'tests/security/xerj-disposable-deps.compose.yml'
+      - 'tests/security/xerj_disposable_http_proof.py'
+      - '.github/workflows/xerj-rs256-live-disposable.yml'
+      - 'docs/security/XERJ_RS256_REAL_INTEGRATION_20261106.md'
+permissions:
+  contents: read
+jobs:
+  asymmetric-public-only-resource-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Review exact SHA without persisting GitHub token
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Configure Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: corretto
+          java-version: '21'
+          cache: maven
+      - name: Generate fresh synthetic RSA-3072 private/public pair in ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 \
+            -out "$RUNNER_TEMP/xerj-ci-rs256-private.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/xerj-ci-rs256-private.pem" -pubout \
+            -out "$RUNNER_TEMP/xerj-ci-rs256-public.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/xerj-ci-rs256-private.pem" -noout -check >/dev/null
+          test -s "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
+          for key in XERJ_TEST_PG_PASSWORD XERJ_TEST_RABBIT_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+          echo "XERJ_COMPOSE_PROJECT=xerj-rs-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+      - name: Verify only CI disposable sources and syntax
+        run: |
+          python3 -m py_compile tests/security/xerj_rs256_http_proof.py tests/security/xerj_disposable_http_proof.py
+          bash -n tests/security/run_xerj_rs256_disposable_stack.sh
+          docker compose -f tests/security/xerj-disposable-deps.compose.yml config --quiet
+      - name: Start fresh loopback-only Postgres Redis RabbitMQ
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml up -d --wait
+      - name: Build only the exact four Java service JARs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for svc in identity-service user-service audit-service gateway; do
+            ./mvnw -B -ntp -f "$svc/pom.xml" -DskipTests package
+          done
+      - name: Run RSA-only real Gateway/backend and downgrade negative probes
+        run: bash tests/security/run_xerj_rs256_disposable_stack.sh
+      - name: Check sanitized report and explicit review-only boundaries
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          r=json.loads((Path(os.environ["RUNNER_TEMP"])/"xerj-rs256-safe-report/report.json").read_text())
+          assert r["status"]=="PASS", "Not a passing RS256 run"
+          assert r["source_commit"]==os.environ["GITHUB_SHA"]
+          assert r["evidence_class"]=="HOSTED_DISPOSABLE_RS256_INTEGRATION"
+          assert not r["production_verified"] and not r["tenant_isolation_verified"] and not r["mTLS_verified"]
+          assert len(r["checks"])>=29 and all(x=="PASS" for x in r["checks"].values())
+          print("XERJ_RSA_ONLY_DISPOSABLE_EVIDENCE_PASS checks="+str(len(r["checks"])))
+          PY
+      - name: Archive report ONLY — no PEM/JWT/PII or application logs
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: xerj-rs256-disposable-no-secrets
+          path: ${{ runner.temp }}/xerj-rs256-safe-report/report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Tear down only uniquely named synthetic Compose project and keys
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${XERJ_COMPOSE_PROJECT:-}" && "$XERJ_COMPOSE_PROJECT" == xerj-rs-ci-* ]]; then
+            docker compose -p "$XERJ_COMPOSE_PROJECT" -f tests/security/xerj-disposable-deps.compose.yml down -v --remove-orphans || true
+          fi
+          rm -f "$RUNNER_TEMP/xerj-ci-rs256-private.pem" "$RUNNER_TEMP/xerj-ci-rs256-public.pem"
