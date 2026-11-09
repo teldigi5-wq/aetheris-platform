@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public class AuditEventRepository {
@@ -19,8 +20,8 @@ public class AuditEventRepository {
     public void saveIfAbsent(UserDomainEvent event) {
         jdbcTemplate.update(
                 """
-                INSERT INTO audit_events (event_id, event_type, occurred_at, user_id, name, email)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO audit_events (event_id, event_type, occurred_at, user_id, name, email, tenant_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (event_id) DO NOTHING
                 """,
                 event.eventId(),
@@ -28,13 +29,14 @@ public class AuditEventRepository {
                 Timestamp.from(event.occurredAt()),
                 event.userId(),
                 event.name(),
-                event.email());
+                event.email(),
+                event.tenantId());
     }
 
     public List<UserDomainEvent> recent() {
         return jdbcTemplate.query(
                 """
-                SELECT event_id, event_type, occurred_at, user_id, name, email
+                SELECT event_id, event_type, occurred_at, user_id, name, email, tenant_id
                 FROM audit_events
                 ORDER BY occurred_at DESC, event_id DESC
                 LIMIT ?
@@ -45,7 +47,8 @@ public class AuditEventRepository {
                         resultSet.getTimestamp("occurred_at").toInstant(),
                         resultSet.getLong("user_id"),
                         resultSet.getString("name"),
-                        resultSet.getString("email")),
+                        resultSet.getString("email"),
+                        resultSet.getObject("tenant_id", UUID.class)),
                 RECENT_EVENT_LIMIT);
     }
 }
