@@ -20,17 +20,30 @@ import java.util.UUID;
 public class AuditEventStore {
     private final AuditEventRepository repository;
     private final AuditEventOriginVerifier originVerifier;
+    private final AuditLocalMembershipFence membershipFence;
 
     @org.springframework.beans.factory.annotation.Autowired
     public AuditEventStore(AuditEventRepository repository,
-                           AuditEventOriginVerifier originVerifier) {
+                           AuditEventOriginVerifier originVerifier,
+                           AuditLocalMembershipFence membershipFence) {
+        if (membershipFence.isRequired() && !originVerifier.isEnabled()) {
+            throw new IllegalArgumentException(
+                    "Local Audit membership fence requires signed User event origin");
+        }
         this.repository = repository;
         this.originVerifier = originVerifier;
+        this.membershipFence = membershipFence;
     }
 
-    /** Existing tests and legacy startup remain explicitly unsigned. */
+    /** Existing tests and legacy callers remain explicitly unsigned. */
+    public AuditEventStore(AuditEventRepository repository,
+                           AuditEventOriginVerifier originVerifier) {
+        this(repository, originVerifier, AuditLocalMembershipFence.disabled());
+    }
+
     public AuditEventStore(AuditEventRepository repository) {
-        this(repository, AuditEventOriginVerifier.disabled());
+        this(repository, AuditEventOriginVerifier.disabled(),
+                AuditLocalMembershipFence.disabled());
     }
 
     @Transactional
@@ -49,6 +62,10 @@ public class AuditEventStore {
         }
         // Keep persistence outside the parse/reject handler: JDBC outages,
         // deadlocks and similar transient failures remain retriable.
+        // This SELECT ... FOR SHARE and the event write run under the SAME
+        // Spring transaction. A concurrent policy revocation cannot commit
+        // between local admission and the Audit event's durable effect.
+        membershipFence.enforce(event);
         repository.saveIfAbsent(event);
     }
 
