@@ -100,6 +100,76 @@ class JwtAuthenticationFilterTest {
         assertThrows(IllegalArgumentException.class, () -> new JwtAuthenticationFilter("too-short"));
     }
 
+    @Test
+    void longSigningKeyAcceptsHs256ButRejectsHs512EvenWithMatchingClaims() {
+        String longSecret = "x".repeat(64);
+        var key = Keys.hmacShaKeyFor(longSecret.getBytes(StandardCharsets.UTF_8));
+        String hs256 = Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+                .subject("user@example.com")
+                .claim("uid", 42L)
+                .claim("role", "API_CONSUMER")
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)))
+                .signWith(key, Jwts.SIG.HS256).compact();
+        String hs512 = Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+                .subject("user@example.com")
+                .claim("uid", 42L)
+                .claim("role", "API_CONSUMER")
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)))
+                .signWith(key, Jwts.SIG.HS512).compact();
+
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(longSecret);
+        MockServerWebExchange valid = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + hs256).build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(valid, authenticated -> {
+            forwarded.set(authenticated);
+            return Mono.empty();
+        }).block();
+        assertNotNull(forwarded.get());
+
+        MockServerWebExchange rejected = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + hs512).build());
+        AtomicReference<ServerWebExchange> forbidden = new AtomicReference<>();
+        filter.filter(rejected, authenticated -> {
+            forbidden.set(authenticated);
+            return Mono.empty();
+        }).block();
+        assertNull(forbidden.get());
+        assertEquals(HttpStatus.UNAUTHORIZED, rejected.getResponse().getStatusCode());
+    }
+
+    @Test
+    void rejectsWrongIssuerAudienceAndTokensMissingThoseClaims() {
+        for (String jwt : List.of(
+                signed("some-other-issuer", JwtAuthenticationFilter.DEFAULT_AUDIENCE, 42L),
+                signed(JwtAuthenticationFilter.DEFAULT_ISSUER, "unrelated-app", 42L),
+                signed(null, JwtAuthenticationFilter.DEFAULT_AUDIENCE, 42L),
+                signed(JwtAuthenticationFilter.DEFAULT_ISSUER, null, 42L),
+                signed(JwtAuthenticationFilter.DEFAULT_ISSUER, JwtAuthenticationFilter.DEFAULT_AUDIENCE, -1L))) {
+            assertRejected("Bearer " + jwt, HttpStatus.UNAUTHORIZED);
+        }
+    }
+
+    private static String signed(String issuer, String audience, Long uid) {
+        var builder = Jwts.builder()
+                .subject("user@example.com")
+                .claim("uid", uid)
+                .claim("role", "API_CONSUMER")
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)));
+        if (issuer != null) builder.issuer(issuer);
+        if (audience != null) builder.audience().add(audience).and();
+        return builder.signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8))).compact();
+    }
+
     private static void assertRejected(String authorization, HttpStatus expectedStatus) {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
         MockServerWebExchange exchange = MockServerWebExchange.from(
@@ -119,6 +189,8 @@ class JwtAuthenticationFilterTest {
 
     private static String token(List<String> scopes, Instant expiration) {
         return Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
                 .subject("user@example.com")
                 .claim("role", "API_CONSUMER")
                 .claim("uid", 42L)

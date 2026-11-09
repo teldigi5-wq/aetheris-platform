@@ -122,6 +122,8 @@ spring:
 aetheris:
   jwt:
     secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
+    issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
+    audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
 
 resilience4j:
   circuitbreaker:
