@@ -345,6 +345,7 @@ The recommended interview approach is to **defend the core platform first** and 
 - [First-boot runbook](docs/first-boot-runbook.md)
 - [Versioning and release classes](docs/versioning.md)
 - [Release-readiness checklist](docs/release-readiness.md)
+- [S0-E6J review-only Runtime session ledger: PostgreSQL roles, audit, revocation](docs/security/S0_E6J_RUNTIME_SESSION_LEDGER_REVIEW_20261109.md) — draft, disposable CI only, **not a production migration or HTTP activation**
 
 ---
 
