@@ -39,7 +39,7 @@ spring:
                     name: identityCircuit
                     fallbackUri: forward:/fallback/identity
             - id: user-service-read
-              uri: http://user-service:8081
+              uri: ${AETHERIS_USER_BACKEND_URI:http://user-service:8081}
               predicates:
                 - Path=/api/users/**
                 - Method=GET,HEAD
@@ -65,7 +65,7 @@ spring:
                     name: userReadCircuit
                     fallbackUri: forward:/fallback/users
             - id: user-service-write
-              uri: http://user-service:8081
+              uri: ${AETHERIS_USER_BACKEND_URI:http://user-service:8081}
               predicates:
                 - Path=/api/users/**
                 - Method=POST,PUT,PATCH,DELETE
@@ -81,7 +81,7 @@ spring:
                     name: userWriteCircuit
                     fallbackUri: forward:/fallback/users
             - id: audit-service
-              uri: http://audit-service:8083
+              uri: ${AETHERIS_AUDIT_BACKEND_URI:http://audit-service:8083}
               predicates:
                 - Path=/api/events/**
               filters:
