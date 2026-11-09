@@ -2,25 +2,29 @@ name: XERJ pinned-source safety preflight (review only)
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, docs/xerj-pinned-source-preflight-20261031]
     paths:
       - '.github/workflows/xerj-pinned-source-preflight.yml'
       - 'docs/integrations/xerj-source-scope.json'
       - 'docs/integrations/xerj-corpus-review.md'
       - 'scripts/security/verify_xerj_source_scope.py'
+      - 'scripts/security/xerj_filter_40.py'
+      - 'scripts/security/test_xerj_filter_40.py'
       - 'scripts/security/verify_xerj_privacy_preflight.py'
       - 'scripts/security/verify_xerj_fixture_reuse.py'
       - 'scripts/security/verify_xerj_fixture_history.py'
-      - 'scripts/security/verify_xerj_reviewer_inventory.py'
-      - 'docs/integrations/xerj-44-file-review-inventory.md'
-      - 'scripts/security/verify_xerj_local_index_receipt.py'
-      - 'scripts/security/verify_xerj_sparse_consumer.py'
       - 'scripts/security/verify_xerj_candidate_proposal.py'
-      - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
       - 'docs/integrations/xerj-upstream-amendment-draft.json'
       - 'docs/integrations/xerj-owner-publication-approval.md'
-      - 'docs/integrations/xerj-upstream-validator-dryrun.md'
+      - 'docs/integrations/xerj-40-file-review-inventory.md'
+      - 'docs/integrations/xerj-44-file-review-inventory.md'
       - 'docs/integrations/xerj-reachable-history-fixture-review.md'
+      - 'docs/integrations/xerj-pinned-content-review-findings.md'
+      - 'docs/integrations/xerj-upstream-validator-dryrun.md'
+      - 'scripts/security/verify_xerj_reviewer_inventory.py'
+      - 'scripts/security/verify_xerj_sparse_consumer.py'
+      - 'scripts/security/verify_xerj_local_index_receipt.py'
+      - 'scripts/security/verify_xerj_upstream_validator_dryrun.py'
 
 permissions:
   contents: read
@@ -48,11 +52,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           python3 scripts/security/verify_xerj_source_scope.py
-
-      - name: Verify all 44 human-review inventory entries match pinned Git objects and remain unapproved
-        shell: bash
-        run: |
-          set -euo pipefail
+          python3 -m unittest discover -s scripts/security -p 'test_xerj_filter_40.py' -v
           python3 scripts/security/verify_xerj_reviewer_inventory.py --self-test
           python3 scripts/security/verify_xerj_reviewer_inventory.py
           echo XERJ_HUMAN_PER_FILE_PRIVACY_AND_RIGHTS_APPROVAL_PENDING
@@ -80,11 +80,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-pinned.XXXXXXXX")"
+          candidate_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-pinned-XXXXXXXX")"
+          filtered_dir=""
           scanner_dir="${RUNNER_TEMP}/xerj-reviewed-gitleaks"
           report="${RUNNER_TEMP}/xerj-pinned-sensitive-results.json"
           output="${RUNNER_TEMP}/xerj-pinned-scan.stdout"
-          trap 'rm -rf -- "$candidate_dir" "$scanner_dir" "$report" "$output"' EXIT
+          trap 'rm -rf -- "$candidate_dir" "${filtered_dir:-}" "$scanner_dir" "$report" "$output"' EXIT
           pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
           mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
           test "${#paths[@]}" -gt 0
@@ -92,11 +93,19 @@ jobs:
           file_count="$(find "$candidate_dir" -type f | wc -l)"
           expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
           test "$file_count" -eq "$expected_count"
+          filtered_dir="$(mktemp -d "${RUNNER_TEMP}/xerj-filtered-XXXXXXXX")"
+          rmdir "$filtered_dir"
+          python3 scripts/security/xerj_filter_40.py \
+            --scratch "$RUNNER_TEMP" --source "$candidate_dir" \
+            --output "$filtered_dir" --source-pin "$pin"
+          file_count="$(find "$filtered_dir" -type f | wc -l)"
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["filtered_tree"]["files"])')"
+          test "$file_count" -eq "$expected_count"
           # No custom repository config, no ignore file, no inline allow comments.
           set +e
           gitleaks dir --redact --ignore-gitleaks-allow \
             --report-format json --report-path "$report" \
-            "$candidate_dir" > "$output" 2>&1
+            "$filtered_dir" > "$output" 2>&1
           scan_status=$?
           set -e
           if [[ "$scan_status" -ne 0 ]]; then
@@ -159,7 +168,7 @@ jobs:
 
   xerj-reachable-history-review-blocker:
     # STAGE 3 MANDATORY: real history findings must keep overall CI red.
-    # The separately vetted 44-file SOURCE snapshot and independent
+    # The separately vetted 40-file SOURCE snapshot and independent
     # Stage 5 technical tests must not be skipped by a historical test
     # fixture finding outside the selected source-only corpus.
     # This NEVER approves XERJ publication or an upstream manifest.
@@ -269,18 +278,20 @@ jobs:
 
           pin="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["source"]["sha"])')"
           mapfile -t paths < <(python3 -c 'import json; print("\n".join(json.load(open("docs/integrations/xerj-source-scope.json"))["paths"]))')
-          mkdir -p "$work/source" "$work/node"
-          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$work/source"
+          mkdir -p "$work/xerj-pinned-source" "$work/node"
+          git archive --format=tar "$pin" "${paths[@]}" | tar -xf - -C "$work/xerj-pinned-source"
           expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["expected_tree"]["files"])')"
-          test "$(find "$work/source" -type f | wc -l)" -eq "$expected_count"
+          test "$(find "$work/xerj-pinned-source" -type f | wc -l)" -eq "$expected_count"
+          python3 scripts/security/xerj_filter_40.py \
+            --scratch "$work" --source "$work/xerj-pinned-source" \
+            --output "$work/xerj-filtered-source" --source-pin "$pin"
+          expected_count="$(python3 -c 'import json; print(json.load(open("docs/integrations/xerj-source-scope.json"))["filtered_tree"]["files"])')"
+          test "$(find "$work/xerj-filtered-source" -type f | wc -l)" -eq "$expected_count"
           echo XERJ_LOCAL_SOURCE_ARCHIVE_VERIFIED
-          # The actual pinned rc.100 consumer MUST obey the six sparse
-          # manifest paths. Older corpus-hub branch source is not sufficient
-          # evidence of client behavior, so test the checksum-verified binary
-          # against a local bare mirror of the EXACT source pin.
+          # Verify released XERJ respects the seven 40-file Hub subpaths.
           python3 scripts/security/verify_xerj_sparse_consumer.py \
             "$binary" "$work"
-          echo XERJ_SPARSE_CONSUMER_EXCLUDES_ALL_TEST_AND_DEPLOYMENT_FILES
+          echo XERJ_SPARSE_CONSUMER_EXCLUDES_UNAPPROVED_YAML
 
           # Insecure mode is acceptable ONLY on this disposable loopback node
           # with public, previously scanned source. Never bind externally.
@@ -304,7 +315,7 @@ jobs:
           echo XERJ_DISPOSABLE_LOOPBACK_NODE_READY
 
           export XERJ_URL=http://127.0.0.1:9200
-          "$binary" autoindex "$work/source" --url "$XERJ_URL" \
+          "$binary" autoindex "$work/xerj-filtered-source" --url "$XERJ_URL" \
             --prefix aetheris-xerj-review --no-semantic \
             --workers 2 --progress none --json \
             > "$work/index.json" 2> "$work/index.err" || {
@@ -333,9 +344,8 @@ jobs:
             exit 1
           }
           echo "XERJ_LOCAL_TWO_SOURCE_LINE_CITATIONS_PASS files=$expected_count publication=NOT_AUTHORIZED"
-          # Stage 5 mechanical proof only: read the actual disposable run and
-          # live XERJ catalog. Do NOT copy the 44 Git files / 75,323 blob
-          # bytes into a claimed indexed-record/byte field or Hub manifest.
+          # Measure the actual 40-file index; never transplant parent 44-file
+          # 219-record counts into this distinct filtered corpus.
           python3 scripts/security/verify_xerj_local_index_receipt.py --self-test
           "$binary" autoindex map --prefix aetheris-xerj-review --json \
             > "$work/map.json" 2> "$work/map.err" || {
@@ -343,6 +353,6 @@ jobs:
               exit 1
             }
           python3 scripts/security/verify_xerj_local_index_receipt.py \
-            "$work/source" "$work/index.json" "$work/map.json" \
+            "$work/xerj-filtered-source" "$work/index.json" "$work/map.json" \
             "docs/integrations/xerj-source-scope.json"
-          echo XERJ_STAGE5_LIVE_RECORD_AND_CATALOG_BYTE_COUNTS_PROVEN_REVIEW_ONLY
+          echo XERJ_STAGE5_FILTERED40_LIVE_METRICS_REVIEW_ONLY

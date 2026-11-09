@@ -12,10 +12,11 @@
     "sha": "57ad3e0e602efa6feb275328254151b959a3499b",
     "paths": [
       "architecture",
-      "gateway/src/main",
-      "identity-service/src/main",
-      "user-service/src/main",
-      "audit-service/src/main",
+      "gateway/src/main/java",
+      "identity-service/src/main/java",
+      "user-service/src/main/java",
+      "audit-service/src/main/java",
+      "audit-service/src/main/resources/db/migration",
       "docs/security"
     ],
     "licence": "Apache-2.0 (repository root LICENSE detected; human ownership/third-party licence review pending)",
@@ -42,6 +43,27 @@
     "Existing upstream consent record references a different unrestricted source pin and may not be reused",
     "Full repository production/security readiness is NO_GO",
     "A synthetic JWT test signing fixture was found in original broader corpus scope; the curated application-only scope was scanned separately",
-    "This file cannot be used as a live Lane A manifest because review.use is UNREVIEWED"
-  ]
+    "This file cannot be used as a live Lane A manifest because review.use is UNREVIEWED",
+    "Seven directory-only sparse paths reproduce the filtered 40-file source at exact pin; no application.yml is harvestable. Human/maintainer validation remains pending."
+  ],
+  "proposed_filtered_scope": {
+    "files": 40,
+    "git_blob_bytes": 66617,
+    "excluded_paths": [
+      "gateway/src/main/resources/application.yml",
+      "identity-service/src/main/resources/application.yml",
+      "user-service/src/main/resources/application.yml",
+      "audit-service/src/main/resources/application.yml"
+    ],
+    "review": "PENDING_REVIEW_AND_EXACT_HEAD_SCAN",
+    "reproducible_hub_paths": [
+      "architecture",
+      "gateway/src/main/java",
+      "identity-service/src/main/java",
+      "user-service/src/main/java",
+      "audit-service/src/main/java",
+      "audit-service/src/main/resources/db/migration",
+      "docs/security"
+    ]
+  }
 }

@@ -53,8 +53,8 @@ def main() -> None:
     insist(not any(proposal["publication"].values()),
            "No new owner, maintainer or licence approval has occurred")
     insist(proposal["repo"]["sha"] == plan["source"]["sha"]
-           and proposal["repo"]["paths"] == plan["paths"],
-           "Pinned 44-file scope must match amendment")
+           and proposal["repo"]["paths"] == plan["hub_reproducible_paths"],
+           "Pinned 40-file Hub scope must match amendment")
     target_path = proposal["upstream_candidate_path"]
     insist(target_path ==
            "tools/xerj-code/hub/candidates/authors/teldigi5-wq--aetheris-platform.json",
@@ -97,9 +97,9 @@ def main() -> None:
             "url": proposal["repo"]["url"],
             "licence": "repository-declared Apache-2.0, not human reviewed",
             "sha": plan["source"]["sha"],
-            "paths": plan["paths"],
-            "files": plan["expected_tree"]["files"],
-            "bytes": plan["expected_tree"]["bytes"],
+            "paths": plan["hub_reproducible_paths"],
+            "files": plan["hub_reproducible_tree"]["files"],
+            "bytes": plan["hub_reproducible_tree"]["bytes"],
             "review": {
                 "spdx": "Apache-2.0",
                 "use": "UNREVIEWED",

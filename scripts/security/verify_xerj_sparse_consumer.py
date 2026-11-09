@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Ephemeral real-XERJ corpus add --from sparse-harvest acceptance.
 
-Checks actual release CLI materializes exactly 44 Git blobs, not the full
+Checks actual release CLI materializes exactly 40 Git blobs, not the full
 source repository. Never creates or submits a Hub manifest or writes
 review/consent metadata to any persistent repository.
 """
@@ -42,7 +42,7 @@ def cmd(args: list[str], *, cwd: Path | None = None,
 
 def selected(plan: dict) -> dict[str, tuple[str, int]]:
     raw = cmd(["git", "ls-tree", "-r", "-l", plan["source"]["sha"],
-               "--", *plan["paths"]])
+               "--", *plan["hub_reproducible_paths"]])
     expected = {}
     for entry in raw.splitlines():
         m = TREE.fullmatch(entry)
@@ -50,12 +50,12 @@ def selected(plan: dict) -> dict[str, tuple[str, int]]:
         _, blob, size, path_bytes = m.groups()
         path = path_bytes.decode("utf-8")
         require(path not in expected and
-                any(path.startswith(p + "/") for p in plan["paths"]),
+                any(path.startswith(p + "/") for p in plan["hub_reproducible_paths"]),
                 "Unapproved pinned source path")
         expected[path] = (blob.decode("ascii"), int(size))
-    require(len(expected) == plan["expected_tree"]["files"] == 44 and
+    require(len(expected) == plan["hub_reproducible_tree"]["files"] == 40 and
             sum(size for _, size in expected.values()) ==
-            plan["expected_tree"]["bytes"] == 75323,
+            plan["hub_reproducible_tree"]["bytes"] == 66617,
             "Source inventory changed unexpectedly")
     return expected
 
@@ -65,9 +65,11 @@ def verify(binary: Path, work: Path) -> None:
     require(not plan["publication"]["hub_submission_authorized"] and
             not plan["publication"]["source_snapshot_approved"],
             "Publication authorization status was unexpectedly changed")
-    require(plan["paths"] == [
-        "architecture", "gateway/src/main", "identity-service/src/main",
-        "user-service/src/main", "audit-service/src/main", "docs/security"
+    require(plan["hub_reproducible_paths"] == [
+        "architecture", "gateway/src/main/java",
+        "identity-service/src/main/java", "user-service/src/main/java",
+        "audit-service/src/main/java",
+        "audit-service/src/main/resources/db/migration", "docs/security"
     ], "Unexpected XERJ sparse source directories")
     require(binary.is_file() and work.is_dir() and not work.is_symlink(),
             "Pinned XERJ executable or disposable workdir missing")
@@ -97,9 +99,9 @@ def verify(binary: Path, work: Path) -> None:
             "repo": REPO,
             "url": bare.resolve().as_uri(),
             "sha": plan["source"]["sha"],
-            "paths": plan["paths"],
+            "paths": plan["hub_reproducible_paths"],
             "licence": "UNREVIEWED CI-only fixture, not an owner attestation",
-            "files": 44, "bytes": 75323,
+            "files": 40, "bytes": 66617,
             "review": {
                 "spdx": None, "use": "UNREVIEWED", "by": None, "at": None,
                 "note": "Synthetic local consumer test; no human licence review"
@@ -135,10 +137,10 @@ def verify(binary: Path, work: Path) -> None:
         require(oid == expected[rel][0],
                 "XERJ worktree content differs from selected source blob")
         actual[rel] = True
-    require(set(actual) == set(expected) and len(actual) == 44,
+    require(set(actual) == set(expected) and len(actual) == 40,
             "XERJ sparse consumer did not materialize exactly 44 files")
     print("XERJ_REAL_RELEASE_CORPUS_ADD_FROM_SPARSE_CONSUMER_PASS "
-          "files=44 git_blob_bytes=75323 outside_scope=0 "
+          "files=40 git_blob_bytes=66617 outside_scope=0 "
           "selected_source_pin=VERIFIED human_review=UNREVIEWED "
           "publication=NOT_AUTHORIZED")
 

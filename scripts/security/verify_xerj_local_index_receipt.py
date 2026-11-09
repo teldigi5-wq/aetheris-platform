@@ -38,8 +38,9 @@ def uint(value: object, key: str, maximum: int = 10_000_000) -> int:
 def measure(source: Path, index: dict, catalog: dict, plan: dict) -> dict:
     check(plan["publication"]["hub_submission_authorized"] is False,
           "Cannot measure a manifest marked as authorized")
-    expected_count = uint(plan["expected_tree"]["files"], "planned files")
-    expected_bytes = uint(plan["expected_tree"]["bytes"], "planned blob bytes",
+    selected_tree = plan.get("filtered_tree", plan["expected_tree"])
+    expected_count = uint(selected_tree["files"], "planned files")
+    expected_bytes = uint(selected_tree["bytes"], "planned blob bytes",
                           MAX_SOURCE_BYTES)
     check(source.is_dir() and not source.is_symlink(), "Invalid source directory")
     source = source.resolve(strict=True)
@@ -53,7 +54,7 @@ def measure(source: Path, index: dict, catalog: dict, plan: dict) -> dict:
             regular.append(path)
     actual_bytes = sum(p.stat().st_size for p in regular)
     check(len(regular) == expected_count and actual_bytes == expected_bytes,
-          "Staged source differs from pinned 44-file Git-tree measurement")
+          "Staged source differs from exact selected Git-tree measurement")
     check(index.get("doc_kind") == "run", "Missing XERJ autoindex run document")
     check(index.get("prefix") == PREFIX, "Incorrect XERJ index namespace")
     indexed_files = uint(index.get("files_indexed"), "files_indexed")
