@@ -58,3 +58,7 @@ CI workflows, tests, security analysis and review conventions live in the reposi
 ## Parallel S0 security research — separate from the 34-stage blueprint
 
 The stacked [S0-E6J review-only PostgreSQL Runtime session-ledger contract](security/S0_E6J_RUNTIME_SESSION_LEDGER_REVIEW_20261109.md) follows existing draft E6D–E6I Identity/Runtime compatibility and mTLS research; it does **not** reopen Stage 34 or create Stage 35. Disposable CI verifies restricted session enrollment, read, revocation, audit and locking behavior, **not** a deployed production registry or user-accessible Runtime API. The next S0-E6K integration/migration approval remains pending. Preserve **34 / 34 COMPLETE**, Runtime #23 / Platform #251 OPEN, Stage45 NO_GO, XERJ HOLD and physical-PC `BLOCKED_PENDING_HARDWARE` until independently verified.
+
+### S0-E6K — atomically enrolled Runtime tokens (review only)
+
+The [S0-E6K draft](security/S0_E6K_ATOMIC_RUNTIME_SESSION_ENROLLMENT_20261109.md) proves that an existing one-time Identity refresh claim, genuinely signed RS256 Runtime JWT, exact JTI registration, and ledger audit can share a single real disposable PostgreSQL16 transaction, with rollback on registry failure. The next work is real cross-repository Runtime function-only verification against a shared ledger, followed by owner-approved migration/credential custody. This is **not** an API deployment or Stage 35; keep roadmap `34 / 34 COMPLETE`, Stage45 NO_GO, XERJ HOLD and owner-PC `BLOCKED_PENDING_HARDWARE`.
