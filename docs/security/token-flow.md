@@ -45,7 +45,11 @@ Current roles are:
 - `DEVELOPER`
 - `API_CONSUMER`
 
-All authenticated roles may read `/api/users`. User-modifying methods require `ADMIN` or `DEVELOPER`. The Gateway returns:
+**Historical protected-main policy:** authenticated users could read the global `/api/users` endpoint, and both `ADMIN` and `DEVELOPER` could modify it.
+
+**Unmerged direct-service authorization review (PR #378):** global User and Audit APIs require a correctly signed `ADMIN` role and the corresponding read/write scope at the Gateway **and** at each backend service. `API_CONSUMER` and `DEVELOPER` cannot read global User/Audit records. Tenant-scoped operations belong to dependent draft PRs and are not active on protected `main`.
+
+The Gateway returns:
 
 - `401 Unauthorized` when authentication is missing, invalid, or expired;
 - `403 Forbidden` when authentication succeeds but the role lacks permission.
@@ -60,7 +64,7 @@ The current CSP still permits inline script/style because historical stage pages
 
 ### Gateway → internal services
 
-After JWT validation, the Gateway injects internal identity headers such as user ID, email, role, and scopes. Internal services should eventually add service-level authorization checks as defense in depth rather than relying only on the Gateway.
+After JWT validation, the Gateway injects internal identity headers such as user ID, email, role, and scopes. In the unmerged PR #378, User and Audit independently validate the signed bearer JWT and never trust these client-forgeable headers as authentication. The subsequent RS256/mTLS and tenant-isolation drafts remain separate review gates.
 
 ### Identity Service → PostgreSQL
 
@@ -83,7 +87,7 @@ Passwords are stored as BCrypt hashes. Refresh credentials are stored only as SH
 
 ## Development vs production
 
-The default JWT secret and the local HTTP cookie-security override exist only to keep local development and hosted Docker Compose proofs simple. They must not be used as production deployment values. Production should use a high-entropy externally supplied secret or asymmetric signing keys, TLS everywhere, secure secret storage, issuer/audience validation, key rotation, stricter CORS, rate limiting, audit logging, and preferably an established OAuth 2.0 / OpenID Connect provider or standards-compatible authorization server.
+The historical protected-main configuration used a known development JWT fallback. The unmerged PR #378 removes that fallback and requires an explicit private signing secret; isolated tests supply ephemeral or synthetic CI-only secrets. A missing runtime key must fail startup. The local HTTP cookie-security override is development-only. None of these mechanisms is production secret management. Production should use a high-entropy externally supplied secret or asymmetric signing keys, TLS everywhere, secure secret storage, issuer/audience validation, key rotation, stricter CORS, rate limiting, audit logging, and preferably an established OAuth 2.0 / OpenID Connect provider or standards-compatible authorization server.
 
 The browser refresh cookie defaults to `Secure=true`; only the explicitly local HTTP Compose profiles set it to false. Hosted CI evidence remains `HOSTED_RUNTIME` evidence and does not prove an internet deployment or physical machine.
 
