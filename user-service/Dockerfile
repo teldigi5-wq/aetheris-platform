@@ -10,14 +10,14 @@ RUN set -eu; \
         echo "Unsafe Java CA remains: $alias" >&2; exit 1; \
       fi; \
     done; \
-    unsafe_aliases="$(keytool -list -v -cacerts -storepass changeit | awk '/^Alias name: / { alias=substr($0,13) } /SHA256: / { fingerprint=$0; sub(/^.*SHA256: /,"",fingerprint); gsub(/:/,"",fingerprint); if (fingerprint == "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B" || fingerprint == "D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4") print alias }')"; \
+    unsafe_aliases="$(keytool -list -v -cacerts -storepass changeit | awk '/^Alias name: / { alias=substr($0,13) } /SHA256: / { fingerprint=$0; sub(/^.*SHA256: /,"",fingerprint); gsub(/:/,"",fingerprint); if (fingerprint == "40F6AF0346A99AA1CD1D555A4E9CCE62C7F9634603EE406615833DC8C8D00367" || fingerprint == "1AA0C2709E831BD6E3B5129A00BA41F7EEEF020872F1E6504BF0F6C3F24F3AF3" || fingerprint == "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B" || fingerprint == "D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4") print alias }')"; \
     if [ -n "$unsafe_aliases" ]; then \
       printf '%s\n' "$unsafe_aliases" | while IFS= read -r alias; do \
         keytool -delete -cacerts -storepass changeit -alias "$alias"; \
       done; \
     fi; \
     certs="$(keytool -list -v -cacerts -storepass changeit)"; \
-    if printf '%s\n' "$certs" | tr -d ':' | grep -Eqi '86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B|D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4'; then \
+    if printf '%s\n' "$certs" | tr -d ':' | grep -Eqi '40F6AF0346A99AA1CD1D555A4E9CCE62C7F9634603EE406615833DC8C8D00367|1AA0C2709E831BD6E3B5129A00BA41F7EEEF020872F1E6504BF0F6C3F24F3AF3|86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B|D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4'; then \
       echo 'Compromised-chain Java trust root fingerprint persists' >&2; exit 1; \
     fi
 ARG MAVEN_VERSION=3.9.11
@@ -55,14 +55,14 @@ RUN set -eu; \
         echo "Unsafe Java CA remains: $alias" >&2; exit 1; \
       fi; \
     done; \
-    unsafe_aliases="$(keytool -list -v -cacerts -storepass changeit | awk '/^Alias name: / { alias=substr($0,13) } /SHA256: / { fingerprint=$0; sub(/^.*SHA256: /,"",fingerprint); gsub(/:/,"",fingerprint); if (fingerprint == "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B" || fingerprint == "D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4") print alias }')"; \
+    unsafe_aliases="$(keytool -list -v -cacerts -storepass changeit | awk '/^Alias name: / { alias=substr($0,13) } /SHA256: / { fingerprint=$0; sub(/^.*SHA256: /,"",fingerprint); gsub(/:/,"",fingerprint); if (fingerprint == "40F6AF0346A99AA1CD1D555A4E9CCE62C7F9634603EE406615833DC8C8D00367" || fingerprint == "1AA0C2709E831BD6E3B5129A00BA41F7EEEF020872F1E6504BF0F6C3F24F3AF3" || fingerprint == "86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B" || fingerprint == "D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4") print alias }')"; \
     if [ -n "$unsafe_aliases" ]; then \
       printf '%s\n' "$unsafe_aliases" | while IFS= read -r alias; do \
         keytool -delete -cacerts -storepass changeit -alias "$alias"; \
       done; \
     fi; \
     certs="$(keytool -list -v -cacerts -storepass changeit)"; \
-    if printf '%s\n' "$certs" | tr -d ':' | grep -Eqi '86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B|D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4'; then \
+    if printf '%s\n' "$certs" | tr -d ':' | grep -Eqi '40F6AF0346A99AA1CD1D555A4E9CCE62C7F9634603EE406615833DC8C8D00367|1AA0C2709E831BD6E3B5129A00BA41F7EEEF020872F1E6504BF0F6C3F24F3AF3|86A1ECBA089C4A8D3BBE2734C612BA341D813E043CF9E8A862CD5C57A36BBE6B|D7A7A0FB5D7E2731D771E9484EBCDEF71D5F0C3E0A2948782BC83EE0EA699EF4'; then \
       echo 'Compromised-chain Java trust root fingerprint persists' >&2; exit 1; \
     fi
 RUN groupadd --system --gid 10001 aetheris \
