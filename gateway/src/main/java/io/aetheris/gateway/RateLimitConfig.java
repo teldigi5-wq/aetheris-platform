@@ -11,9 +11,11 @@ public class RateLimitConfig {
     @Bean
     KeyResolver aetherisKeyResolver() {
         return exchange -> {
-            String userId = exchange.getRequest().getHeaders().getFirst("X-Aetheris-User-Id");
-            if (userId != null && !userId.isBlank()) {
-                return Mono.just("user:" + userId);
+            // Never trust caller-controlled X-Aetheris headers for rate limiting.
+            // Auth routes have no verified principal and are limited by remote IP.
+            String verifiedId = exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE);
+            if (verifiedId != null && !verifiedId.isBlank()) {
+                return Mono.just("user:" + verifiedId);
             }
 
             if (exchange.getRequest().getRemoteAddress() != null) {

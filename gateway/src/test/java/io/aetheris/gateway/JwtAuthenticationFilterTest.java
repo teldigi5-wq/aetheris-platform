@@ -46,8 +46,9 @@ class JwtAuthenticationFilterTest {
         ServerWebExchange authenticated = forwarded.get();
         assertNotNull(authenticated);
         assertEquals("42", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Id"));
+        assertEquals("42", authenticated.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
         assertEquals("user@example.com", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Email"));
-        assertEquals("API_CONSUMER", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
+        assertEquals("ADMIN", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
         assertEquals("users:read", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-Scopes"));
     }
 
@@ -82,9 +83,9 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void unprotectedRouteBypassesJwtRequirement() {
+    void publicAuthRouteBypassesJwtRequirement() {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
-        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/actuator/health").build());
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.post("/api/auth/login").build());
         AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
 
         filter.filter(exchange, authenticated -> {
@@ -98,6 +99,111 @@ class JwtAuthenticationFilterTest {
     @Test
     void weakSigningSecretFailsClosedAtConstruction() {
         assertThrows(IllegalArgumentException.class, () -> new JwtAuthenticationFilter("too-short"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtAuthenticationFilter("change-me-local-development-secret-32chars"));
+    }
+
+    @Test
+    void longSigningKeyAcceptsHs256ButRejectsHs512EvenWithMatchingClaims() {
+        String longSecret = "x".repeat(64);
+        var key = Keys.hmacShaKeyFor(longSecret.getBytes(StandardCharsets.UTF_8));
+        String hs256 = Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+                .subject("user@example.com")
+                .claim("uid", 42L)
+                .claim("role", "ADMIN")
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)))
+                .signWith(key, Jwts.SIG.HS256).compact();
+        String hs512 = Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+                .subject("user@example.com")
+                .claim("uid", 42L)
+                .claim("role", "ADMIN")
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)))
+                .signWith(key, Jwts.SIG.HS512).compact();
+
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(longSecret);
+        MockServerWebExchange valid = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + hs256).build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(valid, authenticated -> {
+            forwarded.set(authenticated);
+            return Mono.empty();
+        }).block();
+        assertNotNull(forwarded.get());
+
+        MockServerWebExchange rejected = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + hs512).build());
+        AtomicReference<ServerWebExchange> forbidden = new AtomicReference<>();
+        filter.filter(rejected, authenticated -> {
+            forbidden.set(authenticated);
+            return Mono.empty();
+        }).block();
+        assertNull(forbidden.get());
+        assertEquals(HttpStatus.UNAUTHORIZED, rejected.getResponse().getStatusCode());
+    }
+
+    @Test
+    void rejectsWrongIssuerAudienceAndTokensMissingThoseClaims() {
+        for (String jwt : List.of(
+                signed("some-other-issuer", JwtAuthenticationFilter.DEFAULT_AUDIENCE, 42L),
+                signed(JwtAuthenticationFilter.DEFAULT_ISSUER, "unrelated-app", 42L),
+                signed(null, JwtAuthenticationFilter.DEFAULT_AUDIENCE, 42L),
+                signed(JwtAuthenticationFilter.DEFAULT_ISSUER, null, 42L),
+                signed(JwtAuthenticationFilter.DEFAULT_ISSUER, JwtAuthenticationFilter.DEFAULT_AUDIENCE, -1L))) {
+            assertRejected("Bearer " + jwt, HttpStatus.UNAUTHORIZED);
+        }
+    }
+
+    @Test
+    void ordinaryRegisteredRoleCannotReadGlobalUserRecordsEvenWithForgedScopeInSignedJwt() {
+        assertRejected("Bearer " + signed(
+                JwtAuthenticationFilter.DEFAULT_ISSUER,
+                JwtAuthenticationFilter.DEFAULT_AUDIENCE,
+                42L), HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void ordinaryRegisteredRoleCannotReadGlobalAuditEvents() {
+        String token = Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+                .subject("consumer@example.test")
+                .claim("role", "API_CONSUMER")
+                .claim("uid", 42L)
+                .claim("scopes", List.of("services:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)))
+                .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/events")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, authenticated -> {
+            forwarded.set(authenticated);
+            return Mono.empty();
+        }).block();
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.FORBIDDEN, exchange.getResponse().getStatusCode());
+    }
+
+    private static String signed(String issuer, String audience, Long uid) {
+        var builder = Jwts.builder()
+                .subject("user@example.com")
+                .claim("uid", uid)
+                .claim("role", "API_CONSUMER")
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(120)));
+        if (issuer != null) builder.issuer(issuer);
+        if (audience != null) builder.audience().add(audience).and();
+        return builder.signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8))).compact();
     }
 
     private static void assertRejected(String authorization, HttpStatus expectedStatus) {
@@ -114,17 +220,149 @@ class JwtAuthenticationFilterTest {
         }).block();
 
         assertNull(forwarded.get());
+        assertNull(exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
         assertEquals(expectedStatus, exchange.getResponse().getStatusCode());
     }
 
     private static String token(List<String> scopes, Instant expiration) {
         return Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
                 .subject("user@example.com")
-                .claim("role", "API_CONSUMER")
+                .claim("role", "ADMIN")
                 .claim("uid", 42L)
                 .claim("scopes", scopes)
                 .expiration(Date.from(expiration))
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();
+    }
+
+    @Test
+    void spoofedIdentityHeadersAreStrippedOnPublicAuthRoutes() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/auth/login")
+                        .header("X-Aetheris-User-Id", "attacker-rotating-1")
+                        .header("X-Aetheris-User-Email", "attacker@example.com")
+                        .header("X-Aetheris-User-Role", "ADMIN")
+                        .header("X-Aetheris-Scopes", "users:write")
+                        .header("Content-Type", "application/json")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        HttpHeaders headers = forwarded.get().getRequest().getHeaders();
+        for (String name : JwtAuthenticationFilter.IDENTITY_HEADERS) {
+            assertFalse(headers.containsKey(name), name + " must not reach identity-service or the rate limiter");
+        }
+        assertEquals("application/json", headers.getFirst("Content-Type"));
+        assertNull(forwarded.get().getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+    }
+
+    @Test
+    void verifiedUserIdIsExposedOnlyAsAnExchangeAttribute() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String token = token(List.of("users:read"), Instant.now().plusSeconds(300));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("X-Aetheris-User-Id", "999")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        assertEquals("42", forwarded.get().getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+    }
+
+    @Test
+    void rejectedTokenNeverSetsVerifiedUserId() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer definitely-not-a-jwt")
+                        .header("X-Aetheris-User-Id", "999")
+                        .build());
+
+        filter.filter(exchange, next -> Mono.empty()).block();
+
+        assertNull(exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
+    @Test
+    void unknownRoutedPathRequiresBearerTokenByDefault() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/new-service/items").build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void unknownRoutedPathIsForbiddenEvenWithValidTokenAndAllScopes() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String token = token(List.of("users:read", "users:write", "services:read", "orchestrator:read", "orchestrator:write"),
+                Instant.now().plusSeconds(300));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/new-service/items").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.FORBIDDEN, exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void lookalikePublicPrefixesAreNotPublic() {
+        assertFalse(JwtAuthenticationFilter.isPublicRoute("/api/authx/login"));
+        assertFalse(JwtAuthenticationFilter.isPublicRoute("/api/auth"));
+        assertFalse(JwtAuthenticationFilter.isPublicRoute("/API/auth/login"));
+        assertTrue(JwtAuthenticationFilter.isPublicRoute("/api/auth/login"));
+        assertNull(JwtAuthenticationFilter.requiredScope("/api/usersx", org.springframework.http.HttpMethod.GET));
+        assertEquals("users:read", JwtAuthenticationFilter.requiredScope("/api/users", org.springframework.http.HttpMethod.GET));
+    }
+
+    @Test
+    void ambiguousPathsAreRejectedBeforeAnyRoutingDecision() {
+        for (String raw : List.of(
+                "/api/auth/../users", "/api/auth/..%2Fusers", "/api/auth/%2e%2e/users", "/api/users;jsessionid=1",
+                "/api//users", "/api/auth/%2Fusers", "/api/auth/%5Cusers", "/api/auth/%252e%252e/users", "/api/users/.")) {
+            JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                    MockServerHttpRequest.method(org.springframework.http.HttpMethod.GET, java.net.URI.create("http://gateway" + raw)).build());
+            AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+            filter.filter(exchange, next -> {
+                forwarded.set(next);
+                return Mono.empty();
+            }).block();
+
+            assertNull(forwarded.get(), raw);
+            assertEquals(HttpStatus.BAD_REQUEST, exchange.getResponse().getStatusCode(), raw);
+        }
+    }
+
+    @Test
+    void ordinaryPathsAreNotTreatedAsAmbiguous() {
+        assertFalse(JwtAuthenticationFilter.isAmbiguousPath("/api/users/42"));
+        assertFalse(JwtAuthenticationFilter.isAmbiguousPath("/api/orchestrator/knowledge/search"));
+        assertFalse(JwtAuthenticationFilter.isAmbiguousPath("/api/auth/browser/login"));
     }
 }
