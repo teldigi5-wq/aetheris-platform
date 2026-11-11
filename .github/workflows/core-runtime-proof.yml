@@ -49,6 +49,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
+      # Proof registers synthetic API_CONSUMER accounts; sign-up is off by default.
+      AETHERIS_SELF_REGISTRATION_ENABLED: "true"
       COMPOSE_FILE: docker-compose.integration-external.yml
     steps:
       - name: Create ephemeral random Compose secrets (CI only)

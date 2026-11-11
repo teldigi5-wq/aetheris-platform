@@ -58,6 +58,8 @@ jobs:
       AETHERIS_GATEWAY_ACTUATOR_EXPOSURE: health,info,prometheus,circuitbreakers,circuitbreakerevents
       # Prometheus scrapes service metrics only in this proof; default exposure is health,info.
       AETHERIS_SERVICE_ACTUATOR_EXPOSURE: health,info,prometheus
+      # Proof registers synthetic API_CONSUMER accounts; sign-up is off by default.
+      AETHERIS_SELF_REGISTRATION_ENABLED: "true"
     steps:
       - name: Create ephemeral random Compose secrets (CI only)
         shell: bash

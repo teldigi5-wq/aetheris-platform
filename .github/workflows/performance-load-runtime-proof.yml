@@ -49,6 +49,9 @@ jobs:
     name: performance-load-runtime-proof
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    env:
+      # Proof registers synthetic API_CONSUMER accounts; sign-up is off by default.
+      AETHERIS_SELF_REGISTRATION_ENABLED: "true"
     steps:
       - name: Create ephemeral random Compose secrets (CI only)
         shell: bash
