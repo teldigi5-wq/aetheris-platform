@@ -132,6 +132,7 @@ services:
   gateway:
     build: ./gateway
     environment:
+      AETHERIS_GATEWAY_ACTUATOR_EXPOSURE: ${AETHERIS_GATEWAY_ACTUATOR_EXPOSURE:-health,info}
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique random signing key (32+ bytes)}
       AETHERIS_JWT_ISSUER: ${AETHERIS_JWT_ISSUER:-aetheris-identity}
       AETHERIS_JWT_AUDIENCE: ${AETHERIS_JWT_AUDIENCE:-aetheris-api}
