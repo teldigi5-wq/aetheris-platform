@@ -7,7 +7,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
-    password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   flyway:
     enabled: true
     table: flyway_audit_schema_history
@@ -17,7 +17,7 @@ spring:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:aetheris}
-    password: ${SPRING_RABBITMQ_PASSWORD:aetheris}
+    password: ${SPRING_RABBITMQ_PASSWORD}
 
 management:
   endpoints:
@@ -41,3 +41,13 @@ info:
   app:
     name: Aetheris Audit Service
     stage: 5
+
+# A missing signing key fails startup; never accept an implicit development secret.
+aetheris:
+  metrics:
+    # Off by default: /actuator/prometheus requires an ADMIN bearer like every other route.
+    public-scrape: ${AETHERIS_SERVICE_METRICS_PUBLIC_SCRAPE:false}
+  jwt:
+    secret: ${AETHERIS_JWT_SECRET}
+    issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
+    audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}

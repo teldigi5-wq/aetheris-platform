@@ -12,8 +12,6 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 |  |  +- jakarta.annotation:jakarta.annotation-api:jar:2.1.1:compile
 |  |  \- org.yaml:snakeyaml:jar:2.2:compile
 |  +- org.springframework.boot:spring-boot-starter-json:jar:3.3.3:compile
-|  |  +- com.fasterxml.jackson.core:jackson-databind:jar:2.17.2:compile
-|  |  |  \- com.fasterxml.jackson.core:jackson-annotations:jar:2.17.2:compile
 |  |  +- com.fasterxml.jackson.datatype:jackson-datatype-jdk8:jar:2.17.2:compile
 |  |  +- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:2.17.2:compile
 |  |  \- com.fasterxml.jackson.module:jackson-module-parameter-names:jar:2.17.2:compile
@@ -75,18 +73,23 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 |  |  +- io.opentelemetry.instrumentation:opentelemetry-instrumentation-api:jar:1.33.5:compile
 |  |  \- io.opentelemetry:opentelemetry-api-incubator:jar:1.40.0-alpha:runtime
 |  \- io.opentelemetry:opentelemetry-extension-trace-propagators:jar:1.37.0:compile
-\- io.opentelemetry:opentelemetry-exporter-otlp:jar:1.37.0:compile
-   +- io.opentelemetry:opentelemetry-sdk-metrics:jar:1.37.0:compile
-   +- io.opentelemetry:opentelemetry-sdk-logs:jar:1.37.0:compile
-   +- io.opentelemetry:opentelemetry-exporter-otlp-common:jar:1.37.0:runtime
-   |  \- io.opentelemetry:opentelemetry-exporter-common:jar:1.37.0:runtime
-   +- io.opentelemetry:opentelemetry-exporter-sender-okhttp:jar:1.37.0:runtime
-   |  \- com.squareup.okhttp3:okhttp:jar:4.12.0:runtime
-   |     +- com.squareup.okio:okio:jar:3.6.0:runtime
-   |     |  \- com.squareup.okio:okio-jvm:jar:3.6.0:runtime
-   |     |     \- org.jetbrains.kotlin:kotlin-stdlib-common:jar:1.9.25:runtime
-   |     \- org.jetbrains.kotlin:kotlin-stdlib-jdk8:jar:1.9.25:runtime
-   |        +- org.jetbrains.kotlin:kotlin-stdlib:jar:1.9.25:runtime
-   |        |  \- org.jetbrains:annotations:jar:13.0:runtime
-   |        \- org.jetbrains.kotlin:kotlin-stdlib-jdk7:jar:1.9.25:runtime
-   \- io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:jar:1.37.0:runtime
++- io.opentelemetry:opentelemetry-exporter-otlp:jar:1.37.0:compile
+|  +- io.opentelemetry:opentelemetry-sdk-metrics:jar:1.37.0:compile
+|  +- io.opentelemetry:opentelemetry-sdk-logs:jar:1.37.0:compile
+|  +- io.opentelemetry:opentelemetry-exporter-otlp-common:jar:1.37.0:runtime
+|  |  \- io.opentelemetry:opentelemetry-exporter-common:jar:1.37.0:runtime
+|  +- io.opentelemetry:opentelemetry-exporter-sender-okhttp:jar:1.37.0:runtime
+|  |  \- com.squareup.okhttp3:okhttp:jar:4.12.0:runtime
+|  |     +- com.squareup.okio:okio:jar:3.6.0:runtime
+|  |     |  \- com.squareup.okio:okio-jvm:jar:3.6.0:runtime
+|  |     |     \- org.jetbrains.kotlin:kotlin-stdlib-common:jar:1.9.25:runtime
+|  |     \- org.jetbrains.kotlin:kotlin-stdlib-jdk8:jar:1.9.25:runtime
+|  |        +- org.jetbrains.kotlin:kotlin-stdlib:jar:1.9.25:runtime
+|  |        |  \- org.jetbrains:annotations:jar:13.0:runtime
+|  |        \- org.jetbrains.kotlin:kotlin-stdlib-jdk7:jar:1.9.25:runtime
+|  \- io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:jar:1.37.0:runtime
++- io.jsonwebtoken:jjwt-api:jar:0.12.6:compile
++- io.jsonwebtoken:jjwt-impl:jar:0.12.6:runtime
+\- io.jsonwebtoken:jjwt-jackson:jar:0.12.6:runtime
+   \- com.fasterxml.jackson.core:jackson-databind:jar:2.17.2:compile
+      \- com.fasterxml.jackson.core:jackson-annotations:jar:2.17.2:compile

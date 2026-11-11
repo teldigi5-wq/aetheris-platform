@@ -125,6 +125,31 @@ def register_principal(email: str, password: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {body['accessToken']}"}
 
 
+def promote_and_login_principals(emails: list[str], password: str) -> dict[str, dict[str, str]]:
+    """User reads are ADMIN-only and enforced by user-service itself. No application route
+    grants ADMIN, so promote exactly these disposable CI identities in the isolated database
+    and re-issue signed ADMIN tokens through the normal login path (paced like registration)."""
+    quoted = ",".join("'" + email.replace("'", "''") + "'" for email in emails)
+    promoted = run_command([
+        "docker", "compose", "exec", "-T", "postgres",
+        "psql", "-U", "aetheris", "-d", "aetheris", "-tA", "-c",
+        "with promoted as (update identity_accounts set role='ADMIN' "
+        f"where email in ({quoted}) and role='API_CONSUMER' returning id) select count(*) from promoted;",
+    ]).strip()
+    if promoted != str(len(emails)):
+        raise AssertionError(f"synthetic principal promotion affected {promoted}, expected {len(emails)}")
+    headers: dict[str, dict[str, str]] = {}
+    for email in emails:
+        status, body = http_json(
+            "POST", "http://127.0.0.1:8080/api/auth/login", {"email": email, "password": password}
+        )
+        if status != 200 or not isinstance(body, dict) or body.get("account", {}).get("role") != "ADMIN":
+            raise AssertionError(f"synthetic ADMIN login failed for {email}: HTTP {status}")
+        headers[email] = {"Authorization": f"Bearer {body['accessToken']}"}
+        time.sleep(1.05)
+    return headers
+
+
 def register_principal_pool(prefix: str, count: int, password: str) -> list[dict[str, str]]:
     """Register below the identity route's 5-token/s per-IP replenish policy."""
     headers_pool: list[dict[str, str]] = []
@@ -346,6 +371,19 @@ def main() -> int:
             password,
         )
         overload_headers = register_principal("performance-overload@aetheris.local", password)
+        # Same identities as registered above; only their role changes, so every principal
+        # keeps its own rate-limit bucket.
+        emails = (
+            ["performance-warmup@aetheris.local"]
+            + [f"performance-burst-{i:03d}@aetheris.local" for i in range(len(burst_headers))]
+            + [f"performance-sustained-{i:03d}@aetheris.local" for i in range(len(sustained_headers))]
+            + ["performance-overload@aetheris.local"]
+        )
+        admin = promote_and_login_principals(emails, password)
+        warmup_headers = admin["performance-warmup@aetheris.local"]
+        burst_headers = [admin[f"performance-burst-{i:03d}@aetheris.local"] for i in range(len(burst_headers))]
+        sustained_headers = [admin[f"performance-sustained-{i:03d}@aetheris.local"] for i in range(len(sustained_headers))]
+        overload_headers = admin["performance-overload@aetheris.local"]
         passed("load.authenticated-session-created")
 
         target = "http://127.0.0.1:8080/api/users"

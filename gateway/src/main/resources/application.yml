@@ -8,6 +8,7 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD}
   cloud:
     gateway:
       httpclient:
@@ -121,7 +122,9 @@ spring:
 
 aetheris:
   jwt:
-    secret: ${AETHERIS_JWT_SECRET:change-me-local-development-secret-32chars}
+    secret: ${AETHERIS_JWT_SECRET}
+    issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
+    audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
 
 resilience4j:
   circuitbreaker:
