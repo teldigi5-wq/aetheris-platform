@@ -196,6 +196,8 @@ cd aetheris-platform
 docker compose up --build
 ```
 
+Self-registration is **off by default** (`/api/auth/register` returns 403), because self-registered accounts can read all users and audit events. For a local demo only, add `AETHERIS_SELF_REGISTRATION_ENABLED=true` to `.env` before `docker compose up`.
+
 Core local surfaces:
 
 | Surface | Local address |
