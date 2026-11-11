@@ -247,6 +247,21 @@ def main() -> int:
             raise AssertionError(f"scope-denial response did not identify users:write: {body!r}")
         passed("security.forged-admin-header-cannot-escalate")
 
+        # Default gateway actuator exposure is health,info only; internals stay hidden.
+        for endpoint in ("prometheus", "circuitbreakers", "circuitbreakerevents", "env", "beans"):
+            status, _ = http_json("GET", f"http://127.0.0.1:8080/actuator/{endpoint}")
+            expect_status(status, 404, f"default gateway actuator exposure must hide /actuator/{endpoint}")
+        status, _ = http_json("GET", "http://127.0.0.1:8080/actuator/health")
+        expect_status(status, 200, "gateway health stays available")
+        passed("security.gateway-actuator-internals-hidden-by-default")
+
+        # Ambiguous paths that could look public to one layer and protected to another are refused.
+        for raw in ("/api/auth/..%2Fusers", "/api/auth/%2e%2e/users", "/api/users;x=1"):
+            status, _ = http_json("GET", "http://127.0.0.1:8080" + raw, headers={"Authorization": f"Bearer {access_token}"})
+            if status not in (400, 404):
+                raise AssertionError(f"ambiguous path {raw!r} was not refused: HTTP {status}")
+        passed("security.gateway-ambiguous-paths-refused")
+
         status, _ = http_json(
             "GET",
             "http://127.0.0.1:8080/api/users",

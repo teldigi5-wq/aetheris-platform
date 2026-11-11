@@ -14,6 +14,8 @@
     {"id": "security.forged-identity-headers-rejected", "claim": "Caller-supplied X-Aetheris identity headers do not bypass bearer-token authentication."},
     {"id": "security.valid-consumer-read", "claim": "The issued API_CONSUMER access token can perform its authorized users:read request."},
     {"id": "security.forged-admin-header-cannot-escalate", "claim": "A valid API_CONSUMER token plus forged ADMIN/scopes headers cannot obtain users:write and is rejected with HTTP 403."},
+    {"id": "security.gateway-actuator-internals-hidden-by-default", "claim": "With default configuration the gateway returns HTTP 404 for /actuator/prometheus, circuitbreakers, circuitbreakerevents, env and beans while /actuator/health stays HTTP 200."},
+    {"id": "security.gateway-ambiguous-paths-refused", "claim": "Encoded dot-segment and matrix-parameter paths aimed at protected services are refused (HTTP 400 at the gateway filter, or 404 if rejected earlier by the HTTP layer) and never served."},
     {"id": "security.tampered-access-token-rejected", "claim": "A signature-tampered access token is rejected with HTTP 401."},
     {"id": "security.refresh-token-cannot-authenticate", "claim": "The opaque refresh token cannot be used as an access bearer token on a protected route."},
     {"id": "security.password-stored-as-bcrypt", "claim": "The registered password is persisted only as a BCrypt cost-12 hash rather than plaintext."},

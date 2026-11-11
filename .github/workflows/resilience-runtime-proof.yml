@@ -41,6 +41,8 @@ jobs:
     timeout-minutes: 35
     env:
       AETHERIS_JWT_SECRET: resilience-runtime-proof-local-ci-secret-42chars
+      # Proof scrapes gateway metrics / circuit-breaker state; default exposure is health,info only.
+      AETHERIS_GATEWAY_ACTUATOR_EXPOSURE: health,info,prometheus,circuitbreakers,circuitbreakerevents
     steps:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
