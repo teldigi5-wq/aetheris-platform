@@ -43,6 +43,12 @@ jobs:
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 
+      - name: Generate per-run JWT signing secret (no repository default)
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "AETHERIS_JWT_SECRET=$secret" >> "$GITHUB_ENV"
+
       - name: Load certified external AI runtime
         shell: bash
         run: |

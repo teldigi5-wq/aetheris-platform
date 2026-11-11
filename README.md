@@ -193,8 +193,12 @@ Java 21, Node and Python are needed only when running individual modules or repo
 ```bash
 git clone https://github.com/teldigi5-wq/aetheris-platform.git
 cd aetheris-platform
+# The stack has no default JWT signing secret and will not start without one.
+echo "AETHERIS_JWT_SECRET=$(openssl rand -hex 32)" > .env
 docker compose up --build
 ```
+
+`.env` is git-ignored; never commit it. See `.env.example`. All ports are bound to `127.0.0.1` (this machine only).
 
 Core local surfaces:
 

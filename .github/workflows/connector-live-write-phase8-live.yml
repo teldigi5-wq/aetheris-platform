@@ -20,6 +20,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Generate per-run JWT signing secret (no repository default)
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "AETHERIS_JWT_SECRET=$secret" >> "$GITHUB_ENV"
+
       - name: Load certified external AI runtime
         shell: bash
         run: ./tools/load_certified_ai_runtime.sh

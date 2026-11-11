@@ -20,7 +20,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class JwtAuthenticationFilterTest {
-    private static final String SECRET = "0123456789abcdef0123456789abcdef";
+    // Generated per run: no signing secret literal is committed (see JwtSecretPolicy.PUBLISHED_SECRETS).
+    private static final String SECRET = randomSecret();
+
+    private static String randomSecret() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.HexFormat.of().formatHex(bytes);
+    }
 
     @Test
     void validScopedTokenPassesAndVerifiedClaimsOverwriteSpoofedIdentityHeaders() {
@@ -98,6 +105,13 @@ class JwtAuthenticationFilterTest {
     @Test
     void weakSigningSecretFailsClosedAtConstruction() {
         assertThrows(IllegalArgumentException.class, () -> new JwtAuthenticationFilter("too-short"));
+    }
+
+    @Test
+    void missingOrPublishedSigningSecretFailsClosedAtConstruction() {
+        assertThrows(IllegalArgumentException.class, () -> new JwtAuthenticationFilter(""));
+        assertThrows(IllegalArgumentException.class,
+                () -> new JwtAuthenticationFilter("change-me-local-development-secret-32chars"));
     }
 
     private static void assertRejected(String authorization, HttpStatus expectedStatus) {

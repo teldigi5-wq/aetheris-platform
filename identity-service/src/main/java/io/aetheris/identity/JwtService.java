@@ -17,10 +17,7 @@ public class JwtService {
 
     public JwtService(@Value("${aetheris.jwt.secret}") String secret,
                       @Value("${aetheris.jwt.expiration-seconds:3600}") long expirationSeconds) {
-        if (secret.length() < 32) {
-            throw new IllegalArgumentException("JWT secret must be at least 32 characters");
-        }
-        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.key = Keys.hmacShaKeyFor(JwtSecretPolicy.requireStrong(secret).getBytes(StandardCharsets.UTF_8));
         this.expirationSeconds = expirationSeconds;
     }
 
