@@ -51,6 +51,8 @@ jobs:
     timeout-minutes: 40
     env:
       AETHERIS_JWT_SECRET: observability-proof-local-ci-secret-42chars-long
+      # Prometheus scrapes user/audit metrics without a bearer only in this proof.
+      AETHERIS_SERVICE_METRICS_PUBLIC_SCRAPE: "true"
     steps:
       - name: Generate isolated CI-only Compose credentials
         working-directory: ${{ runner.temp }}

@@ -57,6 +57,9 @@ info:
 
 # A missing signing key fails startup; never accept an implicit development secret.
 aetheris:
+  metrics:
+    # Off by default: /actuator/prometheus requires an ADMIN bearer like every other route.
+    public-scrape: ${AETHERIS_SERVICE_METRICS_PUBLIC_SCRAPE:false}
   jwt:
     secret: ${AETHERIS_JWT_SECRET}
     issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}

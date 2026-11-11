@@ -12,9 +12,6 @@ io.aetheris:user-service:jar:0.1.0-SNAPSHOT
 |  |  +- jakarta.annotation:jakarta.annotation-api:jar:2.1.1:compile
 |  |  \- org.yaml:snakeyaml:jar:2.2:compile
 |  +- org.springframework.boot:spring-boot-starter-json:jar:3.3.3:compile
-|  |  +- com.fasterxml.jackson.core:jackson-databind:jar:2.17.2:compile
-|  |  |  +- com.fasterxml.jackson.core:jackson-annotations:jar:2.17.2:compile
-|  |  |  \- com.fasterxml.jackson.core:jackson-core:jar:2.17.2:compile
 |  |  +- com.fasterxml.jackson.datatype:jackson-datatype-jdk8:jar:2.17.2:compile
 |  |  +- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:2.17.2:compile
 |  |  \- com.fasterxml.jackson.module:jackson-module-parameter-names:jar:2.17.2:compile
@@ -134,5 +131,11 @@ io.aetheris:user-service:jar:0.1.0-SNAPSHOT
 |  |        +- io.swagger.core.v3:swagger-models-jakarta:jar:2.2.22:compile
 |  |        \- com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:jar:2.17.2:compile
 |  \- org.webjars:swagger-ui:jar:5.17.14:compile
-\- org.postgresql:postgresql:jar:42.7.3:runtime
-   \- org.checkerframework:checker-qual:jar:3.42.0:runtime
++- org.postgresql:postgresql:jar:42.7.3:runtime
+|  \- org.checkerframework:checker-qual:jar:3.42.0:runtime
++- io.jsonwebtoken:jjwt-api:jar:0.12.6:compile
++- io.jsonwebtoken:jjwt-impl:jar:0.12.6:runtime
+\- io.jsonwebtoken:jjwt-jackson:jar:0.12.6:runtime
+   \- com.fasterxml.jackson.core:jackson-databind:jar:2.17.2:compile
+      +- com.fasterxml.jackson.core:jackson-annotations:jar:2.17.2:compile
+      \- com.fasterxml.jackson.core:jackson-core:jar:2.17.2:compile

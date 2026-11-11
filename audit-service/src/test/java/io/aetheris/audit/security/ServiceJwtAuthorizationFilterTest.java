@@ -150,4 +150,21 @@ class ServiceJwtAuthorizationFilterTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new ServiceJwtAuthorizationFilter("change-me-local-development-secret-32chars"));
     }
+
+    @Test
+    void metricsScrapeRequiresBearerByDefault() throws Exception {
+        mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void metricsScrapeOptInAdmitsOnlyTheExactPrometheusPath() throws Exception {
+        MockMvc optedIn = MockMvcBuilders.standaloneSetup(new Object())
+                .addFilters(new ServiceJwtAuthorizationFilter(SECRET, ServiceJwtAuthorizationFilter.DEFAULT_ISSUER,
+                        ServiceJwtAuthorizationFilter.DEFAULT_AUDIENCE, true))
+                .build();
+        // Passes the filter (no handler in this slice, so 404 rather than 401).
+        optedIn.perform(get("/actuator/prometheus")).andExpect(status().isNotFound());
+        optedIn.perform(get("/actuator/prometheus/extra")).andExpect(status().isUnauthorized());
+        optedIn.perform(get("/actuator/env")).andExpect(status().isUnauthorized());
+    }
 }

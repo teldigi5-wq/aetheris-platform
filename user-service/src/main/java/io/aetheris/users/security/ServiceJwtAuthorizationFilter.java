@@ -38,12 +38,14 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
     private final SecretKey signingKey;
     private final String issuer;
     private final String audience;
+    private final boolean publicMetricsScrape;
 
     @Autowired
     public ServiceJwtAuthorizationFilter(
             @Value("${aetheris.jwt.secret}") String secret,
             @Value("${aetheris.jwt.issuer:aetheris-identity}") String issuer,
-            @Value("${aetheris.jwt.audience:aetheris-api}") String audience) {
+            @Value("${aetheris.jwt.audience:aetheris-api}") String audience,
+            @Value("${aetheris.metrics.public-scrape:false}") boolean publicMetricsScrape) {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32 ||
                 UNSAFE_LOCAL_KEY.equals(secret)) {
             throw new IllegalArgumentException("A non-default JWT signing key of >=32 bytes is required");
@@ -54,6 +56,12 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.issuer = issuer;
         this.audience = audience;
+        this.publicMetricsScrape = publicMetricsScrape;
+    }
+
+    /** Metrics scrape stays protected unless explicitly opted in (local observability profile only). */
+    public ServiceJwtAuthorizationFilter(String secret, String issuer, String audience) {
+        this(secret, issuer, audience, false);
     }
 
     /** Synthetic-only constructor; runtime Spring creates the annotated constructor. */
@@ -68,6 +76,7 @@ public final class ServiceJwtAuthorizationFilter extends OncePerRequestFilter {
         return path.equals("/actuator/health") ||
                 path.equals("/actuator/health/liveness") ||
                 path.equals("/actuator/health/readiness") ||
+                (publicMetricsScrape && path.equals("/actuator/prometheus")) ||
                 request.getDispatcherType() == jakarta.servlet.DispatcherType.ERROR;
     }
 
