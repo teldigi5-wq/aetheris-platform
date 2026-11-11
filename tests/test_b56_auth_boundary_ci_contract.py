@@ -68,7 +68,12 @@ class B56RealBackendBoundaryContract(unittest.TestCase):
     def test_gateway_signed_admin_and_write_permission_parity(self):
         src = GATEWAY_FILTER.read_text()
         self.assertIn('if (!"ADMIN".equals(role))', src)
-        self.assertIn('return method != null && WRITE_METHODS.contains(method)', src)
+        # Write methods map to write scopes (audit writes need services:write);
+        # unmapped routes have no policy and are refused (I3 deny-by-default).
+        self.assertIn('boolean write = method != null && WRITE_METHODS.contains(method);', src)
+        self.assertIn('return write ? "services:write" : "services:read";', src)
+        self.assertIn('return write ? "users:write" : "users:read";', src)
+        self.assertIn('if (requiredScope == null) {', src)
         self.assertIn("parseSignedClaims(token)", src)
 
     def test_no_auth_policy_release_claim(self):

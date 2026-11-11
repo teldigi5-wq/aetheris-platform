@@ -9,6 +9,8 @@ docker compose --profile observability up --build
 Then verify:
 
 ```bash
+# Gateway metrics are hidden by default (health,info only). Opt in locally:
+#   AETHERIS_GATEWAY_ACTUATOR_EXPOSURE=health,info,prometheus,circuitbreakers,circuitbreakerevents
 curl http://localhost:8080/actuator/prometheus
 curl http://localhost:9090/-/ready
 curl http://localhost:3100/ready

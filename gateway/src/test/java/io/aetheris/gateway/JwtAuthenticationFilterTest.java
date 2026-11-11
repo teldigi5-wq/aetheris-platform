@@ -83,9 +83,9 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void unprotectedRouteBypassesJwtRequirement() {
+    void publicAuthRouteBypassesJwtRequirement() {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
-        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/actuator/health").build());
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.post("/api/auth/login").build());
         AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
 
         filter.filter(exchange, authenticated -> {
@@ -350,5 +350,74 @@ class JwtAuthenticationFilterTest {
 
         assertNull(exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
         assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
+    @Test
+    void unknownRoutedPathRequiresBearerTokenByDefault() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/new-service/items").build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void unknownRoutedPathIsForbiddenEvenWithValidTokenAndAllScopes() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String token = token(List.of("users:read", "users:write", "services:read", "orchestrator:read", "orchestrator:write"),
+                Instant.now().plusSeconds(300));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/new-service/items").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.FORBIDDEN, exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void lookalikePublicPrefixesAreNotPublic() {
+        assertFalse(JwtAuthenticationFilter.isPublicRoute("/api/authx/login"));
+        assertFalse(JwtAuthenticationFilter.isPublicRoute("/api/auth"));
+        assertFalse(JwtAuthenticationFilter.isPublicRoute("/API/auth/login"));
+        assertTrue(JwtAuthenticationFilter.isPublicRoute("/api/auth/login"));
+        assertNull(JwtAuthenticationFilter.requiredScope("/api/usersx", org.springframework.http.HttpMethod.GET));
+        assertEquals("users:read", JwtAuthenticationFilter.requiredScope("/api/users", org.springframework.http.HttpMethod.GET));
+    }
+
+    @Test
+    void ambiguousPathsAreRejectedBeforeAnyRoutingDecision() {
+        for (String raw : List.of(
+                "/api/auth/../users", "/api/auth/..%2Fusers", "/api/auth/%2e%2e/users", "/api/users;jsessionid=1",
+                "/api//users", "/api/auth/%2Fusers", "/api/auth/%5Cusers", "/api/auth/%252e%252e/users", "/api/users/.")) {
+            JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                    MockServerHttpRequest.method(org.springframework.http.HttpMethod.GET, java.net.URI.create("http://gateway" + raw)).build());
+            AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+            filter.filter(exchange, next -> {
+                forwarded.set(next);
+                return Mono.empty();
+            }).block();
+
+            assertNull(forwarded.get(), raw);
+            assertEquals(HttpStatus.BAD_REQUEST, exchange.getResponse().getStatusCode(), raw);
+        }
+    }
+
+    @Test
+    void ordinaryPathsAreNotTreatedAsAmbiguous() {
+        assertFalse(JwtAuthenticationFilter.isAmbiguousPath("/api/users/42"));
+        assertFalse(JwtAuthenticationFilter.isAmbiguousPath("/api/orchestrator/knowledge/search"));
+        assertFalse(JwtAuthenticationFilter.isAmbiguousPath("/api/auth/browser/login"));
     }
 }

@@ -180,6 +180,8 @@ jobs:
         run: python -m unittest tests.test_actuator_health_boundary -v
       - name: Helm deployment safety boundary
         run: python -m unittest tests.test_helm_deployment_safety -v
+      - name: Gateway deny-by-default boundary
+        run: python -m unittest tests.test_gateway_deny_by_default -v
       - name: Gateway auth rate-limit boundary
         run: python -m unittest tests.test_gateway_auth_rate_limit -v
       - name: Secret and sensitive-file gate

@@ -191,11 +191,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
     }
 
+    /** Routed paths reachable without a bearer token. Everything else routed through the gateway requires one. */
+    static final List<String> PUBLIC_ROUTE_PREFIXES = List.of("/api/auth/");
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        String rawPath = exchange.getRequest().getURI().getRawPath();
+        if (isAmbiguousPath(rawPath)) {
+            return error(exchange, HttpStatus.BAD_REQUEST, "Bad Request", "Ambiguous request path");
+        }
         String path = exchange.getRequest().getURI().getPath();
 
-        if (!isProtectedRoute(path)) {
+        if (isPublicRoute(path)) {
             return chain.filter(withoutIdentityHeaders(exchange));
         }
 
@@ -291,7 +298,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             }
 
             String requiredScope = requiredScope(path, exchange.getRequest().getMethod());
-            if (requiredScope != null && !scopes.contains(requiredScope)) {
+            if (requiredScope == null) {
+                // Deny by default: a route without an explicit scope rule is never forwarded.
+                return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "No access policy for route");
+            }
+            if (!scopes.contains(requiredScope)) {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
             }
 
@@ -354,24 +365,46 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .build();
     }
 
-    private boolean isProtectedRoute(String path) {
-        return path.equals("/api/users") || path.startsWith("/api/users/")
-                || path.equals("/api/events") || path.startsWith("/api/events/")
-                || path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/");
+    static boolean isPublicRoute(String path) {
+        return PUBLIC_ROUTE_PREFIXES.stream().anyMatch(path::startsWith);
     }
 
-    private String requiredScope(String path, HttpMethod method) {
-        if (path.equals("/api/events") || path.startsWith("/api/events/")) {
+    /**
+     * Rejects paths that different layers could interpret differently (dot segments, empty
+     * segments, matrix parameters, encoded separators or dots, backslashes), so a request
+     * cannot look public to this filter while a route predicate or backend resolves it elsewhere.
+     */
+    static boolean isAmbiguousPath(String rawPath) {
+        if (rawPath == null || rawPath.isEmpty()) {
+            return false;
+        }
+        String lower = rawPath.toLowerCase(java.util.Locale.ROOT);
+        return lower.contains("//") || lower.contains("/./") || lower.contains("/../")
+                || lower.endsWith("/.") || lower.endsWith("/..") || lower.contains(";")
+                || lower.contains("\\") || lower.contains("%2f") || lower.contains("%5c")
+                || lower.contains("%2e") || lower.contains("%3b") || lower.contains("%25");
+    }
+
+    private static boolean under(String path, String prefix) {
+        return path.equals(prefix) || path.startsWith(prefix + "/");
+    }
+
+    /** Explicit scope rule per protected prefix; null means no policy and the request is refused. */
+    static String requiredScope(String path, HttpMethod method) {
+        boolean write = method != null && WRITE_METHODS.contains(method);
+        if (under(path, "/api/users")) {
+            return write ? "users:write" : "users:read";
+        }
+        if (under(path, "/api/events")) {
             // Keep the independent Audit filter's HTTP-method scope contract.
             // Identity currently grants no services:write; never treat a
             // read-only ADMIN token as authority to modify audit evidence.
-            return method != null && WRITE_METHODS.contains(method)
-                    ? "services:write" : "services:read";
+            return write ? "services:write" : "services:read";
         }
-        if (path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/")) {
-            return method != null && WRITE_METHODS.contains(method) ? "orchestrator:write" : "orchestrator:read";
+        if (under(path, "/api/orchestrator")) {
+            return write ? "orchestrator:write" : "orchestrator:read";
         }
-        return method != null && WRITE_METHODS.contains(method) ? "users:write" : "users:read";
+        return null;
     }
 
     private Mono<Void> error(ServerWebExchange exchange, HttpStatus status, String error, String message) {

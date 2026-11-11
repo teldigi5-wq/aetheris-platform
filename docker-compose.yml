@@ -122,6 +122,7 @@ services:
   gateway:
     build: ./gateway
     environment:
+      AETHERIS_GATEWAY_ACTUATOR_EXPOSURE: ${AETHERIS_GATEWAY_ACTUATOR_EXPOSURE:-health,info}
       AETHERIS_JWT_SECRET: ${AETHERIS_JWT_SECRET:?Set AETHERIS_JWT_SECRET to a unique random signing key (32+ bytes)}
       AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}
       SPRING_DATA_REDIS_HOST: redis
