@@ -151,14 +151,14 @@ def promote_and_login_principals(emails: list[str], password: str) -> dict[str, 
 
 
 def register_principal_pool(prefix: str, count: int, password: str) -> list[dict[str, str]]:
-    """Register below the identity route's 5-token/s per-IP replenish policy."""
+    """Register below the credential route's 1-token/s per-IP replenish policy."""
     headers_pool: list[dict[str, str]] = []
     for index in range(count):
         email = f"performance-{prefix}-{index:03d}@aetheris.local"
         headers_pool.append(register_principal(email, password))
         # Identity registration is IP-keyed before authentication. Keep setup traffic
         # below its configured replenish rate instead of treating setup 429s as load.
-        time.sleep(0.26)
+        time.sleep(1.05)
     return headers_pool
 
 
