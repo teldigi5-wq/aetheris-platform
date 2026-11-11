@@ -14,6 +14,7 @@
     {"id": "security.forged-identity-headers-rejected", "claim": "Caller-supplied X-Aetheris identity headers do not bypass bearer-token authentication."},
     {"id": "security.valid-consumer-read", "claim": "The issued API_CONSUMER access token can perform its authorized users:read request."},
     {"id": "security.forged-admin-header-cannot-escalate", "claim": "A valid API_CONSUMER token plus forged ADMIN/scopes headers cannot obtain users:write and is rejected with HTTP 403."},
+    {"id": "security.auth-rate-limit-ignores-spoofed-identity", "claim": "Fourteen rapid failed logins from one peer, each with a different forged X-Aetheris-User-Id, share one per-IP credential bucket and receive HTTP 429 instead of unlimited HTTP 401s."},
     {"id": "security.tampered-access-token-rejected", "claim": "A signature-tampered access token is rejected with HTTP 401."},
     {"id": "security.refresh-token-cannot-authenticate", "claim": "The opaque refresh token cannot be used as an access bearer token on a protected route."},
     {"id": "security.password-stored-as-bcrypt", "claim": "The registered password is persisted only as a BCrypt cost-12 hash rather than plaintext."},

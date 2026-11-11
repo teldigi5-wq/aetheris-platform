@@ -20,11 +20,22 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
+
+    /**
+     * Identity headers are only ever set by this filter after JWT verification.
+     * Client-supplied copies are removed on every route, public ones included.
+     */
+    static final List<String> IDENTITY_HEADERS = List.of(
+            "X-Aetheris-User-Id", "X-Aetheris-User-Email", "X-Aetheris-User-Role", "X-Aetheris-Scopes");
+
+    /** Exchange attribute carrying the verified token's user id; never derived from a request header. */
+    static final String VERIFIED_USER_ID_ATTRIBUTE = "io.aetheris.gateway.verifiedUserId";
     private final SecretKey key;
 
     public JwtAuthenticationFilter(@Value("${aetheris.jwt.secret}") String secret) {
@@ -39,7 +50,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
 
         if (!isProtectedRoute(path)) {
-            return chain.filter(exchange);
+            return chain.filter(withoutIdentityHeaders(exchange));
         }
 
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
@@ -71,10 +82,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
             ServerWebExchange authenticatedExchange = exchange.mutate()
                     .request(builder -> builder.headers(headers -> {
-                        headers.remove("X-Aetheris-User-Id");
-                        headers.remove("X-Aetheris-User-Email");
-                        headers.remove("X-Aetheris-User-Role");
-                        headers.remove("X-Aetheris-Scopes");
+                        IDENTITY_HEADERS.forEach(headers::remove);
                         headers.set("X-Aetheris-User-Email", email);
                         headers.set("X-Aetheris-User-Role", role);
                         headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
@@ -83,11 +91,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         }
                     }))
                     .build();
+            if (userId != null) {
+                authenticatedExchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE, String.valueOf(userId));
+            }
 
             return chain.filter(authenticatedExchange);
         } catch (Exception exception) {
             return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid or expired access token");
         }
+    }
+
+    private ServerWebExchange withoutIdentityHeaders(ServerWebExchange exchange) {
+        HttpHeaders incoming = exchange.getRequest().getHeaders();
+        if (IDENTITY_HEADERS.stream().noneMatch(incoming::containsKey)) {
+            return exchange;
+        }
+        return exchange.mutate()
+                .request(builder -> builder.headers(headers -> IDENTITY_HEADERS.forEach(headers::remove)))
+                .build();
     }
 
     private Set<String> readScopes(Object claim) {

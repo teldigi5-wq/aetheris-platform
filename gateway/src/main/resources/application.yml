@@ -21,6 +21,24 @@ spring:
             allowedMethods: "*"
             allowedHeaders: "*"
       routes:
+        # Credential endpoints: strict per-IP limit against password guessing and
+        # mass sign-up (about 60/min sustained, burst 10). Must stay above the
+        # catch-all identity route; first matching route wins.
+        - id: identity-credentials
+          uri: http://identity-service:8082
+          predicates:
+            - Path=/api/auth/login,/api/auth/register,/api/auth/browser/login,/api/auth/browser/register
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 10
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@aetherisKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: identityCircuit
+                fallbackUri: forward:/fallback/identity
         - id: identity-service
           uri: http://identity-service:8082
           predicates:

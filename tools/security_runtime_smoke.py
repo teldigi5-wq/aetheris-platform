@@ -247,6 +247,23 @@ def main() -> int:
             raise AssertionError(f"scope-denial response did not identify users:write: {body!r}")
         passed("security.forged-admin-header-cannot-escalate")
 
+        # Credential route: one peer IP shares one bucket no matter what identity
+        # header it sends. Rotating X-Aetheris-User-Id must not mint fresh buckets.
+        login_statuses = []
+        for attempt in range(14):
+            status, _ = http_json(
+                "POST",
+                "http://127.0.0.1:8080/api/auth/login",
+                {"email": f"nobody-{stamp}@aetheris.local", "password": "WrongPassword123!"},
+                headers={"X-Aetheris-User-Id": f"rotating-spoof-{attempt}"},
+            )
+            login_statuses.append(status)
+        if 429 not in login_statuses or set(login_statuses) - {401, 429}:
+            raise AssertionError(f"spoofed-header login burst was not rate limited: {login_statuses!r}")
+        passed("security.auth-rate-limit-ignores-spoofed-identity")
+        # Let the per-IP credential bucket (1/s, burst 10) refill for later proofs.
+        time.sleep(12)
+
         status, _ = http_json(
             "GET",
             "http://127.0.0.1:8080/api/users",
