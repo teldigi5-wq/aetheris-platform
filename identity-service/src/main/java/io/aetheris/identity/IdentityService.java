@@ -1,5 +1,6 @@
 package io.aetheris.identity;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,17 +11,28 @@ public class IdentityService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(12);
+    private final boolean selfRegistrationEnabled;
 
     public IdentityService(IdentityAccountRepository repository,
                            JwtService jwtService,
-                           RefreshTokenService refreshTokenService) {
+                           RefreshTokenService refreshTokenService,
+                           @Value("${aetheris.self-registration.enabled:false}") boolean selfRegistrationEnabled) {
         this.repository = repository;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.selfRegistrationEnabled = selfRegistrationEnabled;
     }
 
+    /**
+     * Open self-registration grants API_CONSUMER (users:read, services:read, orchestrator:read).
+     * It is off unless the operator opts in with AETHERIS_SELF_REGISTRATION_ENABLED=true,
+     * so an unknown caller cannot create an account that lists every user and audit event.
+     */
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        if (!selfRegistrationEnabled) {
+            throw new RegistrationDisabledException();
+        }
         String email = request.email().trim().toLowerCase();
         if (repository.existsByEmailIgnoreCase(email)) {
             throw new EmailAlreadyRegisteredException();
@@ -69,4 +81,5 @@ public class IdentityService {
 
     static class EmailAlreadyRegisteredException extends RuntimeException {}
     static class InvalidCredentialsException extends RuntimeException {}
+    static class RegistrationDisabledException extends RuntimeException {}
 }
