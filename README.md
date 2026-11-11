@@ -233,6 +233,10 @@ See **[docs/demo-guide.md](docs/demo-guide.md)** for the recommended reviewer se
 - stable `main` is protected and changes are promoted through pull requests and CI;
 - dependency lockdown, CodeQL and reproducibility checks provide repository-level evidence.
 
+**Dashboard source-security checkpoint (8 November 2026):** Node 22.23.4 and digest-pinned NGINX 1.31.8 Alpine 3.24 with patched `zlib=1.4-r0` are merged into protected `main` through PRs #407 and #409, at `e357446613b0dcdb814d59b34192349f6925f606`. CI exercised the real NGINX image and generated an all-severity container scan. This is **not proof of production deployment or permanent vulnerability freedom**. Gateway/HTTPS integration, real deployed-image inventory, restart repeatability and operator release acceptance remain open under issue #312.
+
+
+**Java container trust security (9 November 2026, review only):** A separate scoped change proposes vendor-patched, digest-pinned Temurin 21.0.13+9 for the four retained Java service images. The older integrated PR #309 remains open and unmerged. Host/CI Java 21.0.12 pins and deployed JVM truststores require separate verification. See [Java container trust review](docs/java-container-trust-20261109.md) and release issue #312. This review is not a production upgrade.
 For the detailed security model, see **[Token flow and threat model](docs/security/token-flow.md)**.
 
 ---

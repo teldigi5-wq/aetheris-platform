@@ -11,9 +11,11 @@ A GitHub release is a source/distribution milestone. It must not silently become
 - Stage 27 canonical development-line marker: `feature/syntra-aetheris-foundation-v2`
 - AI runtime source owner: `teldigi5-wq/aetheris-ai-runtime`
 - Platform-recorded certified runtime checkpoint: `65a6262717adcd52ac8d8a16ed6f223e299fd74d`
+- Java service image trust mitigation (9 November 2026): isolated vendor-patched Temurin 21.0.13+9 review candidate; not yet merged, deployed or host/toolchain-verified. See `docs/java-container-trust-20261109.md`.
 - Software license: **Apache License 2.0** for both Aetheris source-owner repositories
 - Physical-machine status: `BLOCKED_PENDING_HARDWARE`
 - Physical-PC validation remains pending
+- Dashboard NGINX final-runtime image security maintenance, including pinned Alpine zlib 1.4-r0, was merged into protected `main` through PR #409 at `e357446613b0dcdb814d59b34192349f6925f606`; actual deployment, image inventory and operator acceptance are still unverified.
 
 The certified runtime checkpoint and the current runtime repository `main` are different concepts. A later runtime commit does not become platform-certified merely because it is newer or because documentation-only CI passed.
 
@@ -36,6 +38,8 @@ This classification may be used only after the first-boot and physical-machine v
 - [ ] Candidate platform commit is on protected `main`.
 - [ ] Platform Build workflow passes on the exact candidate commit.
 - [ ] Platform CodeQL passes for Java and JavaScript/TypeScript on the exact candidate commit.
+- [ ] Dashboard final NGINX runtime image is patched and digest-pinned, with an exact-head Docker build, `nginx -t`, SPA/security-header regression evidence, and audited registry provenance.
+- [ ] The actual deployed NGINX image digest, gateway/proxy behavior, HTTPS termination and rollback procedure are independently verified before any production claim.
 - [ ] Platform portfolio/release evidence checks pass when triggered for the candidate.
 - [ ] Platform core-source-independence checks prove runtime-owned source roots are absent.
 - [ ] Stage 25 platform + external-runtime readiness evidence remains green when applicable.

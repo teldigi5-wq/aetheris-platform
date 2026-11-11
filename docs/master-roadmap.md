@@ -15,6 +15,12 @@ The 34-stage master blueprint is separate from the original cloud-native platfor
 **Repository status:** `PRE_PC_HARDENED + ROADMAP_34_COMPLETE`  
 **Physical-machine status:** `BLOCKED_PENDING_HARDWARE`
 
+## Post-roadmap dashboard security maintenance — 8 November 2026
+
+This is a security-maintenance workstream, **not Stage 35**. The isolated Node 22.23.4 dashboard builder upgrade was promoted to protected `main` through PR #373 (development) and PR #407 (main); do not repeat it. The final dashboard image's NGINX 1.31.5 version remains the separate uncompleted source risk at the starting checkpoint.
+
+The separate NGINX 1.31.8 Alpine 3.24 / fixed zlib 1.4-r0 patch subsequently passed CI and image scanning, merged into canonical development through PR #408 and was governed into protected `main` through PR #409 at `e357446613b0dcdb814d59b34192349f6925f606`. This is source remediation, **not** a deployed-image verification. The next post-roadmap assurance workstream is issue #312's bounded gateway recovery repeatability, real TLS/proxy acceptance and deployment inventory. The historical 34/34 roadmap and physical-machine `BLOCKED_PENDING_HARDWARE` status remain unchanged.
+
 Stage 30 implementation details: [`stage-30-reasoning.md`](stage-30-reasoning.md).
 
 Stage 31 implementation details: [`stage-31-digital-twins-self-healing.md`](stage-31-digital-twins-self-healing.md).
@@ -24,6 +30,10 @@ Stage 32 implementation details: [`stage-32-automation-observability-emergency-c
 Stage 33 implementation details: [`stage-33-governance-approvals.md`](stage-33-governance-approvals.md).
 
 Stage 34 canonical continuation/build specification: [`master-build-spec.md`](master-build-spec.md).
+
+## Post-roadmap Java container trust review — 9 November 2026
+
+A separate, review-only change proposes patched Eclipse Temurin 21.0.13+9 for the retained Gateway, Identity, User and Audit service JDK/JRE images, without merging stale integrated draft PR #309 or changing host Java pins. Real container truststore and positive/negative TLS proof is required before any promotion. This is not Stage 35; Stage 34/34 and `BLOCKED_PENDING_HARDWARE` remain unchanged. See [Java container trust review](java-container-trust-20261109.md) and operational issue #312.
 
 ## Stage 34 result
 

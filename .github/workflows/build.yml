@@ -64,6 +64,73 @@ jobs:
       - name: Build dashboard
         run: npm run build
 
+      - name: Exercise the digest-pinned NGINX dashboard runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="aetheris-dashboard-nginx-security-smoke"
+          container="aetheris-dashboard-nginx-security-smoke"
+          trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+          docker build --pull -t "$image" .
+          # Resolve the proxy host for nginx -t without connecting to a live gateway.
+          docker run --rm -d --name "$container" --add-host gateway:192.0.2.1 -p 127.0.0.1:18080:80 "$image" >/dev/null
+          docker exec "$container" nginx -t
+          docker exec "$container" nginx -v 2>&1 | grep -Fq 'nginx/1.31.8'
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/ -o /tmp/aetheris-dashboard-nginx-index.html; then
+              break
+            fi
+            sleep 1
+          done
+          test -s /tmp/aetheris-dashboard-nginx-index.html
+          curl -fsS http://127.0.0.1:18080/__aetheris_spa_probe__/nested -o /tmp/aetheris-dashboard-nginx-spa.html
+          cmp /tmp/aetheris-dashboard-nginx-index.html /tmp/aetheris-dashboard-nginx-spa.html
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/actuator/info)" = "404"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/api/auth/browser/login)" = "404"
+          curl -fsSI http://127.0.0.1:18080/ -o /tmp/aetheris-dashboard-nginx-headers.txt
+          grep -qi '^X-Content-Type-Options: nosniff' /tmp/aetheris-dashboard-nginx-headers.txt
+          grep -qi '^X-Frame-Options: DENY' /tmp/aetheris-dashboard-nginx-headers.txt
+          grep -qi '^Content-Security-Policy:' /tmp/aetheris-dashboard-nginx-headers.txt
+
+      - name: Scan exact dashboard image for high and critical vulnerabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner="$RUNNER_TEMP/trivy"
+          archive="$RUNNER_TEMP/trivy_0.76.2_Linux-64bit.tar.gz"
+          curl --fail --location --silent --show-error --retry 3 --output "$archive"             https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz
+          printf 'bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  %s\n' "$archive" | sha256sum --check --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" trivy
+          docker image save aetheris-dashboard-nginx-security-smoke -o "$RUNNER_TEMP/aetheris-dashboard-image.tar"
+          "$scanner" image --input "$RUNNER_TEMP/aetheris-dashboard-image.tar" --scanners vuln --exit-code 0 --format json --output /tmp/aetheris-dashboard-image-vulns.json
+          python3 - <<'PY'
+          import collections
+          import json
+          from pathlib import Path
+
+          scan = json.loads(Path("/tmp/aetheris-dashboard-image-vulns.json").read_text())
+          results = scan.get("Results")
+          if not isinstance(results, list):
+              raise SystemExit("Trivy JSON missing Results; scanner evidence is invalid")
+          findings = [v for entry in results for v in (entry.get("Vulnerabilities") or [])]
+          counts = collections.Counter(v.get("Severity", "UNKNOWN") for v in findings)
+          print("Exact-image Trivy findings by severity:", dict(sorted(counts.items())))
+          for v in findings:
+              print(v.get("VulnerabilityID", "?"), v.get("Severity", "UNKNOWN"), v.get("PkgName", "?"), v.get("InstalledVersion", "?"), "fixed:", v.get("FixedVersion") or "not specified")
+          if any(v.get("Severity") in {"HIGH", "CRITICAL"} for v in findings):
+              raise SystemExit("High/Critical image vulnerabilities require triage before merge")
+          PY
+
+      - name: Preserve dashboard image vulnerability evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: dashboard-nginx-vulnerability-scan
+          path: /tmp/aetheris-dashboard-image-vulns.json
+          if-no-files-found: warn
+          retention-days: 7
+
+
   core-source-independence:
     runs-on: ubuntu-24.04
     steps:
