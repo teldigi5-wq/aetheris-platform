@@ -41,6 +41,8 @@ jobs:
     timeout-minutes: 35
     env:
       AETHERIS_JWT_SECRET: resilience-runtime-proof-local-ci-secret-42chars
+      # Proof scrapes gateway metrics / circuit-breaker state; default exposure is health,info only.
+      AETHERIS_GATEWAY_ACTUATOR_EXPOSURE: health,info,prometheus,circuitbreakers,circuitbreakerevents
     steps:
       - name: Generate isolated CI-only Compose credentials
         working-directory: ${{ runner.temp }}
