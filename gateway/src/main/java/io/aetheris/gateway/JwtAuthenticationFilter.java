@@ -21,11 +21,19 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     static final String VERIFIED_USER_ID_ATTRIBUTE = "aetheris.gateway.verifiedUserId";
+
+    /**
+     * Identity headers are only ever set by this filter after JWT verification.
+     * Client-supplied copies are removed on every route, public ones included.
+     */
+    static final List<String> IDENTITY_HEADERS = List.of(
+            "X-Aetheris-User-Id", "X-Aetheris-User-Email", "X-Aetheris-User-Role", "X-Aetheris-Scopes");
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
     public static final String DEFAULT_ISSUER = "aetheris-identity";
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
@@ -60,7 +68,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
 
         if (!isProtectedRoute(path)) {
-            return chain.filter(exchange);
+            return chain.filter(withoutIdentityHeaders(exchange));
         }
 
         String authorization = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
@@ -140,7 +148,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         return scopes;
     }
 
-    private boolean isProtectedRoute(String path) {
+    private ServerWebExchange withoutIdentityHeaders(ServerWebExchange exchange) {
+        HttpHeaders incoming = exchange.getRequest().getHeaders();
+        if (IDENTITY_HEADERS.stream().noneMatch(incoming::containsKey)) {
+            return exchange;
+        }
+        return exchange.mutate()
+                .request(builder -> builder.headers(headers -> IDENTITY_HEADERS.forEach(headers::remove)))
+                .build();
+    }
+
+        private boolean isProtectedRoute(String path) {
         return path.equals("/api/users") || path.startsWith("/api/users/")
                 || path.equals("/api/events") || path.startsWith("/api/events/")
                 || path.equals("/api/orchestrator") || path.startsWith("/api/orchestrator/");

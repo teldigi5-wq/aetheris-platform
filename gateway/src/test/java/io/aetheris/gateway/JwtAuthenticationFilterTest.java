@@ -236,4 +236,64 @@ class JwtAuthenticationFilterTest {
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();
     }
+
+    @Test
+    void spoofedIdentityHeadersAreStrippedOnPublicAuthRoutes() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/auth/login")
+                        .header("X-Aetheris-User-Id", "attacker-rotating-1")
+                        .header("X-Aetheris-User-Email", "attacker@example.com")
+                        .header("X-Aetheris-User-Role", "ADMIN")
+                        .header("X-Aetheris-Scopes", "users:write")
+                        .header("Content-Type", "application/json")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        HttpHeaders headers = forwarded.get().getRequest().getHeaders();
+        for (String name : JwtAuthenticationFilter.IDENTITY_HEADERS) {
+            assertFalse(headers.containsKey(name), name + " must not reach identity-service or the rate limiter");
+        }
+        assertEquals("application/json", headers.getFirst("Content-Type"));
+        assertNull(forwarded.get().getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+    }
+
+    @Test
+    void verifiedUserIdIsExposedOnlyAsAnExchangeAttribute() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String token = token(List.of("users:read"), Instant.now().plusSeconds(300));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("X-Aetheris-User-Id", "999")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        assertEquals("42", forwarded.get().getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+    }
+
+    @Test
+    void rejectedTokenNeverSetsVerifiedUserId() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer definitely-not-a-jwt")
+                        .header("X-Aetheris-User-Id", "999")
+                        .build());
+
+        filter.filter(exchange, next -> Mono.empty()).block();
+
+        assertNull(exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
 }
