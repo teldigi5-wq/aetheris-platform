@@ -54,3 +54,10 @@ info:
   app:
     name: Aetheris User Service
     stage: 5
+
+# A missing signing key fails startup; never accept an implicit development secret.
+aetheris:
+  jwt:
+    secret: ${AETHERIS_JWT_SECRET}
+    issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
+    audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
