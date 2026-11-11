@@ -109,3 +109,13 @@ The owner selected the **Apache License 2.0** for both `aetheris-platform` and `
 A release must not use labels such as `PHYSICAL_PC_VALIDATED`, `production-ready on target PC`, or equivalent language until the physical validation runbook has been executed on real hardware and supporting evidence has been reviewed.
 
 The authoritative product/safety contract remains [master-build-spec.md](master-build-spec.md), the split-repository topology is described in [architecture.md](architecture.md), and physical acceptance steps remain in [first-boot-runbook.md](first-boot-runbook.md).
+
+## 9 November 2026 — AI continuation reference
+
+No stage or release gate is waived. Current independent verification remains required for production, hardware, gateway recovery, JWT/Audit and container/host trust.
+
+- [Dated recovery handoff](AI_CONTINUATION_2026-11-09.md)
+- [Next distinct milestones and recovery phases](AI_ROADMAP_2026-11-09.md)
+- [Exact-SHA milestone evidence tracker](AI_MILESTONES_2026-11-09.md)
+
+These links exist on documentation-only draft PR #418, not necessarily on protected `main`. Preserve all previously verified stages, unmerged feature branches and existing security/release acceptance criteria.

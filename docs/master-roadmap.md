@@ -64,3 +64,13 @@ Only then may the canonical development line report Stage 34 merged.
 ## Repository governance note
 
 CI workflows, tests, security analysis and review conventions live in the repository. GitHub-hosted rulesets/branch protection are a separate repository-administration control and are not emulated in application code.
+
+## 9 November 2026 — AI continuation reference
+
+Stage 34/34 repository blueprint remains unchanged; post-roadmap assurance, Runtime integration and owner-PC Stage 45 are separate, still NO_GO without exact-source and real-hardware proof.
+
+- [Dated recovery handoff](AI_CONTINUATION_2026-11-09.md)
+- [Next distinct milestones and recovery phases](AI_ROADMAP_2026-11-09.md)
+- [Exact-SHA milestone evidence tracker](AI_MILESTONES_2026-11-09.md)
+
+These links exist on documentation-only draft PR #418, not necessarily on protected `main`. Preserve all previously verified stages, unmerged feature branches and existing security/release acceptance criteria.
