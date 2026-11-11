@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: aetheris
       POSTGRES_PASSWORD: aetheris
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - aetheris_pg:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - aetheris_redis:/data
     healthcheck:
@@ -36,8 +36,8 @@ services:
       RABBITMQ_DEFAULT_USER: aetheris
       RABBITMQ_DEFAULT_PASS: aetheris
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     volumes:
       - aetheris_rabbitmq:/var/lib/rabbitmq
     healthcheck:
@@ -68,7 +68,7 @@ services:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
 
   identity-service:
     build: ./identity-service
@@ -84,7 +84,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "8082:8082"
+      - "127.0.0.1:8082:8082"
 
   audit-service:
     build: ./audit-service
@@ -103,7 +103,7 @@ services:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
 
   gateway:
     build: ./gateway
@@ -123,14 +123,14 @@ services:
       audit-service:
         condition: service_started
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
   dashboard:
     build: ./dashboard
     depends_on:
       - gateway
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
 
 networks:
   default:
