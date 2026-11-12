@@ -61,6 +61,8 @@ public class JwtService {
                     || (kid != null && !kid.isBlank())) {
                 throw new IllegalArgumentException("Invalid HMAC JWT signer configuration");
             }
+            // I7: also refuse published, blank-padded or repetitive secrets.
+            JwtSecretPolicy.requireStrong(secret);
             this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
             this.rsaPrivateKey = null;
             this.rsaKid = null;

@@ -94,6 +94,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     || (previousNotAfter != null && !previousNotAfter.isBlank())) {
                 throw new IllegalArgumentException("Invalid HMAC JWT verifier configuration");
             }
+            // I7: also refuse published, blank-padded or repetitive secrets.
+            JwtSecretPolicy.requireStrong(secret);
             this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
             this.rsaPublicKey = null;
             this.rsaKid = null;

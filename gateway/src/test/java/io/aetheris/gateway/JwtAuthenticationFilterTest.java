@@ -20,7 +20,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class JwtAuthenticationFilterTest {
-    private static final String SECRET = "0123456789abcdef0123456789abcdef";
+    // Random per run (I7): the former fixed fixture is a published value that
+    // JwtSecretPolicy now rejects. Never commit a signing-secret literal.
+    private static final String SECRET = java.util.HexFormat.of().formatHex(randomBytes());
+
+    private static byte[] randomBytes() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return bytes;
+    }
 
     @Test
     void validScopedTokenPassesAndVerifiedClaimsOverwriteSpoofedIdentityHeaders() {
