@@ -6,9 +6,13 @@ import io.aetheris.users.UserController;
 import io.aetheris.users.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,7 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(UserController.class)
-@Import(ServiceJwtAuthorizationFilter.class)
+@Import({ServiceJwtAuthorizationFilter.class, UserWebSliceAuthorizationTest.SliceCacheConfig.class})
 @TestPropertySource(properties = {
         "aetheris.jwt.secret=synthetic-test-only-strong-signing-key-0123456789",
         "aetheris.jwt.issuer=aetheris-identity",
@@ -31,8 +35,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class UserWebSliceAuthorizationTest {
     private static final String SECRET = "synthetic-test-only-strong-signing-key-0123456789";
+    @TestConfiguration(proxyBeanMethods = false)
+    static class SliceCacheConfig {
+        @Bean
+        CacheManager cacheManager() {
+            return new ConcurrentMapCacheManager("usersList", "userById");
+        }
+    }
+
     @Autowired MockMvc mvc;
-    @MockBean UserService service;
+    @MockitoBean UserService service;
 
     private static String token(String role) {
         return Jwts.builder()
