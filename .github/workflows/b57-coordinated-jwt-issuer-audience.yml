@@ -1,0 +1,136 @@
+name: B57 Coordinated Signed JWT Issuer Audience And Backend HTTP Parity
+on:
+  pull_request:
+    branches: [security/b56-patched-direct-backend-auth-20261026]
+    paths:
+      - '.github/workflows/b57-coordinated-jwt-issuer-audience.yml'
+      - 'tests/test_b56_auth_boundary_ci_contract.py'
+      - 'tests/test_b57_jwt_issuer_audience_source.py'
+      - 'docs/security/B57_SIGNED_ISSUER_AUDIENCE_20261026.md'
+      - 'docs/security/B56_PATCHED_DIRECT_BACKEND_AUTH_20261026.md'
+      - 'tests/security/**'
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  patched-direct-service-auth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify exact checked-out source SHA and strict probe contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b56_auth_boundary_ci_contract.py' -v
+          python3 -m py_compile tests/security/probe_backend_auth.py tests/security/probe_user_row_id_collision.py
+          echo B56_SOURCE_HEAD_AND_PROBE_CONTRACT_PASSED
+      - name: Verify coordinated source checks and run the complete four-module Java reactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_b57_jwt_issuer_audience_source.py' -v
+          ./mvnw -B -ntp -f pom.xml test
+          echo B57_COMPLETE_JAVA_REACTOR_WITH_STRICT_ISS_AUD_PASS
+      - name: Audit isolated Docker topology (no host ports, privileged containers or persistent data)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml config --format json > "$RUNNER_TEMP/b56-config.json"
+          python3 - "$RUNNER_TEMP/b56-config.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          c=json.loads(Path(sys.argv[1]).read_text())
+          svc=c["services"]
+          assert set(svc)=={"postgres","redis","rabbitmq","user-service","audit-service","gateway","probe","resource-probe"}
+          assert len(c["networks"])==1 and all(n.get("internal") is True for n in c["networks"].values())
+          assert not c.get("volumes")
+          assert any("postgresql/data" in str(x) for x in svc["postgres"]["tmpfs"])
+          for name,item in svc.items():
+              assert not item.get("ports") and not item.get("privileged"),name
+              assert not item.get("network_mode") and not item.get("pid") and not item.get("devices"),name
+          for name in ("probe","resource-probe"):
+              item=svc[name]
+              assert item["read_only"] and "ALL" in item["cap_drop"]
+              assert any("/opt/tokens" in str(x) and ("read_only" in str(x) or ":ro" in str(x)) for x in item["volumes"])
+              assert not any("docker.sock" in str(x) for x in item["volumes"])
+          for name in ("gateway","user-service","audit-service"): assert svc[name].get("build")
+          print("B56_INTERNAL_NO_PORT_NO_NAMED_DATA_NO_DOCKER_SOCKET")
+          PY
+      - name: Build real Gateway User and Audit patched Corretto images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml build gateway user-service audit-service
+          echo B56_REAL_APPLICATION_IMAGES_BUILT
+      - name: Start disposable backend infrastructure and verify actual running 21.0.13 non-root JVMs
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml'
+          $C up --no-build -d postgres redis rabbitmq user-service audit-service gateway
+          for service in postgres redis rabbitmq gateway user-service audit-service; do
+            cid="$($C ps -q "$service")"
+            test -n "$cid"
+            docker inspect "$cid" | python3 -c 'import json,sys; x=json.load(sys.stdin)[0]["HostConfig"]; assert x["PortBindings"] in ({},None) and x["NetworkMode"]!="host" and not x["Privileged"]'
+          done
+          for service in gateway user-service audit-service; do
+            cid="$($C ps -q "$service")"
+            test "$(docker inspect -f '{{.Config.User}}' "$cid")" = "10001:10001"
+            jvm="$(docker exec "$cid" java -version 2>&1)"
+            grep -Eq '^openjdk version "21\.0\.13"' <<< "$jvm"
+            echo "B56_PATCHED_NONROOT_JAVA_CONFIRMED:$service"
+          done
+      - name: Issue real Identity-service synthetic JWTs including same-number nonowner tokens
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=NonOwnerNumericCollisionJwtIT test
+          test -f identity-service/target/identity-jwt-contract/test-only.marker
+          echo B56_REAL_ISSUER_EPHEMERAL_TOKENS_READY
+      - name: Prove actual signed Identity JWT fixtures validate across Gateway User and Audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          echo B57_GENUINE_ISSUER_CROSS_SERVICE_JWT_COMPATIBILITY_PASSED
+      - name: Verify 26 direct backend and gateway authentication HTTP outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps probe
+      - name: Verify 30 signed UID / different User-row owner HTTP outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps resource-probe
+          echo B57_STRICT_ISS_AUD_REAL_BACKEND_56_AUTH_AND_OWNER_BOUNDARY_PASSED
+      - name: Bounded diagnostic logs only on failed tests
+        if: failure()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml logs --no-color --tail=35 gateway user-service audit-service postgres redis rabbitmq || true
+      - name: Always remove only disposable CI containers network and tmpfs volumes
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml down --volumes --remove-orphans --timeout 10 || true
+          echo B56_EPHEMERAL_CLEANUP_COMPLETED

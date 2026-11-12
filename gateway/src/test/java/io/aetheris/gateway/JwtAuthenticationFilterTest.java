@@ -47,8 +47,9 @@ class JwtAuthenticationFilterTest {
         assertNotNull(authenticated);
         assertEquals("42", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Id"));
         assertEquals("user@example.com", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Email"));
-        assertEquals("API_CONSUMER", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
+        assertEquals("ADMIN", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
         assertEquals("users:read", authenticated.getRequest().getHeaders().getFirst("X-Aetheris-Scopes"));
+        assertEquals("42", authenticated.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
     }
 
     @Test
@@ -114,17 +115,180 @@ class JwtAuthenticationFilterTest {
         }).block();
 
         assertNull(forwarded.get());
+        assertNull(exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
         assertEquals(expectedStatus, exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void duplicateAuthorizationHeadersAreRejectedBeforeAnyBackendRouting() {
+        String bearer = "Bearer " + token(List.of("users:read"), Instant.now().plusSeconds(120));
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+            MockServerHttpRequest.get("/api/users")
+                .header(HttpHeaders.AUTHORIZATION, bearer, bearer).build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void directAdministrativeRolePolicyMatchesUsersAndAuditOnEveryRead() {
+        for (String path : List.of("/api/users", "/api/users/7",
+                                   "/api/events", "/api/events/7")) {
+            String required = path.startsWith("/api/users") ? "users:read" : "services:read";
+            JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get(path)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " +
+                        tokenWithClaims("API_CONSUMER", 42L, List.of(required),
+                            Instant.now().minusSeconds(5), Instant.now().plusSeconds(120)))
+                    .build());
+            AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+            filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+            assertNull(forwarded.get());
+            assertEquals(HttpStatus.FORBIDDEN, exchange.getResponse().getStatusCode());
+        }
+    }
+
+    @Test
+    void administrativeRoutesRefuseFractionalNonpositiveOrMissingUserIdentity() {
+        for (Object uid : List.of(42.5d, 0, -1L)) {
+            String token = tokenWithClaims("ADMIN", uid, List.of("users:read"),
+                Instant.now().minusSeconds(5), Instant.now().plusSeconds(120));
+            assertRejected("Bearer " + token, HttpStatus.UNAUTHORIZED);
+        }
+        assertRejected("Bearer " + tokenWithClaims("ADMIN", null, List.of("users:read"),
+            Instant.now().minusSeconds(5), Instant.now().plusSeconds(120)), HttpStatus.UNAUTHORIZED);
+        assertRejected("Bearer " + tokenWithClaims("ADMIN", 42L, List.of("users:read"),
+            null, Instant.now().plusSeconds(120)), HttpStatus.UNAUTHORIZED);
+        assertRejected("Bearer " + tokenWithClaims("ADMIN", 42L, List.of("users:read"),
+            Instant.now().plusSeconds(3600), Instant.now().plusSeconds(7200)), HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void signedDeveloperOrApiConsumerStillAccessesOrchestratorReadOnly() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+            MockServerHttpRequest.get("/api/orchestrator")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " +
+                    tokenWithClaims("API_CONSUMER", 42L, List.of("orchestrator:read"),
+                        Instant.now().minusSeconds(5), Instant.now().plusSeconds(120)))
+                .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+        assertNotNull(forwarded.get());
+        assertEquals("API_CONSUMER",
+            forwarded.get().getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
+        assertEquals("42", forwarded.get().getAttribute(
+            JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+    }
+
+    @Test
+    void invalidOrchestratorUidCannotPoisonVerifiedRateLimitIdentity() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+            MockServerHttpRequest.get("/api/orchestrator")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " +
+                    tokenWithClaims("API_CONSUMER", 42.5d, List.of("orchestrator:read"),
+                        Instant.now().minusSeconds(5), Instant.now().plusSeconds(120)))
+                .header("X-Aetheris-User-Id", "333")
+                .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+        assertNotNull(forwarded.get());
+        assertNull(forwarded.get().getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
+        assertNull(forwarded.get().getRequest().getHeaders().getFirst("X-Aetheris-User-Id"));
+    }
+
+    @Test
+    void auditMutationNeverUsesReadScopeAtTheGateway() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        for (org.springframework.http.HttpMethod method : List.of(
+                org.springframework.http.HttpMethod.POST,
+                org.springframework.http.HttpMethod.PUT,
+                org.springframework.http.HttpMethod.PATCH,
+                org.springframework.http.HttpMethod.DELETE)) {
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.method(method, "/api/events")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " +
+                        token(List.of("services:read"), Instant.now().plusSeconds(120))).build());
+            AtomicReference<ServerWebExchange> routed = new AtomicReference<>();
+            filter.filter(exchange, e -> { routed.set(e); return Mono.empty(); }).block();
+            assertNull(routed.get(), method.toString());
+            assertEquals(HttpStatus.FORBIDDEN, exchange.getResponse().getStatusCode());
+        }
+    }
+
+    @Test
+    void auditReadStillPermitsAnAuthenticatedAdmin() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+            MockServerHttpRequest.get("/api/events")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " +
+                    token(List.of("services:read"), Instant.now().plusSeconds(120))).build());
+        AtomicReference<ServerWebExchange> next = new AtomicReference<>();
+        filter.filter(exchange, e -> { next.set(e); return Mono.empty(); }).block();
+        assertNotNull(next.get());
+        assertEquals("ADMIN", next.get().getRequest().getHeaders().getFirst("X-Aetheris-User-Role"));
+    }
+
+    private static String tokenWithClaims(String role, Object uid, List<String> scopes,
+                                          Instant issued, Instant expires) {
+        var builder = Jwts.builder()
+            .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+            .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+            .subject("user@example.com")
+            .claim("role", role)
+            .claim("uid", uid)
+            .claim("scopes", scopes)
+            .expiration(Date.from(expires));
+        if (issued != null) {
+            builder.issuedAt(Date.from(issued));
+        }
+        return builder.signWith(Keys.hmacShaKeyFor(
+            SECRET.getBytes(StandardCharsets.UTF_8))).compact();
     }
 
     private static String token(List<String> scopes, Instant expiration) {
         return Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
                 .subject("user@example.com")
-                .claim("role", "API_CONSUMER")
+                .claim("role", "ADMIN")
                 .claim("uid", 42L)
                 .claim("scopes", scopes)
+                .issuedAt(Date.from(Instant.now().minusSeconds(5)))
                 .expiration(Date.from(expiration))
                 .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
                 .compact();
+    }
+
+    private static String tokenForIssuerAudience(String issuer, String audience) {
+        var builder = Jwts.builder()
+            .subject("issuer-boundary@example.invalid")
+            .claim("uid", 42L)
+            .claim("role", "ADMIN")
+            .claim("scopes", List.of("users:read"))
+            .issuedAt(Date.from(Instant.now().minusSeconds(5)))
+            .expiration(Date.from(Instant.now().plusSeconds(120)));
+        if (issuer != null) builder.issuer(issuer);
+        if (audience != null) builder.audience().add(audience).and();
+        return builder.signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8))).compact();
+    }
+
+    @Test
+    void gatewayRejectsSignedWrongOrAbsentIssuerAudienceWithoutRouting() {
+        for (String jwt : List.of(
+                tokenForIssuerAudience("wrong-issuer", JwtAuthenticationFilter.DEFAULT_AUDIENCE),
+                tokenForIssuerAudience(JwtAuthenticationFilter.DEFAULT_ISSUER, "wrong-audience"),
+                tokenForIssuerAudience(null, JwtAuthenticationFilter.DEFAULT_AUDIENCE),
+                tokenForIssuerAudience(JwtAuthenticationFilter.DEFAULT_ISSUER, null))) {
+            assertRejected("Bearer " + jwt, HttpStatus.UNAUTHORIZED);
+        }
+        assertThrows(IllegalArgumentException.class, () ->
+            new JwtAuthenticationFilter(SECRET, "", JwtAuthenticationFilter.DEFAULT_AUDIENCE));
+        assertThrows(IllegalArgumentException.class, () ->
+            new JwtAuthenticationFilter(SECRET, JwtAuthenticationFilter.DEFAULT_ISSUER, ""));
     }
 }
