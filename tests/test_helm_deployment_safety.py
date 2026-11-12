@@ -13,6 +13,8 @@ class HelmDeploymentSafetyTest(unittest.TestCase):
 
         self.assertIn("allowInsecureLocalDefaults: false", values)
         self.assertIn("allowInsecureLocalDefaults: true", local_values)
+        self.assertIn('redisPassword: ""', values)
+        self.assertNotIn("redisPassword:", local_values)
         self.assertIn("local learning/demo workflow only", local_values)
 
     def test_non_local_render_rejects_bundled_demo_credentials(self) -> None:
@@ -23,6 +25,16 @@ class HelmDeploymentSafetyTest(unittest.TestCase):
         self.assertIn('eq .Values.secrets.postgresPassword "aetheris"', gate)
         self.assertIn('eq .Values.secrets.rabbitmqPassword "aetheris"', gate)
         self.assertGreaterEqual(gate.count("fail "), 4)
+
+    def test_redis_auth_is_fail_closed_in_helm_and_both_consumers(self) -> None:
+        gate = (CHART / "templates" / "00-safety-gate.yaml").read_text("utf-8")
+        chart = (CHART / "templates" / "core.yaml").read_text("utf-8")
+        self.assertIn("secrets.redisPassword must be at least 32 characters", gate)
+        self.assertIn("REDIS_PASSWORD: {{ .Values.secrets.redisPassword | quote }}", chart)
+        self.assertIn('args: ["redis-server", "--appendonly", "yes", "--requirepass", "$(REDISCLI_AUTH)"]', chart)
+        self.assertIn("name: REDISCLI_AUTH", chart)
+        self.assertIn("name: SPRING_DATA_REDIS_PASSWORD", chart)
+        self.assertIn("key: REDIS_PASSWORD", chart)
 
     def test_non_local_render_requires_digest_pinned_images(self) -> None:
         gate = (CHART / "templates" / "00-safety-gate.yaml").read_text(encoding="utf-8")

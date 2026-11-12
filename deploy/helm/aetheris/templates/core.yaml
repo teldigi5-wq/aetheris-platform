@@ -10,6 +10,7 @@ stringData:
   POSTGRES_PASSWORD: {{ .Values.secrets.postgresPassword | quote }}
   RABBITMQ_DEFAULT_USER: {{ .Values.secrets.rabbitmqUsername | quote }}
   RABBITMQ_DEFAULT_PASS: {{ .Values.secrets.rabbitmqPassword | quote }}
+  REDIS_PASSWORD: {{ .Values.secrets.redisPassword | quote }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -151,7 +152,11 @@ spec:
         - name: redis
           image: {{ .Values.images.redis }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy }}
-          args: ["redis-server", "--appendonly", "yes"]
+          env:
+            # Redis CLI probes use REDISCLI_AUTH without embedding the secret in the template.
+            - name: REDISCLI_AUTH
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: REDIS_PASSWORD } }
+          args: ["redis-server", "--appendonly", "yes", "--requirepass", "$(REDISCLI_AUTH)"]
           ports:
             - containerPort: 6379
           readinessProbe:
@@ -286,6 +291,8 @@ spec:
               valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATA_REDIS_HOST } }
             - name: SPRING_DATA_REDIS_PORT
               valueFrom: { configMapKeyRef: { name: aetheris-config, key: SPRING_DATA_REDIS_PORT } }
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom: { secretKeyRef: { name: aetheris-secrets, key: REDIS_PASSWORD } }
             {{- end }}
             {{- if or (eq $app.name "user-service") (eq $app.name "audit-service") }}
             - name: SPRING_RABBITMQ_HOST
