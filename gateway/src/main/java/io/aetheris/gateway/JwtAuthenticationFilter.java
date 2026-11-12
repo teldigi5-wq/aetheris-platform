@@ -346,7 +346,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private ServerWebExchange withoutIdentityHeaders(ServerWebExchange exchange) {
         HttpHeaders incoming = exchange.getRequest().getHeaders();
-        if (IDENTITY_HEADERS.stream().noneMatch(incoming::containsKey)) {
+        // Spring Framework 7 HttpHeaders is not a Map (no containsKey); probe by name.
+        if (IDENTITY_HEADERS.stream().allMatch(name -> incoming.getFirst(name) == null)) {
             return exchange;
         }
         return exchange.mutate()
