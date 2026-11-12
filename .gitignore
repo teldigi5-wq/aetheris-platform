@@ -7,3 +7,6 @@ target/
 node_modules/
 dist/
 coverage/
+
+# Operator-exported container logs; may contain private application data.
+observability/logs/
