@@ -88,11 +88,11 @@ def static_checks(contract: dict[str, Any]) -> list[dict[str, str]]:
         "orchestrator-service:",
         f"image: {runtime['required_image_expression']}",
         "AETHERIS_ORCHESTRATOR_URI: ${AETHERIS_ORCHESTRATOR_URI:-http://orchestrator-service:8090}",
-        '"8090:8090"',
+        '"127.0.0.1:8090:8090"',
     ]
     missing_external = [marker for marker in external_markers if marker not in external_text]
     forbidden_external = [token for token in (
-        "build: ./orchestrator-service", "build: ./workstation-agent", "build: ./aetheris-quant", "build: ./aetheris-reasoning"
+        '"8090:8090"', "build: ./orchestrator-service", "build: ./workstation-agent", "build: ./aetheris-quant", "build: ./aetheris-reasoning"
     ) if token in external_text]
     checks.append(result("external-runtime-compose-contract", "PASS" if not missing_external and not forbidden_external else "FAIL", f"missing={missing_external or 'none'}; forbidden={forbidden_external or 'none'}", category="external-runtime"))
 

@@ -100,6 +100,78 @@ class JwtAuthenticationFilterTest {
         assertThrows(IllegalArgumentException.class, () -> new JwtAuthenticationFilter("too-short"));
     }
 
+
+    @Test
+    void memoryOwnerHeaderIsOverwrittenFromVerifiedNumericUid() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/orchestrator/memory/inspector")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token(List.of("orchestrator:read"), Instant.now().plusSeconds(300)))
+                        .header("X-Aetheris-Owner-Id", "another-users-memory")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+        assertNotNull(forwarded.get());
+        assertEquals("user:42", forwarded.get().getRequest().getHeaders().getFirst("X-Aetheris-Owner-Id"));
+    }
+
+    @Test
+    void ownerHeaderIsStrippedOutsideMemoryEndpoints() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/orchestrator/tasks")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token(List.of("orchestrator:read"), Instant.now().plusSeconds(300)))
+                        .header("X-Aetheris-Owner-Id", "forged")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+        assertNotNull(forwarded.get());
+        assertNull(forwarded.get().getRequest().getHeaders().getFirst("X-Aetheris-Owner-Id"));
+    }
+
+    @Test
+    void missingUidFailsClosedForMemoryEndpointsEvenWithForgedOwnerHeader() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String missingUid = Jwts.builder()
+                .subject("user@example.com")
+                .claim("role", "API_CONSUMER")
+                .claim("scopes", List.of("orchestrator:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(300)))
+                .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/orchestrator/memory/search?q=private")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + missingUid)
+                        .header("X-Aetheris-Owner-Id", "owner-victim")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+        assertNull(forwarded.get());
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
+
+    @Test
+    void verifiedUserIdsProduceDifferentMemoryNamespaces() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String secondToken = Jwts.builder()
+                .subject("other@example.com")
+                .claim("role", "API_CONSUMER")
+                .claim("uid", 43L)
+                .claim("scopes", List.of("orchestrator:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(300)))
+                .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/orchestrator/memory/records")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + secondToken)
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, auth -> { forwarded.set(auth); return Mono.empty(); }).block();
+        assertNotNull(forwarded.get());
+        assertEquals("user:43", forwarded.get().getRequest().getHeaders().getFirst("X-Aetheris-Owner-Id"));
+        assertNotEquals("user:42", forwarded.get().getRequest().getHeaders().getFirst("X-Aetheris-Owner-Id"));
+    }
+
     private static void assertRejected(String authorization, HttpStatus expectedStatus) {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
         MockServerWebExchange exchange = MockServerWebExchange.from(

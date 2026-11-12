@@ -118,7 +118,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
 
   gateway:
     build: ./gateway
