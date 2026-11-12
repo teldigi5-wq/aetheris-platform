@@ -29,6 +29,33 @@ For a non-local/shared/staging render, leave `global.allowInsecureLocalDefaults=
 
 This chart still creates a Kubernetes Secret from Helm values. That is acceptable for the documented local demo, but it is **not** a claim of production-grade secret management. Before any real staging/production use, integrate an approved external secret-management path and keep secret material out of source control, shell history, CI logs, and reusable values files.
 
+## Non-local ingress isolation (defense in depth)
+
+When `global.allowInsecureLocalDefaults=false`, this chart also renders six
+same-namespace `NetworkPolicy` ingress restrictions: PostgreSQL accepts
+Identity/User/Audit, Redis accepts Gateway/User, RabbitMQ accepts User/Audit,
+and Identity/User/Audit HTTP endpoints accept only the Gateway Pod label.
+RabbitMQ management port 15672 is **not** in the allowlist. The dashboard
+and Gateway ingress topology is left unchanged to avoid inventing an ingress
+controller/namespace dependency; this is **not** a complete zero-trust service
+authorization solution.
+
+NetworkPolicy works **only if** the actual Kubernetes CNI enforces it.
+Before promotion, test authorized requests, denied cross-Pod requests,
+DNS/service resolution, observability scraping, administrative operations and
+backup/restore paths against the real CNI and namespaces. Non-chart Prometheus,
+operators, connectors or maintenance Jobs will be blocked from these six
+targets unless operators add reviewed policies for their exact service
+accounts/Pod labels. This chart does not install monitoring access exceptions
+automatically. Direct HTTP access from the gateway remains mediated by JWT
+only at the gateway; retain service-level authorization as a separate
+production release gate.
+
+The `values-local.yaml` demo opts out of these non-local policies to avoid
+breaking existing local development paths. **Never use that opt-out on a
+shared or production cluster.** No real cluster CNI verification is claimed by
+the Helm template and CI tests.
+
 ## Recommended local cluster: Docker Desktop Kubernetes
 
 On Windows with Docker Desktop:
@@ -61,13 +88,35 @@ docker build -t aetheris-platform-dashboard:latest .\dashboard
 
 The local values file keeps `imagePullPolicy: IfNotPresent`, which allows Docker Desktop Kubernetes to use locally built images. For kind or minikube, load these images into that cluster explicitly before installation.
 
+## Mandatory Redis authentication for local Kubernetes
+
+The hardened chart refuses to render without an explicit Redis password, **even when**
+\`values-local.yaml\` is used. Generate a different 32-byte secret in a private, ignored
+values file before running the commands below. From the repository root:
+
+```powershell
+python -c "import pathlib,secrets; pathlib.Path('deploy/helm/aetheris/values-local-private.yaml').write_text('secrets:\n  redisPassword: '+secrets.token_hex(32)+'\n', encoding='utf-8')"
+```
+
+Never commit, paste, log or publish that file or run \`helm template\` output
+containing its embedded Kubernetes Secret. Preserve the private secret across
+local restarts with existing PVCs. The Redis server and Spring gateway/user clients
+must migrate to the **same** new credential together. Existing Redis installations
+must be backed up and upgraded in a planned maintenance window; this documentation
+is not approval to deploy to any live cluster.
+
+All example Helm commands below use both \`values-local.yaml\` and the ignored
+\`values-local-private.yaml\`. Non-local installations need independently
+provisioned Redis/PostgreSQL/RabbitMQ/JWT secrets, digest-pinned images and
+approved secret management; this demo chart is not production certification.
+
 ## Validate the Helm chart locally
 
 The plain/default chart intentionally fails when it sees the bundled demo credentials or mutable image tags. Use the explicit local-development values file for the Stage 7 demo validation:
 
 ```powershell
-helm lint .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml
-helm template aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml --namespace aetheris > $null
+helm lint .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\values-local-private.yaml
+helm template aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\values-local-private.yaml --namespace aetheris > $null
 ```
 
 Both local-demo commands should complete without errors. A non-local render must instead supply strong credentials and digest-pinned images while leaving `global.allowInsecureLocalDefaults=false`.
@@ -76,7 +125,7 @@ Both local-demo commands should complete without errors. A non-local render must
 
 ```powershell
 helm upgrade --install aetheris .\deploy\helm\aetheris `
-  -f .\deploy\helm\aetheris\values-local.yaml `
+  -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\values-local-private.yaml `
   --namespace aetheris `
   --create-namespace `
   --wait `
@@ -156,13 +205,13 @@ The Deployment controller creates a replacement pod automatically.
 After changing chart values or templates in the local demo:
 
 ```powershell
-helm upgrade aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -n aetheris --wait --timeout 8m
+helm upgrade aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\values-local-private.yaml -n aetheris --wait --timeout 8m
 ```
 
 Example replica override:
 
 ```powershell
-helm upgrade aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -n aetheris `
+helm upgrade aetheris .\deploy\helm\aetheris -f .\deploy\helm\aetheris\values-local.yaml -f .\deploy\helm\aetheris\values-local-private.yaml -n aetheris `
   --set replicas.gateway=2 `
   --set replicas.userService=2 `
   --wait

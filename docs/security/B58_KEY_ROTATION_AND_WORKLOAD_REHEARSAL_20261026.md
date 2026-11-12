@@ -1,0 +1,29 @@
+# B58 — isolated JWT HMAC key rollover rehearsal and actual API/workload audience isolation
+
+**26 October 2026. Review-only draft stacked after [B57 PR #291](https://github.com/teldigi5-wq/aetheris-platform/pull/291); protected main, production identities, signing keys, services, data and sessions stay untouched.**
+
+## Scope and security finding
+
+B57 established signed `iss=aetheris-identity` and `aud=aetheris-api` for real Identity, Gateway, User and Audit services, with 87 Java tests and 56 Docker HTTP authorization/ownership probes on its final exact HEAD. **B57 has not introduced actual production signing-key rotation, workload identity, or new multi-tenant owner roles.**
+
+JJWT's `requireAudience("aetheris-api")` checks that the expected value is a *member* of a token audience collection. That leaves a narrow cross-workload ambiguity if a token lists **both** `aetheris-api` and `aetheris-runtime`. B58 now adds the **exact singleton audience** requirement to all three real Gateway/User/Audit verifiers, in addition to their existing signature, required `iss`, required `aud`, expiry, role, UID and scope requirements. A signed Admin token with an additional audience is **401**, not implicitly usable for a different workload; a legitimate one-audience Admin token remains accepted. No routes, business ownership or Identity signing material change.
+
+## Concrete CI tests
+
+1. **Synthetic key rotation proof — 14 Java/JJWT 0.12 tests:** two test-only public HMAC seeds (`synthetic-epoch-a` and `synthetic-epoch-b`), JJWT HS256 signing, and a *test-only verifier* model before/overlap/after stages. It verifies bounded overlap, retirement and immediate old-key refusal, rejects forged signatures, unknown/mismatched/missing `kid`, wrong issuer, wrong/ambiguous audience, expiry, future issuance, overlong synthetic 300-second token lifetime, alternate HMAC algorithm and oversized/invalid key-set configuration. No production secret or real token is used. **The production verifier still uses one HMAC key and does NOT enforce `kid`; this test does not activate any rotation.**
+2. **Real internal Docker Gateway/User/Audit workload misuse:** the actual Identity test module mints extra authenticated synthetic `workload` (runtime-only aud), `foreign` (untrusted issuer) and `dual` (two audiences) JWT fixtures. An existing non-root, read-only Python probe container can access the actual internal Gateway/User/Audit HTTP endpoints but cannot access Docker socket or host ports. For all four API paths (direct User, Gateway User, direct Audit, Gateway Audit), the three attacks must return **401** and a legitimate signed ADMIN read must return **200**, totaling **16 real HTTP assertions**. Neither token contents nor secrets are written to logs.
+3. **Regress existing real security flows:** rerun B57's four-module Maven reactor, actual Identity-issued cross-module JWT fixture integration tests and its **26 direct+Gateway** and **30 numeric nonowner ID collision** HTTP cases, against the current pinned patched Corretto 21.0.13 User/Audit/Gateway images, disposable PostgreSQL tmpfs, isolated Redis/RabbitMQ and one internal Docker network. No persistent volumes or production databases.
+4. **Static guardrails:** eight Python policy tests check that singleton audience is enforced in all three real signed parsers, the rotation JJWT suite is test-scoped, key rotation has not been silently added to production, and no original ADMIN, scope or isolation guards were removed.
+
+A failing regression or unknown audience is release **NO_GO**. The complete CI is only accepted once its final exact branch-head workflow completes successfully.
+
+## Deployment and key-rotation plan — NOT executed
+
+- **Recommended long-term design:** Identity alone controls a private asymmetric signer; Gateway/User/Audit/Syntra workload verifiers receive only public verification keys via a pinned/trusted key distributor or JWKS with strict HTTPS, issuer, target audience, algorithm, `kid` allowlist, cache lifetime and no untrusted URL retrieval. Machine tokens should have a separate workload identity with narrowly defined `aud` and least-privilege scopes; do not reuse a browser ADMIN token.
+- **Proposed production rollover protocol (requires approval):** publish the *next public verification key* to all trusted verifiers; check a bounded two-key overlap; begin issuing only with the next private key and a registered `kid`; wait for maximum access-token TTL plus permitted clock skew; revoke the old public key; verify legacy token denial, cross-service audience refusal, session renewal, browser/mobile/agent compatibility, staging rollback and incident recovery. Actual refresh-cookie and real-user continuity are **not** tested here.
+- Shared symmetric `AETHERIS_JWT_SECRET` remains unchanged; this draft never adds a second live secret, `kid` resolver, JWKS endpoint, mTLS certificate, key-management service, token revocation list, agent audience mapping or key rotation toggle. A compromised shared HMAC secret would still permit signing with authorized audience and role claims—**not solved by this rehearsal**.
+- Do not merge B58 merely because test-only rotation succeeds. Coordinate previous draft #229, Identity API clients, Syntra runtime audience expectations, genuine user↔resource ownership semantics, expiry/backwards compatibility and service certificates.
+
+## Remaining gates
+
+Issue #251 stays OPEN for multi-user object ownership, workload authentication, actual issuer-owned asymmetric signing and real deployment network bypass assessment. Issue #242 historic database restore, #255 final image approval, #259 final production SBOM/provenance, Stage45 and all nine runtime certification gates remain unapproved. This stage does **not** touch production environments, secrets, existing data or protected `main`.

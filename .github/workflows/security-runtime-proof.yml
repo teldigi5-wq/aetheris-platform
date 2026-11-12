@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/syntra-aetheris-foundation-v2
+      - security/spring4-gateway-isolated-20261023
     paths:
       - 'gateway/**'
       - 'identity-service/**'
@@ -49,9 +50,17 @@ jobs:
     name: security-runtime-proof
     runs-on: ubuntu-24.04
     timeout-minutes: 35
-    env:
-      AETHERIS_JWT_SECRET: security-proof-local-ci-secret-change-me-42chars
     steps:
+      - name: Create ephemeral random Compose secrets (CI only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_POSTGRES_PASSWORD AETHERIS_RABBITMQ_PASSWORD AETHERIS_REDIS_PASSWORD AETHERIS_JWT_SECRET AETHERIS_GRAFANA_ADMIN_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+
       - name: Checkout exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
 

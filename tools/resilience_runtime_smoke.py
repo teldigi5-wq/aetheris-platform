@@ -225,7 +225,26 @@ def main() -> int:
         expect_status(status, 201, "resilience proof registration")
         if not isinstance(registered, dict) or not registered.get("accessToken"):
             raise AssertionError(f"registration response missing access token: {registered!r}")
-        headers = {"Authorization": f"Bearer {registered['accessToken']}"}
+        # User reads are ADMIN-only and enforced by user-service itself. No application
+        # route grants ADMIN: promote this one disposable CI identity in the isolated
+        # database and obtain a signed ADMIN token through the normal login path.
+        promoted = compose(
+            "exec", "-T", "postgres", "psql", "-U", "aetheris", "-d", "aetheris", "-tA", "-c",
+            "with promoted as (update identity_accounts set role='ADMIN' "
+            "where email='" + email.replace("'", "''") + "' and role='API_CONSUMER' returning id) "
+            "select count(*) from promoted;",
+        ).strip()
+        if promoted != "1":
+            raise AssertionError("synthetic resilience administrator promotion did not affect exactly one account")
+        status, admin_login = http_json(
+            "POST",
+            "http://127.0.0.1:8080/api/auth/login",
+            {"email": email, "password": password},
+        )
+        expect_status(status, 200, "synthetic resilience administrator login")
+        if not isinstance(admin_login, dict) or admin_login.get("account", {}).get("role") != "ADMIN":
+            raise AssertionError("login did not issue a signed ADMIN account for the resilience proof")
+        headers = {"Authorization": f"Bearer {admin_login['accessToken']}"}
 
         status, users = http_json(
             "GET",
