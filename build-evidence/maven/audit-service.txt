@@ -1,4 +1,10 @@
 io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
++- io.jsonwebtoken:jjwt-api:jar:0.12.6:compile
++- io.jsonwebtoken:jjwt-impl:jar:0.12.6:runtime
++- io.jsonwebtoken:jjwt-jackson:jar:0.12.6:runtime
+|  \- com.fasterxml.jackson.core:jackson-databind:jar:2.21.8:runtime
+|     +- com.fasterxml.jackson.core:jackson-annotations:jar:2.21:compile
+|     \- com.fasterxml.jackson.core:jackson-core:jar:2.21.8:runtime
 +- org.springframework.boot:spring-boot-starter-webmvc:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-starter:jar:4.1.1:compile
 |  |  +- org.springframework.boot:spring-boot-starter-logging:jar:4.1.1:compile
@@ -15,9 +21,9 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 |  +- org.springframework.boot:spring-boot-starter-tomcat:jar:4.1.1:compile
 |  |  +- org.springframework.boot:spring-boot-starter-tomcat-runtime:jar:4.1.1:compile
 |  |  |  +- org.springframework.boot:spring-boot-web-server:jar:4.1.1:compile
-|  |  |  +- org.apache.tomcat.embed:tomcat-embed-core:jar:11.0.24:compile
-|  |  |  +- org.apache.tomcat.embed:tomcat-embed-el:jar:11.0.24:compile
-|  |  |  \- org.apache.tomcat.embed:tomcat-embed-websocket:jar:11.0.24:compile
+|  |  |  +- org.apache.tomcat.embed:tomcat-embed-core:jar:11.0.27:compile
+|  |  |  +- org.apache.tomcat.embed:tomcat-embed-el:jar:11.0.27:compile
+|  |  |  \- org.apache.tomcat.embed:tomcat-embed-websocket:jar:11.0.27:compile
 |  |  \- org.springframework.boot:spring-boot-tomcat:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-http-converter:jar:4.1.1:compile
 |  |  +- org.springframework.boot:spring-boot:jar:4.1.1:compile
@@ -34,27 +40,27 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 |     +- org.springframework:spring-messaging:jar:7.0.9:compile
 |     +- org.springframework.amqp:spring-rabbit:jar:4.1.1:compile
 |     |  +- org.springframework.amqp:spring-amqp:jar:4.1.1:compile
-|     |  +- com.rabbitmq:amqp-client:jar:5.30.0:compile
-|     |  |  +- io.netty:netty-transport:jar:4.2.17.Final:compile
-|     |  |  |  +- io.netty:netty-common:jar:4.2.17.Final:compile
-|     |  |  |  +- io.netty:netty-buffer:jar:4.2.17.Final:compile
-|     |  |  |  \- io.netty:netty-resolver:jar:4.2.17.Final:compile
-|     |  |  +- io.netty:netty-codec:jar:4.2.17.Final:compile
-|     |  |  |  +- io.netty:netty-codec-base:jar:4.2.17.Final:compile
-|     |  |  |  +- io.netty:netty-codec-compression:jar:4.2.17.Final:compile
-|     |  |  |  +- io.netty:netty-codec-protobuf:jar:4.2.17.Final:compile
-|     |  |  |  \- io.netty:netty-codec-marshalling:jar:4.2.17.Final:compile
-|     |  |  \- io.netty:netty-handler:jar:4.2.17.Final:compile
-|     |  |     \- io.netty:netty-transport-native-unix-common:jar:4.2.17.Final:compile
 |     |  \- org.springframework:spring-tx:jar:7.0.9:compile
 |     \- org.springframework.boot:spring-boot-transaction:jar:4.1.1:compile
 |        \- org.springframework.boot:spring-boot-persistence:jar:4.1.1:compile
++- com.rabbitmq:amqp-client:jar:5.37.0:compile
+|  +- org.slf4j:slf4j-api:jar:2.0.18:compile
+|  +- io.netty:netty-transport:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-common:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-buffer:jar:4.2.17.Final:compile
+|  |  \- io.netty:netty-resolver:jar:4.2.17.Final:compile
+|  +- io.netty:netty-codec:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-codec-base:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-codec-compression:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-codec-protobuf:jar:4.2.17.Final:compile
+|  |  \- io.netty:netty-codec-marshalling:jar:4.2.17.Final:compile
+|  \- io.netty:netty-handler:jar:4.2.17.Final:compile
+|     \- io.netty:netty-transport-native-unix-common:jar:4.2.17.Final:compile
 +- org.springframework.boot:spring-boot-starter-jdbc:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-jdbc:jar:4.1.1:compile
 |  |  +- org.springframework.boot:spring-boot-sql:jar:4.1.1:compile
 |  |  \- org.springframework:spring-jdbc:jar:7.0.9:compile
 |  \- com.zaxxer:HikariCP:jar:7.0.2:compile
-|     \- org.slf4j:slf4j-api:jar:2.0.18:compile
 +- org.postgresql:postgresql:jar:42.7.13:runtime
 |  \- org.checkerframework:checker-qual:jar:3.55.1:runtime
 +- org.springframework.boot:spring-boot-starter-flyway:jar:4.1.1:compile
@@ -62,7 +68,6 @@ io.aetheris:aetheris-audit-service:jar:0.4.0-SNAPSHOT
 +- org.flywaydb:flyway-database-postgresql:jar:12.4.0:compile
 |  \- org.flywaydb:flyway-core:jar:12.4.0:compile
 |     \- tools.jackson.core:jackson-databind:jar:3.1.8:compile
-|        +- com.fasterxml.jackson.core:jackson-annotations:jar:2.21:compile
 |        \- tools.jackson.core:jackson-core:jar:3.1.8:compile
 +- org.springframework.boot:spring-boot-starter-actuator:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-starter-micrometer-metrics:jar:4.1.1:compile

@@ -1,4 +1,10 @@
 io.aetheris:user-service:jar:0.1.0-SNAPSHOT
++- io.jsonwebtoken:jjwt-api:jar:0.12.6:compile
++- io.jsonwebtoken:jjwt-impl:jar:0.12.6:runtime
++- io.jsonwebtoken:jjwt-jackson:jar:0.12.6:runtime
+|  \- com.fasterxml.jackson.core:jackson-databind:jar:2.21.8:compile
+|     +- com.fasterxml.jackson.core:jackson-annotations:jar:2.21:compile
+|     \- com.fasterxml.jackson.core:jackson-core:jar:2.21.8:compile
 +- org.springframework.boot:spring-boot-starter-webmvc:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-starter:jar:4.1.1:compile
 |  |  +- org.springframework.boot:spring-boot-starter-logging:jar:4.1.1:compile
@@ -13,12 +19,11 @@ io.aetheris:user-service:jar:0.1.0-SNAPSHOT
 |  +- org.springframework.boot:spring-boot-starter-jackson:jar:4.1.1:compile
 |  |  \- org.springframework.boot:spring-boot-jackson:jar:4.1.1:compile
 |  |     \- tools.jackson.core:jackson-databind:jar:3.1.8:compile
-|  |        +- com.fasterxml.jackson.core:jackson-annotations:jar:2.21:compile
 |  |        \- tools.jackson.core:jackson-core:jar:3.1.8:compile
 |  +- org.springframework.boot:spring-boot-starter-tomcat:jar:4.1.1:compile
 |  |  +- org.springframework.boot:spring-boot-starter-tomcat-runtime:jar:4.1.1:compile
-|  |  |  +- org.apache.tomcat.embed:tomcat-embed-core:jar:11.0.24:compile
-|  |  |  \- org.apache.tomcat.embed:tomcat-embed-websocket:jar:11.0.24:compile
+|  |  |  +- org.apache.tomcat.embed:tomcat-embed-core:jar:11.0.27:compile
+|  |  |  \- org.apache.tomcat.embed:tomcat-embed-websocket:jar:11.0.27:compile
 |  |  \- org.springframework.boot:spring-boot-tomcat:jar:4.1.1:compile
 |  +- org.springframework.boot:spring-boot-http-converter:jar:4.1.1:compile
 |  |  +- org.springframework.boot:spring-boot:jar:4.1.1:compile
@@ -62,13 +67,6 @@ io.aetheris:user-service:jar:0.1.0-SNAPSHOT
 |  +- org.springframework.boot:spring-boot-data-redis:jar:4.1.1:compile
 |  |  +- io.lettuce:lettuce-core:jar:7.5.2.RELEASE:compile
 |  |  |  +- redis.clients.authentication:redis-authx-core:jar:0.1.1-beta2:compile
-|  |  |  +- io.netty:netty-common:jar:4.2.17.Final:compile
-|  |  |  +- io.netty:netty-handler:jar:4.2.17.Final:compile
-|  |  |  |  +- io.netty:netty-resolver:jar:4.2.17.Final:compile
-|  |  |  |  +- io.netty:netty-buffer:jar:4.2.17.Final:compile
-|  |  |  |  +- io.netty:netty-transport-native-unix-common:jar:4.2.17.Final:compile
-|  |  |  |  \- io.netty:netty-codec-base:jar:4.2.17.Final:compile
-|  |  |  +- io.netty:netty-transport:jar:4.2.17.Final:compile
 |  |  |  +- io.projectreactor:reactor-core:jar:3.8.7:compile
 |  |  |  |  \- org.reactivestreams:reactive-streams:jar:1.0.4:compile
 |  |  |  \- io.netty:netty-resolver-dns:jar:4.2.17.Final:compile
@@ -85,15 +83,23 @@ io.aetheris:user-service:jar:0.1.0-SNAPSHOT
 +- org.springframework.boot:spring-boot-starter-amqp:jar:4.1.1:compile
 |  \- org.springframework.boot:spring-boot-amqp:jar:4.1.1:compile
 |     \- org.springframework.amqp:spring-rabbit:jar:4.1.1:compile
-|        +- org.springframework.amqp:spring-amqp:jar:4.1.1:compile
-|        \- com.rabbitmq:amqp-client:jar:5.30.0:compile
-|           \- io.netty:netty-codec:jar:4.2.17.Final:compile
-|              +- io.netty:netty-codec-compression:jar:4.2.17.Final:compile
-|              +- io.netty:netty-codec-protobuf:jar:4.2.17.Final:compile
-|              \- io.netty:netty-codec-marshalling:jar:4.2.17.Final:compile
+|        \- org.springframework.amqp:spring-amqp:jar:4.1.1:compile
++- com.rabbitmq:amqp-client:jar:5.37.0:compile
+|  +- org.slf4j:slf4j-api:jar:2.0.18:compile
+|  +- io.netty:netty-transport:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-common:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-buffer:jar:4.2.17.Final:compile
+|  |  \- io.netty:netty-resolver:jar:4.2.17.Final:compile
+|  +- io.netty:netty-codec:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-codec-base:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-codec-compression:jar:4.2.17.Final:compile
+|  |  +- io.netty:netty-codec-protobuf:jar:4.2.17.Final:compile
+|  |  \- io.netty:netty-codec-marshalling:jar:4.2.17.Final:compile
+|  \- io.netty:netty-handler:jar:4.2.17.Final:compile
+|     \- io.netty:netty-transport-native-unix-common:jar:4.2.17.Final:compile
 +- org.springframework.boot:spring-boot-starter-validation:jar:4.1.1:compile
 |  \- org.springframework.boot:spring-boot-validation:jar:4.1.1:compile
-|     +- org.apache.tomcat.embed:tomcat-embed-el:jar:11.0.24:compile
+|     +- org.apache.tomcat.embed:tomcat-embed-el:jar:11.0.27:compile
 |     \- org.hibernate.validator:hibernate-validator:jar:9.1.3.Final:compile
 |        +- jakarta.validation:jakarta.validation-api:jar:3.1.1:compile
 |        +- org.jboss.logging:jboss-logging:jar:3.6.3.Final:compile
@@ -132,7 +138,6 @@ io.aetheris:user-service:jar:0.1.0-SNAPSHOT
 |  |  \- io.opentelemetry.proto:opentelemetry-proto:jar:1.10.0-alpha:runtime
 |  |     \- com.google.protobuf:protobuf-java:jar:4.35.1:runtime
 |  +- io.micrometer:micrometer-tracing-bridge-otel:jar:1.7.1:runtime
-|  |  +- org.slf4j:slf4j-api:jar:2.0.18:compile
 |  |  +- io.opentelemetry.semconv:opentelemetry-semconv:jar:1.41.1:runtime
 |  |  +- io.opentelemetry:opentelemetry-sdk-common:jar:1.62.0:compile
 |  |  +- io.opentelemetry:opentelemetry-sdk-trace:jar:1.62.0:compile
@@ -155,8 +160,6 @@ io.aetheris:user-service:jar:0.1.0-SNAPSHOT
 |  |  |     +- org.apache.commons:commons-lang3:jar:3.20.0:compile
 |  |  |     +- io.swagger.core.v3:swagger-annotations-jakarta:jar:2.2.55:compile
 |  |  |     +- io.swagger.core.v3:swagger-models-jakarta:jar:2.2.55:compile
-|  |  |     +- com.fasterxml.jackson.core:jackson-databind:jar:2.21.8:compile
-|  |  |     |  \- com.fasterxml.jackson.core:jackson-core:jar:2.21.8:compile
 |  |  |     +- com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:jar:2.21.8:compile
 |  |  |     \- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:jar:2.21.8:compile
 |  |  \- org.springframework.boot:spring-boot-web-server:jar:4.1.1:compile

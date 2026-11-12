@@ -27,7 +27,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * with all AMQP listeners off and mocked store (no persistence access).
  * Tests registered HTTP authorization rather than only isolated MockMvc.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+  // Inline test properties outrank OS env vars: CI exports a random
+  // AETHERIS_JWT_SECRET, which must not replace this test-only key.
+  properties = {"aetheris.jwt.mode=hmac",
+                "aetheris.jwt.secret=test-only-direct-backend-auth-hmac-secret-at-least-32-bytes"})
 class DirectApiLiveHttpTest {
   private static final String TEST_KEY =
       "test-only-direct-backend-auth-hmac-secret-at-least-32-bytes";
