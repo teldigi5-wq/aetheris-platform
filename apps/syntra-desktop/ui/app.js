@@ -31,6 +31,7 @@ const state = {
   privacyProfile: localStorage.getItem("syntra.privacyProfile") || DEFAULTS.privacyProfile,
   startupBehavior: localStorage.getItem("syntra.startupBehavior") || DEFAULTS.startupBehavior,
   prompts: [],
+  mediaDrafts: [],
   gatewayState: HEALTH.NOT_PROBED,
   runtimeState: HEALTH.NOT_PROBED,
   lastRecoveryCheck: null
@@ -223,7 +224,78 @@ function clearLocalSession() {
   addTimelineEvent("Local chat staging cleared", "Prompt content was removed from the current UI session. No backend memory deletion is claimed.");
 }
 
-const titles = { overview: "Command Center", chat: "Chat", tasks: "Tasks", memory: "Memory", devices: "Devices", approvals: "Approvals", settings: "Settings", diagnostics: "Diagnostics & Recovery" };
+
+function renderMediaDrafts() {
+  const container = document.getElementById("media-drafts");
+  const count = document.getElementById("media-stage-count");
+  count.textContent = state.mediaDrafts.length + " session drafts";
+  container.replaceChildren();
+  if (!state.mediaDrafts.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "No staged media ideas yet. GPU queue remains unavailable.";
+    container.append(empty);
+    return;
+  }
+  state.mediaDrafts.slice().reverse().forEach((draft) => {
+    const item = document.createElement("article");
+    item.className = "media-draft";
+    const heading = document.createElement("strong");
+    heading.textContent = draft.type === "video" ? "Video proposal · not supported yet" : "Image proposal · local draft";
+    const copy = document.createElement("p");
+    copy.textContent = draft.prompt;
+    const details = document.createElement("small");
+    details.textContent = draft.dimensions + " · " + draft.time + " · NOT SUBMITTED";
+    item.append(heading, copy, details);
+    container.append(item);
+  });
+}
+
+function stageMediaDraft(event) {
+  event.preventDefault();
+  const type = document.getElementById("media-type").value;
+  const prompt = document.getElementById("media-prompt").value.trim();
+  const negative = document.getElementById("media-negative").value.trim();
+  const dimensions = document.getElementById("media-dimensions").value;
+  const status = document.getElementById("media-status");
+  if (!["image", "video"].includes(type) || !["512x512", "512x768", "768x512"].includes(dimensions)
+      || !prompt || prompt.length > 1200 || negative.length > 500) {
+    status.textContent = "A prompt and a supported frame size are required. Nothing has been submitted.";
+    showNotice("Valid prompt and frame size required.", "danger");
+    return;
+  }
+  if (state.mediaDrafts.length >= 10) {
+    status.textContent = "Local staging is limited to 10 drafts. Clear the drafts before adding more.";
+    showNotice("Media draft limit reached.", "danger");
+    return;
+  }
+  state.mediaDrafts.push({ type, prompt, negative: type === "image" ? negative : "", dimensions, time: nowLabel() });
+  document.getElementById("media-prompt").value = "";
+  document.getElementById("media-negative").value = "";
+  status.textContent = (type === "video" ? "Video" : "Image") + " idea staged only in this session. No GPU work, download, API call or generation occurred.";
+  addTimelineEvent("Local Media Studio draft staged", "Non-secret metadata only. Prompt content was not copied to the event timeline, native diagnostics, or a network endpoint.");
+  renderMediaDrafts();
+  showNotice("Media draft saved in app session only.");
+}
+
+function clearMediaDrafts() {
+  state.mediaDrafts = [];
+  document.getElementById("media-prompt").value = "";
+  document.getElementById("media-negative").value = "";
+  document.getElementById("media-status").textContent = "Media drafts cleared locally. No remote job or generated artifact was deleted.";
+  renderMediaDrafts();
+  addTimelineEvent("Local Media Studio drafts cleared", "Local session only; no remote media job or output was modified.");
+}
+
+function changeMediaType() {
+  const type = document.getElementById("media-type").value;
+  const negative = document.getElementById("media-negative");
+  negative.disabled = type === "video";
+  document.getElementById("media-status").textContent = type === "video"
+    ? "Video generation is planned but not wired. This form only stages an idea."
+    : "Image staging is local only. The opt-in ComfyUI worker is not connected to this desktop.";
+}
+
+const titles = { overview: "Command Center", chat: "Chat", media: "Media Studio", tasks: "Tasks", memory: "Memory", devices: "Devices", approvals: "Approvals", settings: "Settings", diagnostics: "Diagnostics & Recovery" };
 function activateView(section) {
   if (!titles[section]) return;
   document.querySelectorAll(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.section === section));
@@ -341,12 +413,15 @@ document.getElementById("settings-form").addEventListener("submit", saveSettings
 document.getElementById("reset-settings").addEventListener("click", resetSettings);
 document.getElementById("run-recovery-check").addEventListener("click", runRecoveryCheck);
 document.getElementById("clear-local-session").addEventListener("click", clearLocalSession);
+document.getElementById("media-stage-form").addEventListener("submit", stageMediaDraft);
+document.getElementById("media-clear").addEventListener("click", clearMediaDrafts);
+document.getElementById("media-type").addEventListener("change", changeMediaType);
 document.getElementById("export-diagnostics").addEventListener("click", exportDiagnostics);
 document.getElementById("refresh-diagnostics-preview").addEventListener("click", renderDiagnosticsPreview);
 
 document.addEventListener("keydown", (event) => {
   if (!event.ctrlKey || event.altKey || event.metaKey) return;
-  const sections = ["overview", "chat", "tasks", "memory", "devices", "approvals", "settings", "diagnostics"];
+  const sections = ["overview", "chat", "tasks", "memory", "devices", "approvals", "settings", "diagnostics", "media"];
   const index = Number.parseInt(event.key, 10) - 1;
   if (index >= 0 && index < sections.length) {
     event.preventDefault();
@@ -356,6 +431,7 @@ document.addEventListener("keydown", (event) => {
 
 populateSettings();
 renderPrompts();
+renderMediaDrafts();
 refreshRecoveryPanel();
 renderDiagnosticsPreview();
 const initialView = state.startupBehavior === "remember" ? localStorage.getItem("syntra.lastView") || "overview" : "overview";

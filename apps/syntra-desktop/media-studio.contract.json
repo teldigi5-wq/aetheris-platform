@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "uiMode": "LOCAL_DRAFT_STAGING_ONLY",
+  "defaultPaidProviderEnabled": false,
+  "imageGenerationFromDesktop": "NOT_WIRED",
+  "videoGenerationFromDesktop": "NOT_WIRED",
+  "externalNetworkAccessFromMediaView": false,
+  "desktopToRuntimeMediaAuthentication": "NOT_WIRED",
+  "runtimeMediaFoundation": "LOCAL_CLI_SOURCE_ONLY",
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "noSyntheticSuccessClaims": true,
+  "mediaDraftsPersistence": "CURRENT_UI_SESSION_ONLY",
+  "nativeDiagnosticsMayContainPrompts": false,
+  "generatedMediaFilesClaimed": false
+}
