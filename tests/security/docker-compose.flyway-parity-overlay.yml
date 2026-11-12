@@ -1,0 +1,63 @@
+# B4S test ONLY: combine base + B4R + this overlay; internal ephemeral network.
+# Snapshot of PR #247 lab SQL is applied by CI to a *new* database.
+services:
+  identity-validated:
+    image: aetheris-b4s-identity-test-only:local
+    build:
+      context: ../../identity-service
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_flyway_candidate
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [probe]
+
+  user-flyway-validated:
+    image: aetheris-b4r-test-only-user:local
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_flyway_candidate
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PASSWORD: test-only-ephemeral-redis-password
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: probe
+      SPRING_RABBITMQ_PASSWORD: test-only-ephemeral-rabbitmq-password
+      SPRING_RABBITMQ_LISTENER_SIMPLE_AUTO_STARTUP: "false"
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+    networks: [probe]
+
+  identity-candidate-drift:
+    image: aetheris-b4s-identity-test-only:local
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_flyway_drift
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [probe]
+
+  flyway-parity-probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/parity.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_flyway_candidate_parity.py:/opt/parity.py:ro
+      - ../../identity-service/target/identity-jwt-contract:/opt/tokens:ro
+    networks: [probe]

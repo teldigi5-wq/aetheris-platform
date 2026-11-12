@@ -1,0 +1,51 @@
+name: B62-A JWT Clock Consistency (Synthetic RSA)
+on:
+  pull_request:
+    branches: [security/b61-expiring-rsa-public-trust-20261026]
+    paths:
+      - '.github/workflows/b62-jwt-temporal-clock.yml'
+      - 'tests/test_b62_temporal_clock_contract.py'
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'docs/security/B62_JWT_TEMPORAL_CLOCK_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  synthetic-jwt-clock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Exact source and source-level policy guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62_temporal_clock_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b61_previous_key_deadline_contract.py' -v
+      - name: Full Java reactor regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Synthetic Identity-signed current/previous JWT clock integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          test "$(cat identity-service/target/b60-rotation/test-only.marker)" = "B60_EPHEMERAL_PUBLIC_ROLLOVER_V1"
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          echo B62_A_SYNTHETIC_RSA_CLOCK_CONSISTENCY_TESTS_PASS
