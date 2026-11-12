@@ -1,0 +1,10 @@
+[package]
+name = "syntra-native-media-contract"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Fail-closed typed media staging requests and truthful response validation"
+
+[dependencies]
+serde_json = "=1.0.145"
