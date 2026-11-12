@@ -1,0 +1,58 @@
+name: Gateway Spring 4 Migration Trial
+
+on:
+  push:
+    branches: [security/spring4-gateway-isolated-20261023]
+    paths:
+      - 'gateway/**'
+      - '.github/workflows/gateway-spring4-migration-trial.yml'
+  pull_request:
+    branches: [release/aetheris-security-integrated-gateway-helm-20261023]
+    paths:
+      - 'gateway/**'
+      - '.github/workflows/gateway-spring4-migration-trial.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gateway-spring4-migration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact tested SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Set up JDK 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Create isolated random configuration keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET SPRING_DATA_REDIS_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Compile and run all gateway tests on supported Spring 4
+        run: ./mvnw -B -pl gateway clean verify
+      - name: Inspect resolved gateway dependencies
+        run: ./mvnw -B -pl gateway dependency:tree -DoutputFile=/tmp/gateway-spring4-dependencies.txt
+      - name: Assert actual target framework
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'org.springframework.boot:spring-boot:' /tmp/gateway-spring4-dependencies.txt | grep -F ':4.1.1:'
+          grep -F 'org.springframework.cloud:spring-cloud-gateway-server-webflux:' /tmp/gateway-spring4-dependencies.txt | grep -F ':5.0.3:'
+          echo 'SUPPORTED_SPRING_GATEWAY_TRIAL_DEPENDENCY_GATE_PASS'
+          # Do not print or upload the resolved dependency file automatically.

@@ -1,0 +1,108 @@
+name: B52 Patched Corretto Java21 Immutable OCI Build And Smoke
+on:
+  pull_request:
+    branches: [security/java21-october-oci-verified-inventory-20261026]
+    paths:
+      - 'gateway/Dockerfile'
+      - 'identity-service/Dockerfile'
+      - 'user-service/Dockerfile'
+      - 'audit-service/Dockerfile'
+      - 'tests/test_java21_corretto_oci_b52.py'
+      - '.github/workflows/java21-corretto-exact-oci-build-and-smoke.yml'
+      - 'docs/security/JAVA21_CORRETTO_B52_20261026.md'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  four-patched-real-container-builds:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Verify exact official OCI pins, non-root service UID and Maven SHA512
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_java21_corretto_oci_b52.py -v
+          echo B52_ALL_FOUR_DOCKERFILE_DIGESTS_AND_PRIVILEGES_VERIFIED
+      - name: Build every actual Java service with pinned patched JDK and patched headless runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in gateway identity-service user-service audit-service; do
+            echo "B52 building $service with independently verified immutable Corretto OCI indexes"
+            docker build --pull --progress plain --target build -t "aetheris-b52-$service-jdk:local" "$service"
+            docker build --pull --progress plain -t "aetheris-b52-$service:local" "$service"
+            docker image inspect --format '{{.Config.User}}' "aetheris-b52-$service:local" | grep -qx '10001:10001'
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,noexec,size=16777216 --entrypoint java "aetheris-b52-$service-jdk:local" -version 2>&1 | grep -Eq '^openjdk version "21\.0\.13"'
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,noexec,size=16777216 --entrypoint javac "aetheris-b52-$service-jdk:local" -version 2>&1 | grep -Eq '^javac 21\.0\.13'
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:rw,nosuid,noexec,size=16777216 --entrypoint java "aetheris-b52-$service:local" -version 2>&1 | grep -Eq '^openjdk version "21\.0\.13"'
+            echo "B52_PATCHED_JDK_RUNTIME_AND_NONROOT_PASS:$service"
+          done
+      - name: Run all four actual Java module tests using patched Corretto builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in gateway identity-service user-service audit-service; do
+            echo "B52 full Maven tests inside pinned October 21.0.13 builder: $service"
+            docker run --rm --network bridge --entrypoint /usr/local/bin/mvn "aetheris-b52-$service-jdk:local" -B -ntp -f /app/pom.xml test
+            echo "B52_ACTUAL_PATCHED_JAVA21_MAVEN_TESTS_PASS:$service"
+          done
+      - name: Validate disposable Audit runtime probe topology before using Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml \
+            -f tests/security/docker-compose.audit-history-overlay.yml \
+            config --format json > "$RUNNER_TEMP/b52-topology.json"
+          python3 - "$RUNNER_TEMP/b52-topology.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          data=json.loads(Path(sys.argv[1]).read_text())
+          assert not data.get("volumes")
+          assert len(data["networks"]) == 1
+          assert all(v.get("internal") is True for v in data["networks"].values())
+          assert all(not s.get("ports") and not s.get("privileged") and not s.get("network_mode") for s in data["services"].values())
+          assert any("postgresql/data" in str(t) for t in data["services"]["postgres"]["tmpfs"])
+          for n in ("audit-fresh", "audit-second", "audit-shared-refusal"):
+              env=data["services"][n]["environment"]
+              assert "SPRING_FLYWAY_BASELINE_ON_MIGRATE" not in env
+          print("B52_DISPOSABLE_NO_PERSISTENT_VOLUME_NO_HOST_PORT_NO_BASELINE")
+          PY
+      - name: Boot actual October-patched Audit image and run genuine Flyway V1
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C build audit-fresh
+          $C up --no-build --wait -d postgres rabbitmq
+          $C exec -T postgres createdb -U probe aetheris_audit_fresh
+          $C up --no-build -d audit-fresh
+          found=0
+          for i in $(seq 1 80); do
+            count=$($C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE version='1' AND type='SQL' AND success" 2>/dev/null || true)
+            if [ "$count" = 1 ]; then found=1; break; fi
+            sleep 2
+          done
+          test "$found" -eq 1 || { echo B52_PATCHED_AUDIT_REAL_FLYWAY_STARTUP_FAILED; exit 1; }
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM public.flyway_audit_schema_history" | grep -qx 1
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE type='BASELINE'" | grep -qx 0
+          echo B52_PATCHED_CORRETTO_AUDIT_REAL_FLYWAY_V1_SINGLE_SUCCESS_NO_BASELINE
+      - name: Bounded diagnostics only on failure
+        if: failure()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml \
+            -f tests/security/docker-compose.audit-history-overlay.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml \
+            -f tests/security/docker-compose.audit-history-overlay.yml logs --no-color --tail=40 postgres rabbitmq audit-fresh || true
+      - name: Always delete ONLY disposable CI PostgreSQL tmpfs and internal network
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml \
+            -f tests/security/docker-compose.audit-history-overlay.yml \
+            down --volumes --remove-orphans --timeout 10 || true
