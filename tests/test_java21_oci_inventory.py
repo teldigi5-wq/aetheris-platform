@@ -98,11 +98,14 @@ class Java21OciInventoryTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 read_report(file)
 
-    def test_all_four_original_dockerfiles_remain_unchanged(self):
+    def test_all_four_dockerfiles_use_patched_java_only(self):
+        # B51 asserted the inventory step left 21.0.12_8 untouched; canonical #412
+        # has since moved all four images to patched Temurin 21.0.13+9.
         for module in ("gateway", "user-service", "identity-service", "audit-service"):
             text = (ROOT / module / "Dockerfile").read_text()
-            self.assertIn("eclipse-temurin:21.0.12_8-jdk-noble@sha256:", text)
-            self.assertIn("eclipse-temurin:21.0.12_8-jre-noble@sha256:", text)
+            self.assertIn("eclipse-temurin:21.0.13_9-jdk-noble@sha256:", text)
+            self.assertIn("eclipse-temurin:21.0.13_9-jre-noble@sha256:", text)
+            self.assertNotIn("21.0.12_8", text)
             self.assertIn("USER 10001:10001", text)
             self.assertIn("ARG MAVEN_SHA512=", text)
 

@@ -25,7 +25,14 @@ class BackendJwtWiring(unittest.TestCase):
             self.assertIn('<artifactId>jjwt-api</artifactId>',pom)
             self.assertIn('<artifactId>jjwt-impl</artifactId>',pom)
             y=(ROOT/svc/'src/main/resources/application.yml').read_text(encoding="utf-8")
-            self.assertIn("secret: ${AETHERIS_JWT_SECRET}",y)
+            # B5+: the secret may default to empty so rs256 mode can start, but HMAC
+            # stays the default and the filter refuses any HMAC secret under 32 bytes.
+            self.assertRegex(y,r"(?m)^    secret: \$\{AETHERIS_JWT_SECRET:?\}$")
+            self.assertIn("mode: ${AETHERIS_JWT_MODE:hmac}",y)
+            for marker in ('secret.getBytes(StandardCharsets.UTF_8).length < 32',
+                           'Invalid HMAC JWT verifier configuration',
+                           'Invalid RS256 JWT verifier configuration'):
+                self.assertIn(marker,t)
             test=(ROOT/svc/'src/test/java/io/aetheris'/pkg/'security/DirectApiJwtFilterTest.java').read_text(encoding="utf-8")
             for m in ('isUnauthorized()','isForbidden()','isOk()','fake.unsigned.token'):
                 self.assertIn(m,test)

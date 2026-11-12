@@ -38,22 +38,28 @@ class B54PatchContract(unittest.TestCase):
                 ]
                 self.assertIn(("com.rabbitmq", "amqp-client", "5.37.0"), pairs)
 
-    def test_base_os_package_refresh_on_each_runtime_stage(self):
+    def test_runtime_stage_is_patched_and_image_is_scanned(self):
+        # Superseded 2026-11-12: the AL2023 dnf refresh only applied to the retired
+        # Corretto images. The Temurin runtime is an exact patched digest, and the
+        # built images must be vulnerability-scanned in the Java trust workflow.
         for svc in SERVICES:
             dockerfile = (ROOT / svc / "Dockerfile").read_text()
             stages = dockerfile.split("\nFROM ")
             self.assertEqual(len(stages), 2)
-            self.assertIn("RUN dnf -y --releasever=2023.12.20261026 upgrade", stages[1])
-            self.assertIn("dnf -y --releasever=2023.12.20261026 install shadow-utils", stages[1])
-            self.assertNotIn("--releasever=latest", stages[1])
+            self.assertTrue(stages[1].startswith("eclipse-temurin:21.0.13_9-jre-noble@sha256:"))
             self.assertIn("USER 10001:10001", stages[1])
             self.assertNotIn("USER root", stages[1])
+        workflow = (ROOT / ".github/workflows/java-trust-runtime-proof.yml").read_text()
+        self.assertIn("trivy_0.76.2_Linux-64bit.tar.gz", workflow)
+        self.assertIn("sha256sum --check", workflow)
+        self.assertIn("JAVA_IMAGE_SCAN_FIXABLE_HIGH_OR_CRITICAL", workflow)
 
     def test_security_build_source_pins_and_maven_archive_hash_preserved(self):
         for svc in SERVICES:
             dockerfile = (ROOT / svc / "Dockerfile").read_text()
-            self.assertIn("amazoncorretto:21.0.13-al2023@sha256:", dockerfile)
-            self.assertIn("amazoncorretto:21.0.13-al2023-headless@sha256:", dockerfile)
+            self.assertIn("eclipse-temurin:21.0.13_9-jdk-noble@sha256:", dockerfile)
+            self.assertIn("eclipse-temurin:21.0.13_9-jre-noble@sha256:", dockerfile)
+            self.assertNotIn("amazoncorretto", dockerfile)
             self.assertIn("sha512sum --check --strict", dockerfile)
 
     def test_scanner_still_fails_on_serious_findings_and_retains_evidence(self):
