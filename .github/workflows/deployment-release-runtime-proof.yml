@@ -43,7 +43,10 @@ jobs:
           python-version: '3.13.15'
 
       - name: Compile release proof harness
-        run: python -m py_compile tools/deployment_release_runtime_smoke.py
+        run: python -m py_compile tools/deployment_release_runtime_smoke.py tools/gateway_recovery_observability.py
+
+      - name: Verify redacted gateway diagnostics unit tests
+        run: python -m unittest tests.test_gateway_recovery_observability -v
 
       - name: Validate release proof contract
         run: python -m json.tool build-evidence/runtime/deployment-release-runtime-contract.json >/dev/null
@@ -97,6 +100,12 @@ jobs:
           assert report['production_deployment_claim'] is False, report
           assert report['revision'] == manifest['revision'], (report, manifest)
           assert len(report['checks']) == 17, report
+          assert report['final_state']['recovery_cycles_confirmed'] == 2, report
+          for label in ('gateway_after_stop', 'gateway_after_restart', 'gateway_second_stop', 'gateway_second_restart'):
+              snapshot = report['final_state'][label]
+              assert snapshot.get('available') is True, (label, snapshot)
+          for label in ('gateway_after_restart', 'gateway_second_restart'):
+              assert report['final_state'][label]['running'] is True, report
           assert all(value == 'PASS' for value in report['checks'].values()), report
           assert report['baseline']['gateway_image_id'] == report['final_state']['gateway_image_id'], report
           assert report['baseline']['user_count'] == report['final_state']['user_count'], report

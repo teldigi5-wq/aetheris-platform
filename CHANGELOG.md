@@ -4,6 +4,26 @@ All notable repository-level changes to Aetheris are documented here. This chang
 
 ## Unreleased
 
+### Java container eMudhra trust maintenance — development review (9 November 2026)
+
+- Isolate patched official Temurin 21.0.13+9 base-image digests for the four Java service JDK/JRE stages without merging unrelated, conflicting PR #309 changes.
+- Add actual container-version/truststore and positive/negative Java HTTPS verification; retain Maven checksum, non-root service and historical source-ownership contracts.
+- Leave existing Java 21.0.12 host/CI version pins and deployed operator image inventory for a separately reviewed update. This source candidate is not production deployment or certification.
+
+### Gateway recovery repeatability (9 November 2026, development review)
+
+- Preserve the original 17-check hosted release-proof contract and 180-second health wait, while requiring two complete fail-closed gateway stop/restart cycles with exact-image and protected-user-state checks.
+- Save allowlisted Docker status/exit/health evidence after controlled stops and restart attempts; exclude environment variables, raw health logs and credentials.
+- Add isolated snapshot-redaction unit tests, exact-head workflow assertions and issue #312 operator gates. No Compose, gateway application, infrastructure deployment or physical-PC evidence changed.
+- Reconcile README/master roadmap/release-readiness source status: Node, NGINX and fixed Alpine zlib have already been merged to protected main by PRs #407/#409, but were not production-deployed by those promotions.
+
+### Dashboard NGINX security maintenance — development review candidate (8 November 2026)
+
+- Propose an isolated final-runtime bump from NGINX 1.31.5 to official NGINX 1.31.8 Alpine 3.24 with an immutable image index digest; retain the already-merged Node 22.23.4 builder and all proxy/application config unchanged.
+- Pin Alpine runtime `zlib=1.4-r0` to remediate CVE-2026-4738, and verify that version inside the running container.
+- Add a final-stage pin regression test and an actual Docker/NGINX runtime smoke step to the existing dashboard CI job, including SPA fallback and response-header assertions; capture all-severity Trivy evidence with a fail-closed High/Critical gate.
+- Source candidate only: no protected-main promotion, production deployment, live upstream gateway/HTTPS validation or physical-PC certification is implied.
+
 ### AI-runtime extraction and release alignment
 
 - Completed the source-ownership split between `teldigi5-wq/aetheris-platform` and `teldigi5-wq/aetheris-ai-runtime`; runtime-owned roots are no longer duplicated in the platform repository.
