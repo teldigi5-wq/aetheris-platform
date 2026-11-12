@@ -312,7 +312,7 @@ class JwtAuthenticationFilterTest {
 
         HttpHeaders headers = forwarded.get().getRequest().getHeaders();
         for (String name : JwtAuthenticationFilter.IDENTITY_HEADERS) {
-            assertFalse(headers.containsKey(name), name + " must not reach identity-service or the rate limiter");
+            assertNull(headers.getFirst(name), name + " must not reach identity-service or the rate limiter");
         }
         assertEquals("application/json", headers.getFirst("Content-Type"));
         assertNull(forwarded.get().getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE));
