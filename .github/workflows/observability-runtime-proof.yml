@@ -56,8 +56,8 @@ jobs:
     env:
       # Proof scrapes gateway metrics / circuit-breaker state; default exposure is health,info only.
       AETHERIS_GATEWAY_ACTUATOR_EXPOSURE: health,info,prometheus,circuitbreakers,circuitbreakerevents
-      # Prometheus scrapes user/audit metrics without a bearer only in this proof.
-      AETHERIS_SERVICE_METRICS_PUBLIC_SCRAPE: "true"
+      # Prometheus scrapes service metrics only in this proof; default exposure is health,info.
+      AETHERIS_SERVICE_ACTUATOR_EXPOSURE: health,info,prometheus
     steps:
       - name: Create ephemeral random Compose secrets (CI only)
         shell: bash

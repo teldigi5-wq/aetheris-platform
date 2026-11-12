@@ -12,6 +12,8 @@ Then verify:
 # Gateway metrics are hidden by default (health,info only). Opt in locally:
 #   AETHERIS_GATEWAY_ACTUATOR_EXPOSURE=health,info,prometheus,circuitbreakers,circuitbreakerevents
 curl http://localhost:8080/actuator/prometheus
+# Service metrics (user, audit, identity) are also health,info only by default. Opt in locally:
+#   AETHERIS_SERVICE_ACTUATOR_EXPOSURE=health,info,prometheus
 curl http://localhost:9090/-/ready
 curl http://localhost:3100/ready
 curl http://localhost:3200/ready
