@@ -49,6 +49,10 @@ class B54PatchContract(unittest.TestCase):
             self.assertTrue(stages[1].startswith("eclipse-temurin:21.0.13_9-jre-noble@sha256:"))
             self.assertIn("USER 10001:10001", stages[1])
             self.assertNotIn("USER root", stages[1])
+            # Fixable HIGH OS finding on the Temurin runtime is pinned, not blanket-upgraded.
+            self.assertIn("'apt=2.8.4ubuntu0.1' 'libapt-pkg6.0t64=2.8.4ubuntu0.1'", stages[1])
+            self.assertNotIn("apt-get upgrade", stages[1])
+            self.assertIn("rm -rf /var/lib/apt/lists/*", stages[1])
         workflow = (ROOT / ".github/workflows/java-trust-runtime-proof.yml").read_text()
         self.assertIn("trivy_0.76.2_Linux-64bit.tar.gz", workflow)
         self.assertIn("sha256sum --check", workflow)
