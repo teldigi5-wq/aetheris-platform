@@ -19,12 +19,16 @@ class GatewayConfigurationContractTest {
 
         assertFalse(sources.isEmpty());
         PropertySource<?> config = sources.get(0);
-        assertEquals("identity-service",
+        // The strict credential route must be matched before the catch-all identity route.
+        assertEquals("identity-credentials",
                 config.getProperty("spring.cloud.gateway.server.webflux.routes[0].id"));
-        assertEquals("user-service-read",
+        // Its 1/s, burst 10 limit is asserted by tests/test_gateway_auth_rate_limit.py.
+        assertEquals("identity-service",
                 config.getProperty("spring.cloud.gateway.server.webflux.routes[1].id"));
+        assertEquals("user-service-read",
+                config.getProperty("spring.cloud.gateway.server.webflux.routes[2].id"));
         assertEquals("orchestrator-service",
-                config.getProperty("spring.cloud.gateway.server.webflux.routes[4].id"));
+                config.getProperty("spring.cloud.gateway.server.webflux.routes[5].id"));
         assertNull(config.getProperty("spring.cloud.gateway.routes[0].id"));
         assertEquals("2000",
                 String.valueOf(config.getProperty("spring.cloud.gateway.server.webflux.httpclient.connect-timeout")));
