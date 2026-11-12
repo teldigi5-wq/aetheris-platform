@@ -12,7 +12,9 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,7 +22,20 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class JwtAuthenticationFilterTest {
-    private static final String SECRET = "0123456789abcdef0123456789abcdef";
+    // Fresh synthetic signing material for this test JVM only. Never reuse CI
+    // fixture keys as live application signing secrets.
+    private static final String SECRET = generateEphemeralTestSecret();
+
+    private static String generateEphemeralTestSecret() {
+        byte[] keyBytes = new byte[32];
+        new SecureRandom().nextBytes(keyBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(keyBytes);
+    }
+
+    @Test
+    void ephemeralSigningFixtureContains256BitsOfRandomKeyMaterial() {
+        assertEquals(32, Base64.getUrlDecoder().decode(SECRET).length);
+    }
 
     @Test
     void validScopedTokenPassesAndVerifiedClaimsOverwriteSpoofedIdentityHeaders() {
@@ -54,6 +69,24 @@ class JwtAuthenticationFilterTest {
     @Test
     void expiredTokenIsRejected() {
         assertRejected("Bearer " + token(List.of("users:read"), Instant.now().minusSeconds(30)), HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void validTokenSignedByASeparateEphemeralKeyIsRejected() {
+        String foreignSecret = generateEphemeralTestSecret();
+        while (foreignSecret.equals(SECRET)) {
+            foreignSecret = generateEphemeralTestSecret();
+        }
+        String token = Jwts.builder()
+                .subject("user@example.com")
+                .claim("role", "API_CONSUMER")
+                .claim("uid", 42L)
+                .claim("scopes", List.of("users:read"))
+                .expiration(Date.from(Instant.now().plusSeconds(300)))
+                .signWith(Keys.hmacShaKeyFor(foreignSecret.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+
+        assertRejected("Bearer " + token, HttpStatus.UNAUTHORIZED);
     }
 
     @Test
