@@ -36,3 +36,11 @@ The updated test is stricter than the original. It now also requires:
 - HMAC as the default mode
 - the 32-byte HMAC secret minimum in the filter
 - fail-closed `IllegalArgumentException`s for invalid HMAC and RS256 configurations
+
+## First result of the new Java image gate (12 Nov, #430 `addd874`)
+
+The four Temurin 21.0.13+9 runtime images passed the eMudhra trust proof, but the new Trivy gate found **CVE-2026-109518 (HIGH)** in `apt` / `libapt-pkg6.0t64` 2.8.3. A fix (2.8.4ubuntu0.1) is published, so the check failed as designed.
+
+Each runtime stage now installs exactly those two fixed packages: `--only-upgrade`, pinned versions, no blanket `apt-get upgrade`, and apt lists removed. This mirrors the dashboard's exact-version `apk` pins.
+
+The MEDIUM/LOW findings (34 MEDIUM, 4 LOW per image) are uploaded as evidence and remain triage items. They are not claimed fixed.
