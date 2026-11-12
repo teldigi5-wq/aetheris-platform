@@ -15,6 +15,11 @@ RUN mvn -q -DskipTests package
 
 FROM eclipse-temurin:21.0.13_9-jre-noble@sha256:0eda5830ed7b669abc246a8dc520ea8a23cab06f9a8d4b6964109e2f2394e46f
 WORKDIR /app
+# CVE-2026-109518 (HIGH, apt/libapt-pkg 2.8.3): install only the fixed Ubuntu Noble packages,
+# exact versions, no blanket upgrade. Found by the Java image Trivy gate (java-trust-runtime-proof).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends --only-upgrade 'apt=2.8.4ubuntu0.1' 'libapt-pkg6.0t64=2.8.4ubuntu0.1' \
+ && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 10001 aetheris \
  && useradd --system --uid 10001 --gid aetheris --create-home --home-dir /home/aetheris --shell /usr/sbin/nologin aetheris
 COPY --from=build --chown=10001:10001 /app/target/*.jar app.jar
