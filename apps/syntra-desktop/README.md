@@ -37,6 +37,26 @@ It does **not** include prompt content, timeline text, bearer tokens, passwords,
 
 `Run recovery check` retries only the read-only gateway/runtime health checks. It does not restart services, mutate the host, execute shell commands, elevate privileges or claim recovery when a component remains unavailable. This makes the recovery UI usable before the target PC exists without crossing the physical validation boundary.
 
+## Authenticated API contract discovery
+
+`authenticated-api.contract.json` records the exact source-verified authentication and orchestrator boundary discovered from platform revision `57ad3e0e602efa6feb275328254151b959a3499b` and certified AI-runtime revision `65a6262717adcd52ac8d8a16ed6f223e299fd74d`.
+
+The verified gateway behavior is:
+
+- `/api/orchestrator/**` requires `Authorization: Bearer <accessToken>`;
+- reads require `orchestrator:read`;
+- writes require `orchestrator:write`;
+- missing/invalid bearer authentication fails with `401`;
+- missing required scope fails with `403`;
+- client-supplied `X-Aetheris-User-*` identity headers are removed and replaced from verified JWT claims;
+- ADMIN and DEVELOPER roles have orchestrator read/write scopes, while API_CONSUMER is read-only.
+
+The contract also records the verified login/refresh/logout DTO fields, deterministic control endpoints, task endpoints, approval decision shape, live/task SSE endpoints, local-model/model-execution endpoints, and the memory boundary.
+
+This is **contract discovery, not backend activation**. No authenticated desktop session, command execution, task mutation, approval decision, model inference, memory mutation, or live-event subscription is wired yet. Refresh/access credentials must not be persisted in browser storage; OS-backed secret storage is required before desktop session wiring.
+
+Memory remains explicitly blocked from desktop wiring because runtime owner-scoped memory APIs require `X-Aetheris-Owner-Id`, while the current gateway synthesizes only `X-Aetheris-User-*` identity headers. Syntra must not guess or forge an owner-ID mapping.
+
 ## Windows development packaging
 
 ```powershell
@@ -56,13 +76,13 @@ The installer remains unsigned, current-user development evidence only.
 
 ## Verified runtime boundary
 
-The only direct runtime operation remains:
+The only direct runtime operation currently performed by the desktop remains:
 
 ```text
 GET http://127.0.0.1:<port>/actuator/health
 ```
 
-Default port: `8090`. Chat/model inference, task mutation, memory mutation, approvals, live events and remote control execution remain deliberately unwired until their exact authenticated contracts are verified.
+Default port: `8090`. The authenticated API contract is now source-verified, but chat/model inference, task mutation, memory mutation, approvals, live events and remote control execution remain deliberately unwired until their desktop authentication, credential-storage and ownership boundaries are implemented and verified without weakening existing controls.
 
 ## Truth boundaries
 

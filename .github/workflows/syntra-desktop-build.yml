@@ -7,6 +7,7 @@ on:
       - feature/syntra-desktop-v0.2-aetheris-integration
       - feature/syntra-desktop-v0.3-installer-hardening
       - feature/syntra-desktop-v0.4-diagnostics-recovery
+      - feature/syntra-authenticated-api-contract
       - feature/syntra-aetheris-foundation-v2
     paths:
       - 'apps/syntra-desktop/**'
@@ -43,6 +44,7 @@ jobs:
           $rust = Get-Content apps/syntra-desktop/src-tauri/src/main.rs -Raw
           $tauri = Get-Content apps/syntra-desktop/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
           $contract = Get-Content apps/syntra-desktop/desktop-shell.contract.json -Raw | ConvertFrom-Json
+          $authContract = Get-Content apps/syntra-desktop/authenticated-api.contract.json -Raw | ConvertFrom-Json
           foreach ($required in @('STOP','PAUSE','RESUME','TAKE_CONTROL')) {
             if ($html -notmatch $required -and $js -notmatch $required) { throw "Missing deterministic control: $required" }
           }
@@ -51,6 +53,7 @@ jobs:
           }
           if ($html -notmatch 'BLOCKED_PENDING_HARDWARE') { throw 'Physical-PC truth boundary must remain visible.' }
           if ($contract.apiBase -ne '/api/orchestrator') { throw 'Desktop API contract drifted.' }
+          if ($contract.authenticatedApiContract -ne 'authenticated-api.contract.json' -or $contract.authenticatedApiContractStatus -ne 'source-verified-not-wired') { throw 'Authenticated API contract linkage drifted.' }
           if ($contract.hostExecutionDefault -ne 'simulation-only') { throw 'Desktop host execution must remain simulation-only before target-PC validation.' }
           if ($contract.runtimeHealthProbe.loopbackHost -ne '127.0.0.1' -or $contract.runtimeHealthProbe.path -ne '/actuator/health') { throw 'Runtime health probe boundary drifted.' }
           if ($contract.backendCommandWiringStatus -ne 'not-wired-no-success-claims') { throw 'Backend command success must not be claimed.' }
@@ -59,6 +62,31 @@ jobs:
           if (-not $contract.diagnostics.nativeExport -or $contract.diagnostics.promptContentIncluded -or $contract.diagnostics.secretMaterialIncluded) { throw 'Diagnostics must remain native, sanitized, and secret-free.' }
           if (-not $contract.diagnostics.gatewayMustBeLoopback) { throw 'Diagnostics gateway boundary must remain loopback-only.' }
           if ($contract.recovery.automaticSuccessClaims) { throw 'Recovery must not synthesize success.' }
+
+          if ($authContract.contractStatus -ne 'SOURCE_VERIFIED_NOT_WIRED') { throw 'Authenticated API contract must remain source-verified and unwired.' }
+          if ($authContract.sourceRevisions.platform -ne '57ad3e0e602efa6feb275328254151b959a3499b') { throw 'Authenticated API platform source revision drifted.' }
+          if ($authContract.sourceRevisions.aiRuntime -ne '65a6262717adcd52ac8d8a16ed6f223e299fd74d') { throw 'Authenticated API runtime source revision drifted.' }
+          if ($authContract.gateway.authentication.scheme -ne 'Bearer' -or $authContract.gateway.authentication.header -ne 'Authorization') { throw 'Authenticated API bearer contract drifted.' }
+          if ($authContract.gateway.authentication.requiredReadScope -ne 'orchestrator:read' -or $authContract.gateway.authentication.requiredWriteScope -ne 'orchestrator:write') { throw 'Authenticated API scope contract drifted.' }
+          if ($authContract.gateway.authentication.missingBearerStatus -ne 401 -or $authContract.gateway.authentication.invalidOrExpiredStatus -ne 401 -or $authContract.gateway.authentication.missingScopeStatus -ne 403) { throw 'Authenticated API failure semantics drifted.' }
+          if (-not $authContract.gateway.clientSuppliedIdentityHeadersAreReplaced) { throw 'Gateway identity-header overwrite proof must remain explicit.' }
+          if ($authContract.gateway.ownerIdHeaderSynthesized) { throw 'Owner-ID mapping must not be invented by the desktop contract.' }
+          if ($authContract.identity.desktopSecretStorage -ne 'OS_BACKED_REQUIRED_BEFORE_SESSION_WIRING') { throw 'Desktop credential storage boundary drifted.' }
+          if ($authContract.endpoints.liveEvents.path -ne '/api/orchestrator/live/events' -or $authContract.endpoints.liveEvents.mediaType -ne 'text/event-stream') { throw 'Live SSE contract drifted.' }
+          if ($authContract.endpoints.memory.compatibilityStatus -ne 'BLOCKED_OWNER_ID_HEADER_MAPPING') { throw 'Memory owner-ID compatibility must remain blocked until explicitly resolved.' }
+          if ($authContract.endpoints.memory.ownerScopedOperationsRequireHeader -ne 'X-Aetheris-Owner-Id') { throw 'Memory owner header contract drifted.' }
+          foreach ($group in @('controls','approvals','tasks','localModel')) {
+            foreach ($endpoint in $authContract.endpoints.$group) {
+              if ($endpoint.wired) { throw "Authenticated endpoint unexpectedly wired: $($endpoint.path)" }
+            }
+          }
+          if ($authContract.endpoints.liveEvents.wired -or $authContract.endpoints.modelExecution.wired -or $authContract.endpoints.memory.wired) { throw 'Authenticated backend wiring must remain disabled.' }
+          if ($authContract.desktopBoundary.backendWiringAllowed) { throw 'Backend wiring is not yet allowed.' }
+          if ($authContract.desktopBoundary.currentDirectRuntimeOperation -ne 'GET_LOOPBACK_ACTUATOR_HEALTH_ONLY') { throw 'Direct runtime operation boundary drifted.' }
+          if ($authContract.desktopBoundary.hostExecutionDefault -ne 'simulation-only') { throw 'Host execution default drifted.' }
+          if ($authContract.desktopBoundary.physicalPcStatus -ne 'BLOCKED_PENDING_HARDWARE') { throw 'Authenticated API contract crossed the physical-PC boundary.' }
+          if ($authContract.desktopBoundary.productionActivationAllowed -or $authContract.desktopBoundary.registryPublicationClaimed -or $authContract.desktopBoundary.physicalCertificationClaimed -or $authContract.desktopBoundary.liveMoneyAllowed) { throw 'Authenticated API contract crossed a release or safety truth boundary.' }
+
           if ($tauri.version -ne '0.4.0') { throw 'Tauri package version drifted.' }
           if ($tauri.bundle.active -ne $true -or $tauri.bundle.targets -notcontains 'nsis') { throw 'NSIS bundling must remain active.' }
           if ($tauri.bundle.windows.nsis.installMode -ne 'currentUser') { throw 'NSIS must remain current-user for pre-PC development.' }
@@ -128,3 +156,4 @@ jobs:
             apps/syntra-desktop/dist/SHA256SUMS.txt
             apps/syntra-desktop/src-tauri/Cargo.lock
             apps/syntra-desktop/desktop-shell.contract.json
+            apps/syntra-desktop/authenticated-api.contract.json

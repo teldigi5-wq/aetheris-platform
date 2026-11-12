@@ -4,6 +4,8 @@
   "desktopVersion": "0.4.0-diagnostics-recovery",
   "apiBase": "/api/orchestrator",
   "liveStream": "/api/orchestrator/live/events",
+  "authenticatedApiContract": "authenticated-api.contract.json",
+  "authenticatedApiContractStatus": "source-verified-not-wired",
   "runtimeHealthProbe": {
     "method": "GET",
     "loopbackHost": "127.0.0.1",
