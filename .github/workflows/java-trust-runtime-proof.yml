@@ -85,6 +85,16 @@ jobs:
               findings = [v for entry in results for v in (entry.get("Vulnerabilities") or [])]
               counts = collections.Counter(v.get("Severity", "UNKNOWN") for v in findings)
               print(report.stem, "findings by severity:", dict(sorted(counts.items())))
+              # Triage evidence: one line per affected package for MEDIUM and above,
+              # with whether a fixed version is published for this distribution.
+              by_pkg = collections.defaultdict(list)
+              for v in findings:
+                  if v.get("Severity") in {"MEDIUM", "HIGH", "CRITICAL"}:
+                      by_pkg[(v.get("PkgName"), v.get("InstalledVersion"))].append(v)
+              for (pkg, installed), vulns in sorted(by_pkg.items()):
+                  fixes = sorted({v.get("FixedVersion") or "-" for v in vulns})
+                  ids = ",".join(sorted(v.get("VulnerabilityID", "?") for v in vulns))
+                  print(f"  TRIAGE {report.stem} {pkg} {installed} n={len(vulns)} fixed={'|'.join(fixes)} {ids}")
               for v in findings:
                   if v.get("Severity") in {"HIGH", "CRITICAL"}:
                       fixed = v.get("FixedVersion") or ""
