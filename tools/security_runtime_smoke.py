@@ -308,6 +308,18 @@ def main() -> int:
         expect_status(status, 200, "gateway health stays available")
         passed("security.gateway-actuator-internals-hidden-by-default")
 
+        # R9 live evidence: each Spring service, called directly on its own port, exposes
+        # only health/info by default. Metrics and internals are not mapped at all (404),
+        # with or without a signed ADMIN bearer, so they are hidden, not merely auth-gated.
+        for service, port in (("user", 8081), ("identity", 8082), ("audit", 8083)):
+            for endpoint in ("prometheus", "metrics", "env", "beans", "heapdump", "loggers"):
+                for label, headers in (("anonymous", None), ("ADMIN bearer", admin_headers)):
+                    status, _ = http_json("GET", f"http://127.0.0.1:{port}/actuator/{endpoint}", headers=headers)
+                    expect_status(status, 404, f"direct {service} /actuator/{endpoint} ({label}) must not be exposed")
+            status, _ = http_json("GET", f"http://127.0.0.1:{port}/actuator/health")
+            expect_status(status, 200, f"direct {service} health stays available")
+        passed("security.direct-service-actuator-internals-hidden-by-default")
+
         # Ambiguous paths that could look public to one layer and protected to another are refused.
         for raw in ("/api/auth/..%2Fusers", "/api/auth/%2e%2e/users", "/api/users;x=1"):
             status, _ = http_json("GET", "http://127.0.0.1:8080" + raw, headers={"Authorization": f"Bearer {access_token}"})
