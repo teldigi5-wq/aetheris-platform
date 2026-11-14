@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf, time::{Duration, SystemTime, UNIX_EPOCH}};
+use std::{fs, io::Write, path::{Path, PathBuf}, time::{Duration, SystemTime, UNIX_EPOCH}};
 
 const RUNTIME_PROBE_TIMEOUT_SECONDS: u64 = 3;
 const PHYSICAL_PC_STATUS: &str = "BLOCKED_PENDING_HARDWARE";
@@ -74,7 +74,8 @@ fn is_healthy(status: reqwest::StatusCode, reported_status: Option<&str>) -> boo
 
 fn is_loopback_http_base(value: &str) -> bool {
     let Ok(url) = reqwest::Url::parse(value) else { return false; };
-    let host_ok = matches!(url.host_str(), Some("127.0.0.1") | Some("localhost"));
+    // Literal IPv4 loopback only: "localhost" is resolved through the hosts file.
+    let host_ok = url.host_str() == Some("127.0.0.1");
     url.scheme() == "http"
         && host_ok
         && url.path() == "/"
@@ -94,6 +95,33 @@ fn diagnostics_path() -> PathBuf {
         .join("syntra-diagnostics-latest.json")
 }
 
+/// Writes the report without following a pre-planted symlink at the directory or the
+/// file: the directory must be a real directory, the content goes to a fresh
+/// create_new temporary file, and an atomic rename replaces any existing entry.
+fn write_report_without_following_links(path: &Path, contents: &str) -> Result<(), String> {
+    let parent = path.parent().ok_or_else(|| "Diagnostics path has no parent directory.".to_string())?;
+    fs::create_dir_all(parent).map_err(|error| format!("Failed to create diagnostics directory: {error}"))?;
+    let meta = fs::symlink_metadata(parent)
+        .map_err(|error| format!("Failed to inspect diagnostics directory: {error}"))?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        return Err("Diagnostics directory must be a real directory, not a link.".to_string());
+    }
+    let nonce = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let temporary = parent.join(format!(".syntra-diagnostics-{}-{nonce}.tmp", std::process::id()));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .map_err(|error| format!("Failed to create diagnostics report: {error}"))?;
+    let written = file.write_all(contents.as_bytes()).and_then(|_| file.sync_all());
+    drop(file);
+    if let Err(error) = written.and_then(|_| fs::rename(&temporary, path)) {
+        let _ = fs::remove_file(&temporary);
+        return Err(format!("Failed to write diagnostics report: {error}"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn probe_aetheris_runtime(port: u16) -> RuntimeHealthProbe {
     let endpoint = runtime_health_url(port);
@@ -108,8 +136,11 @@ async fn probe_aetheris_runtime(port: u16) -> RuntimeHealthProbe {
         };
     }
 
+    // Never follow redirects: a local listener must not be able to bounce the
+    // loopback-only health probe to another host.
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(RUNTIME_PROBE_TIMEOUT_SECONDS))
+        .redirect(reqwest::redirect::Policy::none())
         .build()
     {
         Ok(client) => client,
@@ -203,12 +234,9 @@ fn export_diagnostics(payload: DiagnosticsPayload) -> Result<DiagnosticsExport, 
     };
 
     let path = diagnostics_path();
-    let parent = path.parent().ok_or_else(|| "Diagnostics path has no parent directory.".to_string())?;
-    fs::create_dir_all(parent).map_err(|error| format!("Failed to create diagnostics directory: {error}"))?;
     let json = serde_json::to_string_pretty(&report)
         .map_err(|error| format!("Failed to serialize diagnostics report: {error}"))?;
-    fs::write(&path, format!("{json}\n"))
-        .map_err(|error| format!("Failed to write diagnostics report: {error}"))?;
+    write_report_without_following_links(&path, &format!("{json}\n"))?;
 
     Ok(DiagnosticsExport {
         path: path.to_string_lossy().into_owned(),
@@ -243,11 +271,43 @@ mod tests {
     #[test]
     fn diagnostics_gateway_validation_rejects_remote_or_credentialed_urls() {
         assert!(is_loopback_http_base("http://127.0.0.1:8080"));
-        assert!(is_loopback_http_base("http://localhost:8080"));
+        assert!(!is_loopback_http_base("http://localhost:8080"));
         assert!(!is_loopback_http_base("https://127.0.0.1:8080"));
         assert!(!is_loopback_http_base("http://example.com:8080"));
-        assert!(!is_loopback_http_base("http://user:pass@localhost:8080"));
-        assert!(!is_loopback_http_base("http://localhost:8080/path"));
+        assert!(!is_loopback_http_base("http://user:pass@127.0.0.1:8080"));
+        assert!(!is_loopback_http_base("http://127.0.0.1:8080/path"));
+        assert!(!is_loopback_http_base("http://127.0.0.2:8080"));
+    }
+
+    #[test]
+    fn diagnostics_report_write_replaces_atomically_and_leaves_no_temporary_files() {
+        let dir = std::env::temp_dir().join(format!("syntra-diag-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let target = dir.join("report.json");
+        write_report_without_following_links(&target, "first\n").unwrap();
+        write_report_without_following_links(&target, "second\n").unwrap();
+        assert_eq!(fs::read_to_string(&target).unwrap(), "second\n");
+        let leftovers = fs::read_dir(&dir).unwrap().filter(|e| {
+            e.as_ref().map(|e| e.file_name().to_string_lossy().ends_with(".tmp")).unwrap_or(false)
+        }).count();
+        assert_eq!(leftovers, 0);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn diagnostics_report_write_never_follows_a_planted_file_symlink() {
+        let dir = std::env::temp_dir().join(format!("syntra-diag-link-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let victim = dir.join("victim.txt");
+        fs::write(&victim, "untouched").unwrap();
+        let target = dir.join("report.json");
+        std::os::unix::fs::symlink(&victim, &target).unwrap();
+        write_report_without_following_links(&target, "report\n").unwrap();
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "untouched");
+        assert!(!fs::symlink_metadata(&target).unwrap().file_type().is_symlink());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
