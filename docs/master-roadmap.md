@@ -74,3 +74,25 @@ The runtime release team tracks nine separate acceptance gates; this does **not*
 ## Repository governance note
 
 CI workflows, tests, security analysis and review conventions live in the repository. GitHub-hosted rulesets/branch protection are a separate repository-administration control and are not emulated in application code.
+
+## Parallel S0 security research — separate from the 34-stage blueprint
+
+The stacked [S0-E6J review-only PostgreSQL Runtime session-ledger contract](security/S0_E6J_RUNTIME_SESSION_LEDGER_REVIEW_20261109.md) follows existing draft E6D–E6I Identity/Runtime compatibility and mTLS research; it does **not** reopen Stage 34 or create Stage 35. Disposable CI verifies restricted session enrollment, read, revocation, audit and locking behavior, **not** a deployed production registry or user-accessible Runtime API. S0-E6K and S0-E6L have subsequently proved Identity enrollment and cross-repository Runtime HTTP interoperability in separate DRAFTS; **production migration approval remains pending**. Preserve **34 / 34 COMPLETE**, Runtime #23 / Platform #251 OPEN, Stage45 NO_GO, XERJ HOLD and physical-PC `BLOCKED_PENDING_HARDWARE` until independently verified.
+
+### S0-E6K — atomically enrolled Runtime tokens (review only)
+
+The [S0-E6K draft](security/S0_E6K_ATOMIC_RUNTIME_SESSION_ENROLLMENT_20261109.md) proves that an existing one-time Identity refresh claim, genuinely signed RS256 Runtime JWT, exact JTI registration, and ledger audit can share a single real disposable PostgreSQL16 transaction, with rollback on registry failure. S0-E6L later passed the real cross-repository function-only Runtime HTTP ledger verification in DRAFT Runtime PR #297; **approved production migration and credential custody remain missing**. This is **not** an API deployment or Stage 35; keep roadmap `34 / 34 COMPLETE`, Stage45 NO_GO, XERJ HOLD and owner-PC `BLOCKED_PENDING_HARDWARE`.
+
+### S0-E6L — actual Platform-to-Runtime shared ledger proof (review only)
+
+Runtime [draft PR #297](https://github.com/teldigi5-wq/aetheris-ai-runtime/pull/297) pinned Platform #415 signed issuer/JTI registration against an independent function-only PostgreSQL reader and real direct-port Tomcat probes. Both exact-head CI runs passed 377 Runtime Java regressions, the actual Platform issuer and seven real HTTP/PG16 tests. **No production HTTP activation, TLS/PKI custody or tenant/task/mission owner-resource permission was approved.**
+
+### S0-E6M — recovery/privilege rehearsal, not production migration
+
+The new [S0-E6M rehearsal](security/S0_E6M_POSTGRES_RESTORE_AND_CREDENTIAL_CUSTODY_20261109.md) proves a previously revoked JTI can be **resurrected by restoring a pre-revocation PostgreSQL backup**, and verifies an all-session/all-signer deny fence and independent reader/issuer/revoker roles on disposable PostgreSQL16. It tests transactional schema rollback, snapshot restore, original function owner and preserving unrelated records. It does **not** install a production migration, establish customer workload TLS, or authorize traffic restoration. Operator-approved versioned migrations, externally monotonic revocation/audit and staging rollback remain next, without repeating E6J/K/L.
+
+The Platform blueprint stays **34 / 34 COMPLETE**. Platform Security #251 and Runtime #23 remain OPEN. Stage45 NO_GO, XERJ HOLD, owner-PC `BLOCKED_PENDING_HARDWARE`.
+
+### S0-E6N — pinned schema version and verified client TLS (CI rehearsal only)
+
+The separate [S0-E6N review](security/S0_E6N_VERSIONED_PG16_MIGRATION_AND_MTLS_REVIEW_20261109.md) adds a checksum-pinned, **single-transaction versioned migration prototype** and actual PostgreSQL 16 TLS server-identity checks plus three separate certificate-authenticated issuer/reader/revoker roles. Its disposable CI denies plaintext, mismatched server hostname, missing/mismatched client certs, raw SQL privileges and migration version replay; the actual function-only enrollment/read/revoke lifecycle passes. This does **not** create an approved Flyway/Liquibase production migrator, customer PKI, Java service credential distribution, Gateway/Runtime transport certification, a live production migration or any Task/Mission/SSE API permission. S0-E6O must obtain owner-approved real operator migration/PKI and tenant/object authorization gates. **Platform 34/34 COMPLETE; Stage 45 NO_GO; XERJ HOLD; owner-PC BLOCKED_PENDING_HARDWARE; Platform #251 and Runtime #23 OPEN.**
