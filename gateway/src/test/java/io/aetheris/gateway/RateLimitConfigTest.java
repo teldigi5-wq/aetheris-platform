@@ -16,11 +16,42 @@ class RateLimitConfigTest {
         KeyResolver resolver = new RateLimitConfig().aetherisKeyResolver();
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/users")
-                        .header("X-Aetheris-User-Id", "42")
+                        .header("X-Aetheris-User-Id", "999")
                         .remoteAddress(new InetSocketAddress("203.0.113.10", 443))
                         .build());
+        exchange.getAttributes().put(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE, "42");
 
         assertEquals("user:42", resolver.resolve(exchange).block());
+    }
+
+    @Test
+    void forgedIdentityHeaderCannotBypassPerIpLimiterOnAuthRoute() {
+        KeyResolver resolver = new RateLimitConfig().aetherisKeyResolver();
+        MockServerWebExchange first = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/auth/login")
+                        .header("X-Aetheris-User-Id", "attacker-1")
+                        .remoteAddress(new InetSocketAddress("203.0.113.25", 43001))
+                        .build());
+        MockServerWebExchange second = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/auth/login")
+                        .header("X-Aetheris-User-Id", "attacker-2")
+                        .remoteAddress(new InetSocketAddress("203.0.113.25", 43002))
+                        .build());
+
+        assertEquals("ip:203.0.113.25", resolver.resolve(first).block());
+        assertEquals(resolver.resolve(first).block(), resolver.resolve(second).block());
+    }
+
+    @Test
+    void forgedIdentityHeaderIsIgnoredOnProtectedRoutesWithoutVerification() {
+        KeyResolver resolver = new RateLimitConfig().aetherisKeyResolver();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/users")
+                        .header("X-Aetheris-User-Id", "admin")
+                        .remoteAddress(new InetSocketAddress("203.0.113.26", 43001))
+                        .build());
+
+        assertEquals("ip:203.0.113.26", resolver.resolve(exchange).block());
     }
 
     @Test
