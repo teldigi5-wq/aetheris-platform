@@ -7,3 +7,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+# Test-only HMAC key; never use this value in production.
+aetheris:
+  jwt:
+    secret: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
