@@ -1,0 +1,9 @@
+# B62-G12 disposable revocation-only restore proof; no production DB.
+# Separate client container forces real PostgreSQL network password auth.
+services:
+  auth-probe:
+    image: postgres:16-alpine
+    entrypoint: ["sleep", "3600"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    networks: [isolated]

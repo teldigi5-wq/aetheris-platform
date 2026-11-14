@@ -1,0 +1,315 @@
+name: B60 Pinned RSA Public-Key Overlap And Retirement
+on:
+  pull_request:
+    branches: [security/b59-issuer-owned-rs256-verifier-only-20261026]
+    paths:
+      - '.github/workflows/b60-rsa-public-key-rollover.yml'
+      - 'tests/test_b56_auth_boundary_ci_contract.py'
+      - 'tests/test_b57_jwt_issuer_audience_source.py'
+      - 'tests/test_b58_key_rotation_contract.py'
+      - 'tests/test_b59_rs256_contract.py'
+      - 'tests/test_b60_public_rotation_contract.py'
+      - 'docs/security/B60_RSA_PUBLIC_KEY_ROLLOVER_20261026.md'
+      - 'docs/security/B59_ISSUER_OWNED_RS256_20261026.md'
+      - 'docs/security/B58_KEY_ROTATION_AND_WORKLOAD_REHEARSAL_20261026.md'
+      - 'docs/security/B57_SIGNED_ISSUER_AUDIENCE_20261026.md'
+      - 'docs/security/B56_PATCHED_DIRECT_BACKEND_AUTH_20261026.md'
+      - 'tests/security/**'
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  patched-direct-service-auth:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify exact checked-out source SHA and strict probe contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b56_auth_boundary_ci_contract.py' -v
+          python3 -m py_compile tests/security/probe_backend_auth.py tests/security/probe_user_row_id_collision.py tests/security/probe_b58_workload_audience.py tests/security/probe_b59_rsa.py tests/security/probe_b60_rsa_rotation.py
+          echo B56_SOURCE_HEAD_AND_PROBE_CONTRACT_PASSED
+      - name: Verify coordinated source checks and run the complete four-module Java reactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_b57_jwt_issuer_audience_source.py' -v
+          python3 -m unittest discover -s tests -p 'test_b58_key_rotation_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b59_rs256_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b60_public_rotation_contract.py' -v
+          ./mvnw -B -ntp -f pom.xml test
+          echo B58_REAL_JJWT_SYNTHETIC_ROTATION_AND_COMPLETE_JAVA_REACTOR_PASS
+      - name: Generate synthetic Identity-only RSA private key in test memory and verify all three public-only JWT consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B59ContractIT test
+          test "$(cat identity-service/target/b59-rsa-contract/test-only.marker)" = "B59_EPHEMERAL_IDENTITY_RSA_V1"
+          test -s identity-service/target/b59-rsa-contract/public-x509.b64
+          # Public key ONLY, no actual private PKCS8 value or signing secret in runner env.
+          echo "B59_CI_RSA_PUBLIC_KEY=$(cat identity-service/target/b59-rsa-contract/public-x509.b64)" >> "$GITHUB_ENV"
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityRs256B59VerifierIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityRs256B59VerifierIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityRs256B59VerifierIT test
+          echo B59_REAL_IDENTITY_PRIVATE_SIGNER_AND_ALL_PUBLIC_ONLY_VERIFIERS_COMPATIBLE
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          test "$(cat identity-service/target/b60-rotation/test-only.marker)" = "B60_EPHEMERAL_PUBLIC_ROLLOVER_V1"
+          test -s identity-service/target/b60-rotation/current-public-x509.b64
+          test -s identity-service/target/b60-rotation/previous-public-x509.b64
+          echo "B60_CI_CURRENT_PUBLIC=$(cat identity-service/target/b60-rotation/current-public-x509.b64)" >> "$GITHUB_ENV"
+          echo "B60_CI_PREVIOUS_PUBLIC=$(cat identity-service/target/b60-rotation/previous-public-x509.b64)" >> "$GITHUB_ENV"
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          echo B60_REAL_IDENTITY_SIGNED_OLD_NEW_ROTATION_IT_PASSED
+      - name: Audit isolated Docker topology (no host ports, privileged containers or persistent data)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml config --format json > "$RUNNER_TEMP/b56-config.json"
+          python3 - "$RUNNER_TEMP/b56-config.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          c=json.loads(Path(sys.argv[1]).read_text())
+          svc=c["services"]
+          assert set(svc)=={"postgres","redis","rabbitmq","user-service","audit-service","gateway","probe","resource-probe"}
+          assert len(c["networks"])==1 and all(n.get("internal") is True for n in c["networks"].values())
+          assert not c.get("volumes")
+          assert any("postgresql/data" in str(x) for x in svc["postgres"]["tmpfs"])
+          for name,item in svc.items():
+              assert not item.get("ports") and not item.get("privileged"),name
+              assert not item.get("network_mode") and not item.get("pid") and not item.get("devices"),name
+          for name in ("probe","resource-probe"):
+              item=svc[name]
+              assert item["read_only"] and "ALL" in item["cap_drop"]
+              assert any("/opt/tokens" in str(x) and ("read_only" in str(x) or ":ro" in str(x)) for x in item["volumes"])
+              assert not any("docker.sock" in str(x) for x in item["volumes"])
+          for name in ("gateway","user-service","audit-service"): assert svc[name].get("build")
+          print("B56_INTERNAL_NO_PORT_NO_NAMED_DATA_NO_DOCKER_SOCKET")
+          PY
+      - name: Build real Gateway User and Audit patched Corretto images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml build gateway user-service audit-service
+          echo B56_REAL_APPLICATION_IMAGES_BUILT
+      - name: Start disposable backend infrastructure and verify actual running 21.0.13 non-root JVMs
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml'
+          $C up --no-build -d postgres redis rabbitmq user-service audit-service gateway
+          for service in postgres redis rabbitmq gateway user-service audit-service; do
+            cid="$($C ps -q "$service")"
+            test -n "$cid"
+            docker inspect "$cid" | python3 -c 'import json,sys; x=json.load(sys.stdin)[0]["HostConfig"]; assert x["PortBindings"] in ({},None) and x["NetworkMode"]!="host" and not x["Privileged"]'
+          done
+          for service in gateway user-service audit-service; do
+            cid="$($C ps -q "$service")"
+            test "$(docker inspect -f '{{.Config.User}}' "$cid")" = "10001:10001"
+            jvm="$(docker exec "$cid" java -version 2>&1)"
+            grep -Eq '^openjdk version "21\.0\.13"' <<< "$jvm"
+            echo "B56_PATCHED_NONROOT_JAVA_CONFIRMED:$service"
+          done
+      - name: Issue real Identity-service synthetic JWTs including same-number nonowner tokens
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=NonOwnerNumericCollisionJwtIT test
+          test -f identity-service/target/identity-jwt-contract/test-only.marker
+          echo B56_REAL_ISSUER_EPHEMERAL_TOKENS_READY
+      - name: Prove actual signed Identity JWT fixtures validate across Gateway User and Audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+          echo B57_GENUINE_ISSUER_CROSS_SERVICE_JWT_COMPATIBILITY_PASSED
+      - name: Real internal Gateway User Audit HTTP deny workload-only foreign-issuer and multi-aud tokens
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps             --entrypoint python probe /opt/workload-probe.py
+          echo B58_REAL_FOUR_PATH_WORKLOAD_AUDIENCE_ISOLATION_PASSED_16
+      - name: Verify 26 direct backend and gateway authentication HTTP outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps probe
+      - name: Verify 30 signed UID / different User-row owner HTTP outcomes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml run --rm --no-deps resource-probe
+          echo B58_NO_LEGACY_AUTH_REGRESSION_56_HTTP_ASSERTIONS_PASSED
+      - name: Switch ONLY disposable runtime containers from previous HMAC baseline to RSA public-only verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.b59-rsa-overlay.yml'
+          $C config --format json > "$RUNNER_TEMP/b59-topology.json"
+          python3 - "$RUNNER_TEMP/b59-topology.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          data=json.loads(Path(sys.argv[1]).read_text())
+          assert not data.get("volumes")
+          assert len(data["networks"])==1 and all(n.get("internal") is True for n in data["networks"].values())
+          assert set(data["services"])=={"postgres","redis","rabbitmq","user-service","audit-service",
+                                         "gateway","probe","resource-probe","rsa-probe"}
+          for name,service in data["services"].items():
+              assert not service.get("ports") and not service.get("privileged"),name
+          for name in ("gateway","user-service","audit-service"):
+              env=data["services"][name]["environment"]
+              assert env["AETHERIS_JWT_MODE"]=="rs256"
+              assert env["AETHERIS_JWT_SECRET"]==""
+              assert len(env["AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64"])>450
+              assert env["AETHERIS_JWT_KID"]=="b59-ephemeral-a"
+              assert not any("PRIVATE_KEY" in k for k in env)
+          svc=data["services"]["rsa-probe"]
+          assert svc["read_only"] and "ALL" in svc["cap_drop"]
+          assert any("/opt/rsa" in str(v) for v in svc.get("volumes",[]))
+          print("B59_EPHEMERAL_RSA_PUBLIC_ONLY_TOPOLOGY_PROVEN")
+          PY
+          $C up --no-deps --no-build --force-recreate -d user-service audit-service gateway
+          for name in gateway user-service audit-service; do
+            cid="$($C ps -q "$name")"
+            test -n "$cid"
+            test "$(docker inspect -f '{{.Config.User}}' "$cid")" = "10001:10001"
+            docker inspect "$cid" | python3 -c '
+          import json,sys
+          c=json.load(sys.stdin)[0]
+          e=dict(s.split("=",1) for s in c["Config"]["Env"] if "=" in s)
+          assert e["AETHERIS_JWT_MODE"]=="rs256"
+          assert e["AETHERIS_JWT_SECRET"]==""
+          assert "AETHERIS_JWT_RSA_PRIVATE_KEY_PKCS8_B64" not in e
+          assert c["HostConfig"]["PortBindings"] in ({},None)
+          '
+          done
+          echo B59_RUNNING_JAVA_API_SERVICES_HAVE_ONLY_RSA_PUBLIC_KEYS
+      - name: Prove 32 actual RSA-only HTTP status decisions against direct User Audit and Gateway routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml \
+            -f tests/security/docker-compose.b59-rsa-overlay.yml \
+            run --rm --no-deps rsa-probe
+          echo B59_REAL_RSA_32_HTTP_ASSERTIONS_ALL_PASSED
+      - name: Start the CI-only two-key overlap and verify no private signer or host ports
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.b59-rsa-overlay.yml -f tests/security/docker-compose.b60-overlap-overlay.yml'
+          $C config --format json > "$RUNNER_TEMP/b60-overlap.json"
+          python3 - "$RUNNER_TEMP/b60-overlap.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          data=json.loads(Path(sys.argv[1]).read_text())
+          assert not data.get("volumes")
+          assert len(data["networks"])==1 and all(n.get("internal") is True for n in data["networks"].values())
+          assert set(data["services"])=={"postgres","redis","rabbitmq","user-service","audit-service",
+              "gateway","probe","resource-probe","rsa-probe","rotation-probe"}
+          for name,s in data["services"].items():
+              assert not s.get("ports") and not s.get("privileged"),name
+          for name in ("gateway","user-service","audit-service"):
+              env=data["services"][name]["environment"]
+              assert env["AETHERIS_JWT_MODE"]=="rs256"
+              assert env["AETHERIS_JWT_SECRET"]==""
+              assert env["AETHERIS_JWT_KID"]=="b60-current"
+              assert env["AETHERIS_JWT_PREVIOUS_KID"]=="b60-previous"
+              assert len(env["AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64"])>450
+              assert len(env["AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64"])>450
+              assert env["AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64"]!=env["AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64"]
+              assert not any("PRIVATE_KEY" in key for key in env)
+          probe=data["services"]["rotation-probe"]
+          assert probe["read_only"] and "ALL" in probe["cap_drop"]
+          assert not any("docker.sock" in str(v) for v in probe.get("volumes",[]))
+          print("B60_TWO_PUBLIC_KEYS_ONLY_NO_HOST_PORTS")
+          PY
+          $C up --no-build --no-deps --force-recreate -d user-service audit-service gateway
+          for svc in gateway user-service audit-service; do
+            cid="$($C ps -q "$svc")"
+            test -n "$cid"
+            test "$(docker inspect -f '{{.Config.User}}' "$cid")" = "10001:10001"
+            docker inspect "$cid" | python3 -c '
+          import json,sys
+          c=json.load(sys.stdin)[0]
+          env=dict(v.split("=",1) for v in c["Config"]["Env"] if "=" in v)
+          assert env["AETHERIS_JWT_MODE"]=="rs256"
+          assert env["AETHERIS_JWT_SECRET"]==""
+          assert env["AETHERIS_JWT_PREVIOUS_KID"]=="b60-previous"
+          assert "AETHERIS_JWT_RSA_PRIVATE_KEY_PKCS8_B64" not in env
+          assert c["HostConfig"]["PortBindings"] in ({},None)
+          '
+          done
+          echo B60_ACTUAL_RUNNING_TWO_KEY_OVERLAP_CONFIRMED
+      - name: Real HTTP overlap must accept old and new signed keys and deny relabeled/forged keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml \
+            -f tests/security/docker-compose.b59-rsa-overlay.yml \
+            -f tests/security/docker-compose.b60-overlap-overlay.yml \
+            run --rm --no-deps -e B60_PHASE=overlap rotation-probe
+          echo B60_REAL_OVERLAP_28_HTTP_ASSERTIONS_PASSED
+      - name: Remove previous verifier key from ONLY disposable containers
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.b59-rsa-overlay.yml -f tests/security/docker-compose.b60-overlap-overlay.yml -f tests/security/docker-compose.b60-retire-overlay.yml'
+          $C config --format json > "$RUNNER_TEMP/b60-retired.json"
+          python3 - "$RUNNER_TEMP/b60-retired.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          data=json.loads(Path(sys.argv[1]).read_text())
+          for name in ("gateway","user-service","audit-service"):
+              env=data["services"][name]["environment"]
+              assert env["AETHERIS_JWT_MODE"]=="rs256"
+              assert env["AETHERIS_JWT_SECRET"]==""
+              assert env["AETHERIS_JWT_KID"]=="b60-current"
+              assert env["AETHERIS_JWT_PREVIOUS_KID"]==""
+              assert env["AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64"]==""
+              assert "AETHERIS_JWT_RSA_PRIVATE_KEY_PKCS8_B64" not in env
+          assert not data.get("volumes")
+          print("B60_PREVIOUS_PUBLIC_TRUST_REMOVED_IN_DISPOSABLE_ENV")
+          PY
+          $C up --no-build --no-deps --force-recreate -d user-service audit-service gateway
+      - name: Real HTTP retired-key checks must deny old identity-signed tokens immediately
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml \
+            -f tests/security/docker-compose.b59-rsa-overlay.yml \
+            -f tests/security/docker-compose.b60-overlap-overlay.yml \
+            -f tests/security/docker-compose.b60-retire-overlay.yml \
+            run --rm --no-deps -e B60_PHASE=retired rotation-probe
+          echo B60_REAL_RETIRED_12_HTTP_ASSERTIONS_PASSED
+      - name: Bounded diagnostic logs only on failed tests
+        if: failure()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml logs --no-color --tail=35 gateway user-service audit-service postgres redis rabbitmq || true
+      - name: Always remove only disposable CI containers network and tmpfs volumes
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml down --volumes --remove-orphans --timeout 10 || true
+          echo B56_EPHEMERAL_CLEANUP_COMPLETED
