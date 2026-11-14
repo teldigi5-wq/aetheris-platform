@@ -9,7 +9,7 @@
   <groupId>io.aetheris</groupId>
   <artifactId>aetheris-audit-service</artifactId>
   <version>0.4.0-SNAPSHOT</version>
-  <properties><java.version>21</java.version><jjwt.version>0.12.6</jjwt.version><jackson-bom.version>3.1.8</jackson-bom.version><jackson-2-bom.version>2.21.8</jackson-2-bom.version><tomcat.version>11.0.27</tomcat.version></properties>
+  <properties><java.version>21</java.version><opentelemetry.version>1.67.0</opentelemetry.version><jjwt.version>0.12.6</jjwt.version><jackson-bom.version>3.1.8</jackson-bom.version><jackson-2-bom.version>2.21.8</jackson-2-bom.version><tomcat.version>11.0.27</tomcat.version></properties>
   <dependencies>
     <!-- Independent backend JWT verification; never trust Gateway identity headers. -->
     <dependency><groupId>io.jsonwebtoken</groupId><artifactId>jjwt-api</artifactId><version>${jjwt.version}</version></dependency>
