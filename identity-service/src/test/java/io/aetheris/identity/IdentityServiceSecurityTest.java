@@ -24,7 +24,7 @@ class IdentityServiceSecurityTest {
         when(jwtService.expirationSeconds()).thenReturn(3600L);
         when(refreshTokenService.issue(any())).thenReturn(new RefreshTokenService.IssuedRefreshToken("refresh-token", 604800L));
 
-        IdentityService service = new IdentityService(repository, jwtService, refreshTokenService);
+        IdentityService service = new IdentityService(repository, jwtService, refreshTokenService, true);
         service.register(new RegisterRequest("Poojana", "Poojana@Aetheris.Local", "Aetheris123!"));
 
         ArgumentCaptor<IdentityAccount> accountCaptor = ArgumentCaptor.forClass(IdentityAccount.class);
@@ -47,10 +47,39 @@ class IdentityServiceSecurityTest {
         IdentityAccount account = new IdentityAccount("Poojana", "poojana@aetheris.local", encoder.encode("CorrectPassword!"), Role.API_CONSUMER);
         when(repository.findByEmailIgnoreCase("poojana@aetheris.local")).thenReturn(Optional.of(account));
 
-        IdentityService service = new IdentityService(repository, jwtService, refreshTokenService);
+        IdentityService service = new IdentityService(repository, jwtService, refreshTokenService, true);
 
         assertThrows(IdentityService.InvalidCredentialsException.class,
                 () -> service.login(new LoginRequest("poojana@aetheris.local", "WrongPassword!")));
         verifyNoInteractions(jwtService, refreshTokenService);
+    }
+
+    @Test
+    void registrationIsRefusedByDefaultWithoutTouchingStorageOrTokens() {
+        IdentityAccountRepository repository = mock(IdentityAccountRepository.class);
+        JwtService jwtService = mock(JwtService.class);
+        RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+
+        IdentityService service = new IdentityService(repository, jwtService, refreshTokenService, false);
+
+        assertThrows(IdentityService.RegistrationDisabledException.class,
+                () -> service.register(new RegisterRequest("Stranger", "stranger@example.test", "Password123!")));
+        verifyNoInteractions(repository, jwtService, refreshTokenService);
+    }
+
+    @Test
+    void loginStillWorksWhenRegistrationIsDisabled() {
+        IdentityAccountRepository repository = mock(IdentityAccountRepository.class);
+        JwtService jwtService = mock(JwtService.class);
+        RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        IdentityAccount account = new IdentityAccount("Owner", "owner@aetheris.local", encoder.encode("CorrectPassword!"), Role.ADMIN);
+        when(repository.findByEmailIgnoreCase("owner@aetheris.local")).thenReturn(Optional.of(account));
+        when(jwtService.issue(any())).thenReturn("access-token");
+        when(refreshTokenService.issue(any())).thenReturn(new RefreshTokenService.IssuedRefreshToken("refresh-token", 604800L));
+
+        IdentityService service = new IdentityService(repository, jwtService, refreshTokenService, false);
+
+        assertEquals("access-token", service.login(new LoginRequest("owner@aetheris.local", "CorrectPassword!")).accessToken());
     }
 }

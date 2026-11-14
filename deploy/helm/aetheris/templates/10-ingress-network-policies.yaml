@@ -1,0 +1,42 @@
+{{- /*
+For non-local installs, only the gateway may contact internal HTTP services
+and only explicitly named application Pods may contact core data stores.
+The policy is same-namespace and ingress-only by design. Operators MUST
+validate their CNI enforces NetworkPolicy and allow separate observability/
+maintenance clients explicitly before deployment. No gateway ingress policy:
+the deployment's edge controller topology is operator-specific.
+*/ -}}
+{{- if not .Values.global.allowInsecureLocalDefaults }}
+{{- $boundaries := list
+  (dict "name" "postgres" "port" 5432 "clients" (list "user-service" "identity-service" "audit-service"))
+  (dict "name" "redis" "port" 6379 "clients" (list "user-service" "gateway"))
+  (dict "name" "rabbitmq" "port" 5672 "clients" (list "user-service" "audit-service"))
+  (dict "name" "user-service" "port" 8081 "clients" (list "gateway"))
+  (dict "name" "identity-service" "port" 8082 "clients" (list "gateway"))
+  (dict "name" "audit-service" "port" 8083 "clients" (list "gateway"))
+}}
+{{- range $boundary := $boundaries }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aetheris-{{ $boundary.name }}-ingress
+  labels:
+    app.kubernetes.io/part-of: aetheris
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ $boundary.name | quote }}
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        {{- range $client := $boundary.clients }}
+        - podSelector:
+            matchLabels:
+              app: {{ $client | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ $boundary.port }}
+{{- end }}
+{{- end }}

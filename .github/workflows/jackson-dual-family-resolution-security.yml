@@ -1,0 +1,65 @@
+name: B50 Jackson 2 and 3 Actual Maven Resolution Security
+on:
+  pull_request:
+    branches: [test/audit-historic-compatibility-no-go-20261026]
+    paths:
+      - 'gateway/pom.xml'
+      - 'identity-service/pom.xml'
+      - 'user-service/pom.xml'
+      - 'audit-service/pom.xml'
+      - 'pom.xml'
+      - 'scripts/verify_jackson_resolved.py'
+      - 'tests/test_jackson_resolution_gate.py'
+      - '.github/workflows/jackson-dual-family-resolution-security.yml'
+      - 'build-evidence/maven/**'
+      - 'docs/security/JACKSON_RESOLUTION_SECURITY_B50_20261026.md'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  actual-jackson-two-three-resolution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Prove strict parser, source BOMs and prior checked-in evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_jackson_resolution_gate.py -v
+          echo B50_SOURCE_PATCH_BOMS_AND_PARSER_NEGATIVE_CONTROLS_PASS
+      - name: Run actual four-module Maven reactor tests without skipped test flags
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+          echo B50_REAL_FOUR_MODULE_REACTOR_TESTS_PASS
+      - name: Regenerate and validate fresh resolved dependency trees for ALL four Java modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/b50-maven"
+          for module in gateway identity-service user-service audit-service; do
+            tree="$RUNNER_TEMP/b50-maven/$module.txt"
+            ./mvnw -B -ntp -f "$module/pom.xml" -DoutputType=text -DoutputFile="$tree" dependency:tree
+            test -s "$tree"
+            python3 -m scripts.verify_jackson_resolved "$module" "$tree"
+          done
+          # Source-controlled evidence is checked by the Python tests but is
+          # NEVER substituted for the newly generated live Maven trees.
+          echo B50_REAL_MAVEN_RESOLUTION_VERIFIED_JACKSON2_2_21_8_JACKSON3_3_1_8
+      - name: Upload fresh resolved trees for independent PR review
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: b50-actual-maven-resolved-dependencies
+          path: ${{ runner.temp }}/b50-maven/*.txt
+          if-no-files-found: error
+          retention-days: 14

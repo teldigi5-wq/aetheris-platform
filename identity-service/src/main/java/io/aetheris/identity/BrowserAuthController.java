@@ -151,6 +151,11 @@ public class BrowserAuthController {
         return noStoreError(HttpStatus.CONFLICT, "Conflict", "Email already registered");
     }
 
+    @ExceptionHandler(IdentityService.RegistrationDisabledException.class)
+    public ResponseEntity<Map<String, Object>> registrationDisabled() {
+        return noStoreError(HttpStatus.FORBIDDEN, "Forbidden", "Self-registration is disabled");
+    }
+
     @ExceptionHandler(IdentityService.InvalidCredentialsException.class)
     public ResponseEntity<Map<String, Object>> invalidCredentials() {
         return noStoreError(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid email or password");
