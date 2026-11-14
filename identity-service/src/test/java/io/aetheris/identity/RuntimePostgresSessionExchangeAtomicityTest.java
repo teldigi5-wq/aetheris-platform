@@ -59,6 +59,12 @@ import static org.junit.jupiter.api.Assertions.*;
     RuntimePostgresSessionExchangeAtomicityTest.SigningFixture.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
+// Runs only inside the dedicated disposable-PostgreSQL workflow (s0-e6g), which sets
+// this marker and asserts this class's surefire report (5 tests, 0 skipped). A plain
+// `mvnw test` without a database skips the class instead of failing context load.
+// The URL guard in disposableOnly() still fails closed on any other database.
+@org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(
+    named = "AETHERIS_E6G_DISPOSABLE_MARKER", matches = "ONLY_DISPOSABLE_E6G_POSTGRES")
 class RuntimePostgresSessionExchangeAtomicityTest {
     private static final String DATABASE_NAME = "aetheris_e6g_disposable";
     private static final String URL =
