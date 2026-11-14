@@ -40,6 +40,9 @@ public final class RuntimeAudienceTokenIssuer {
     private final String audience;
     private final Clock clock;
 
+    // Two constructors (this one and the package-private test-clock overload): without
+    // @Autowired Spring looks for a no-arg constructor and Identity fails to start.
+    @org.springframework.beans.factory.annotation.Autowired
     public RuntimeAudienceTokenIssuer(Environment environment) {
         this(environment, Clock.systemUTC());
     }

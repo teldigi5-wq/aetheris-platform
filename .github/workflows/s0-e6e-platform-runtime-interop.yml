@@ -3,7 +3,6 @@ on:
   pull_request:
     branches:
       - security/s0-e6d-runtime-audience-rs256-issuer-20261029
-      - feature/syntra-aetheris-foundation-v2
     paths:
       - 'docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java'
       - '.github/workflows/s0-e6e-platform-runtime-interop.yml'

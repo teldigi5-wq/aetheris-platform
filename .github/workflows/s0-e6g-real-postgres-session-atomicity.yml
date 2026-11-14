@@ -3,7 +3,6 @@ on:
   pull_request:
     branches:
       - security/s0-e6f-internal-atomic-session-exchange-20261029
-      - feature/syntra-aetheris-foundation-v2
     paths:
       - 'identity-service/src/test/java/io/aetheris/identity/RuntimePostgresSessionExchangeAtomicityTest.java'
       - '.github/workflows/s0-e6g-real-postgres-session-atomicity.yml'

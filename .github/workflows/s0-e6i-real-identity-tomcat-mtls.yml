@@ -180,6 +180,13 @@ jobs:
           assert int(root.attrib.get('errors',-1)) == 0
           assert int(root.attrib.get('skipped',-1)) == 0
           print('AETHERIS_S0_E6I_NINE_REAL_SOURCE_INTEROP_TESTS_REEXECUTED_PASS')
+          # The atomicity class is gated on the disposable marker; prove it really ran here
+          # (E6I supersedes the earlier E6E-E6H stage proofs at the integrated head).
+          atomic=ET.parse(Path('identity-service/target/surefire-reports/TEST-io.aetheris.identity.RuntimePostgresSessionExchangeAtomicityTest.xml')).getroot()
+          assert int(atomic.attrib.get('tests',0)) == 5, 'Expected FIVE real PostgreSQL atomicity tests'
+          assert int(atomic.attrib.get('failures',-1)) == 0 and int(atomic.attrib.get('errors',-1)) == 0
+          assert int(atomic.attrib.get('skipped',-1)) == 0, 'Atomicity tests must not be skipped here'
+          print('AETHERIS_S0_E6I_FIVE_REAL_POSTGRES_ATOMICITY_TESTS_EXECUTED_PASS')
           PY
           grep -Fq 'Stage45 NO_GO' docs/security/S0_E6H_INTERNAL_GATEWAY_MTLS_WORKLOAD_GATE_20261030.md
           echo AETHERIS_S0_E6I_ACTUAL_POSTGRES_16_TRANSACTION_TESTS_AND_IDENTITY_REGRESSIONS_PASS

@@ -3,7 +3,6 @@ on:
   pull_request:
     branches:
       - security/s0-e6e-platform-runtime-signed-interop-20261029
-      - feature/syntra-aetheris-foundation-v2
     paths:
       - 'identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceSessionExchangeService.java'
       - 'identity-service/src/test/java/io/aetheris/identity/RuntimeAudienceSessionExchangeServiceTest.java'
