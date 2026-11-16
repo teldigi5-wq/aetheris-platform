@@ -298,10 +298,32 @@ def main() -> int:
         if not isinstance(refresh_token, str) or not refresh_token:
             raise AssertionError("registration response missing refreshToken")
 
+        # User/Audit APIs are ADMIN-only and enforce JWTs themselves. No application route
+        # grants ADMIN, so promote this one disposable CI identity in the isolated database,
+        # then obtain a signed ADMIN access token through the normal login path.
+        promoted = psql(
+            "with promoted as (update identity_accounts set role='ADMIN' "
+            f"where email={sql_literal(identity_email)} and role='API_CONSUMER' returning id) "
+            "select count(*) from promoted;"
+        ).strip()
+        if promoted != "1":
+            raise AssertionError("synthetic recovery administrator promotion did not affect exactly one account")
+        status, admin_login = http_json(
+            "POST",
+            "http://127.0.0.1:8080/api/auth/login",
+            {"email": identity_email, "password": password},
+        )
+        expect_status(status, 200, "synthetic recovery administrator login")
+        if not isinstance(admin_login, dict) or admin_login.get("account", {}).get("role") != "ADMIN":
+            raise AssertionError("login did not issue a signed ADMIN account for the recovery proof")
+        access_token = admin_login["accessToken"]
+        admin_headers = {"Authorization": f"Bearer {access_token}"}
+
         status, created_user = http_json(
             "POST",
             "http://127.0.0.1:8081/api/users",
             {"name": "Recovery User", "email": user_email},
+            headers=admin_headers,
         )
         expect_status(status, 201, "synthetic user creation")
         if not isinstance(created_user, dict) or not isinstance(created_user.get("id"), int):
@@ -458,7 +480,7 @@ def main() -> int:
             "-p", "18081:18081", "user-service",
         ], timeout=120)
         wait_health("recovered user-service", 18081)
-        status, recovered_users = http_json("GET", "http://127.0.0.1:18081/api/users")
+        status, recovered_users = http_json("GET", "http://127.0.0.1:18081/api/users", headers=admin_headers)
         expect_status(status, 200, "user read against recovered database")
         if not isinstance(recovered_users, list):
             raise AssertionError(f"recovered users response must be a list: {recovered_users!r}")

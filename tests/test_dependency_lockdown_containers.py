@@ -112,6 +112,7 @@ class DashboardNginxRuntimePinTests(unittest.TestCase):
         self.assertEqual(2, len(stages), "dashboard must retain its two-stage build")
         self.assertEqual(self.EXPECTED_NGINX_IMAGE, stages[-1])
         self.assertIn("RUN apk add --no-cache 'zlib=1.4-r0'", dockerfile)
+        self.assertIn("'libxslt=1.1.43-r4'", dockerfile)
         self.assertIn("COPY nginx.conf /etc/nginx/conf.d/default.conf", dockerfile)
         self.assertIn("COPY --from=build /app/dist /usr/share/nginx/html", dockerfile)
 

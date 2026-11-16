@@ -1,0 +1,33 @@
+# CI ONLY overlay on backend-auth-probe: forced public-only RSA 3072-bit mode.
+# B59_CI_RSA_PUBLIC_KEY is a synthetic EPHEMERAL PUBLIC DER value, not a secret.
+# Never apply to deployed Compose or customer environments.
+services:
+  user-service:
+    environment:
+      AETHERIS_JWT_SECRET: ""
+      AETHERIS_JWT_MODE: rs256
+      AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64: ${B59_CI_RSA_PUBLIC_KEY:?required-test-only-public-rsa-key}
+      AETHERIS_JWT_KID: b59-ephemeral-a
+  audit-service:
+    environment:
+      AETHERIS_JWT_SECRET: ""
+      AETHERIS_JWT_MODE: rs256
+      AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64: ${B59_CI_RSA_PUBLIC_KEY:?required-test-only-public-rsa-key}
+      AETHERIS_JWT_KID: b59-ephemeral-a
+  gateway:
+    environment:
+      AETHERIS_JWT_SECRET: ""
+      AETHERIS_JWT_MODE: rs256
+      AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64: ${B59_CI_RSA_PUBLIC_KEY:?required-test-only-public-rsa-key}
+      AETHERIS_JWT_KID: b59-ephemeral-a
+  rsa-probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/probe.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_b59_rsa.py:/opt/probe.py:ro
+      - ../../identity-service/target/b59-rsa-contract:/opt/rsa:ro
+    networks: [probe]

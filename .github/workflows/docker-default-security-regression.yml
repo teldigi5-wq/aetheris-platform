@@ -1,0 +1,51 @@
+name: Aetheris Platform Docker Secret and Network Security Regression
+
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'docker-compose*.yml'
+      - '.env.example'
+      - '.gitignore'
+      - 'gateway/src/main/resources/application.yml'
+      - 'identity-service/src/main/resources/application.yml'
+      - 'user-service/src/main/resources/application.yml'
+      - 'audit-service/src/main/resources/application.yml'
+      - 'tests/test_compose_default_security.py'
+      - 'tools/audit_compose_branches.py'
+      - '.github/workflows/docker-default-security-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-real-config-security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.13.15'
+          check-latest: false
+      - name: Validate real Docker Compose JSON and refusal on missing secrets
+        run: |
+          docker compose version
+          python -m unittest tests.test_compose_default_security -v
+      - name: Scan every fetched Platform remote branch read-only
+        run: |
+          python tools/audit_compose_branches.py
+      - name: Archive branch findings, do not silently claim old branches fixed
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: aetheris-platform-all-branch-compose-security-inventory
+          path: build-evidence/runtime/compose-branch-security-audit.json
+          if-no-files-found: warn
+          retention-days: 14

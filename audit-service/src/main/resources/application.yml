@@ -1,3 +1,18 @@
+aetheris:
+  jwt:
+    # HMAC remains the default until a coordinated, approved deployment migration.
+    mode: ${AETHERIS_JWT_MODE:hmac}
+    secret: ${AETHERIS_JWT_SECRET:}
+    kid: ${AETHERIS_JWT_KID:}
+    # Optional, explicitly bounded two-public-key overlap; remove both to retire old key.
+    previous-kid: ${AETHERIS_JWT_PREVIOUS_KID:}
+    # Required with any previous public key; UTC epoch seconds. Runtime cutoff is absolute.
+    previous-key-not-after-epoch-seconds: ${AETHERIS_JWT_PREVIOUS_KEY_NOT_AFTER_EPOCH_SECONDS:}
+    rsa-previous-public-key-x509-base64: ${AETHERIS_JWT_RSA_PREVIOUS_PUBLIC_KEY_X509_B64:}
+    rsa-public-key-x509-base64: ${AETHERIS_JWT_RSA_PUBLIC_KEY_X509_B64:}
+    issuer: ${AETHERIS_JWT_ISSUER:aetheris-identity}
+    audience: ${AETHERIS_JWT_AUDIENCE:aetheris-api}
+
 server:
   port: 8083
 
@@ -7,23 +22,27 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
-    password: ${SPRING_DATASOURCE_PASSWORD:aetheris}
+    password: ${SPRING_DATASOURCE_PASSWORD}
   flyway:
     enabled: true
     table: flyway_audit_schema_history
-    baseline-on-migrate: true
+    # Fail closed on nonempty databases without approved Flyway history.
+    # Existing installations require reviewed migration ownership/baseline approval.
+    baseline-on-migrate: false
     baseline-version: "0"
   rabbitmq:
     host: ${SPRING_RABBITMQ_HOST:localhost}
     port: ${SPRING_RABBITMQ_PORT:5672}
     username: ${SPRING_RABBITMQ_USERNAME:aetheris}
-    password: ${SPRING_RABBITMQ_PASSWORD:aetheris}
+    password: ${SPRING_RABBITMQ_PASSWORD}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        # Deny by default: only health and info. Metrics are opted in explicitly
+        # (local observability proof) via AETHERIS_SERVICE_ACTUATOR_EXPOSURE.
+        include: ${AETHERIS_SERVICE_ACTUATOR_EXPOSURE:health,info}
   endpoint:
     health:
       show-details: ${MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS:never}
@@ -33,9 +52,11 @@ management:
   tracing:
     sampling:
       probability: 1.0
-  otlp:
+  opentelemetry:
     tracing:
-      endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${MANAGEMENT_OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
 
 info:
   app:

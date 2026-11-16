@@ -83,10 +83,23 @@ jobs:
         shell: pwsh
         run: cargo install tauri-cli --version $env:TAURI_CLI_VERSION --locked
 
-      - name: Resolve desktop dependency lock
+      - name: Use committed desktop dependency lock
         working-directory: apps/syntra-desktop/src-tauri
         shell: pwsh
-        run: cargo generate-lockfile
+        run: |
+          # The committed Cargo.lock is the dependency source of truth. If it is ever
+          # missing, generate one, print it for review/commit, and fail: an unpinned
+          # resolution must never produce a test or installer result.
+          if (Test-Path Cargo.lock) {
+            Get-FileHash Cargo.lock -Algorithm SHA256
+          } else {
+            cargo generate-lockfile
+            Write-Output "SYNTRA_CARGO_LOCK_BEGIN"
+            Get-Content Cargo.lock
+            Write-Output "SYNTRA_CARGO_LOCK_END"
+            Get-FileHash Cargo.lock -Algorithm SHA256
+            throw "apps/syntra-desktop/src-tauri/Cargo.lock is not committed; commit the lock printed above."
+          }
 
       - name: Test Syntra native integration boundary
         working-directory: apps/syntra-desktop/src-tauri

@@ -1,0 +1,73 @@
+name: Spring 4 OTLP Tracing Contract
+
+on:
+  push:
+    branches: [security/spring4-otel-tracing-20261023]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'tests/test_spring4_otel_contract.py'
+      - '.github/workflows/spring4-otel-contract.yml'
+  pull_request:
+    branches: [main, release/aetheris-security-core-certified-20261023]
+    paths:
+      - 'gateway/**'
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'tests/test_spring4_otel_contract.py'
+      - '.github/workflows/spring4-otel-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spring4-otel-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  otlp-boot4:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21.0.12'
+          cache: maven
+      - name: Source-level OTLP autoconfiguration contract
+        run: python -m unittest tests.test_spring4_otel_contract -v
+      - name: Generate isolated JWT and Redis test secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_JWT_SECRET SPRING_DATASOURCE_PASSWORD SPRING_DATA_REDIS_PASSWORD SPRING_RABBITMQ_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+      - name: Full Java reactor unit and compatibility regression
+        run: ./mvnw -B clean verify
+      - name: Regenerate exact runtime-scope Maven dependency evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          for module in gateway user-service identity-service audit-service; do
+            ./mvnw -B -f "$module/pom.xml" org.apache.maven.plugins:maven-dependency-plugin:3.11.0:tree \
+              -Dscope=runtime \
+              -DoutputFile="$GITHUB_WORKSPACE/build-evidence/maven/$module.txt"
+          done
+          git diff --no-ext-diff -- build-evidence/maven/
+      - name: Upload non-sensitive dependency evidence
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: spring4-otel-runtime-dependency-trees
+          path: build-evidence/maven/*.txt
+          if-no-files-found: error
+          retention-days: 7

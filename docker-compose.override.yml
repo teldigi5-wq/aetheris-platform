@@ -3,7 +3,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris
       SPRING_DATASOURCE_USERNAME: aetheris
-      SPRING_DATASOURCE_PASSWORD: aetheris
+      SPRING_DATASOURCE_PASSWORD: ${AETHERIS_POSTGRES_PASSWORD:?Set AETHERIS_POSTGRES_PASSWORD to a unique local secret}
       AETHERIS_LOCAL_MODEL_BASE_URL: ${AETHERIS_LOCAL_MODEL_BASE_URL:-http://host.docker.internal:11434}
       AETHERIS_LOCAL_MODEL: ${AETHERIS_LOCAL_MODEL:-qwen2.5:3b}
     depends_on:

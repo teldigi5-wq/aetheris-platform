@@ -1,0 +1,30 @@
+# B62-E only. Add to pre-existing disposable backend HMAC/RSA Docker network.
+# Never include in production infrastructure. No ports, Docker socket or
+# persistent data. HMAC values are public synthetic CI fixture strings.
+services:
+  ttl-probe:
+    image: python:3.12-slim-bookworm
+    entrypoint: ["python", "/opt/probe.py"]
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16777216"]
+    volumes:
+      - ./probe_b62e_token_lifetime.py:/opt/probe.py:ro
+      - ../../identity-service/target/b60-rotation:/opt/rotation:ro
+    networks: [probe]
+  identity-lifetime:
+    build:
+      context: ../../identity-service
+    environment:
+      AETHERIS_JWT_SECRET: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes
+      AETHERIS_JWT_MODE: hmac
+      AETHERIS_JWT_EXPIRATION_SECONDS: "3600"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aetheris_probe
+      SPRING_DATASOURCE_USERNAME: probe
+      SPRING_DATASOURCE_PASSWORD: test-only-ephemeral-postgres-password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+    depends_on:
+      postgres: {condition: service_healthy}
+    networks: [probe]

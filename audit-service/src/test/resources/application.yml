@@ -1,0 +1,22 @@
+# Test-only isolated HTTP profile. No live PostgreSQL, RabbitMQ, or production secrets.
+spring:
+  datasource:
+    url: jdbc:h2:mem:aetheris_audit_http;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  flyway:
+    enabled: false
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+      direct:
+        auto-startup: false
+management:
+  tracing:
+    sampling:
+      probability: 0
+aetheris:
+  jwt:
+    secret: test-only-direct-backend-auth-hmac-secret-at-least-32-bytes

@@ -1,0 +1,41 @@
+name: Gateway Real HTTP Proxy and Audit Write-Scope Security
+on:
+  pull_request:
+    branches: [test/identity-issued-jwt-consumer-parity-20261025]
+    paths:
+      - 'gateway/src/main/java/io/aetheris/gateway/JwtAuthenticationFilter.java'
+      - 'gateway/src/test/java/io/aetheris/gateway/GatewayRealHttpProxyContractIT.java'
+      - 'gateway/src/test/java/io/aetheris/gateway/JwtAuthenticationFilterTest.java'
+      - 'docs/security/gateway-real-http-proxy-audit-scope-20261025.md'
+      - '.github/workflows/gateway-real-http-proxy.yml'
+      - 'README.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  gateway-loopback-proxy-and-authorization:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21.0.12', cache: maven}
+      - name: Generate five actual Identity-issued synthetic test tokens
+        run: ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityIssuedJwtContractIT test
+      - name: Run all existing Gateway security and routing tests
+        run: ./mvnw -B -ntp -f gateway/pom.xml test
+      - name: Verify actual random-port Gateway HTTP forwarding, deny before proxy and audit write scope
+        run: ./mvnw -B -ntp -f gateway/pom.xml -Dtest=GatewayRealHttpProxyContractIT test
+      - name: Recheck real backend HTTP JWT filters and exact authorization
+        run: |
+          ./mvnw -B -ntp -f user-service/pom.xml test
+          ./mvnw -B -ntp -f audit-service/pom.xml test
+      - name: Reject tracked token artifacts or changed production claim contract
+        run: |
+          python tests/test_backend_jwt_wiring.py
+          python -c "import subprocess; paths=subprocess.check_output(['git','ls-files'],text=True).splitlines(); assert not any(p.endswith('.jwt') or '/target/identity-jwt-contract/' in p for p in paths); print('GATEWAY_PROXY_SECURITY_SYNTHETIC_TOKENS_NOT_TRACKED')"

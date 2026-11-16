@@ -1,0 +1,71 @@
+name: Identity RS256 Signed JTI to Runtime Contract - Review Only
+# Exact-head branch push gate. No route activation, production credentials
+# or B62 session lookup; preserves legacy HMAC token behavior.
+on:
+  push:
+    branches: [test/b62g13-audited-emergency-writer-contract-20261027, integration/i10-b7-revocation-proofs-20261114]
+permissions:
+  contents: read
+jobs:
+  signed-issuer-runtime-compatibility:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout exact draft commit without persisting credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Install Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Pin exact head and preserve signed-token/no-go boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          from pathlib import Path
+          issuer=Path("identity-service/src/main/java/io/aetheris/identity/JwtService.java").read_text()
+          test=Path("identity-service/src/test/java/io/aetheris/identity/IdentityRuntimeSignedJtiContractTest.java").read_text()
+          assert 'if ("rs256".equals(mode)) {' in issuer
+          assert 'builder.id(UUID.randomUUID().toString());' in issuer
+          assert 'builder.header().keyId(rsaKid).and();' in issuer
+          assert 'return builder.signWith(rsaPrivateKey, Jwts.SIG.RS256).compact();' in issuer
+          assert 'return builder.signWith(key).compact();' in issuer
+          assert 'MAX_ACCESS_TOKEN_LIFETIME_SECONDS = 3600L' in issuer
+          for marker in (
+              "realRs256IssuerProducesUniqueSignedUuidV4ForEveryIssuedJwt",
+              "onlyTheMatchingPublicKeyIssuerAndAudienceValidateTheToken",
+              "unchangedLegacyHmacIssuerCannotImpersonateRs256OrCreateSessionFact",
+              "keys.initialize(3072)", "JWT", "verifyWith",
+              "No real Identity or Runtime deployment",
+          ):
+              assert marker in test, marker
+          # A new JTI is signed token identity, NOT a session allow/deny
+          # verdict. Do not make any implicit B62/Runtime route grant here.
+          assert '@RestController' not in test
+          assert 'b62g_proof.' not in issuer
+          print("IDENTITY_RS256_JTI_SOURCE_ONLY_NO_GO_PRECHECK_PASS")
+          PY
+      - name: Real Identity RS256 issue and legacy HMAC security regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=IdentityRuntimeSignedJtiContractTest,IdentityRs256B59ContractIT test
+          echo IDENTITY_RUNTIME_SIGNED_JTI_REAL_ISSUER_TEST_PASS
+      - name: Full platform Java reactor regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+          echo IDENTITY_RUNTIME_SIGNED_JTI_FULL_REACTOR_PASS
+      - name: Preserve ineligible release and route admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo IDENTITY_RUNTIME_SIGNED_JTI_DRAFT_NO_B62_ADAPTER_NO_GO
