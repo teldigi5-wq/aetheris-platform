@@ -11,6 +11,15 @@ credential and use digest-pinned images.
 {{- if or (eq $redisSecret (.Values.secrets.jwtSecret | toString)) (eq $redisSecret (.Values.secrets.postgresPassword | toString)) (eq $redisSecret (.Values.secrets.rabbitmqPassword | toString)) -}}
   {{- fail "unsafe Helm Redis configuration: secrets.redisPassword must be independent of JWT, PostgreSQL and RabbitMQ credentials" -}}
 {{- end -}}
+{{- /* The JWT signing secret must be private and strong in EVERY mode: the services
+refuse published values (JwtSecretPolicy), so a bundled default could only crash-loop. */ -}}
+{{- $jwtSecret := .Values.secrets.jwtSecret | default "" | toString -}}
+{{- if lt (len (trim $jwtSecret)) 32 -}}
+  {{- fail "unsafe Helm JWT configuration: secrets.jwtSecret requires 32+ non-whitespace characters from a protected secret source" -}}
+{{- end -}}
+{{- if regexMatch "(?i)(change-me|test-only|ci-secret|example)" $jwtSecret -}}
+  {{- fail "unsafe Helm JWT configuration: secrets.jwtSecret looks like a published placeholder or test fixture; generate a random value" -}}
+{{- end -}}
 {{- if not .Values.global.allowInsecureLocalDefaults -}}
   {{- if eq .Values.secrets.jwtSecret "change-me-local-development-secret-32chars" -}}
     {{- fail "unsafe Helm default: replace secrets.jwtSecret or explicitly opt into values-local.yaml for local development" -}}
