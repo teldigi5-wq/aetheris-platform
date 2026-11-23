@@ -113,6 +113,9 @@ class DashboardNginxRuntimePinTests(unittest.TestCase):
         self.assertEqual(self.EXPECTED_NGINX_IMAGE, stages[-1])
         self.assertIn("RUN apk add --no-cache 'zlib=1.4-r0'", dockerfile)
         self.assertIn("'libxslt=1.1.43-r4'", dockerfile)
+        self.assertIn("'libxml2=2.13.9-r3'", dockerfile)
+        self.assertIn("'libcrypto3=3.5.9-r1'", dockerfile)
+        self.assertIn("'libssl3=3.5.9-r1'", dockerfile)
         self.assertIn("COPY nginx.conf /etc/nginx/conf.d/default.conf", dockerfile)
         self.assertIn("COPY --from=build /app/dist /usr/share/nginx/html", dockerfile)
 
