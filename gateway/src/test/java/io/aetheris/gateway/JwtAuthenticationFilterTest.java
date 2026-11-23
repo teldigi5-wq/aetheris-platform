@@ -300,6 +300,79 @@ class JwtAuthenticationFilterTest {
             new JwtAuthenticationFilter(SECRET, JwtAuthenticationFilter.DEFAULT_ISSUER, ""));
     }
 
+    private static ServerWebExchange forwardedFor(JwtAuthenticationFilter filter, MockServerHttpRequest request) {
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(MockServerWebExchange.from(request), next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+        return forwarded.get();
+    }
+
+    @Test
+    void memoryOwnerIsDerivedFromVerifiedUidAndClientCopyIsReplaced() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String token = token(List.of("orchestrator:read"), Instant.now().plusSeconds(300));
+        ServerWebExchange forwarded = forwardedFor(filter,
+                MockServerHttpRequest.get("/api/orchestrator/memory/records")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("X-Aetheris-Owner-Id", "user:7")
+                        .build());
+
+        assertNotNull(forwarded, "verified memory request must be forwarded");
+        assertEquals(List.of("user:42"),
+                forwarded.getRequest().getHeaders().get(JwtAuthenticationFilter.MEMORY_OWNER_HEADER));
+    }
+
+    @Test
+    void clientOwnerHeaderNeverReachesNonMemoryOrPublicRoutes() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String token = token(List.of("orchestrator:read"), Instant.now().plusSeconds(300));
+        ServerWebExchange protectedRoute = forwardedFor(filter,
+                MockServerHttpRequest.get("/api/orchestrator/health")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("X-Aetheris-Owner-Id", "user:7")
+                        .build());
+        assertNotNull(protectedRoute);
+        assertNull(protectedRoute.getRequest().getHeaders().getFirst(JwtAuthenticationFilter.MEMORY_OWNER_HEADER));
+
+        ServerWebExchange publicRoute = forwardedFor(filter,
+                MockServerHttpRequest.post("/api/auth/login")
+                        .header("X-Aetheris-Owner-Id", "user:7")
+                        .build());
+        assertNotNull(publicRoute);
+        assertNull(publicRoute.getRequest().getHeaders().getFirst(JwtAuthenticationFilter.MEMORY_OWNER_HEADER));
+    }
+
+    @Test
+    void memoryAccessWithoutNumericUidIsRejected() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);
+        String token = Jwts.builder()
+                .issuer(JwtAuthenticationFilter.DEFAULT_ISSUER)
+                .audience().add(JwtAuthenticationFilter.DEFAULT_AUDIENCE).and()
+                .subject("no-uid@example.invalid")
+                .claim("role", "DEVELOPER")
+                .claim("uid", "user:7")
+                .claim("scopes", List.of("orchestrator:read"))
+                .issuedAt(Date.from(Instant.now().minusSeconds(5)))
+                .expiration(Date.from(Instant.now().plusSeconds(300)))
+                .signWith(Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/orchestrator/memory/records")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("X-Aetheris-Owner-Id", "user:7")
+                        .build());
+        AtomicReference<ServerWebExchange> forwarded = new AtomicReference<>();
+        filter.filter(exchange, next -> {
+            forwarded.set(next);
+            return Mono.empty();
+        }).block();
+
+        assertNull(forwarded.get(), "memory request without a numeric uid must not be forwarded");
+        assertEquals(HttpStatus.UNAUTHORIZED, exchange.getResponse().getStatusCode());
+    }
+
     @Test
     void spoofedIdentityHeadersAreStrippedOnPublicAuthRoutes() {
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(SECRET);

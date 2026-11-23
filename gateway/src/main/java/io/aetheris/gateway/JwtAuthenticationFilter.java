@@ -38,11 +38,19 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     static final String VERIFIED_USER_ID_ATTRIBUTE = "aetheris.gateway.verifiedUserId";
 
     /**
+     * The orchestrator memory API scopes every record by this header. It is an authority, so a
+     * client copy is never forwarded: the gateway derives it from the verified JWT uid only.
+     */
+    static final String MEMORY_OWNER_HEADER = "X-Aetheris-Owner-Id";
+    static final String MEMORY_ROOT = "/api/orchestrator/memory";
+
+    /**
      * Identity headers are only ever set by this filter after JWT verification.
      * Client-supplied copies are removed on every route, public ones included.
      */
     static final List<String> IDENTITY_HEADERS = List.of(
-            "X-Aetheris-User-Id", "X-Aetheris-User-Email", "X-Aetheris-User-Role", "X-Aetheris-Scopes");
+            "X-Aetheris-User-Id", "X-Aetheris-User-Email", "X-Aetheris-User-Role", "X-Aetheris-Scopes",
+            MEMORY_OWNER_HEADER);
     private static final Set<HttpMethod> WRITE_METHODS = Set.of(HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE);
     public static final String DEFAULT_ISSUER = "aetheris-identity";
     public static final String DEFAULT_AUDIENCE = "aetheris-api";
@@ -332,6 +340,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 return error(exchange, HttpStatus.FORBIDDEN, "Forbidden", "Missing required scope: " + requiredScope);
             }
 
+            // Memory is owner-scoped; without a verified numeric uid there is no owner to bind.
+            if (under(path, MEMORY_ROOT) && !isPositiveIntegralUid(userId)) {
+                return error(exchange, HttpStatus.UNAUTHORIZED, "Unauthorized",
+                        "Memory access requires a verified user identity");
+            }
+
             if (b62g6TestOnlyRevocation != null) {
                 // Refuse nonintegral principal identity even on Orchestrator.
                 // Only signed and fully authorized claims reach the reader.
@@ -376,17 +390,22 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         if (isPositiveIntegralUid(userId)) {
             exchange.getAttributes().put(VERIFIED_USER_ID_ATTRIBUTE, String.valueOf(userId));
         }
+        boolean memoryRoute = under(exchange.getRequest().getURI().getPath(), MEMORY_ROOT);
         ServerWebExchange authenticatedExchange = exchange.mutate()
                 .request(builder -> builder.headers(headers -> {
                     headers.remove("X-Aetheris-User-Id");
                     headers.remove("X-Aetheris-User-Email");
                     headers.remove("X-Aetheris-User-Role");
                     headers.remove("X-Aetheris-Scopes");
+                    headers.remove(MEMORY_OWNER_HEADER);
                     headers.set("X-Aetheris-User-Email", email);
                     headers.set("X-Aetheris-User-Role", role);
                     headers.set("X-Aetheris-Scopes", String.join(" ", scopes.stream().sorted().toList()));
                     if (isPositiveIntegralUid(userId)) {
                         headers.set("X-Aetheris-User-Id", String.valueOf(userId));
+                    }
+                    if (memoryRoute && isPositiveIntegralUid(userId)) {
+                        headers.set(MEMORY_OWNER_HEADER, "user:" + ((Number) userId).longValue());
                     }
                 }))
                 .build();

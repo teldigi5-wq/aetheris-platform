@@ -7,7 +7,9 @@ global:
   allowInsecureLocalDefaults: false
 
 secrets:
-  jwtSecret: change-me-local-development-secret-32chars
+  # Required in every mode, including the local demo; never store the real value in
+  # this repository. Generate it into the ignored values-local-private.yaml.
+  jwtSecret: ""
   postgresPassword: aetheris
   rabbitmqUsername: aetheris
   rabbitmqPassword: aetheris
