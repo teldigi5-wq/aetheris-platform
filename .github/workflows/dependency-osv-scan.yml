@@ -1,0 +1,40 @@
+name: Dependency OSV Scan
+
+# Ported from stale PR #209. Pull requests fail only on vulnerabilities they INTRODUCE
+# (base vs head). The full scan reports every known vulnerability to the Security tab
+# without blocking, so pre-existing findings are triaged instead of freezing all CI.
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '35 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  osv-pr:
+    name: OSV new vulnerability check
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      scan-args: '-r ./'
+      fail-on-vuln: true
+      upload-sarif: true
+
+  osv-full:
+    name: OSV full dependency scan
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      scan-args: '-r ./'
+      fail-on-vuln: false
+      upload-sarif: true
