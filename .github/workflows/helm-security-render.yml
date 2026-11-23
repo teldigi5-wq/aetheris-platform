@@ -44,7 +44,8 @@ jobs:
           import sys
           file = sys.argv[1]
           with open(file, "w", encoding="utf-8") as handle:
-              handle.write("secrets:\n  redisPassword: " + secrets.token_hex(32) + "\n")
+              handle.write("secrets:\n  jwtSecret: " + secrets.token_hex(32)
+                           + "\n  redisPassword: " + secrets.token_hex(32) + "\n")
           os.chmod(file, 0o600)
           PY
 
@@ -76,7 +77,8 @@ jobs:
           fi
 
           # A Redis password must never reuse the bundled JWT secret.
-          printf 'secrets:\n  redisPassword: change-me-local-development-secret-32chars\n' \
+          shared="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          printf 'secrets:\n  jwtSecret: %s\n  redisPassword: %s\n' "$shared" "$shared" \
               > "$temp_dir/reused-values.yaml"
           if helm template aetheris "$chart" -f "$local_values" \
               -f "$temp_dir/reused-values.yaml" --namespace aetheris \
@@ -88,6 +90,31 @@ jobs:
             echo "Unexpected reused Redis password rejection reason" >&2
             exit 1
           fi
+
+          # The JWT secret is mandatory in every mode, including the local demo.
+          redis_only="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+          printf 'secrets:\n  redisPassword: %s\n' "$redis_only" > "$temp_dir/no-jwt-values.yaml"
+          if helm template aetheris "$chart" -f "$local_values" \
+              -f "$temp_dir/no-jwt-values.yaml" --namespace aetheris \
+              > "$temp_dir/no-jwt.yaml" 2> "$temp_dir/no-jwt.err"; then
+            echo "SECURITY REGRESSION: Helm rendered without a JWT secret" >&2
+            exit 1
+          fi
+          grep -Fq 'secrets.jwtSecret requires 32+' "$temp_dir/no-jwt.err"
+
+          # Published placeholders and test fixtures are rejected even in local mode.
+          for bad in change-me-local-development-secret-32chars \
+                     test-only-direct-backend-auth-hmac-secret-at-least-32-bytes; do
+            printf 'secrets:\n  jwtSecret: %s\n  redisPassword: %s\n' "$bad" "$redis_only" \
+                > "$temp_dir/bad-jwt-values.yaml"
+            if helm template aetheris "$chart" -f "$local_values" \
+                -f "$temp_dir/bad-jwt-values.yaml" --namespace aetheris \
+                > "$temp_dir/bad-jwt.yaml" 2> "$temp_dir/bad-jwt.err"; then
+              echo "SECURITY REGRESSION: Helm accepted a published JWT placeholder" >&2
+              exit 1
+            fi
+            grep -Fq 'published placeholder or test fixture' "$temp_dir/bad-jwt.err"
+          done
 
           # A Redis credential must not bypass non-local JWT and image gates.
           if helm template aetheris "$chart" -f "$temp_dir/private-values.yaml" \

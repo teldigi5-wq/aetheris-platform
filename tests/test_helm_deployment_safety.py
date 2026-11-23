@@ -24,6 +24,16 @@ class HelmDeploymentSafetyTest(unittest.TestCase):
         self.assertIn('eq .Values.secrets.rabbitmqPassword "aetheris"', gate)
         self.assertGreaterEqual(gate.count("fail "), 4)
 
+    def test_jwt_secret_is_required_and_never_bundled(self) -> None:
+        values = (CHART / "values.yaml").read_text(encoding="utf-8")
+        gate = (CHART / "templates" / "00-safety-gate.yaml").read_text(encoding="utf-8")
+
+        self.assertIn('jwtSecret: ""', values)
+        self.assertNotIn("change-me-local-development-secret", values)
+        jwt_block = gate.split("if not .Values.global.allowInsecureLocalDefaults")[0]
+        self.assertIn("secrets.jwtSecret requires 32+ non-whitespace characters", jwt_block)
+        self.assertIn("(?i)(change-me|test-only|ci-secret|example)", jwt_block)
+
     def test_non_local_render_requires_digest_pinned_images(self) -> None:
         gate = (CHART / "templates" / "00-safety-gate.yaml").read_text(encoding="utf-8")
 

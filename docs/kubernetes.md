@@ -88,14 +88,15 @@ docker build -t aetheris-platform-dashboard:latest .\dashboard
 
 The local values file keeps `imagePullPolicy: IfNotPresent`, which allows Docker Desktop Kubernetes to use locally built images. For kind or minikube, load these images into that cluster explicitly before installation.
 
-## Mandatory Redis authentication for local Kubernetes
+## Mandatory Redis and JWT secrets for local Kubernetes
 
-The hardened chart refuses to render without an explicit Redis password, **even when**
-\`values-local.yaml\` is used. Generate a different 32-byte secret in a private, ignored
+The hardened chart refuses to render without an explicit Redis password and an explicit
+JWT signing secret, **even when** \`values-local.yaml\` is used (the services reject the
+former published JWT default at startup). Generate two different 32-byte secrets in a private, ignored
 values file before running the commands below. From the repository root:
 
 ```powershell
-python -c "import pathlib,secrets; pathlib.Path('deploy/helm/aetheris/values-local-private.yaml').write_text('secrets:\n  redisPassword: '+secrets.token_hex(32)+'\n', encoding='utf-8')"
+python -c "import pathlib,secrets; pathlib.Path('deploy/helm/aetheris/values-local-private.yaml').write_text('secrets:\n  jwtSecret: '+secrets.token_hex(32)+'\n  redisPassword: '+secrets.token_hex(32)+'\n', encoding='utf-8')"
 ```
 
 Never commit, paste, log or publish that file or run \`helm template\` output
