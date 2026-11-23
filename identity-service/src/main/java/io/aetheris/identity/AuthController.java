@@ -44,6 +44,12 @@ public class AuthController {
         return Map.of("timestamp", Instant.now().toString(), "status", 409, "error", "Conflict", "message", "Email already registered");
     }
 
+    @ExceptionHandler(IdentityService.RegistrationDisabledException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    Map<String, Object> registrationDisabled() {
+        return Map.of("timestamp", Instant.now().toString(), "status", 403, "error", "Forbidden", "message", "Self-registration is disabled");
+    }
+
     @ExceptionHandler(IdentityService.InvalidCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     Map<String, Object> invalidCredentials() {

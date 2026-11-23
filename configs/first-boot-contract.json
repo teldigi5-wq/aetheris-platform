@@ -5,7 +5,9 @@
   "foundation_scope": "aetheris-platform-external-ai-runtime-v1",
   "truth_boundary": "This file defines expected requirements only. It is not evidence that the owner's physical PC exists or has passed validation.",
   "host": {
-    "supported_os": ["Windows 11 x64"],
+    "supported_os": [
+      "Windows 11 x64"
+    ],
     "minimum_ram_gib": 16,
     "preferred_ram_gib": 24,
     "minimum_free_disk_gib": 100,
@@ -68,14 +70,10 @@
   ],
   "expected_platform_ports": [
     3000,
-    5432,
-    5672,
-    6379,
     8080,
     8081,
     8082,
-    8083,
-    15672
+    8083
   ],
   "external_ai_runtime": {
     "repository": "teldigi5-wq/aetheris-ai-runtime",
@@ -106,5 +104,6 @@
     "local AI performance has been benchmarked on the owner's PC",
     "the workstation agent has passed owner-PC activation",
     "the complete stack has passed physical-machine end-to-end testing"
-  ]
+  ],
+  "compose_security_expectation": "Only listed loopback-bound HTTP ports; PostgreSQL Redis RabbitMQ internal/no host publication; external 8090 loopback-only."
 }

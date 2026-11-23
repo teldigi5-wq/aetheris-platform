@@ -1,0 +1,77 @@
+name: Real Identity Issuer to SHA-Pinned Runtime Verifier - Review Only
+# Public repositories; no cross-repo token, secret, mutation, live API or B62.
+on:
+  push:
+    branches: [test/b62g13-audited-emergency-writer-contract-20261027, integration/i10-b7-revocation-proofs-20261114]
+permissions:
+  contents: read
+jobs:
+  exact-public-sources-real-jjwt-interop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Platform exact branch head with no persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Checkout immutable public Runtime verifier source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: teldigi5-wq/aetheris-ai-runtime
+          ref: a772cb803539c982e6ecc7e9faa7b62a1a4a19cc
+          path: runtime-pinned
+          persist-credentials: false
+      - name: Java 21 test-only toolchain
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify independent immutable sources and non-admission policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C runtime-pinned rev-parse HEAD)" = "a772cb803539c982e6ecc7e9faa7b62a1a4a19cc"
+          test "$(git -C runtime-pinned hash-object orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java)" = "a7385acc8b67adbe8258b43f6b4b86d5340e069c"
+          python3 - <<'PY'
+          from pathlib import Path
+          platform=Path('identity-service/src/main/java/io/aetheris/identity/JwtService.java').read_text()
+          runtime=Path('runtime-pinned/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java').read_text()
+          probe=Path('tests/security/IdentityRuntimeExactInteropProbe.java').read_text()
+          assert 'builder.id(UUID.randomUUID().toString());' in platform
+          assert 'return builder.signWith(rsaPrivateKey, Jwts.SIG.RS256).compact();' in platform
+          assert 'return builder.signWith(key).compact();' in platform
+          assert 'VerifiedPrincipal verifyBearerForRevocation(' in runtime
+          assert 'verified.requireRevocationFacts();' in runtime
+          assert 'requireRevocationFacts()' in probe
+          assert 'issuer.issue(account)' in probe
+          assert 'IDENTITY_TO_RUNTIME_NO_B62_SESSION_OR_HTTP_AUTHORIZATION_NO_GO' in probe
+          assert '@Component' not in probe and '@RestController' not in probe
+          print('IDENTITY_RUNTIME_IMMUTABLE_PUBLIC_SOURCE_PINS_PASS')
+          PY
+      - name: Compile true Platform Identity issuer and independent Runtime verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -DskipTests test-compile
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -DincludeScope=test \
+            -Dmdep.outputFile="$PWD/identity-service/target/interop-dependency-cp.txt" \
+            dependency:build-classpath
+          test -s identity-service/target/interop-dependency-cp.txt
+          cp="identity-service/target/classes:identity-service/target/test-classes:$(cat identity-service/target/interop-dependency-cp.txt)"
+          mkdir -p identity-service/target/interop-classes
+          javac --release 21 -cp "$cp" -d identity-service/target/interop-classes \
+            runtime-pinned/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java \
+            tests/security/IdentityRuntimeExactInteropProbe.java
+          java -cp "identity-service/target/interop-classes:$cp" \
+            io.aetheris.identity.IdentityRuntimeExactInteropProbe
+          echo IDENTITY_TO_RUNTIME_ACTUAL_JWT_SIGNED_JTI_INTEROP_REVIEW_PASS
+      - name: Preserve immutable pins and explicit no-go
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git -C runtime-pinned rev-parse HEAD)" = "a772cb803539c982e6ecc7e9faa7b62a1a4a19cc"
+          echo IDENTITY_TO_RUNTIME_INTEROP_NO_B62_AUTHORIZATION_NO_DEPLOY_NO_GO

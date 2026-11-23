@@ -35,6 +35,7 @@ jobs:
           for module in gateway identity-service user-service audit-service; do
             echo "::group::Runtime trust proof: ${module}"
             image="aetheris-${module}-patched-java:${GITHUB_SHA}"
+            echo "$image" >> "${RUNNER_TEMP}/java-images.txt"
             docker build --pull --file "${module}/Dockerfile" --tag "$image" "${module}"
             docker image inspect "$image" --format 'Built image ID={{.Id}}'
             docker run --rm --entrypoint /bin/sh "$image" -ec '
@@ -54,3 +55,64 @@ jobs:
               -cp /proof EmudhraTlsProbe
             echo "::endgroup::"
           done
+      - name: Scan all four exact Java images for fixable high and critical vulnerabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          scanner="$RUNNER_TEMP/trivy"
+          archive="$RUNNER_TEMP/trivy_0.76.2_Linux-64bit.tar.gz"
+          curl --fail --location --silent --show-error --retry 3 --output "$archive" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.tar.gz
+          printf 'bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf  %s\n' "$archive" | sha256sum --check --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" trivy
+          mkdir -p /tmp/java-image-scans
+          while read -r image; do
+            name="${image%%:*}"
+            docker image save "$image" -o "$RUNNER_TEMP/${name}.tar"
+            "$scanner" image --input "$RUNNER_TEMP/${name}.tar" --scanners vuln --exit-code 0 \
+              --format json --output "/tmp/java-image-scans/${name}.json"
+            rm -f "$RUNNER_TEMP/${name}.tar"
+          done < "${RUNNER_TEMP}/java-images.txt"
+          python3 - <<'PY'
+          import collections, json
+          from pathlib import Path
+          blocking = []
+          for report in sorted(Path("/tmp/java-image-scans").glob("*.json")):
+              scan = json.loads(report.read_text())
+              results = scan.get("Results")
+              if not isinstance(results, list):
+                  raise SystemExit(f"{report.name}: Trivy JSON missing Results; scanner evidence is invalid")
+              findings = [v for entry in results for v in (entry.get("Vulnerabilities") or [])]
+              counts = collections.Counter(v.get("Severity", "UNKNOWN") for v in findings)
+              print(report.stem, "findings by severity:", dict(sorted(counts.items())))
+              # Triage evidence: one line per affected package for MEDIUM and above,
+              # with whether a fixed version is published for this distribution.
+              by_pkg = collections.defaultdict(list)
+              for v in findings:
+                  if v.get("Severity") in {"MEDIUM", "HIGH", "CRITICAL"}:
+                      by_pkg[(v.get("PkgName"), v.get("InstalledVersion"))].append(v)
+              for (pkg, installed), vulns in sorted(by_pkg.items()):
+                  fixes = sorted({v.get("FixedVersion") or "-" for v in vulns})
+                  ids = ",".join(sorted(v.get("VulnerabilityID", "?") for v in vulns))
+                  print(f"  TRIAGE {report.stem} {pkg} {installed} n={len(vulns)} fixed={'|'.join(fixes)} {ids}")
+              for v in findings:
+                  if v.get("Severity") in {"HIGH", "CRITICAL"}:
+                      fixed = v.get("FixedVersion") or ""
+                      print(" ", report.stem, v.get("VulnerabilityID"), v.get("Severity"), v.get("PkgName"),
+                            v.get("InstalledVersion"), "fixed:", fixed or "none published")
+                      if fixed:
+                          blocking.append((report.stem, v.get("VulnerabilityID")))
+          # Unfixed HIGH/CRITICAL findings are reported above and stay release NO_GO evidence;
+          # any finding with a published fix blocks this check.
+          if blocking:
+              raise SystemExit(f"JAVA_IMAGE_SCAN_FIXABLE_HIGH_OR_CRITICAL: {blocking}")
+          print("JAVA_IMAGE_SCAN_NO_FIXABLE_HIGH_OR_CRITICAL")
+          PY
+      - name: Preserve Java image vulnerability evidence
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: java-image-vulnerability-scans
+          path: /tmp/java-image-scans/
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,109 @@
+name: S0-E6E Exact-source Platform-Runtime RS256 Interoperability
+on:
+  pull_request:
+    branches:
+      - security/s0-e6d-runtime-audience-rs256-issuer-20261029
+    paths:
+      - 'docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java'
+      - '.github/workflows/s0-e6e-platform-runtime-interop.yml'
+      - 'docs/security/S0_E6E_SOURCE_PINNED_CROSS_REPO_INTEROP_20261029.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: s0-e6e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  exact-platform-issuer-actual-runtime-verifier:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact reviewed Platform PR commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Checkout exact pinned public Runtime verifier source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          repository: teldigi5-wq/aetheris-ai-runtime
+          ref: c0618c827b326eb6a5bd02fa2a5e9365d593b4c6
+          path: _s0_e6e_runtime
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify both immutable source identities and never modify live app code
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git -C _s0_e6e_runtime rev-parse HEAD)" = 'c0618c827b326eb6a5bd02fa2a5e9365d593b4c6'
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenIssuer.java').read_text()
+          r=Path('_s0_e6e_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java').read_text()
+          t=Path('docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java').read_text()
+          for marker in ('issueForVerifiedExchange(IdentityAccount account)', 'Jwts.SIG.RS256',
+                         'pkcs8-base64', 'LIFETIME_SECONDS = 300', 'claim("aud", List.of(audience))'):
+              assert marker in p, marker
+          for marker in ('public final class RuntimePinnedPrincipalVerifier',
+                         'verifyBearer(String authorizationHeader)', 'parseSignedClaims(token)',
+                         'claims.getAudience().size() != 1',
+                         'ROLE_SCOPE_CEILINGS', 'verifyWith(trustedKey)'):
+              assert marker in r, marker
+          for marker in ('RuntimePinnedPrincipalVerifier', 'RuntimeAudienceTokenIssuer',
+                         'actualPlatformIssuerMatchesActualRuntimeVerifierForAllThreeRoles',
+                         'actualLegacyPlatformHmacAccessTokenIsNotRuntimeRs256Token',
+                         'signedRoleEscalationAndUnexpectedAudienceAlwaysRejected',
+                         'Clock.fixed(Instant.now(), ZoneOffset.UTC)'):
+              assert marker in t, marker
+          assert 'import io.aetheris.orchestrator.security.RuntimePinnedPrincipalVerifier;' in t
+          for dangerous in ('@RestController', '@PostMapping', '@GetMapping', 'new URL(', 'System.getenv('):
+              assert dangerous not in p,dangerous
+          legacy=Path('identity-service/src/main/java/io/aetheris/identity/JwtService.java').read_text()
+          assert 'Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8))' in legacy
+          assert '.signWith(key)' in legacy
+          quarantine=Path('_s0_e6e_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimeUncertifiedApiHttpFilter.java').read_text()
+          ownerless=Path('_s0_e6e_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/api/OwnerlessTaskMissionHttpFilter.java').read_text()
+          assert 'SC_NOT_FOUND' in quarantine and 'SC_NOT_FOUND' in ownerless
+          assert '@Order(Ordered.HIGHEST_PRECEDENCE)' in ownerless
+          assert '@Order(Ordered.HIGHEST_PRECEDENCE + 1)' in quarantine
+          print('AETHERIS_S0_E6E_PLATFORM_AND_RUNTIME_EXACT_SOURCE_SHA_PINNING_PASS')
+          PY
+      - name: Compile actual Runtime verifier against actual Platform issuer and run interop tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_SRC=_s0_e6e_runtime/orchestrator-service/src/main/java/io/aetheris/orchestrator/security/RuntimePinnedPrincipalVerifier.java
+          DEST=identity-service/src/test/java/io/aetheris/orchestrator/security
+          mkdir -p "$DEST"
+          cp "$RUNTIME_SRC" "$DEST/RuntimePinnedPrincipalVerifier.java"
+          cmp "$RUNTIME_SRC" "$DEST/RuntimePinnedPrincipalVerifier.java"
+          cp docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java identity-service/src/test/java/io/aetheris/identity/RuntimePlatformRuntimeCrossRepoRoundTripTest.java
+          cmp docs/security/ci/RuntimePlatformRuntimeCrossRepoRoundTripTest.java identity-service/src/test/java/io/aetheris/identity/RuntimePlatformRuntimeCrossRepoRoundTripTest.java
+          ./mvnw -B -ntp -f identity-service/pom.xml \
+            -Dtest=RuntimePlatformRuntimeCrossRepoRoundTripTest,RuntimeAudienceTokenIssuerTest,IdentityServiceSecurityTest,RefreshTokenServiceTest,BrowserAuthControllerTest test
+          grep -Fq 'Stage45 NO_GO' docs/security/S0_E6E_SOURCE_PINNED_CROSS_REPO_INTEROP_20261029.md
+          echo AETHERIS_S0_E6E_REAL_PLATFORM_ISSUER_TO_REAL_RUNTIME_VERIFIER_CROSS_REPO_PASS
+      - name: Verify pinned Runtime HTTP quarantine regression is still active
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd _s0_e6e_runtime
+            ./mvnw -B -ntp -f orchestrator-service/pom.xml \
+              -Dtest=RuntimePinnedPrincipalVerifierTest,RuntimeRealDirectPortDenialRegressionTest test
+          )
+          echo AETHERIS_S0_E6E_PINNED_RUNTIME_REAL_HTTP_QUARANTINE_NOT_UNLOCKED_PASS
+      - name: No token exchange, no keys, no release activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -f identity-service/src/main/java/io/aetheris/identity/RuntimeAudienceTokenController.java
+          echo AETHERIS_S0_E6E_SYNTHETIC_ROUNDTRIP_NOT_LIVE_SESSION_NO_GO_PASS

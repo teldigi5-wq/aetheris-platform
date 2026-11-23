@@ -10,7 +10,8 @@ const HEALTH = Object.freeze({ NOT_PROBED: "NOT_PROBED", UP: "UP", UNAVAILABLE: 
 function normalizeLoopbackBase(value) {
   try {
     const url = new URL(String(value || "").trim());
-    const loopback = url.hostname === "127.0.0.1" || url.hostname === "localhost";
+    // Literal IPv4 loopback only, matching the native export check.
+    const loopback = url.hostname === "127.0.0.1";
     const cleanPath = url.pathname === "/" || url.pathname === "";
     if (url.protocol !== "http:" || !loopback || !cleanPath || url.username || url.password || url.search || url.hash) return null;
     return `${url.protocol}//${url.host}`;

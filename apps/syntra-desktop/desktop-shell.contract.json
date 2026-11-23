@@ -9,7 +9,8 @@
     "loopbackHost": "127.0.0.1",
     "defaultPort": 8090,
     "path": "/actuator/health",
-    "readOnly": true
+    "readOnly": true,
+    "redirects": "never-followed"
   },
   "controls": ["STOP", "PAUSE", "RESUME", "TAKE_CONTROL", "APPROVE", "REJECT"],
   "hostPairing": "challenge-response",
@@ -28,7 +29,9 @@
     "destination": "current-user-temporary-directory",
     "promptContentIncluded": false,
     "secretMaterialIncluded": false,
-    "gatewayMustBeLoopback": true
+    "gatewayMustBeLoopback": true,
+    "gatewayLoopbackHost": "127.0.0.1",
+    "write": "create-new-temporary-then-atomic-rename-no-symlink-follow"
   },
   "recovery": {
     "automaticSuccessClaims": false,

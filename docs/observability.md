@@ -12,7 +12,7 @@ Useful interview concepts: counters vs gauges, histograms, request rate, latency
 
 ## Logs
 
-Applications continue writing normal container logs. Grafana Alloy discovers Docker containers through the Docker socket and sends their logs to Loki. Grafana uses Loki as the centralized log datasource.
+Applications continue writing normal container logs. An authorized host-side log exporter can copy selected real container logs to private, Git-ignored files under `observability/logs/`. Alloy reads those files through a read-only mount and forwards them to Loki. No Docker control socket is mounted inside Alloy. Metrics and traces remain operational without log export. Grafana uses Loki as the centralized log datasource.
 
 Useful interview concepts: structured logging, correlation IDs, centralized logging, log retention, indexing tradeoffs, and why logs are not a replacement for metrics or traces.
 
@@ -27,7 +27,7 @@ Useful interview concepts: trace IDs, spans, parent/child relationships, context
 ```text
 Java services -> /actuator/prometheus -> Prometheus -> Grafana
 Java services -> OTLP -> OpenTelemetry Collector -> Tempo -> Grafana
-Docker logs -> Grafana Alloy -> Loki -> Grafana
+Host-exported selected log files -> Grafana Alloy (read-only files) -> Loki -> Grafana
 ```
 
 ## Running the stack
@@ -46,8 +46,10 @@ Local endpoints:
 - Tempo: http://localhost:3200
 - Alloy: http://localhost:12345
 
-Grafana local credentials are `aetheris` / `aetheris`.
+Grafana local username is `aetheris`; its password must be set privately via `AETHERIS_GRAFANA_ADMIN_PASSWORD` (no default).
 
 ## Production hardening
 
 The local setup favors learning and visibility rather than production defaults. A production deployment should reduce trace sampling, secure Grafana and telemetry endpoints, configure resource limits, add retention/storage planning, introduce alert rules, redact sensitive fields, use TLS/authentication between telemetry components, and define SLOs before scaling the telemetry stack.
+
+For local log capture, use the trusted host's `docker compose logs --no-color --timestamps --tail=200 SERVICE > observability/logs/SERVICE.log` after creating the ignored directory. This captures a snapshot, not a live stream. Do not store private tokens in logs; restrict file permissions, retention and access. The observability container is not given Docker daemon API access.

@@ -1,0 +1,133 @@
+name: Audit B4X Flyway History Content and Checksum Refusal
+on:
+  pull_request:
+    branches: [test/audit-v1-index-default-drift-20261026]
+    paths:
+      - 'docs/database/rehearsal/audit_flyway_history_readonly.sql'
+      - 'scripts/audit_flyway_history_preflight.py'
+      - 'tests/test_audit_flyway_history_preflight.py'
+      - '.github/workflows/audit-flyway-history-content-preflight.yml'
+      - 'docs/database/AUDIT_HISTORY_CONTENT_B4X_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+      - 'README.md'
+permissions:
+  contents: read
+jobs:
+  real-flyway-history-synthetic-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Static security tests and assert disposable Compose topology
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_audit_flyway_history_preflight.py' -v
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml config --format json > "$RUNNER_TEMP/b4x-topology.json"
+          python3 - "$RUNNER_TEMP/b4x-topology.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          c=json.loads(Path(sys.argv[1]).read_text())
+          assert not c.get('volumes')
+          assert len(c['networks'])==1 and all(v.get('internal') is True for v in c['networks'].values())
+          for service in c['services'].values():
+              assert not service.get('ports') and not service.get('network_mode')
+              assert not service.get('privileged') and not service.get('devices')
+          assert any('postgresql/data' in str(v) for v in c['services']['postgres']['tmpfs'])
+          for service in ('audit-fresh','audit-second'):
+              env=c['services'][service]['environment']
+              assert 'SPRING_FLYWAY_BASELINE_ON_MIGRATE' not in env
+              assert 'SPRING_FLYWAY_TABLE' not in env
+              assert env['SPRING_DATASOURCE_URL']=='jdbc:postgresql://postgres:5432/aetheris_audit_fresh'
+          assert c['services']['audit-fresh']['image']==c['services']['audit-second']['image']
+          print('B4X_DISPOSABLE_PRIVATE_TMPFS_NO_SHIPPED_FLYWAY_OVERRIDES')
+          PY
+      - name: Build the actual shipped Audit image (no mock migration runner)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml build audit-fresh
+      - name: Start fresh disposable PostgreSQL and run real Audit Flyway V1
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build --wait -d postgres rabbitmq
+          $C exec -T postgres createdb -U probe aetheris_audit_fresh
+          $C up --no-build -d audit-fresh
+          found=0
+          for i in $(seq 1 90); do
+            count=$($C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM public.flyway_audit_schema_history WHERE version='1' AND type='SQL' AND success" 2>/dev/null || true)
+            if [ "$count" = 1 ]; then found=1; break; fi
+            sleep 2
+          done
+          test "$found" -eq 1 || { echo B4X_REAL_AUDIT_V1_NOT_RECORDED; exit 1; }
+          echo B4X_REAL_AUDIT_SQL_V1_CREATED_HISTORY
+      - name: Read-only history metadata and synthetic falsification probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          sql=docs/database/rehearsal/audit_flyway_history_readonly.sql
+          snapshot="$RUNNER_TEMP/b4x-history-booleans.json"
+          result="$RUNNER_TEMP/b4x-decision.txt"
+          classify() {
+            $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 < "$sql" > "$snapshot"
+            set +e
+            python3 scripts/audit_flyway_history_preflight.py "$snapshot" > "$result"
+            rc=$?
+            set -e
+            test "$rc" -eq 1
+            grep -qx "$1" "$result"
+          }
+          classify AUDIT_HISTORY_REVIEW_FLYWAY_VALIDATE_CHECKSUM_AND_OWNERSHIP
+          # Metadata can prove presence, not an independently valid SQL checksum.
+          original=$($C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -c "SELECT checksum FROM public.flyway_audit_schema_history WHERE version='1'")
+          [[ "$original" =~ ^-?[0-9]+$ ]]
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "UPDATE public.flyway_audit_schema_history SET checksum=NULL WHERE version='1'"
+          classify AUDIT_HISTORY_NO_GO_CHECKSUM_ABSENT
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "UPDATE public.flyway_audit_schema_history SET checksum=$original WHERE version='1'"
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "UPDATE public.flyway_audit_schema_history SET success=false WHERE version='1'"
+          classify AUDIT_HISTORY_NO_GO_FAILED_MIGRATION_ROW
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "UPDATE public.flyway_audit_schema_history SET success=true WHERE version='1'"
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "UPDATE public.flyway_audit_schema_history SET script='V1__tampered.sql' WHERE version='1'"
+          classify AUDIT_HISTORY_NO_GO_UNEXPECTED_MIGRATION_METADATA
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "UPDATE public.flyway_audit_schema_history SET script='V1__create_audit_events.sql' WHERE version='1'"
+          classify AUDIT_HISTORY_REVIEW_FLYWAY_VALIDATE_CHECKSUM_AND_OWNERSHIP
+          # A changed but non-NULL checksum still passes this bounded metadata
+          # triage; only the REAL Flyway application validates SQL checksum.
+          $C exec -T postgres psql -Xq -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "UPDATE public.flyway_audit_schema_history SET checksum=$((original + 1)) WHERE version='1'"
+          classify AUDIT_HISTORY_REVIEW_FLYWAY_VALIDATE_CHECKSUM_AND_OWNERSHIP
+          echo B4X_REAL_V1_HISTORY_METADATA_AND_ADVERSARIAL_ROW_CASES_VERIFIED
+      - name: Independent real Audit startup MUST reject altered Flyway SQL checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          C='docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml'
+          $C up --no-build -d audit-second
+          cid=$($C ps -aq audit-second)
+          test -n "$cid"
+          stopped=0
+          for i in $(seq 1 70); do
+            if [ "$(docker inspect -f '{{.State.Status}}' "$cid")" = exited ]; then stopped=1; break; fi
+            sleep 2
+          done
+          test "$stopped" -eq 1 || { echo B4X_TAMPERED_FLYWAY_HISTORY_WRONGLY_BOOTED; exit 1; }
+          test "$(docker inspect -f '{{.State.ExitCode}}' "$cid")" -ne 0
+          docker logs "$cid" > "$RUNNER_TEMP/b4x-tampered-flyway.log" 2>&1
+          grep -Eiq 'checksum' "$RUNNER_TEMP/b4x-tampered-flyway.log"
+          grep -Eiq 'mismatch|validate failed|inconsistent' "$RUNNER_TEMP/b4x-tampered-flyway.log"
+          $C exec -T postgres psql -XqAt -U probe -d aetheris_audit_fresh -v ON_ERROR_STOP=1 -c "SELECT count(*) FROM public.flyway_audit_schema_history" | grep -qx 1
+          echo B4X_REAL_FLYWAY_REJECTS_TAMPERED_CHECKSUM_WITHOUT_BASELINE
+      - name: Bounded test-only diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml ps || true
+          docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml logs --no-color --tail=45 audit-fresh audit-second || true
+      - name: Always delete only this CI's disposable network and tmpfs database
+        if: always()
+        shell: bash
+        run: docker compose -f tests/security/docker-compose.backend-auth-probe.yml -f tests/security/docker-compose.audit-history-overlay.yml down --volumes --remove-orphans --timeout 10 || true
