@@ -31,9 +31,17 @@ import static org.junit.jupiter.api.Assertions.*;
  * generated in memory per run; no fixture files, no real signing material.
  */
 class JwtAlgorithmAndKeyIdHardeningTest {
+
+    // Random per run: signing-secret literals committed to a public repository are
+    // published values (see JwtSecretPolicy). Never commit one, even in tests.
+    private static String randomTestSecret() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.HexFormat.of().formatHex(bytes);
+    }
     private static final String ISSUER = JwtAuthenticationFilter.DEFAULT_ISSUER;
     private static final String AUDIENCE = JwtAuthenticationFilter.DEFAULT_AUDIENCE;
-    private static final String HMAC_SECRET = "i6-test-only-hmac-secret-at-least-32-bytes-long";
+    private static final String HMAC_SECRET = randomTestSecret();
     private static final String CURRENT_KID = "i6-current";
     private static final String PREVIOUS_KID = "i6-previous";
 

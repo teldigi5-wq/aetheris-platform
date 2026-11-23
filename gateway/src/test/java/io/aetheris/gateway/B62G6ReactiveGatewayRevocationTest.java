@@ -30,6 +30,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * No JDBC, live key, production bean or deployed emergency revocation setting.
  */
 class B62G6ReactiveGatewayRevocationTest {
+
+    // Random per run: signing-secret literals committed to a public repository are
+    // published values (see JwtSecretPolicy). Never commit one, even in tests.
+    private static String randomTestSecret() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.HexFormat.of().formatHex(bytes);
+    }
     private static final Instant NOW = Instant.parse("2026-10-27T09:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     private static final String KID = "b62g6-current";
@@ -186,7 +194,7 @@ class B62G6ReactiveGatewayRevocationTest {
     @Test
     void injectedProofCannotBeConfiguredForLegacyHmacVerifier() {
         assertThrows(IllegalArgumentException.class, () ->
-            new JwtAuthenticationFilter("test-only-direct-backend-auth-hmac-secret-at-least-32-bytes",
+            new JwtAuthenticationFilter(randomTestSecret(),
                 JwtAuthenticationFilter.DEFAULT_ISSUER, JwtAuthenticationFilter.DEFAULT_AUDIENCE,
                 "hmac", "", "", "", "", "", CLOCK,
                 (uid, issuer, kid, iat) -> Mono.just(true)));

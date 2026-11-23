@@ -19,8 +19,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Real filter invoked by MockMvc; no network, JWT secret in test code only. */
 class DirectApiJwtFilterTest {
+
+    // Random per run: signing-secret literals committed to a public repository are
+    // published values (see JwtSecretPolicy). Never commit one, even in tests.
+    private static String randomTestSecret() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.HexFormat.of().formatHex(bytes);
+    }
     private static final String TEST_ONLY_SECRET =
-        "test-only-direct-backend-auth-hmac-secret-at-least-32-bytes";
+        randomTestSecret();
     private final SecretKey key = Keys.hmacShaKeyFor(TEST_ONLY_SECRET.getBytes(StandardCharsets.UTF_8));
     private MockMvc mvc;
 

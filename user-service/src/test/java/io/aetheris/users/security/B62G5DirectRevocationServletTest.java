@@ -26,6 +26,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Never supplies real user tokens, customer DB records or production keys.
  */
 class B62G5DirectRevocationServletTest {
+
+    // Random per run: signing-secret literals committed to a public repository are
+    // published values (see JwtSecretPolicy). Never commit one, even in tests.
+    private static String randomTestSecret() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.HexFormat.of().formatHex(bytes);
+    }
     private static final Instant NOW = Instant.parse("2026-10-27T08:00:00Z");
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
     private static final String KID = "b62g5-current";
@@ -149,7 +157,7 @@ class B62G5DirectRevocationServletTest {
     void injectedRevocationCannotBeUsedInLegacyHmacMode() {
         assertThrows(IllegalArgumentException.class, () ->
             new DirectApiJwtFilter(
-                "test-only-direct-backend-auth-hmac-secret-at-least-32-bytes",
+                randomTestSecret(),
                 DirectApiJwtFilter.DEFAULT_ISSUER, DirectApiJwtFilter.DEFAULT_AUDIENCE,
                 "hmac", "", "", "", "", "", CLOCK,
                 (uid, issuer, kid, iat) -> true));

@@ -24,7 +24,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * gateway. Keys are generated in memory per run.
  */
 class DirectApiAlgorithmConfusionTest {
-    private static final String SECRET = "i6-test-only-direct-hmac-secret-at-least-32-bytes";
+
+    // Random per run: signing-secret literals committed to a public repository are
+    // published values (see JwtSecretPolicy). Never commit one, even in tests.
+    private static String randomTestSecret() {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        return java.util.HexFormat.of().formatHex(bytes);
+    }
+    private static final String SECRET = randomTestSecret();
     private static final String KID = "i6-current";
     private static KeyPair current;
     private static KeyPair attacker;
