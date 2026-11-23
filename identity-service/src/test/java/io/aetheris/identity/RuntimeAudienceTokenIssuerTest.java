@@ -23,10 +23,13 @@ class RuntimeAudienceTokenIssuerTest {
 
     // Random per run: signing-secret literals committed to a public repository are
     // published values (see JwtSecretPolicy). Never commit one, even in tests.
-    private static String randomTestSecret() {
-        byte[] bytes = new byte[32];
+    // Length is kept equal to the former literal so JJWT selects the same HMAC
+    // algorithm as before (32-47 bytes HS256, 48-63 HS384, 64+ HS512).
+    private static String randomTestSecret(int length) {
+        byte[] bytes = new byte[length];
         new java.security.SecureRandom().nextBytes(bytes);
-        return java.util.HexFormat.of().formatHex(bytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+                .substring(0, length);
     }
     private static final String ISSUER = "https://identity.aetheris.example.invalid";
     private static final String AUDIENCE = "aetheris-orchestrator-api";
@@ -139,7 +142,7 @@ class RuntimeAudienceTokenIssuerTest {
             .clock(() -> java.util.Date.from(CLOCK.instant()))
             .build().parseSignedClaims(signed));
         var hmac = Keys.hmacShaKeyFor(
-            randomTestSecret().getBytes(StandardCharsets.UTF_8));
+            randomTestSecret(40).getBytes(StandardCharsets.UTF_8));
         assertThrows(RuntimeException.class, () -> Jwts.parser()
             .verifyWith(hmac)
             .clock(() -> java.util.Date.from(CLOCK.instant()))
@@ -158,7 +161,7 @@ class RuntimeAudienceTokenIssuerTest {
             () -> issuer.issueForVerifiedExchange(unsaved));
 
         // Existing production browser/Gateway token behavior remains separate.
-        var legacy = new JwtService(randomTestSecret(),3600);
+        var legacy = new JwtService(randomTestSecret(46),3600);
         String hs=legacy.issue(account(Role.API_CONSUMER));
         var header = hs.split("\\.")[0];
         String json=new String(Base64.getUrlDecoder().decode(header),

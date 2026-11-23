@@ -23,13 +23,16 @@ class DirectApiJwtFilterTest {
 
     // Random per run: signing-secret literals committed to a public repository are
     // published values (see JwtSecretPolicy). Never commit one, even in tests.
-    private static String randomTestSecret() {
-        byte[] bytes = new byte[32];
+    // Length is kept equal to the former literal so JJWT selects the same HMAC
+    // algorithm as before (32-47 bytes HS256, 48-63 HS384, 64+ HS512).
+    private static String randomTestSecret(int length) {
+        byte[] bytes = new byte[length];
         new java.security.SecureRandom().nextBytes(bytes);
-        return java.util.HexFormat.of().formatHex(bytes);
+        return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+                .substring(0, length);
     }
     private static final String TEST_ONLY_SECRET =
-        randomTestSecret();
+        randomTestSecret(59);
     private final SecretKey key = Keys.hmacShaKeyFor(TEST_ONLY_SECRET.getBytes(StandardCharsets.UTF_8));
     private MockMvc mvc;
 
