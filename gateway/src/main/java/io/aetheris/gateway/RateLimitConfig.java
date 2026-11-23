@@ -11,9 +11,12 @@ public class RateLimitConfig {
     @Bean
     KeyResolver aetherisKeyResolver() {
         return exchange -> {
-            String userId = exchange.getRequest().getHeaders().getFirst("X-Aetheris-User-Id");
-            if (userId != null && !userId.isBlank()) {
-                return Mono.just("user:" + userId);
+            // Only the JWT verifier may populate this server-side exchange attribute.
+            // Client-supplied X-Aetheris-User-Id must never select a rate-limit bucket:
+            // /api/auth/** is intentionally unauthenticated.
+            String verifiedUserId = exchange.getAttribute(JwtAuthenticationFilter.VERIFIED_USER_ID_ATTRIBUTE);
+            if (verifiedUserId != null && !verifiedUserId.isBlank()) {
+                return Mono.just("user:" + verifiedUserId);
             }
 
             if (exchange.getRequest().getRemoteAddress() != null) {

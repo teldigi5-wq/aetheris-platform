@@ -320,12 +320,32 @@ def main() -> int:
         )
         if status != 201 or not isinstance(auth, dict) or not auth.get("accessToken"):
             raise AssertionError(f"registration failed: HTTP {status} {auth!r}")
-        headers = {"Authorization": f"Bearer {auth['accessToken']}"}
+        # User APIs are ADMIN-only and enforced by user-service itself. No application
+        # route grants ADMIN: promote this one disposable CI identity in the isolated
+        # database and obtain a signed ADMIN token through the normal login path.
+        promoted = run([
+            "docker", "compose", "exec", "-T", "postgres",
+            "psql", "-U", "aetheris", "-d", "aetheris", "-tA", "-c",
+            "with promoted as (update identity_accounts set role='ADMIN' "
+            "where email='" + identity_email.replace("'", "''") + "' and role='API_CONSUMER' returning id) "
+            "select count(*) from promoted;",
+        ]).strip()
+        if promoted != "1":
+            raise AssertionError("synthetic deployment administrator promotion did not affect exactly one account")
+        status, admin_login = http_json(
+            "POST",
+            "http://127.0.0.1:8080/api/auth/login",
+            {"email": identity_email, "password": password},
+        )
+        if status != 200 or not isinstance(admin_login, dict) or admin_login.get("account", {}).get("role") != "ADMIN":
+            raise AssertionError(f"synthetic deployment administrator login failed: HTTP {status}")
+        headers = {"Authorization": f"Bearer {admin_login['accessToken']}"}
 
         status, created_profile = http_json(
             "POST",
             "http://127.0.0.1:8081/api/users",
             {"name": "Deployment Release Profile", "email": profile_email},
+            headers=headers,
         )
         if (
             status != 201

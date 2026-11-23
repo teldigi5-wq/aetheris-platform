@@ -1,0 +1,57 @@
+name: B62-C Pinned JJWT Parser UTC Clock
+on:
+  pull_request:
+    branches: [security/b62b-max-signed-access-token-ttl-20261026]
+    paths:
+      - '.github/workflows/b62c-jjwt-parser-clock.yml'
+      - 'tests/test_b62c_jjwt_parser_clock.py'
+      - 'tests/test_b62b_max_access_token_ttl.py'
+      - 'tests/test_b62_temporal_clock_contract.py'
+      - 'gateway/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'identity-service/**'
+      - 'docs/security/B62C_PARSER_CLOCK_AND_NBF_20261026.md'
+      - 'docs/current-release-roadmap-20261025.md'
+permissions:
+  contents: read
+jobs:
+  strict-parser-clock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Verify immutable PR source and B61-B62 security guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          python3 -m unittest discover -s tests -p 'test_b62c_jjwt_parser_clock.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62b_max_access_token_ttl.py' -v
+          python3 -m unittest discover -s tests -p 'test_b62_temporal_clock_contract.py' -v
+          python3 -m unittest discover -s tests -p 'test_b61_previous_key_deadline_contract.py' -v
+      - name: Complete four-module Java regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f pom.xml test
+      - name: Verify real signed RSA JWT at strict nbf and expiration boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./mvnw -B -ntp -f identity-service/pom.xml -Dtest=IdentityRs256B60RotationIT test
+          test "$(cat identity-service/target/b60-rotation/test-only.marker)" = "B60_EPHEMERAL_PUBLIC_ROLLOVER_V1"
+          test -s identity-service/target/b60-rotation/future-nbf.jwt
+          test -s identity-service/target/b60-rotation/future-nbf.epoch
+          ./mvnw -B -ntp -f gateway/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f user-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          ./mvnw -B -ntp -f audit-service/pom.xml -Dtest=IdentityRs256B61DeadlineIT test
+          echo B62C_REAL_SIGNED_RSA_JJWT_NBF_EXP_CLOCK_CONTRACT_VERIFIED

@@ -13,13 +13,21 @@ import java.util.Base64;
 
 @Service
 public class RefreshTokenService {
+    // No access-token policy bypass: refresh sessions are separately bounded
+    // to at most seven days. Does not imply immediate access-JWT revocation.
+    public static final long MAX_REFRESH_TOKEN_LIFETIME_SECONDS = 604800L;
     private final RefreshTokenRepository repository;
     private final SecureRandom secureRandom = new SecureRandom();
     private final long expirationSeconds;
 
     public RefreshTokenService(RefreshTokenRepository repository,
                                @Value("${aetheris.jwt.refresh-expiration-seconds:604800}") long expirationSeconds) {
-        this.repository = repository;
+        // Fail closed at service startup on negative, zero, or excessive
+        // refresh-session validity. No request-controlled policy override.
+        if (expirationSeconds < 1 || expirationSeconds > MAX_REFRESH_TOKEN_LIFETIME_SECONDS) {
+            throw new IllegalArgumentException("Refresh-token lifetime must be 1..604800 seconds");
+        }
+        this.repository = java.util.Objects.requireNonNull(repository, "repository");
         this.expirationSeconds = expirationSeconds;
     }
 

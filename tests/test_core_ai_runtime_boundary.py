@@ -39,6 +39,29 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def builds_only_pinned_external_runtime(text: str, token: str) -> bool:
+    """True when every occurrence of a runtime build token runs inside a subshell that
+    first cds into a checkout of teldigi5-wq/aetheris-ai-runtime pinned to an exact
+    40-hex commit in the same workflow (cross-repo interop proofs). Building the
+    platform's own tree as runtime source is still a violation."""
+    import re
+    pinned_paths = set()
+    for match in re.finditer(
+        r"repository: teldigi5-wq/aetheris-ai-runtime\s*\n\s*ref: ([0-9a-f]{40})\s*\n\s*path: (\S+)", text
+    ):
+        pinned_paths.add(match.group(2))
+    if not pinned_paths:
+        return False
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if token not in line:
+            continue
+        window = "\n".join(lines[max(0, index - 6):index])
+        if not any(re.search(rf"^\s*cd {re.escape(path)}\s*$", window, re.M) for path in pinned_paths):
+            return False
+    return True
+
+
 class CoreAiRuntimeBoundaryTest(unittest.TestCase):
     def test_core_does_not_import_runtime_java(self) -> None:
         forbidden = re.compile(r"\bio\.aetheris\.(?:orchestrator|workstation)\b")
@@ -78,7 +101,7 @@ class CoreAiRuntimeBoundaryTest(unittest.TestCase):
                 "build: ./orchestrator-service",
                 "-f orchestrator-service/pom.xml",
             ):
-                if token in text:
+                if token in text and not builds_only_pinned_external_runtime(text, token):
                     violations.append(f"{workflow.relative_to(ROOT)} -> {token}")
         self.assertEqual([], violations)
 

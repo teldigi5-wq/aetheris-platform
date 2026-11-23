@@ -16,6 +16,11 @@ tauri-build = { version = "=2.6.3", features = [] }
 
 [dependencies]
 tauri = { version = "=2.11.5", features = [] }
+# Keep the 2.11.x runtime API aligned with tauri=2.11.5; a fresh resolve otherwise
+# picks tauri-runtime 2.12.x, which does not compile against tauri 2.11.5.
+tauri-runtime = "=2.11.3"
+tauri-runtime-wry = "=2.11.4"
+tauri-utils = "=2.9.3"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

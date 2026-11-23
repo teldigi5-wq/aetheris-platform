@@ -25,7 +25,9 @@ class ActuatorHealthBoundaryTests(unittest.TestCase):
         for relative in SERVICE_CONFIGS:
             with self.subTest(relative=relative):
                 text = (ROOT / relative).read_text(encoding="utf-8")
-                self.assertIn("include: health", text)
+                # Either a literal list starting with health, or an env override whose
+                # default starts with health (gateway: AETHERIS_GATEWAY_ACTUATOR_EXPOSURE).
+                self.assertRegex(text, r"include: (health|\$\{[A-Z_]+:health)")
 
 
 if __name__ == "__main__":
