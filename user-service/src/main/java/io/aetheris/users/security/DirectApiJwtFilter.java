@@ -216,14 +216,38 @@ public final class DirectApiJwtFilter extends OncePerRequestFilter {
         this(secret, DEFAULT_ISSUER, DEFAULT_AUDIENCE);
     }
 
+    /** Characters a request path may use and still skip authentication. */
+    private static final java.util.regex.Pattern PLAIN_PATH =
+            java.util.regex.Pattern.compile("[A-Za-z0-9/_.-]*");
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // URI minus the container context path works for standalone MockMvc, root
-        // Servlet mappings, and non-root deployments. Never trust forwarded URI headers.
+        // Fail closed (2026-11-23, proven bypass: unauthenticated GET /%61pi/users returned 200).
+        // The container decodes percent-escapes and Spring MVC strips ;matrix parameters before
+        // choosing a controller, so the RAW spelling cannot decide that a request is not /api.
+        // Authentication is skipped only for plain, unambiguous paths that are not /api in any
+        // representation (raw URI, servlet path, path info), compared case-insensitively.
+        // Never trust forwarded URI headers.
         String uri = request.getRequestURI();
         String context = request.getContextPath();
-        String path = uri.startsWith(context) ? uri.substring(context.length()) : uri;
-        return !(ROOT.equals(path) || path.startsWith(ROOT + "/"));
+        if (uri == null) {
+            return false;
+        }
+        String path = context != null && uri.startsWith(context) ? uri.substring(context.length()) : uri;
+        if (!PLAIN_PATH.matcher(path).matches() || path.contains("//")
+                || path.equals(".") || path.contains("/./") || path.contains("/../")
+                || path.endsWith("/.") || path.endsWith("/..")) {
+            return false;
+        }
+        return !(isApi(path) || isApi(request.getServletPath()) || isApi(request.getPathInfo()));
+    }
+
+    private static boolean isApi(String path) {
+        if (path == null) {
+            return false;
+        }
+        String lower = path.toLowerCase(java.util.Locale.ROOT);
+        return lower.equals(ROOT) || lower.startsWith(ROOT + "/");
     }
 
     @Override
