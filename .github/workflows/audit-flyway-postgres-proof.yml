@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker compose exec -T postgres psql -U aetheris -d aetheris -v ON_ERROR_STOP=1 -q -c "INSERT INTO audit_events(event_id,event_type,occurred_at,user_id,name,email) VALUES ('ci-flyway-restart-event','CI_PROOF',CURRENT_TIMESTAMP,42,'CI Synthetic','ci@example.invalid')"
+          docker compose exec -T postgres psql -U aetheris -d aetheris -v ON_ERROR_STOP=1 -q -c "INSERT INTO audit.audit_events(event_id,event_type,occurred_at,user_id,name,email) VALUES ('ci-flyway-restart-event','CI_PROOF',CURRENT_TIMESTAMP,42,'CI Synthetic','ci@example.invalid')"
           docker compose restart audit-service
           for attempt in $(seq 1 90); do
             if curl --fail --silent --max-time 3 http://127.0.0.1:8083/actuator/health | grep -q '"status":"UP"'; then
@@ -102,7 +102,7 @@ jobs:
           done
           curl --fail --silent --max-time 5 http://127.0.0.1:8083/actuator/health | grep -q '"status":"UP"'
           psqlq() { docker compose exec -T postgres psql -U aetheris -d aetheris -Atqc "$1"; }
-          test "$(psqlq "SELECT count(*) FROM audit_events WHERE event_id='ci-flyway-restart-event'")" = "1"
+          test "$(psqlq "SELECT count(*) FROM audit.audit_events WHERE event_id='ci-flyway-restart-event'")" = "1"
           test "$(psqlq "SELECT count(*) FROM audit.flyway_audit_schema_history WHERE version='1' AND success=true")" = "1"
           echo "AUDIT_FLYWAY_RESTART_DATA_PRESERVATION_PASS"
       - name: Report synthetic Compose diagnostics on failure
