@@ -23,8 +23,18 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
     password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      # Audit owns the 'audit' schema; its unqualified SQL resolves there. Set via the
+      # pool (not the JDBC URL) so deployment-supplied SPRING_DATASOURCE_URL keeps it.
+      schema: audit
   flyway:
     enabled: true
+    # Own schema: the non-empty check below only inspects Audit's schema, so other
+    # services' tables in the shared database cannot block Audit's startup (start-order
+    # race proven by service-startup-order-proof).
+    schemas: audit
+    default-schema: audit
+    create-schemas: true
     table: flyway_audit_schema_history
     # Fail closed on nonempty databases without approved Flyway history.
     # Existing installations require reviewed migration ownership/baseline approval.
