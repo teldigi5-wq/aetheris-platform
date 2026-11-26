@@ -169,10 +169,10 @@ jobs:
           mkdir -p build-evidence/runtime
           docker compose ps --all > build-evidence/runtime/security-compose-ps.txt || true
           docker compose exec -T postgres psql -U aetheris -d aetheris -tA -c \
-            "select email || '|' || role || '|bcrypt=' || (password_hash like '\$2%') from identity_accounts where email like 'security-proof-%@aetheris.local' order by id;" \
+            "select email || '|' || role || '|bcrypt=' || (password_hash like '\$2%') from identity.identity_accounts where email like 'security-proof-%@aetheris.local' order by id;" \
             > build-evidence/runtime/security-account-state.txt 2>/dev/null || true
           docker compose exec -T postgres psql -U aetheris -d aetheris -tA -c \
-            "select 'refresh_rows=' || count(*) || '|sha256_shape=' || bool_and(token_hash ~ '^[0-9a-f]{64}$') || '|revoked_rows=' || count(*) filter (where revoked) from identity_refresh_tokens;" \
+            "select 'refresh_rows=' || count(*) || '|sha256_shape=' || bool_and(token_hash ~ '^[0-9a-f]{64}$') || '|revoked_rows=' || count(*) filter (where revoked) from identity.identity_refresh_tokens;" \
             > build-evidence/runtime/security-token-state.txt 2>/dev/null || true
           if [ "${{ job.status }}" != "success" ]; then
             docker compose logs --no-color --tail=160 \

@@ -120,7 +120,7 @@ def tamper_jwt(token: str) -> str:
 def refresh_rows(email: str) -> dict[str, bool]:
     query = (
         "select r.token_hash || '|' || r.revoked "
-        "from identity_refresh_tokens r join identity_accounts a on a.id=r.account_id "
+        "from identity.identity_refresh_tokens r join identity.identity_accounts a on a.id=r.account_id "
         f"where a.email={sql_literal(email)} order by r.id;"
     )
     rows: dict[str, bool] = {}
@@ -251,7 +251,7 @@ def main() -> int:
         )
         expect_status(status, 201, "synthetic administrator account registration")
         promoted_count = psql(
-            "with promoted as (update identity_accounts set role='ADMIN' "
+            "with promoted as (update identity.identity_accounts set role='ADMIN' "
             f"where email={sql_literal(admin_email)} and role='API_CONSUMER' returning id) "
             "select count(*) from promoted;"
         ).strip()
@@ -361,7 +361,7 @@ def main() -> int:
         passed("security.refresh-token-cannot-authenticate")
 
         password_hash = psql(
-            "select password_hash from identity_accounts "
+            "select password_hash from identity.identity_accounts "
             f"where email={sql_literal(email)};"
         ).strip()
         bcrypt_pattern = re.compile(r"^\$2[aby]\$12\$[./A-Za-z0-9]{53}$")

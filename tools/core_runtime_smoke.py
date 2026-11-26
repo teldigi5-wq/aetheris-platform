@@ -229,7 +229,7 @@ def main() -> int:
         promoted_count = run_command([
             "docker", "compose", "exec", "-T", "postgres",
             "psql", "-U", "aetheris", "-d", "aetheris", "-tA", "-c",
-            "with promoted as (update identity_accounts set role='ADMIN' "
+            "with promoted as (update identity.identity_accounts set role='ADMIN' "
             f"where email={sql_literal(admin_email)} and role='API_CONSUMER' returning id) "
             "select count(*) from promoted;",
         ]).strip()

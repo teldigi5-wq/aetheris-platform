@@ -230,7 +230,7 @@ def main() -> int:
         # database and obtain a signed ADMIN token through the normal login path.
         promoted = compose(
             "exec", "-T", "postgres", "psql", "-U", "aetheris", "-d", "aetheris", "-tA", "-c",
-            "with promoted as (update identity_accounts set role='ADMIN' "
+            "with promoted as (update identity.identity_accounts set role='ADMIN' "
             "where email='" + email.replace("'", "''") + "' and role='API_CONSUMER' returning id) "
             "select count(*) from promoted;",
         ).strip()

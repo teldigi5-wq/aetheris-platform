@@ -149,10 +149,10 @@ jobs:
             "select 'primary_users=' || count(*) from users where email like 'recovery-user-%@aetheris.local';" \
             > build-evidence/runtime/data-recovery-user-state.txt 2>/dev/null || true
           docker compose exec -T postgres psql -U aetheris -d aetheris -tA -c \
-            "select 'primary_accounts=' || count(*) from identity_accounts where email like 'recovery-identity-%@aetheris.local';" \
+            "select 'primary_accounts=' || count(*) from identity.identity_accounts where email like 'recovery-identity-%@aetheris.local';" \
             > build-evidence/runtime/data-recovery-identity-state.txt 2>/dev/null || true
           docker compose exec -T postgres psql -U aetheris -d aetheris -tA -c \
-            "select 'proof_refresh_rows=' || count(*) || '|sha256_shape=' || bool_and(token_hash ~ '^[0-9a-f]{64}$') from identity_refresh_tokens r join identity_accounts a on a.id=r.account_id where a.email like 'recovery-identity-%@aetheris.local';" \
+            "select 'proof_refresh_rows=' || count(*) || '|sha256_shape=' || bool_and(token_hash ~ '^[0-9a-f]{64}$') from identity.identity_refresh_tokens r join identity.identity_accounts a on a.id=r.account_id where a.email like 'recovery-identity-%@aetheris.local';" \
             > build-evidence/runtime/data-recovery-token-state.txt 2>/dev/null || true
           docker compose exec -T redis redis-cli --raw --scan --pattern 'usersList*' \
             > build-evidence/runtime/data-recovery-cache-keys.txt 2>/dev/null || true
