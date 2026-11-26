@@ -1,0 +1,114 @@
+name: Service Startup Order Proof
+
+# Fresh-database startup must not depend on which service happens to start first.
+# All core services share one PostgreSQL database; Audit runs Flyway with
+# baseline-on-migrate=false, which refuses a non-empty schema without history.
+# This forces the worst order: Identity and User create their tables first, then
+# Audit starts. Every service must become healthy, and stay healthy on restart.
+on:
+  pull_request:
+    branches:
+      - main
+      - feature/syntra-aetheris-foundation-v2
+    paths:
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/service-startup-order-proof.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'identity-service/**'
+      - 'user-service/**'
+      - 'audit-service/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/service-startup-order-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: service-startup-order-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  startup-order:
+    name: identity-and-user-first-then-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Create ephemeral random Compose secrets (CI only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in AETHERIS_POSTGRES_PASSWORD AETHERIS_RABBITMQ_PASSWORD AETHERIS_REDIS_PASSWORD AETHERIS_JWT_SECRET AETHERIS_GRAFANA_ADMIN_PASSWORD; do
+            value="$(openssl rand -hex 32)"
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done
+
+      - name: Checkout exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+
+      - name: Build service images
+        run: docker compose -f docker-compose.yml build identity-service user-service audit-service
+
+      - name: Start Identity and User first on a fresh database
+        shell: bash
+        run: |
+          set -euo pipefail
+          C="docker compose -f docker-compose.yml"
+          $C up -d --no-build postgres redis rabbitmq identity-service user-service
+          wait_up() {
+            for _ in $(seq 1 90); do
+              if curl --fail --silent --max-time 3 "http://127.0.0.1:$1/actuator/health" | grep -q '"status":"UP"'; then
+                echo "PORT_$1_UP"; return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+          wait_up 8082 || { $C logs --no-color --tail=150 identity-service; exit 1; }
+          wait_up 8081 || { $C logs --no-color --tail=150 user-service; exit 1; }
+          $C exec -T postgres psql -XqAt -U aetheris -d aetheris \
+            -c "SELECT string_agg(table_schema || '.' || table_name, ',' ORDER BY 1) FROM information_schema.tables WHERE table_name IN ('identity_accounts','identity_refresh_tokens','users')"
+
+      - name: Then start Audit; it must become healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          C="docker compose -f docker-compose.yml"
+          $C up -d --no-build audit-service
+          for _ in $(seq 1 90); do
+            if curl --fail --silent --max-time 3 http://127.0.0.1:8083/actuator/health | grep -q '"status":"UP"'; then
+              echo "AUDIT_UP_AFTER_IDENTITY_AND_USER"; exit 0
+            fi
+            if [ "$($C ps -a --format '{{.State}}' audit-service)" = "exited" ]; then break; fi
+            sleep 2
+          done
+          echo "Audit did not become healthy after Identity/User created their tables:" >&2
+          $C logs --no-color --tail=200 audit-service | grep -iE "flyway|non-empty|schema|Exception|APPLICATION FAILED" | head -40 >&2 || true
+          exit 1
+
+      - name: Restart all three; each must come back healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          C="docker compose -f docker-compose.yml"
+          $C restart -t 10 identity-service user-service audit-service
+          for port in 8082 8081 8083; do
+            ok=0
+            for _ in $(seq 1 90); do
+              if curl --fail --silent --max-time 3 "http://127.0.0.1:$port/actuator/health" | grep -q '"status":"UP"'; then ok=1; break; fi
+              sleep 2
+            done
+            [ "$ok" = 1 ] || { echo "port $port not healthy after restart" >&2; $C logs --no-color --tail=120 >&2; exit 1; }
+            echo "PORT_${port}_UP_AFTER_RESTART"
+          done
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.yml down -v --remove-orphans
