@@ -98,4 +98,22 @@ class DirectApiLiveHttpTest {
       bearer("ADMIN",List.of("services:read"),42L,Instant.now().plusSeconds(120)))
       .POST(HttpRequest.BodyPublishers.noBody()).build()));
   }
+
+  /**
+   * Bypass proof: the filter must cover every request the servlet container and Spring MVC
+   * route to /api, whatever its raw spelling. Percent-encoded prefixes and matrix (;)
+   * parameters are decoded or stripped before handler mapping; none may reach the
+   * controller unauthenticated (never 2xx/3xx, business service never invoked).
+   */
+  @Test
+  void realHttpEncodedOrMatrixApiPathsCannotBypassAuthentication() throws Exception {
+    for (String path : List.of(
+        "/%61pi/events", "/%61%70%69/events", "/api;v=1/events", "/api/events;v=1",
+        "/%61pi;v=1/events", "/api;jsessionid=x/events", "/API/events", "//api/events")) {
+      int status = code(to(path).GET().build());
+      assertTrue(status == 400 || status == 401 || status == 403 || status == 404,
+          "unauthenticated " + path + " escaped the JWT filter with HTTP " + status);
+    }
+    org.mockito.Mockito.verifyNoInteractions(store);
+  }
 }
