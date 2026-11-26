@@ -141,7 +141,7 @@ def sql_literal(value: str) -> str:
 def identity_snapshot(email: str, database: str = "aetheris") -> str:
     return psql(
         "select id || '|' || name || '|' || email || '|' || password_hash || '|' || role "
-        "from identity.identity_accounts "
+        "from identity_accounts "
         f"where email={sql_literal(email)};",
         database,
     ).strip()
@@ -159,7 +159,7 @@ def refresh_snapshot(email: str, database: str = "aetheris") -> str:
     return psql(
         "select r.id || '|' || r.account_id || '|' || r.token_hash || '|' || r.revoked || '|' || "
         "extract(epoch from r.expires_at)::bigint "
-        "from identity.identity_refresh_tokens r join identity.identity_accounts a on a.id=r.account_id "
+        "from identity_refresh_tokens r join identity_accounts a on a.id=r.account_id "
         f"where a.email={sql_literal(email)} order by r.id;",
         database,
     ).strip()
@@ -302,7 +302,7 @@ def main() -> int:
         # grants ADMIN, so promote this one disposable CI identity in the isolated database,
         # then obtain a signed ADMIN access token through the normal login path.
         promoted = psql(
-            "with promoted as (update identity.identity_accounts set role='ADMIN' "
+            "with promoted as (update identity_accounts set role='ADMIN' "
             f"where email={sql_literal(identity_email)} and role='API_CONSUMER' returning id) "
             "select count(*) from promoted;"
         ).strip()

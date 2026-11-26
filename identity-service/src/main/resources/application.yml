@@ -8,22 +8,7 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aetheris}
     username: ${SPRING_DATASOURCE_USERNAME:aetheris}
     password: ${SPRING_DATASOURCE_PASSWORD}
-  flyway:
-    # Each service owns one PostgreSQL schema and its own history table, so services
-    # sharing a database never see each other's tables (startup-order independent).
-    enabled: true
-    schemas: identity
-    default-schema: identity
-    create-schemas: true
-    table: flyway_identity_schema_history
-    # Fail closed: never baseline an unknown non-empty schema; never clean.
-    baseline-on-migrate: false
-    clean-disabled: true
-    validate-on-migrate: true
   jpa:
-    properties:
-      hibernate:
-        default_schema: identity
     hibernate:
       ddl-auto: validate
     open-in-view: false

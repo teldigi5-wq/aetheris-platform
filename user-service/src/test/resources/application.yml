@@ -4,10 +4,6 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
-  # H2 unit/HTTP tests build their schema with Hibernate; Flyway migrations are
-  # PostgreSQL-specific and proven against real PostgreSQL in CI.
-  flyway:
-    enabled: false
   jpa:
     hibernate:
       ddl-auto: create-drop

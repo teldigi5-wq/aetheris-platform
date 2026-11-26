@@ -47,9 +47,6 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 @DataJpaTest(properties = {
     "spring.jpa.hibernate.ddl-auto=create-drop",
-    // Disposable-database test manages its own schema exactly as before Flyway.
-    "spring.flyway.enabled=false",
-    "spring.jpa.properties.hibernate.default_schema=public",
     "spring.jpa.open-in-view=false",
     "spring.sql.init.mode=never",
     "spring.main.lazy-initialization=false",

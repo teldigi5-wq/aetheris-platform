@@ -133,7 +133,7 @@ def promote_and_login_principals(emails: list[str], password: str) -> dict[str, 
     promoted = run_command([
         "docker", "compose", "exec", "-T", "postgres",
         "psql", "-U", "aetheris", "-d", "aetheris", "-tA", "-c",
-        "with promoted as (update identity.identity_accounts set role='ADMIN' "
+        "with promoted as (update identity_accounts set role='ADMIN' "
         f"where email in ({quoted}) and role='API_CONSUMER' returning id) select count(*) from promoted;",
     ]).strip()
     if promoted != str(len(emails)):
