@@ -32,5 +32,21 @@ class MavenMirrorFallbackTest(unittest.TestCase):
                                 text.index("https://repo.maven.apache.org/maven2/org/apache/maven/"))
 
 
+POMS = ("pom.xml", "gateway/pom.xml", "identity-service/pom.xml",
+        "user-service/pom.xml", "audit-service/pom.xml")
+
+
+class PomRepositoryFallbackTest(unittest.TestCase):
+    def test_every_pom_tries_gcs_first_and_keeps_central_fallback(self) -> None:
+        for name in POMS:
+            with self.subTest(pom=name):
+                text = (ROOT / name).read_text(encoding="utf-8")
+                self.assertEqual(text.count("<id>gcs-maven-central</id>"), 2)
+                self.assertIn("<repositories>", text)
+                self.assertIn("<pluginRepositories>", text)
+                self.assertNotIn("<mirrorOf>", text)
+                self.assertNotIn("<snapshots><enabled>true</enabled></snapshots>", text)
+
+
 if __name__ == "__main__":
     unittest.main()
