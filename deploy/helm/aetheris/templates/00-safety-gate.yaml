@@ -30,6 +30,27 @@ refuse published values (JwtSecretPolicy), so a bundled default could only crash
   {{- if eq .Values.secrets.rabbitmqPassword "aetheris" -}}
     {{- fail "unsafe Helm default: replace secrets.rabbitmqPassword or explicitly opt into values-local.yaml for local development" -}}
   {{- end -}}
+  {{- /* Beyond the exact demo values above: every non-local credential must be strong,
+  independent of the others, and the RabbitMQ username explicit (port of PR #356). */ -}}
+  {{- $requiredCredentials := dict
+    "secrets.postgresPassword" (.Values.secrets.postgresPassword | default "" | toString)
+    "secrets.rabbitmqPassword" (.Values.secrets.rabbitmqPassword | default "" | toString)
+  -}}
+  {{- range $name, $value := $requiredCredentials -}}
+    {{- if lt (len (trim $value)) 32 -}}
+      {{- fail (printf "unsafe Helm non-local credential: %s requires 32+ non-whitespace characters from a protected source" $name) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $jwt := .Values.secrets.jwtSecret | default "" | toString -}}
+  {{- $pg := .Values.secrets.postgresPassword | default "" | toString -}}
+  {{- $rabbit := .Values.secrets.rabbitmqPassword | default "" | toString -}}
+  {{- $redis := .Values.secrets.redisPassword | default "" | toString -}}
+  {{- if or (eq $jwt $pg) (eq $jwt $rabbit) (eq $pg $rabbit) (eq $pg $redis) (eq $rabbit $redis) -}}
+    {{- fail "unsafe Helm non-local credentials: JWT, PostgreSQL, RabbitMQ and Redis secrets must all be independent" -}}
+  {{- end -}}
+  {{- if eq (trim (.Values.secrets.rabbitmqUsername | default "" | toString)) "" -}}
+    {{- fail "unsafe Helm non-local RabbitMQ username: a nonempty explicit username is required" -}}
+  {{- end -}}
   {{- range $name, $image := .Values.images -}}
     {{- if not (contains "@sha256:" $image) -}}
       {{- fail (printf "unsafe Helm image reference: images.%s must be digest-pinned for non-local installs (got %s)" $name $image) -}}
