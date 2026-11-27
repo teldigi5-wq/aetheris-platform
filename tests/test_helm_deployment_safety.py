@@ -34,6 +34,18 @@ class HelmDeploymentSafetyTest(unittest.TestCase):
         self.assertIn("secrets.jwtSecret requires 32+ non-whitespace characters", jwt_block)
         self.assertIn("(?i)(change-me|test-only|ci-secret|example)", jwt_block)
 
+    def test_non_local_credentials_must_be_strong_and_independent(self) -> None:
+        gate = (CHART / "templates" / "00-safety-gate.yaml").read_text(encoding="utf-8")
+        nonlocal_block = gate.split("if not .Values.global.allowInsecureLocalDefaults")[1]
+        self.assertIn('"secrets.postgresPassword"', nonlocal_block)
+        self.assertIn('"secrets.rabbitmqPassword"', nonlocal_block)
+        self.assertIn("requires 32+ non-whitespace characters", nonlocal_block)
+        self.assertIn("must all be independent", nonlocal_block)
+        self.assertIn("a nonempty explicit username is required", nonlocal_block)
+        # The exact demo-value guards still run first.
+        self.assertLess(nonlocal_block.index('eq .Values.secrets.postgresPassword "aetheris"'),
+                        nonlocal_block.index("requires 32+ non-whitespace characters"))
+
     def test_non_local_render_requires_digest_pinned_images(self) -> None:
         gate = (CHART / "templates" / "00-safety-gate.yaml").read_text(encoding="utf-8")
 
