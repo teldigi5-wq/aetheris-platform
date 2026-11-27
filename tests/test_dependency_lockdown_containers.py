@@ -112,8 +112,14 @@ class DashboardNginxRuntimePinTests(unittest.TestCase):
         self.assertEqual(2, len(stages), "dashboard must retain its two-stage build")
         self.assertEqual(self.EXPECTED_NGINX_IMAGE, stages[-1])
         self.assertIn("RUN apk add --no-cache 'zlib=1.4-r0'", dockerfile)
-        self.assertIn("'libxslt=1.1.43-r4'", dockerfile)
-        self.assertIn("'libxml2=2.13.9-r3'", dockerfile)
+        # Unused nginx XML modules and libraries are removed, not pinned, and their
+        # absence is asserted inside the image build itself.
+        self.assertNotIn("'libxml2=", dockerfile)
+        self.assertNotIn("'libxslt=", dockerfile)
+        self.assertIn("nginx-module-xslt nginx-module-njs", dockerfile)
+        self.assertIn("! apk info -e libxml2", dockerfile)
+        self.assertIn("! apk info -e libxslt", dockerfile)
+        self.assertIn("&& nginx -t", dockerfile)
         self.assertIn("'libcrypto3=3.5.9-r1'", dockerfile)
         self.assertIn("'libssl3=3.5.9-r1'", dockerfile)
         self.assertIn("COPY nginx.conf /etc/nginx/conf.d/default.conf", dockerfile)
