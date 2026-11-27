@@ -116,6 +116,26 @@ jobs:
             grep -Fq 'published placeholder or test fixture' "$temp_dir/bad-jwt.err"
           done
 
+          # Non-local: a weak (non-default) PostgreSQL password and reused secrets are rejected.
+          tok() { python -c 'import secrets; print(secrets.token_hex(32))'; }
+          j="$(tok)"; r="$(tok)"; q="$(tok)"
+          printf 'secrets:\n  jwtSecret: %s\n  redisPassword: %s\n  postgresPassword: password1\n  rabbitmqPassword: %s\n' "$j" "$r" "$q" \
+              > "$temp_dir/weak-pg-values.yaml"
+          if helm template aetheris "$chart" -f "$temp_dir/weak-pg-values.yaml" --namespace aetheris \
+              > "$temp_dir/weak-pg.yaml" 2> "$temp_dir/weak-pg.err"; then
+            echo "SECURITY REGRESSION: non-local Helm accepted a weak PostgreSQL password" >&2
+            exit 1
+          fi
+          grep -Fq 'secrets.postgresPassword requires 32+' "$temp_dir/weak-pg.err"
+          printf 'secrets:\n  jwtSecret: %s\n  redisPassword: %s\n  postgresPassword: %s\n  rabbitmqPassword: %s\n' "$j" "$r" "$q" "$q" \
+              > "$temp_dir/reuse-values.yaml"
+          if helm template aetheris "$chart" -f "$temp_dir/reuse-values.yaml" --namespace aetheris \
+              > "$temp_dir/reuse.yaml" 2> "$temp_dir/reuse.err"; then
+            echo "SECURITY REGRESSION: non-local Helm accepted reused PostgreSQL/RabbitMQ secrets" >&2
+            exit 1
+          fi
+          grep -Fq 'must all be independent' "$temp_dir/reuse.err"
+
           # A Redis credential must not bypass non-local JWT and image gates.
           if helm template aetheris "$chart" -f "$temp_dir/private-values.yaml" \
               --namespace aetheris > "$temp_dir/nonlocal.yaml" 2> "$temp_dir/nonlocal.err"; then
