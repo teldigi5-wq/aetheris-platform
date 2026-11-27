@@ -21,6 +21,7 @@ class AuditEventStoreTest {
     @Test
     void consumedMessagesAreMappedAndPersisted() {
         AuditEventRepository repository = mock(AuditEventRepository.class);
+        when(repository.saveIfAbsent(org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AuditEventStore store = new AuditEventStore(repository);
 
         store.consume(message(
@@ -75,6 +76,41 @@ class AuditEventStoreTest {
                     () -> "missing " + required + " must not be requeued or stored as \"null\"");
             verifyNoInteractions(repository);
         }
+    }
+
+    @Test
+    void identicalReplayOfARecordedEventIsAcceptedIdempotently() {
+        Instant at = Instant.parse("2026-09-21T10:01:00.123456789Z");
+        AuditEventRepository repository = mock(AuditEventRepository.class);
+        when(repository.saveIfAbsent(org.mockito.ArgumentMatchers.any())).thenReturn(false);
+        // PostgreSQL keeps microseconds: the stored copy is truncated, still the same event.
+        when(repository.findByEventId("evt-3")).thenReturn(java.util.Optional.of(new UserDomainEvent(
+                "evt-3", "user.created", Instant.parse("2026-09-21T10:01:00.123456Z"), 3L, "Three", "three@example.com")));
+        new AuditEventStore(repository).consume(
+                message("evt-3", "user.created", at, 3L, "Three", "three@example.com"));
+    }
+
+    @Test
+    void reusedEventIdWithDifferentContentIsRejectedWithoutRequeue() {
+        AuditEventRepository repository = mock(AuditEventRepository.class);
+        when(repository.saveIfAbsent(org.mockito.ArgumentMatchers.any())).thenReturn(false);
+        when(repository.findByEventId("evt-4")).thenReturn(java.util.Optional.of(new UserDomainEvent(
+                "evt-4", "user.created", Instant.parse("2026-09-21T10:01:00Z"), 4L, "Four", "four@example.com")));
+        assertThrows(AmqpRejectAndDontRequeueException.class, () -> new AuditEventStore(repository).consume(
+                message("evt-4", "user.deleted", Instant.parse("2026-09-21T10:01:00Z"), 99L, "Other", "other@example.com")));
+    }
+
+    @Test
+    void integerUserIdFromJsonIsAccepted() {
+        AuditEventRepository repository = mock(AuditEventRepository.class);
+        when(repository.saveIfAbsent(org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        Map<String, Object> message = new HashMap<>(message("evt-5", "user.created",
+                Instant.parse("2026-09-21T10:01:00Z"), 5L, "Five", "five@example.com"));
+        message.put("userId", 5);
+        new AuditEventStore(repository).consume(message);
+        ArgumentCaptor<UserDomainEvent> captor = ArgumentCaptor.forClass(UserDomainEvent.class);
+        verify(repository).saveIfAbsent(captor.capture());
+        assertEquals(5L, captor.getValue().userId());
     }
 
     @Test

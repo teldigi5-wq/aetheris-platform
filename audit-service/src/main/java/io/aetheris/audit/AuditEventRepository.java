@@ -16,8 +16,9 @@ public class AuditEventRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public void saveIfAbsent(UserDomainEvent event) {
-        jdbcTemplate.update(
+    /** @return true if inserted; false if an event with this ID was already recorded. */
+    public boolean saveIfAbsent(UserDomainEvent event) {
+        int inserted = jdbcTemplate.update(
                 """
                 INSERT INTO audit_events (event_id, event_type, occurred_at, user_id, name, email)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -29,6 +30,27 @@ public class AuditEventRepository {
                 event.userId(),
                 event.name(),
                 event.email());
+        if (inserted != 0 && inserted != 1) {
+            throw new IllegalStateException("Unexpected audit insert cardinality: " + inserted);
+        }
+        return inserted == 1;
+    }
+
+    public java.util.Optional<UserDomainEvent> findByEventId(String eventId) {
+        return jdbcTemplate.query(
+                """
+                SELECT event_id, event_type, occurred_at, user_id, name, email
+                FROM audit_events
+                WHERE event_id = ?
+                """,
+                (resultSet, rowNum) -> new UserDomainEvent(
+                        resultSet.getString("event_id"),
+                        resultSet.getString("event_type"),
+                        resultSet.getTimestamp("occurred_at").toInstant(),
+                        resultSet.getLong("user_id"),
+                        resultSet.getString("name"),
+                        resultSet.getString("email")),
+                eventId).stream().findFirst();
     }
 
     public List<UserDomainEvent> recent() {
