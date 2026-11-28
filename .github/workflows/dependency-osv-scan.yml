@@ -39,11 +39,11 @@ jobs:
       fail-on-vuln: false
       upload-sarif: true
 
-  java-transitive:
-    # The source scan above only sees the dependencies declared directly in each pom.xml
-    # (Maven has no lockfile). This job resolves the full runtime dependency graph of each
-    # service into a CycloneDX SBOM and scans that. Report-only until findings are triaged.
-    name: OSV Java transitive dependency scan (SBOM)
+  java-sbom:
+    # The source scan above only sees dependencies declared directly in each pom.xml
+    # (Maven has no lockfile). Resolve the full runtime dependency graph of each service
+    # into a CycloneDX SBOM; the next job scans it with the same pinned OSV-Scanner.
+    name: Java runtime SBOMs (CycloneDX)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -68,10 +68,20 @@ jobs:
             cp "$m/target/bom.json" "sbom/$m.cdx.json"
             echo "$m components: $(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1])).get('components',[])))" "sbom/$m.cdx.json")"
           done
-      - name: OSV scan of the SBOMs (report only)
-        continue-on-error: true
-        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
-          scan-args: |-
-            -r
-            ./sbom
+          name: java-sboms
+          path: sbom/
+          retention-days: 14
+
+  java-transitive:
+    name: OSV Java transitive dependency scan
+    needs: java-sbom
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    with:
+      download-artifact: java-sboms
+      scan-args: '-r ./'
+      # Report-only until the first findings are triaged; results go to the Security tab.
+      fail-on-vuln: false
+      upload-sarif: true
