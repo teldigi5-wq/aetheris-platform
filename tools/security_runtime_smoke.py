@@ -414,7 +414,34 @@ def main() -> int:
         expect_status(status, 401, "rotated refresh replay")
         passed("security.rotated-token-replay-rejected")
 
-        race_results = concurrent_refresh(replacement, contenders=8)
+        # RFC 9700 4.14.2: the replay proves the token leaked, so the session
+        # minted from it (possibly the attacker's) must be revoked as well.
+        reuse_rows = refresh_rows(email)
+        if reuse_rows.get(new_digest) is not True:
+            raise AssertionError(f"reuse did not revoke the descendant session: rows={reuse_rows!r}")
+        if any(revoked is False for revoked in reuse_rows.values()):
+            raise AssertionError(f"reuse left an active refresh session for the account: rows={reuse_rows!r}")
+        status, _ = http_json(
+            "POST",
+            "http://127.0.0.1:8080/api/auth/refresh",
+            {"refreshToken": replacement},
+        )
+        expect_status(status, 401, "descendant refresh after reuse")
+        passed("security.reuse-revokes-account-sessions")
+
+        # The account must sign in again before the concurrency proof.
+        status, relogin = http_json(
+            "POST",
+            "http://127.0.0.1:8080/api/auth/login",
+            {"email": email, "password": password},
+        )
+        expect_status(status, 200, "sign-in after reuse revocation")
+        if not isinstance(relogin, dict) or not isinstance(relogin.get("refreshToken"), str):
+            raise AssertionError("sign-in after reuse revocation returned no refresh token")
+        race_seed = relogin["refreshToken"]
+        race_seed_digest = hashlib.sha256(race_seed.encode("utf-8")).hexdigest()
+
+        race_results = concurrent_refresh(race_seed, contenders=8)
         race_statuses = [status for status, _ in race_results]
         if race_statuses.count(200) != 1 or race_statuses.count(401) != 7:
             raise AssertionError(
@@ -426,18 +453,22 @@ def main() -> int:
         if not isinstance(winner_body, dict) or not isinstance(winner_body.get("refreshToken"), str):
             raise AssertionError(f"concurrent refresh winner missing replacement token: {winner_body!r}")
         concurrent_replacement = winner_body["refreshToken"]
-        if concurrent_replacement == replacement:
+        if concurrent_replacement == race_seed:
             raise AssertionError("concurrent refresh winner returned the consumed token")
         passed("security.concurrent-refresh-single-winner")
 
         concurrent_digest = hashlib.sha256(concurrent_replacement.encode("utf-8")).hexdigest()
         race_rows = refresh_rows(email)
-        if race_rows.get(new_digest) is not True:
+        if race_rows.get(race_seed_digest) is not True:
             raise AssertionError(f"concurrently consumed token hash was not revoked: rows={race_rows!r}")
-        if race_rows.get(concurrent_digest) is not False:
-            raise AssertionError(f"winning descendant token hash is not active: rows={race_rows!r}")
+        if concurrent_digest not in race_rows:
+            raise AssertionError(f"winning descendant token hash was not persisted: rows={race_rows!r}")
+        # A loser that reads the seed after the winner commits sees a reused
+        # token and revokes the account's sessions, including the winner's.
+        # Which losers arrive late is timing-dependent, so the invariant is:
+        # never more than one active descendant, and only the winner's.
         active_hashes = [token_hash for token_hash, revoked in race_rows.items() if not revoked]
-        if active_hashes != [concurrent_digest]:
+        if active_hashes not in ([], [concurrent_digest]):
             raise AssertionError(
                 "concurrent rotation created more than one active descendant refresh credential: "
                 f"active_hashes={active_hashes!r}"

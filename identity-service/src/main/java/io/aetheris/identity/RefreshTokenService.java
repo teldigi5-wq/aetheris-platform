@@ -19,9 +19,17 @@ public class RefreshTokenService {
     private final RefreshTokenRepository repository;
     private final SecureRandom secureRandom = new SecureRandom();
     private final long expirationSeconds;
+    private final RefreshTokenReuseResponder reuseResponder;
 
+    // Unit-test convenience: the responder runs without a Spring proxy.
+    public RefreshTokenService(RefreshTokenRepository repository, long expirationSeconds) {
+        this(repository, expirationSeconds, new RefreshTokenReuseResponder(repository));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
     public RefreshTokenService(RefreshTokenRepository repository,
-                               @Value("${aetheris.jwt.refresh-expiration-seconds:604800}") long expirationSeconds) {
+                               @Value("${aetheris.jwt.refresh-expiration-seconds:604800}") long expirationSeconds,
+                               RefreshTokenReuseResponder reuseResponder) {
         // Fail closed at service startup on negative, zero, or excessive
         // refresh-session validity. No request-controlled policy override.
         if (expirationSeconds < 1 || expirationSeconds > MAX_REFRESH_TOKEN_LIFETIME_SECONDS) {
@@ -29,6 +37,7 @@ public class RefreshTokenService {
         }
         this.repository = java.util.Objects.requireNonNull(repository, "repository");
         this.expirationSeconds = expirationSeconds;
+        this.reuseResponder = java.util.Objects.requireNonNull(reuseResponder, "reuseResponder");
     }
 
     @Transactional
@@ -47,7 +56,16 @@ public class RefreshTokenService {
         RefreshToken existing = repository.findByTokenHash(tokenHash)
                 .orElseThrow(InvalidRefreshTokenException::new);
 
-        if (existing.isRevoked() || existing.isExpired()) {
+        if (existing.isExpired()) {
+            throw new InvalidRefreshTokenException();
+        }
+        if (existing.isRevoked()) {
+            // Reuse of a rotated or logged-out token: treat as leaked (RFC 9700 4.14.2).
+            // Commits independently of this transaction; see RefreshTokenReuseResponder.
+            Long accountId = existing.getAccount().getId();
+            if (accountId != null) { // a never-persisted account owns no stored sessions
+                reuseResponder.revokeAllActiveSessions(accountId);
+            }
             throw new InvalidRefreshTokenException();
         }
 

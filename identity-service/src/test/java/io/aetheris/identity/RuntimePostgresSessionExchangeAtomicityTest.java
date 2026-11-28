@@ -55,12 +55,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
     RefreshTokenService.class,
+    RefreshTokenReuseResponder.class,
     RuntimeAudienceSessionExchangeService.class,
     RuntimePostgresSessionExchangeAtomicityTest.SigningFixture.class
 })
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 // Runs only inside the dedicated disposable-PostgreSQL workflow (s0-e6g), which sets
-// this marker and asserts this class's surefire report (5 tests, 0 skipped). A plain
+// this marker and asserts this class's surefire report (6 tests, 0 skipped). A plain
 // `mvnw test` without a database skips the class instead of failing context load.
 // The URL guard in disposableOnly() still fails closed on any other database.
 @org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable(
@@ -205,6 +206,35 @@ class RuntimePostgresSessionExchangeAtomicityTest {
         assertThrows(RuntimeAudienceSessionExchangeService.ExchangeRejectedException.class,
             () -> exchange.exchangeUsingSingleUseRefreshCredential(syntheticExpired));
         assertTrue(tokens.findByTokenHash(hash(revoked)).orElseThrow().isRevoked());
+    }
+
+    @Test
+    void reusedRotatedRefreshTokenRevokesAccountSessionsAndSurvivesOuterRollback() {
+        // The exchange transaction rolls back on every exception. The reuse
+        // response must still COMMIT, or the attacker's live session survives.
+        var victim = createAccount("e6g-reuse@example.invalid", Role.DEVELOPER);
+        var bystander = createAccount("e6g-bystander@example.invalid", Role.DEVELOPER);
+        String stolen = refresh.issue(victim).token();
+        String otherDevice = refresh.issue(victim).token();
+        String unrelated = refresh.issue(bystander).token();
+
+        var attacker = exchange.exchangeUsingSingleUseRefreshCredential(stolen);
+        String attackerSession = attacker.rotatedRefreshToken().token();
+        assertFalse(tokens.findByTokenHash(hash(attackerSession)).orElseThrow().isRevoked());
+
+        // The victim replays the same (already rotated) token.
+        assertThrows(RuntimeAudienceSessionExchangeService.ExchangeRejectedException.class,
+            () -> exchange.exchangeUsingSingleUseRefreshCredential(stolen));
+
+        assertTrue(tokens.findByTokenHash(hash(attackerSession)).orElseThrow().isRevoked(),
+            "Reuse must revoke the session minted from the leaked token");
+        assertTrue(tokens.findByTokenHash(hash(otherDevice)).orElseThrow().isRevoked(),
+            "Reuse must revoke every active session of the compromised account");
+        assertFalse(tokens.findByTokenHash(hash(unrelated)).orElseThrow().isRevoked(),
+            "Other accounts must be untouched");
+        assertThrows(RefreshTokenService.InvalidRefreshTokenException.class,
+            () -> refresh.rotate(attackerSession));
+        System.out.println("AETHERIS_S0_E6G_REFRESH_REUSE_REVOCATION_COMMITTED_PASS");
     }
 
     @Test
