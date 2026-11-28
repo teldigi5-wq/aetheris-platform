@@ -130,7 +130,7 @@ docs/                                                    Architecture, guides, s
 - [Security case studies](docs/security/case-studies.md) · [Token flow and threat model](docs/security/token-flow.md)
 - [Demo guide](docs/demo-guide.md) · [Kubernetes](docs/kubernetes.md) · [Observability](docs/observability.md)
 - [Interview guide](docs/interview-guide.md)
-- Project history: [master roadmap](docs/master-roadmap.md) · [October 2026 status ledger](docs/history/README-2026-10-25.md)
+- Project history: [master roadmap](docs/master-roadmap.md) · [master build spec](docs/master-build-spec.md) · [October 2026 status ledger](docs/history/README-2026-10-25.md)
 
 ## Project status
 
