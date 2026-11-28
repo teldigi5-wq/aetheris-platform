@@ -91,7 +91,14 @@ jobs:
           # missing, generate one, print it for review/commit, and fail: an unpinned
           # resolution must never produce a test or installer result.
           if (Test-Path Cargo.lock) {
+            # TEMPORARY (reverted in the next commit): precise advisory updates.
+            cargo update -p cookie --precise 0.18.3
+            cargo update -p url --precise 2.5.9
+            Write-Output "SYNTRA_CARGO_LOCK_BEGIN"
+            Get-Content Cargo.lock
+            Write-Output "SYNTRA_CARGO_LOCK_END"
             Get-FileHash Cargo.lock -Algorithm SHA256
+            throw "Temporary lock-update run: commit the lock printed above."
           } else {
             cargo generate-lockfile
             Write-Output "SYNTRA_CARGO_LOCK_BEGIN"
