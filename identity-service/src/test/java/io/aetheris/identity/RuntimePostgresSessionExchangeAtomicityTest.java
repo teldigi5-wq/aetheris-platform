@@ -55,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({
     RefreshTokenService.class,
+    RefreshTokenReuseResponder.class,
     RuntimeAudienceSessionExchangeService.class,
     RuntimePostgresSessionExchangeAtomicityTest.SigningFixture.class
 })

@@ -30,7 +30,8 @@
     {"id": "security.rotated-token-revokes-old-hash", "claim": "After rotation, the original token hash is marked revoked in PostgreSQL."},
     {"id": "security.replacement-token-hash-active", "claim": "The replacement token is represented by a distinct SHA-256 hash that remains active after rotation."},
     {"id": "security.rotated-token-replay-rejected", "claim": "Replaying the already-rotated refresh token is rejected with HTTP 401."},
+    {"id": "security.reuse-revokes-account-sessions", "claim": "Replaying a rotated refresh token revokes every active refresh session of the account, so the descendant token is rejected with HTTP 401 (RFC 9700 4.14.2)."},
     {"id": "security.concurrent-refresh-single-winner", "claim": "Eight concurrent refresh attempts using the same active refresh token produce exactly one successful rotation and seven HTTP 401 rejections."},
-    {"id": "security.concurrent-refresh-single-active-descendant", "claim": "After the concurrent refresh race, PostgreSQL contains exactly one active descendant refresh-token hash for the proof account."}
+    {"id": "security.concurrent-refresh-single-active-descendant", "claim": "After the concurrent refresh race, PostgreSQL contains at most one active descendant refresh-token hash for the proof account, and only the winner's; late losers trigger reuse revocation."}
   ]
 }
