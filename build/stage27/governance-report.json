@@ -1,0 +1,19 @@
+{
+  "canonicalDevelopmentBranch": "feature/syntra-aetheris-foundation-v2",
+  "directStageBranchDevelopmentAllowed": false,
+  "errors": [],
+  "event": {
+    "baseRef": "",
+    "headRef": "",
+    "name": "",
+    "refName": ""
+  },
+  "legacyWorkflowReferences": [],
+  "physicalPcStatus": "BLOCKED_PENDING_HARDWARE",
+  "promotionAllowedByContext": true,
+  "releaseToMainRequiresReview": true,
+  "schemaVersion": 1,
+  "stableBranch": "main",
+  "stage": 27,
+  "status": "PASS"
+}

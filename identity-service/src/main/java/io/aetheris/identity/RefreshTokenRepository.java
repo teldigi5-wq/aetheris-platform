@@ -20,4 +20,15 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
                and token.expiresAt > :now
             """)
     int revokeIfActive(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
+
+    // Reuse response: revoke every still-active refresh session of one account.
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update RefreshToken token
+               set token.revoked = true
+             where token.account.id = :accountId
+               and token.revoked = false
+               and token.expiresAt > :now
+            """)
+    int revokeAllActiveForAccount(@Param("accountId") Long accountId, @Param("now") Instant now);
 }
